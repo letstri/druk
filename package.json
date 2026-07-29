@@ -67,6 +67,5 @@
   },
   "engines": {
     "bun": ">=1.1"
-  },
-  "//private": "What npm publishes is staged by scripts/release.ts, never this directory."
+  }
 }
