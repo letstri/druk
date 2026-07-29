@@ -48,6 +48,7 @@ export interface CommandActions {
   toggleFocus: () => void
   toggleSidebar: () => void
   setVim: (enabled: boolean) => void
+  setKeybindings: (keybindings: 'default' | 'vscode') => void
   setTabSize: (size: number) => void
   setTheme: (name: ThemeName) => void
   lineOp: (op: 'comment' | 'up' | 'down' | 'duplicate') => void
@@ -68,6 +69,7 @@ export interface CommandActions {
 
 export interface CommandContext {
   vimEnabled: boolean
+  vscodeKeys: boolean
   activeTheme: ThemeName
   tabSize: number
   trimOnSave: boolean
@@ -81,7 +83,12 @@ const check = (on: boolean) => (on ? '* ' : '  ')
 
 export function buildCommands(actions: CommandActions, ctx: CommandContext): Command[] {
   return [
-    { id: 'open', label: 'Open file…', hint: 'Ctrl+O', run: actions.openFile },
+    {
+      id: 'open',
+      label: 'Open file…',
+      hint: ctx.vscodeKeys ? 'Ctrl+P / Ctrl+O' : 'Ctrl+O',
+      run: actions.openFile,
+    },
     { id: 'save', label: 'Save file', hint: 'Ctrl+S', run: actions.save },
     { id: 'goto', label: 'Go to line…', hint: 'Ctrl+G', run: actions.gotoLine },
     { id: 'undo', label: 'Undo', hint: 'Ctrl+Z', run: actions.undo },
@@ -217,6 +224,16 @@ export function buildCommands(actions: CommandActions, ctx: CommandContext): Com
           id: 'editor.vimOff',
           label: `${check(!ctx.vimEnabled)}Vim mode off`,
           run: () => actions.setVim(false),
+        },
+        {
+          id: 'editor.vscodeKeysOn',
+          label: `${check(ctx.vscodeKeys)}VS Code keys on — Ctrl+P opens a file, F1 the palette`,
+          run: () => actions.setKeybindings('vscode'),
+        },
+        {
+          id: 'editor.vscodeKeysOff',
+          label: `${check(!ctx.vscodeKeys)}VS Code keys off`,
+          run: () => actions.setKeybindings('default'),
         },
         {
           id: 'editor.tabSize',

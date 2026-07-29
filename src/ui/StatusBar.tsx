@@ -23,6 +23,8 @@ export interface StatusBarProps {
   /** Files differing from HEAD in the working tree. */
   changed: number
   focus: 'tree' | 'editor'
+  /** VS Code keymap preset — the advertised palette key differs. */
+  vscodeKeys: boolean
   /** A long file operation in flight; replaces the message while it runs. */
   busy: { label: string; done: number; total: number } | null
 }
@@ -122,7 +124,7 @@ export function StatusBar(props: StatusBarProps) {
     const room = budget()
     const shown: Array<readonly [string, string]> = []
     let used = 0
-    for (const hint of hintsFor(props.focus)) {
+    for (const hint of hintsFor(props.focus, props.vscodeKeys)) {
       const width = hint[0].length + 1 + hint[1].length + SEPARATOR.length
       if (used + width > room) break
       shown.push(hint)

@@ -48,7 +48,15 @@ export function installKeyboard(ctx: AppContext) {
     // renderer's own selection covers mouse drags only. Either way it
     // routes through `quit()`, so a dirty buffer still gets its prompt.
     if (key.ctrl && k === 'c' && panes.focus() !== 'editor') return claim(prompts.quit)
-    if (key.ctrl && k === 'p') return claim(() => overlays.setPalette(true))
+    // With VS Code keys, Ctrl+P opens a file — as it does there — and the palette
+    // moves to Ctrl+Shift+P, a chord only kitty-protocol terminals can send as
+    // distinct bytes. F1, VS Code's other palette key, works everywhere, so it
+    // opens the palette under either preset.
+    if (k === 'f1') return claim(() => overlays.setPalette(true))
+    if (key.ctrl && k === 'p') {
+      const openFile = config.keybindings === 'vscode' && !chord(key)
+      return claim(() => (openFile ? overlays.setPicker('files') : overlays.setPalette(true)))
+    }
     if (key.ctrl && k === 'o') return claim(() => overlays.setPicker('files'))
     if (key.ctrl && chord(key) && k === 't') return claim(workspace.reopenTab)
     // Ctrl+E is line-end in every terminal; keep the tab family on the arrows.

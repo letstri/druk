@@ -72,6 +72,7 @@ describe('registries', () => {
     })
     const tree = buildCommands(actions, {
       vimEnabled: false,
+      vscodeKeys: false,
       activeTheme: 'dark',
       tabSize: 2,
       trimOnSave: false,

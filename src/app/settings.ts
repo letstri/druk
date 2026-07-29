@@ -44,6 +44,15 @@ export function createSettings(deps: {
     status.say(`Vim mode ${enabled ? 'on' : 'off'}`)
   }
 
+  const applyKeybindings = (keybindings: Config['keybindings']) => {
+    patchConfig({ keybindings })
+    status.say(
+      keybindings === 'vscode'
+        ? 'VS Code keys — Ctrl+P opens a file, F1 the palette'
+        : 'VS Code keys off',
+    )
+  }
+
   const toggleTrim = () => {
     patchConfig({ trimOnSave: !config.trimOnSave })
     status.say(`Trim on save ${config.trimOnSave ? 'on' : 'off'}`)
@@ -93,6 +102,7 @@ export function createSettings(deps: {
     applyTheme,
     applyTabSize,
     applyVim,
+    applyKeybindings,
     toggleTrim,
     toggleAutoSave,
     toggleDiffView,

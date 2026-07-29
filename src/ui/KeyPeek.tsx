@@ -17,11 +17,11 @@ const clip = (label: string, width: number) =>
  * the status bar. Opened by a key and closed by the next one, so it reads as
  * "hold to see" without needing key-release events no classic terminal sends.
  */
-export function KeyPeek(props: { pane: 'tree' | 'editor' }) {
+export function KeyPeek(props: { pane: 'tree' | 'editor'; vscodeKeys: boolean }) {
   const dimensions = useTerminalDimensions()
 
   const layout = createMemo(() => {
-    const entries = keysFor(props.pane)
+    const entries = keysFor(props.pane, props.vscodeKeys)
     const inner = dimensions().width - 2 - PAD * 2
     const keyWidth = Math.max(...entries.map(entry => entry.key.length))
     const wanted = keyWidth + 1 + Math.max(...entries.map(entry => entry.label.length)) + GAP

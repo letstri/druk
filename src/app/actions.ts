@@ -96,6 +96,7 @@ export function createCommands(ctx: AppContext) {
     toggleFocus: () => (panes.focus() === 'tree' ? panes.setFocus('editor') : panes.focusTree()),
     toggleSidebar: panes.toggleSidebar,
     setVim: settings.applyVim,
+    setKeybindings: settings.applyKeybindings,
     setTabSize: settings.applyTabSize,
     setTheme: settings.applyTheme,
     lineOp: editor.requestLineOp,
@@ -167,6 +168,7 @@ export function createCommands(ctx: AppContext) {
   return createMemo<Command[]>(() =>
     buildCommands(actions, {
       vimEnabled: config.vim,
+      vscodeKeys: config.keybindings === 'vscode',
       activeTheme: config.theme,
       tabSize: config.tabSize,
       trimOnSave: config.trimOnSave,

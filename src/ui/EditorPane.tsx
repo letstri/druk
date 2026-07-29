@@ -37,6 +37,8 @@ export interface EditorPaneProps {
   /** A line edit asked for from the palette; bumped `key` re-applies. */
   lineOp: { op: 'comment' | 'up' | 'down' | 'duplicate'; key: number } | null
   vim: boolean
+  /** VS Code keymap preset — the empty-state hints must name the right palette key. */
+  vscodeKeys: boolean
   tabSize: number
   /** True while a modal owns the keyboard; the editor must ignore all keys. */
   blocked: boolean
@@ -894,7 +896,11 @@ export function EditorPane(props: EditorPaneProps) {
             <text fg={ui.dim} bg={ui.bg} content="druk" attributes={TextAttributes.BOLD} />
             <text fg={ui.faint} bg={ui.bg} content="" />
             <text fg={ui.faint} bg={ui.bg} content="Enter   open file from the tree" />
-            <text fg={ui.faint} bg={ui.bg} content="Ctrl+P  commands" />
+            <text
+              fg={ui.faint}
+              bg={ui.bg}
+              content={props.vscodeKeys ? 'F1      commands' : 'Ctrl+P  commands'}
+            />
             <text fg={ui.faint} bg={ui.bg} content="Ctrl+F  find" />
           </box>
         }

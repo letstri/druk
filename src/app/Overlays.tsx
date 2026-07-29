@@ -248,10 +248,10 @@ export function OverlayStack(props: { ctx: AppContext; commands: Accessor<Comman
         )}
       </Show>
       <Show when={overlays.peek()}>
-        <KeyPeek pane={panes.focus()} />
+        <KeyPeek pane={panes.focus()} vscodeKeys={settings.config.keybindings === 'vscode'} />
       </Show>
       <Show when={overlays.help()}>
-        <HelpOverlay />
+        <HelpOverlay vscodeKeys={settings.config.keybindings === 'vscode'} />
       </Show>
     </>
   )

@@ -2,8 +2,8 @@ import { expect, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-import { ROWS } from '../src/ui/keys'
-import { fixture, launch, press, pressEscape, settle } from './helpers'
+import { rowsFor } from '../src/ui/keys'
+import { fixture, launch, press, pressEscape, runCommand, settle } from './helpers'
 import type { Harness } from './helpers'
 
 const ESC = String.fromCharCode(27)
@@ -147,12 +147,44 @@ test('every advertised hotkey does something', async () => {
   expect(dead).toEqual([])
 }, 120000)
 
-test('the help table does not list one key twice with different meanings', () => {
-  const keys = ROWS.map(([key]) => key)
-  expect(new Set(keys).size).toBe(keys.length)
+test('VS Code keys: Ctrl+P opens a file, F1 the palette, chorded Ctrl+P still the palette', async () => {
+  let t = await launch(fixture(PROJECT), { keybindings: 'vscode' })
+  await press(t, i => i.pressKey('p', { ctrl: true }))
+  expect(frame(t)).toContain('Open file')
 
-  // Ctrl+C both copies and quits; the row has to say so, or it reads as a bug
-  // when the editor exits. This is the row that misled once already.
-  const copyRow = ROWS.find(([key]) => key.includes('Ctrl+C'))!
-  expect(copyRow[1].toLowerCase()).toContain('quit')
+  t = await launch(fixture(PROJECT), { keybindings: 'vscode' })
+  await press(t, i => void i.pressKeys([`${ESC}OP`]))
+  expect(frame(t)).toContain('Commands')
+
+  // Ctrl+Opt+P spells the chord the way Terminal.app does for Ctrl+Shift+P's
+  // family: an ESC prefix ahead of the Ctrl+P byte (0x10).
+  t = await launch(fixture(PROJECT), { keybindings: 'vscode' })
+  await press(t, i => void i.pressKeys([`${ESC}${String.fromCharCode(16)}`]))
+  expect(frame(t)).toContain('Commands')
+})
+
+test('F1 opens the palette under the default keys too', async () => {
+  const t = await tree()
+  await press(t, i => void i.pressKeys([`${ESC}OP`]))
+  expect(frame(t)).toContain('Commands')
+})
+
+test('turning VS Code keys on from the palette reroutes Ctrl+P immediately', async () => {
+  const t = await tree()
+  await runCommand(t, 'VS Code keys on')
+  await press(t, i => i.pressKey('p', { ctrl: true }))
+  expect(frame(t)).toContain('Open file')
+})
+
+test('the help table does not list one key twice with different meanings', () => {
+  for (const vscodeKeys of [false, true]) {
+    const rows = rowsFor(vscodeKeys)
+    const keys = rows.map(([key]) => key)
+    expect(new Set(keys).size).toBe(keys.length)
+
+    // Ctrl+C both copies and quits; the row has to say so, or it reads as a bug
+    // when the editor exits. This is the row that misled once already.
+    const copyRow = rows.find(([key]) => key.includes('Ctrl+C'))!
+    expect(copyRow[1].toLowerCase()).toContain('quit')
+  }
 })

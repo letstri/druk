@@ -1,10 +1,10 @@
 import { TextAttributes } from '@opentui/core'
 import type { KeyEvent } from '@opentui/core'
 import { useKeyboard, useTerminalDimensions } from '@opentui/solid'
-import { createSignal, For, Match, Switch } from 'solid-js'
+import { createMemo, createSignal, For, Match, Switch } from 'solid-js'
 
 import { ui } from '../themes'
-import { SECTIONS } from './keys'
+import { sectionsFor } from './keys'
 import { modalWidth, PAD } from './modal'
 import { Overlay } from './Overlay'
 
@@ -13,26 +13,27 @@ type Line =
   | { kind: 'key'; key: string; label: string }
   | { kind: 'gap' }
 
-/** The sections flattened to display lines, so one window can scroll them all. */
-const LINES: Line[] = SECTIONS.flatMap((section, index) => [
-  ...(index > 0 ? [{ kind: 'gap' } as const] : []),
-  { kind: 'header', text: section.title } as const,
-  ...section.rows.map(([key, label]) => ({ kind: 'key', key, label }) as const),
-])
-
-export function HelpOverlay() {
+export function HelpOverlay(props: { vscodeKeys: boolean }) {
+  /** The sections flattened to display lines, so one window can scroll them all. */
+  const lines = createMemo<Line[]>(() =>
+    sectionsFor(props.vscodeKeys).flatMap((section, index) => [
+      ...(index > 0 ? [{ kind: 'gap' } as const] : []),
+      { kind: 'header', text: section.title } as const,
+      ...section.rows.map(([key, label]) => ({ kind: 'key', key, label }) as const),
+    ]),
+  )
   const dimensions = useTerminalDimensions()
   const width = () => modalWidth(dimensions().width, 0.52, 58, 84)
   // The full table outgrows a 24-row terminal, so only a window is drawn.
-  const visible = () => Math.max(3, Math.min(LINES.length, dimensions().height - 7))
+  const visible = () => Math.max(3, Math.min(lines().length, dimensions().height - 7))
   const [top, setTop] = createSignal(0)
-  const overflowing = () => visible() < LINES.length
+  const overflowing = () => visible() < lines().length
 
   useKeyboard((key: KeyEvent) => {
     const step = key.name === 'up' ? -1 : key.name === 'down' ? 1 : 0
     if (step === 0) return
     key.preventDefault()
-    setTop(at => Math.max(0, Math.min(LINES.length - visible(), at + step)))
+    setTop(at => Math.max(0, Math.min(lines().length - visible(), at + step)))
   })
 
   return (
@@ -51,7 +52,7 @@ export function HelpOverlay() {
         paddingTop={1}
         paddingBottom={1}
       >
-        <For each={LINES.slice(top(), top() + visible())}>
+        <For each={lines().slice(top(), top() + visible())}>
           {line => (
             <Switch>
               <Match when={line.kind === 'header' && line}>

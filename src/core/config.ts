@@ -44,6 +44,11 @@ export interface Config {
   /** Modal editing (normal / insert / visual). */
   vim: boolean
   /**
+   * Keymap preset. `'vscode'` gives Ctrl+P to the file picker, as VS Code does,
+   * and moves the command palette to F1 / Ctrl+Shift+P.
+   */
+  keybindings: 'default' | 'vscode'
+  /**
    * Columns per indent level for space indentation — the Tab key and the guides.
    * A literal tab is two columns whatever this says: OpenTUI's renderer fixes that
    * width and exposes no setting for it.
@@ -68,6 +73,7 @@ export interface Config {
 export const DEFAULTS: Config = {
   theme: 'dark',
   vim: false,
+  keybindings: 'default',
   tabSize: 2,
   sidebarWidth: 'auto',
   skipUpdate: '',
@@ -81,6 +87,7 @@ function parse(raw: unknown): Config {
   return {
     theme: isThemeName(obj.theme) ? obj.theme : DEFAULTS.theme,
     vim: typeof obj.vim === 'boolean' ? obj.vim : DEFAULTS.vim,
+    keybindings: obj.keybindings === 'vscode' ? 'vscode' : DEFAULTS.keybindings,
     tabSize:
       typeof obj.tabSize === 'number' && obj.tabSize >= 1 && obj.tabSize <= 16
         ? Math.floor(obj.tabSize)

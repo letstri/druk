@@ -280,6 +280,7 @@ export function App(props: {
             edit={editor.edit()}
             lineOp={editor.lineOp()}
             vim={config.vim}
+            vscodeKeys={config.keybindings === 'vscode'}
             tabSize={config.tabSize}
             gitLines={git.gitLines()}
             notice={workspace.notice()}
@@ -328,6 +329,7 @@ export function App(props: {
         behind={git.upstream()?.behind ?? 0}
         changed={git.gitStatus().size}
         focus={panes.focus()}
+        vscodeKeys={config.keybindings === 'vscode'}
         busy={status.busy()}
       />
       <OverlayStack ctx={ctx} commands={commands} />

@@ -12,6 +12,7 @@ function rowOf(label: string): number {
   const actions = new Proxy({} as CommandActions, { get: () => () => {} })
   const tree = buildCommands(actions, {
     vimEnabled: false,
+    vscodeKeys: false,
     activeTheme: 'dark',
     tabSize: 2,
     trimOnSave: false,

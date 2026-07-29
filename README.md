@@ -101,10 +101,12 @@ status bar with the branch, unsaved state and cursor position.
 In the tree: `a` new file, `A` new folder, `r` rename, `d` delete, `x` cut, `c` copy,
 `p` paste here, `Shift+↑`/`↓` select several rows, `[` / `]` resize the sidebar.
 
-Two things worth knowing: `Ctrl+C` copies when text is selected and quits when nothing is,
-so it never throws away unsaved work. And there are no `Ctrl+Shift` shortcuts — most
+Three things worth knowing: `Ctrl+C` copies when text is selected and quits when nothing
+is, so it never throws away unsaved work. There are no `Ctrl+Shift` shortcuts — most
 terminals cannot tell them apart from plain `Ctrl` — so a second modifier is always
-`Ctrl+Opt`.
+`Ctrl+Opt`. And if your fingers are set in VS Code's ways, `"keybindings": "vscode"`
+gives `Ctrl+P` to the file picker and moves the palette to `F1` (and `Ctrl+Shift+P`,
+in terminals that can send it).
 
 ### The Opt / Alt key
 
@@ -160,6 +162,7 @@ A bad value falls back to the default instead of breaking startup.
 | `theme` | `"dark"` | `dark`, `light`, `ayu-dark`, `ayu-mirage`, `ayu-light`, `catppuccin-mocha`, `catppuccin-macchiato`, `catppuccin-frappe`, `catppuccin-latte`, `dracula`, `everforest-dark`, `everforest-light`, `gruvbox`, `gruvbox-light`, `kanagawa-wave`, `kanagawa-dragon`, `kanagawa-lotus`, `nord`, `one-dark`, `rose-pine`, `rose-pine-moon`, `rose-pine-dawn`, `solarized-dark`, `solarized-light`, `tokyo-night`, `vesper` |
 | `tabSize` | `2` | 1–16 |
 | `vim` | `false` | normal / insert / visual modes, `hjkl w b 0 $ gg G`, counts, `i a o`, `x dd dw cw`, `v` + `d y c`, `yy p P`, `u` / `Ctrl+R` |
+| `keybindings` | `"default"` | `"vscode"` gives `Ctrl+P` to the file picker and moves the palette to `F1` / `Ctrl+Shift+P` |
 | `sidebarWidth` | `"auto"` | a quarter of the window, or pin 15–80 columns |
 | `trimOnSave` | `false` | on save: strip trailing spaces and end the file with one newline |
 | `autoSaveOnBlur` | `false` | save unsaved tabs when switching tabs or when the terminal window loses focus |
