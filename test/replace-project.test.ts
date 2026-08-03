@@ -127,4 +127,24 @@ describe('replaceProject', () => {
     replaceProject([path], 'a*', 'X', { regex: true })
     expect(readFileSync(path, 'utf8')).toBe('bX b\n')
   })
+
+  // The confirm states a count before anything is written, so a pattern counted per
+  // line and replaced per file would promise matches the pass never makes.
+  test('an anchored regex replaces every line it was counted on', () => {
+    const dir = fixture({ 'a.ts': 'const a = 1\nconst b = 2\nconst c = 3\n' })
+    const path = join(dir, 'a.ts')
+    expect(planProjectReplace(dir, '^const', { regex: true }).matches).toBe(3)
+
+    const result = replaceProject([path], '^const', 'let', { regex: true })
+    expect(result.matches).toBe(3)
+    expect(readFileSync(path, 'utf8')).toBe('let a = 1\nlet b = 2\nlet c = 3\n')
+  })
+
+  test('a trailing anchor counts and replaces alike', () => {
+    const dir = fixture({ 'a.ts': 'const a = 1\nconst b = 2\n' })
+    const path = join(dir, 'a.ts')
+    const result = replaceProject([path], String.raw`\d$`, 'N', { regex: true })
+    expect(result.matches).toBe(2)
+    expect(readFileSync(path, 'utf8')).toBe('const a = N\nconst b = N\n')
+  })
 })

@@ -390,13 +390,14 @@ export function SearchPanel(props: SearchPanelProps) {
     } else if (k === 'tab' && key.shift && props.scope === 'project') {
       key.preventDefault()
       toggleFoldAll()
+      // In file scope Tab is the replace toggle, as it has always been.
     } else if (k === 'tab' && props.scope === 'file' && props.onReplaceAll) {
       key.preventDefault()
       const next = !replacing()
       setReplacing(next)
       setField(next ? 'replace' : 'query')
-      // Replacing, Tab moves between the two fields — the file-scope muscle
-      // memory, and the only way to edit the query when both fields are up.
+      // Replacing across the project, Tab moves between the two fields — the only
+      // way to edit the query when both are up, so folding gives it up here.
     } else if (k === 'tab' && props.scope === 'project' && replacing()) {
       key.preventDefault()
       setField(f => (f === 'query' ? 'replace' : 'query'))

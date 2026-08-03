@@ -27,7 +27,10 @@ export function buildQuery(query: string, options: SearchOptions = {}): RegExp |
   const escaped = options.regex ? query : query.replace(/[\\^$.*+?()[\]{}|]/g, '\\$&')
   const wrapped = options.wholeWord ? `\\b(?:${escaped})\\b` : escaped
   try {
-    return new RegExp(wrapped, options.caseSensitive ? 'g' : 'gi')
+    // `m` because searchText counts per line while replaceAll runs over the whole
+    // file: without it `^`/`$` anchor to the string, so an anchored regex is counted
+    // on every line and replaced on one — a confirm promising matches it never makes.
+    return new RegExp(wrapped, options.caseSensitive ? 'gm' : 'gim')
   } catch {
     return null
   }
