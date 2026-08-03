@@ -1,4 +1,4 @@
-import { listDir, readFile } from './fs'
+import { listDir, readFile, readTextFile, writeFile } from './fs'
 import { ignoredPaths } from './git'
 
 export interface Match {
@@ -119,12 +119,18 @@ function* filesUnder(root: string): Generator<string> {
   }
 }
 
-/** Search every text file under `root`, breadth-first, stopping at the limit. */
+/**
+ * Search every text file under `root`, breadth-first, stopping at the limit.
+ * `buffers` overlays open-buffer text over the disk copy, so what the results
+ * show is what a replace would act on — scanning disk under an edited buffer
+ * lists matches the buffer no longer has, and misses the ones it gained.
+ */
 export function searchProject(
   root: string,
   query: string,
   options: SearchOptions = {},
   limit = DEFAULT_LIMIT,
+  buffers?: ReadonlyMap<string, string>,
 ): Match[] {
   if (!query) return []
   const matches: Match[] = []
@@ -132,14 +138,132 @@ export function searchProject(
   for (const path of filesUnder(root)) {
     if (matches.length >= limit) break
     let content: string
-    try {
-      content = readFile(path)
-    } catch {
-      continue // binary or unreadable
+    const open = buffers?.get(path)
+    if (open != null) {
+      content = open
+    } else {
+      try {
+        content = readFile(path)
+      } catch {
+        continue // binary or unreadable
+      }
     }
     matches.push(...searchText(content, query, path, options, limit - matches.length))
   }
   return matches
+}
+
+/** One file a project replace would touch, counted on the text the apply will see. */
+export interface ReplaceTarget {
+  path: string
+  count: number
+}
+
+/**
+ * Every file a project replace would touch, with true counts — deliberately not
+ * `searchProject`, whose limit exists for a panel that shows 200 rows: a confirm
+ * that says "N matches" must have counted all of them.
+ */
+export function planProjectReplace(
+  root: string,
+  query: string,
+  options: SearchOptions = {},
+  buffers?: ReadonlyMap<string, string>,
+): { targets: ReplaceTarget[]; matches: number } {
+  const targets: ReplaceTarget[] = []
+  let matches = 0
+  if (!query || !buildQuery(query, options)) return { targets, matches }
+
+  for (const path of filesUnder(root)) {
+    let content: string
+    const open = buffers?.get(path)
+    if (open != null) {
+      content = open
+    } else {
+      try {
+        content = readFile(path)
+      } catch {
+        continue
+      }
+    }
+    const count = searchText(content, query, path, options, Infinity).length
+    if (count === 0) continue
+    targets.push({ path, count })
+    matches += count
+  }
+  return { targets, matches }
+}
+
+/** A file transformed by `replaceProject`; `content` means the caller owns applying it. */
+export interface ReplacedFile {
+  path: string
+  /** Occurrences replaced, counted on the text actually transformed. */
+  count: number
+  /**
+   * New text for a path the caller supplied a buffer for. The write is the
+   * caller's: a buffered file's truth is the buffer, and writing its disk copy
+   * here would hand the watcher an edit the buffer does not have.
+   */
+  content?: string
+}
+
+export interface ReplaceProjectResult {
+  replaced: ReplacedFile[]
+  /** Occurrences replaced across every file — apply-time counts, not the plan's. */
+  matches: number
+  /** `path — reason` for every file that could not be read or written. */
+  failed: string[]
+}
+
+/**
+ * Replace across the planned `paths`. Each file is re-read at apply time and
+ * counted on the text actually transformed — the plan's counts age the moment
+ * the confirm goes up, and only what happened here is worth reporting. Files
+ * that appeared after the plan are not touched: the confirm approved a set.
+ * Failures are collected, never thrown — the files before them are already
+ * written, so stopping would neither undo nor finish.
+ */
+export function replaceProject(
+  paths: readonly string[],
+  query: string,
+  replacement: string,
+  options: SearchOptions = {},
+  buffers?: ReadonlyMap<string, string>,
+): ReplaceProjectResult {
+  const replaced: ReplacedFile[] = []
+  const failed: string[] = []
+  let matches = 0
+
+  for (const path of paths) {
+    const open = buffers?.get(path)
+    if (open != null) {
+      const count = searchText(open, query, path, options, Infinity).length
+      if (count === 0) continue
+      replaced.push({ path, count, content: replaceAll(open, query, replacement, options) })
+      matches += count
+      continue
+    }
+    let text: string
+    let encoding
+    try {
+      ;({ text, encoding } = readTextFile(path))
+    } catch (error) {
+      failed.push(`${path} — ${error instanceof Error ? error.message : 'unreadable'}`)
+      continue
+    }
+    const count = searchText(text, query, path, options, Infinity).length
+    if (count === 0) continue
+    // The encoding read is written back: a CRLF or BOM file rewritten with the
+    // default would diff on every line, not just the replaced ones.
+    const error = writeFile(path, replaceAll(text, query, replacement, options), encoding)
+    if (error) {
+      failed.push(`${path} — ${error}`)
+      continue
+    }
+    replaced.push({ path, count })
+    matches += count
+  }
+  return { replaced, matches, failed }
 }
 
 /**
