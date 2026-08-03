@@ -5,3 +5,6 @@ dist
 
 # Agent scratch checkouts, not agent configuration: .agents/skills is tracked.
 .agents/worktrees
+
+# Half-written output of an interrupted `bun build --compile`, 60MB of it.
+*.bun-build
