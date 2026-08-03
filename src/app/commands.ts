@@ -40,6 +40,7 @@ export interface CommandActions {
   findInFile: () => void
   findInProject: () => void
   replaceInFile: () => void
+  replaceInProject: () => void
   newFile: () => void
   newFolder: () => void
   rename: () => void
@@ -135,6 +136,11 @@ export function buildCommands(actions: CommandActions, ctx: CommandContext): Com
           label: 'Replace in current file',
           hint: 'Ctrl+F then Tab',
           run: actions.replaceInFile,
+        },
+        {
+          id: 'find.replaceProject',
+          label: 'Replace in project',
+          run: actions.replaceInProject,
         },
       ],
     },

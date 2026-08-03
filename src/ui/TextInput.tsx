@@ -3,6 +3,8 @@ import { ui } from '../themes'
 export interface TextInputProps {
   value: string
   placeholder?: string
+  /** Default true — two inputs on one panel need exactly one of these. */
+  focused?: boolean
   onInput: (value: string) => void
 }
 
@@ -14,7 +16,7 @@ export interface TextInputProps {
 export function TextInput(props: TextInputProps) {
   return (
     <input
-      focused
+      focused={props.focused ?? true}
       value={props.value}
       placeholder={props.placeholder}
       backgroundColor={ui.solidBg}

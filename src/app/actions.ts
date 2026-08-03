@@ -216,6 +216,7 @@ export function createCommands(ctx: AppContext) {
     findInFile: () => ctx.overlays.setSearch({ scope: 'file' }),
     findInProject: () => ctx.overlays.setSearch({ scope: 'project' }),
     replaceInFile: () => ctx.overlays.setSearch({ scope: 'file', replacing: true }),
+    replaceInProject: () => ctx.overlays.setSearch({ scope: 'project', replacing: true }),
     newFile: () => ctx.prompts.setPrompt({ kind: 'newFile', dir: tree.targetDir() }),
     newFolder: () => ctx.prompts.setPrompt({ kind: 'newFolder', dir: tree.targetDir() }),
     rename: withNode(n => ctx.prompts.setPrompt({ kind: 'rename', target: n.path })),

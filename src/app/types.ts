@@ -1,4 +1,5 @@
 import type { TextEncoding } from '../core/fs'
+import type { SearchOptions } from '../core/search'
 import type { FetchableInstall } from '../lsp/servers'
 
 /** Which pane owns the keyboard when no overlay is open. */
@@ -47,6 +48,22 @@ export type Prompt =
   | { kind: 'mergeBranch'; name: string }
   /** A push origin refused; `hasUpstream` is what the retry after the pull needs. */
   | { kind: 'pullPush'; branch: string; hasUpstream: boolean }
+  /**
+   * Replace across the project. `paths` is the set the confirm approved —
+   * data only, so the prompt handlers can run the apply without reaching
+   * into the panel that raised it.
+   */
+  | {
+      kind: 'replaceProject'
+      query: string
+      replacement: string
+      options: SearchOptions
+      paths: string[]
+      matches: number
+      files: number
+      /** The active toggles, restated so the user confirms what will run. */
+      flags: string
+    }
   /** A language server is missing and druk can fetch it; `id` is the server id. */
   | { kind: 'installServer'; id: string; name: string; install: FetchableInstall }
   /** Delete druk's own copy of a server. `packages` is what goes with it. */

@@ -20,7 +20,12 @@ file picker both skip git-ignored paths, whatever the tree's `respectGitignore` 
 a build directory or an agent's worktree checkout is never a result; the panel previews
 the selected hit in its file, syntax-coloured and with the hit picked out, over as many
 lines either side as the terminal has room for, and folds a file behind its heading with
-Tab or every file at once with Shift+Tab, which turns the results into a list of files),
+Tab or every file at once with Shift+Tab, which turns the results into a list of files;
+palette → Find → Replace in project adds a replace field to that panel — rows preview the
+hit beside its replacement, Enter applies one match, Ctrl+A applies everywhere behind a
+confirm naming true counts past the 200-row display cap, open buffers take the edit
+unsaved while closed files are written with their encoding kept, and the scan reads open
+dirty buffers instead of their disk copies so what is listed is what is replaced),
 command palette,
 themes, vim mode, a caret shape (`cursorStyle` — block, line or underline, which vim mode
 overrides while it is on, since there the shape is what tells normal from insert),

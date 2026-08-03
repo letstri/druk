@@ -34,15 +34,27 @@ export interface SearchPanelProps {
   initialQuery?: string
   /** Open with the replacement field already showing. */
   replacing?: boolean
+  /**
+   * Open-buffer text the project scan reads instead of the disk, so the rows
+   * show what a replace would act on. A function: each rescan wants the
+   * buffers as they are now, not as they were when the panel opened.
+   */
+  buffers?: () => ReadonlyMap<string, string>
+  /**
+   * True while a modal owns the keyboard above the panel. Every key handler
+   * in the app hears every key — nothing layers them — so the panel has to
+   * stand down itself or Enter on a confirm would also apply the selected match.
+   */
+  suspended?: boolean
   onPick: (match: Match) => void
-  /** Replace the selected match only. Absent for project-wide search. */
+  /** Replace the selected match only. */
   onReplaceOne?: (match: Match, replacement: string) => void
-  /** Replace every match in the open file. Absent for project-wide search. */
+  /** Replace every match in scope — the whole file, or the whole project. */
   onReplaceAll?: (query: string, replacement: string, options: SearchOptions) => void
   onClose: () => void
 }
 
-const MIN_QUERY = 2
+export const MIN_QUERY = 2
 
 /** Lines either side of the selected match in the preview, at its smallest. */
 const MIN_CONTEXT = 2
@@ -119,6 +131,16 @@ export function SearchPanel(props: SearchPanelProps) {
   const [scanned, setScanned] = createSignal(opened)
   const [replacement, setReplacement] = createSignal('')
   const [replacing, setReplacing] = createSignal(props.replacing ?? false)
+  /**
+   * Which of the two inputs takes typing. In file scope the mount order used to
+   * decide this — the replace field appears on Tab and arrives focused — but a
+   * panel opened with both fields showing has no such order, so it is said
+   * outright. Starts on the replacement only when a selection prefilled the
+   * query — otherwise the query is the thing not yet typed.
+   */
+  const [field, setField] = createSignal<'query' | 'replace'>(
+    props.replacing && props.initialQuery ? 'replace' : 'query',
+  )
   /** Row the selection is nearest to, not the match: rows outnumber matches. */
   const [index, setIndex] = createSignal(0)
   /** Paths whose matches are hidden behind their heading. */
@@ -143,11 +165,16 @@ export function SearchPanel(props: SearchPanelProps) {
 
   const pending = () => props.scope === 'project' && scanned() !== query()
 
+  // Bumped after a project-scope apply: the scan reads disk and buffers, which
+  // no signal covers, so freshness after our own replace is asked for by hand.
+  const [generation, setGeneration] = createSignal(0)
+
   const matches = createMemo(() => {
+    generation()
     const q = scanned()
     if (q.length < MIN_QUERY) return []
     return props.scope === 'project'
-      ? searchProject(props.rootDir, q, options())
+      ? searchProject(props.rootDir, q, options(), undefined, props.buffers?.())
       : searchText(props.activeContent, q, props.activePath ?? '', options())
   })
 
@@ -348,6 +375,7 @@ export function SearchPanel(props: SearchPanelProps) {
   }
 
   useKeys((key: KeyEvent) => {
+    if (props.suspended) return
     const k = key.name
     const option = key.ctrl ? OPTION_KEYS[k] : undefined
     if (option) {
@@ -362,11 +390,17 @@ export function SearchPanel(props: SearchPanelProps) {
     } else if (k === 'tab' && key.shift && props.scope === 'project') {
       key.preventDefault()
       toggleFoldAll()
-    } else if (k === 'tab' && props.onReplaceAll) {
+    } else if (k === 'tab' && props.scope === 'file' && props.onReplaceAll) {
       key.preventDefault()
-      setReplacing(r => !r)
-      // Tab is the replace toggle wherever replacing is offered, so folding only
-      // takes it in project search — which is also the only scope with headings.
+      const next = !replacing()
+      setReplacing(next)
+      setField(next ? 'replace' : 'query')
+      // Replacing, Tab moves between the two fields — the file-scope muscle
+      // memory, and the only way to edit the query when both fields are up.
+    } else if (k === 'tab' && props.scope === 'project' && replacing()) {
+      key.preventDefault()
+      setField(f => (f === 'query' ? 'replace' : 'query'))
+      // Plain project search spends Tab on folding, as it always has.
     } else if (k === 'tab' && props.scope === 'project') {
       key.preventDefault()
       toggleFold()
@@ -381,8 +415,10 @@ export function SearchPanel(props: SearchPanelProps) {
       if (!match) return
       // Replacing one match at a time is the point of the mode; the whole file goes
       // through Ctrl+A, which is the harder move to make by accident.
-      if (replacing() && props.onReplaceOne) props.onReplaceOne(match, replacement())
-      else props.onPick(match)
+      if (replacing() && props.onReplaceOne) {
+        props.onReplaceOne(match, replacement())
+        if (props.scope === 'project') setGeneration(g => g + 1)
+      } else props.onPick(match)
     } else if (k === 'escape') {
       key.preventDefault()
       props.onClose()
@@ -506,9 +542,19 @@ export function SearchPanel(props: SearchPanelProps) {
       width={width()}
       title={props.scope === 'project' ? ' Search in project ' : ' Search in file '}
     >
-      <TextInput value={query()} placeholder="Search…" onInput={type} />
+      <TextInput
+        value={query()}
+        placeholder="Search…"
+        focused={!props.suspended && (!replacing() || field() === 'query')}
+        onInput={type}
+      />
       <Show when={replacing()}>
-        <TextInput value={replacement()} placeholder="Replace with…" onInput={setReplacement} />
+        <TextInput
+          value={replacement()}
+          placeholder="Replace with…"
+          focused={!props.suspended && field() === 'replace'}
+          onInput={setReplacement}
+        />
       </Show>
       <text fg={ui.dim} bg={ui.panelBg} content={summary()} />
       <text fg={ui.panelBg} bg={ui.panelBg} content="" />

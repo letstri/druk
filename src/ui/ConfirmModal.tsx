@@ -37,7 +37,9 @@ export function ConfirmModal(props: ConfirmModalProps) {
   const accent = () => (props.danger ? ui.error : ui.accent)
 
   return (
-    <ModalPanel width={width()} title={` ${props.title} `} accent={accent()}>
+    // Above every panel: a confirm can be raised over the search panel, and a
+    // prompt the thing it suspends can paint over is no prompt at all.
+    <ModalPanel zIndex={200} width={width()} title={` ${props.title} `} accent={accent()}>
       <For each={lines()}>{line => <text fg={ui.text} bg={ui.panelBg} content={line} />}</For>
       <text fg={ui.panelBg} bg={ui.panelBg} content="" />
       <text fg={ui.dim} bg={ui.panelBg} content={`Enter to ${props.verb} · Esc to cancel`} />

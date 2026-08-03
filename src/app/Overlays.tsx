@@ -4,8 +4,8 @@ import { createEffect, createMemo, createSignal, Show } from 'solid-js'
 import type { Accessor } from 'solid-js'
 
 import type { Branch } from '../core/git'
-import { replaceAll, replaceMatch } from '../core/search'
-import type { Match } from '../core/search'
+import { buildQuery, planProjectReplace, replaceAll, replaceMatch } from '../core/search'
+import type { Match, SearchOptions } from '../core/search'
 import type { UpdateInfo } from '../core/update'
 import { BranchPicker } from '../ui/BranchPicker'
 import { ChoiceModal } from '../ui/ChoiceModal'
@@ -18,7 +18,7 @@ import { FilePicker } from '../ui/FilePicker'
 import { HelpOverlay } from '../ui/HelpOverlay'
 import { KeyPeek } from '../ui/KeyPeek'
 import { PromptModal } from '../ui/PromptModal'
-import { SearchPanel } from '../ui/SearchPanel'
+import { MIN_QUERY, SearchPanel } from '../ui/SearchPanel'
 import type { SearchScope } from '../ui/SearchPanel'
 import { UpdateBanner } from '../ui/UpdateBanner'
 import type { Branches } from './branches'
@@ -31,6 +31,16 @@ import type { Panes } from './panes'
 import type { PromptState } from './prompts'
 import type { Confirmation, Conflict } from './types'
 import type { Workspace } from './workspace'
+
+/** The active search toggles, named in the confirm so what runs is what was agreed to. */
+const searchFlags = (options: SearchOptions) => {
+  const parts = [
+    options.caseSensitive && 'case',
+    options.wholeWord && 'word',
+    options.regex && 'regex',
+  ].filter(Boolean)
+  return parts.length > 0 ? ` (${parts.join(', ')})` : ''
+}
 
 /** The transient full-screen surfaces: search, pickers, palette, help, update. */
 export function createOverlays(deps: {
@@ -185,7 +195,13 @@ export function OverlayStack(props: { ctx: AppContext; commands: Accessor<Comman
             verb={ask().verb}
             danger={ask().danger}
             message={ask().message}
-            onConfirm={prompts.confirmPrompt}
+            onConfirm={() => {
+              const confirmed = prompts.prompt()
+              prompts.confirmPrompt()
+              // The panel sat suspended under the modal so cancel could return to
+              // it; a confirmed replace is the one outcome that is done with it.
+              if (confirmed?.kind === 'replaceProject') overlays.setSearch(null)
+            }}
             onCancel={prompts.cancelPrompt}
           />
         )}
@@ -199,6 +215,8 @@ export function OverlayStack(props: { ctx: AppContext; commands: Accessor<Comman
             activeContent={workspace.activeBuffer()?.content ?? ''}
             initialQuery={overlays.selection()}
             replacing={open().replacing}
+            buffers={open().scope === 'project' ? workspace.replaceOverlay : undefined}
+            suspended={prompts.prompt() !== null}
             onPick={overlays.jumpTo}
             onReplaceOne={
               open().scope === 'file'
@@ -212,7 +230,7 @@ export function OverlayStack(props: { ctx: AppContext; commands: Accessor<Comman
                     if (next === null) return say('That match is gone', 'warn')
                     workspace.applyReplacement(path, next)
                   }
-                : undefined
+                : (match, replacement) => workspace.applyMatchReplace(match, replacement)
             }
             onReplaceAll={
               open().scope === 'file'
@@ -226,7 +244,29 @@ export function OverlayStack(props: { ctx: AppContext; commands: Accessor<Comman
                     workspace.applyReplacement(path, next)
                     say(`Replaced "${query}" in ${basename(path)}`)
                   }
-                : undefined
+                : (query, replacement, options) => {
+                    // The gates get their own messages: an invalid pattern refused as
+                    // "nothing to replace" would read as a project with no matches.
+                    if (!buildQuery(query, options)) return say('Invalid regex', 'warn')
+                    if (query.length < MIN_QUERY) return
+                    const { targets, matches } = planProjectReplace(
+                      app.rootDir,
+                      query,
+                      options,
+                      workspace.replaceOverlay(),
+                    )
+                    if (matches === 0) return say('Nothing to replace')
+                    prompts.setPrompt({
+                      kind: 'replaceProject',
+                      query,
+                      replacement,
+                      options,
+                      paths: targets.map(t => t.path),
+                      matches,
+                      files: targets.length,
+                      flags: searchFlags(options),
+                    })
+                  }
             }
             onClose={() => overlays.setSearch(null)}
           />

@@ -46,6 +46,7 @@ export const BINDABLE: Bindable[] = [
   { id: 'find.file', label: 'Find in current file', defaults: ['Ctrl+F'] },
   { id: 'find.project', label: 'Find in project', defaults: ['Ctrl+R'], also: [`Ctrl+${ALT}+F`] },
   { id: 'find.replace', label: 'Replace in current file', defaults: [] },
+  { id: 'find.replaceProject', label: 'Replace in project', defaults: [] },
   { id: 'file.new', label: 'New file', defaults: ['Ctrl+N'] },
   { id: 'file.newDir', label: 'New folder', defaults: [`Ctrl+${ALT}+N`] },
   { id: 'tabs.close', label: 'Close tab', defaults: ['Ctrl+W'] },

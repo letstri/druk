@@ -157,6 +157,15 @@ the file you are on, so one file with forty hits stops burying the rest.
 In file search, `Tab` opens the replace field instead: `Enter` replaces the selected match,
 `Ctrl+A` replaces every match in the file.
 
+The whole project replaces too: *Find → Replace in project* in the palette opens the
+project search with the replace field showing, and every row previews the hit beside what
+would replace it. `Enter` applies the selected match; `Ctrl+A` asks first — the confirm
+names the real match and file counts, beyond the 200 rows the panel shows — then applies
+everywhere. Open files take the edit in their buffer (the tab goes unsaved, and the active
+file can undo it); closed files are written straight to disk, keeping their line endings.
+With the replace field up, `Tab` moves between the two boxes; plain project search keeps
+`Tab` for folding.
+
 `Ctrl+C`, `Ctrl+W` and `Ctrl+R` toggle case-sensitive, whole-word and regex matching
 while the search is open; the active ones are shown beside the match count.
 

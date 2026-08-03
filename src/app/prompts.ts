@@ -143,6 +143,8 @@ export function createPromptHandlers(deps: {
           touchesTree: true,
           done: () => `Pulled and pushed ${p.branch}`,
         })
+      case 'replaceProject':
+        return workspace.applyProjectReplace(p.paths, p.query, p.replacement, p.options)
       case 'installServer':
         return void lsp.install(p.id, p.name, p.install)
       case 'uninstallServer':
@@ -227,6 +229,13 @@ export function createPromptHandlers(deps: {
           verb: 'quit without saving',
           danger: true,
           message: `Unsaved edits in ${p.names.join(', ')} will be lost. Quit anyway?`,
+        }
+      case 'replaceProject':
+        return {
+          title: 'Replace in project',
+          verb: 'replace',
+          danger: true,
+          message: `Replace ${p.matches} ${p.matches === 1 ? 'match' : 'matches'} in ${p.files} ${p.files === 1 ? 'file' : 'files'}${p.flags}? Closed files are written straight to disk.`,
         }
       case 'undoCommit':
         return {

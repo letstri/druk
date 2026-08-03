@@ -12,10 +12,12 @@ import {
   readTextFile,
   writeFile,
 } from '../core/fs'
-import type { TreeNode } from '../core/fs'
+import type { TextEncoding, TreeNode } from '../core/fs'
 import { isImagePath } from '../core/image'
 import { isMarkdownPath } from '../core/markdown'
 import { isPdfPath } from '../core/pdf'
+import { replaceMatch, replaceProject } from '../core/search'
+import type { Match, SearchOptions } from '../core/search'
 import { loadSession, saveSession } from '../core/session'
 import { trimTrailing } from '../editor/lines'
 import type { DiffFile } from '../ui/DiffView'
@@ -355,6 +357,22 @@ export function createWorkspace(deps: {
   }
 
   /**
+   * The buffers a project search or replace must read instead of the disk:
+   * dirty ones, whose edits the disk does not have, and the active one, whose
+   * undo history is the one place a replace can stay reversible. A clean
+   * non-active buffer is deliberately absent — its disk copy says the same
+   * thing, and the disk route leaves no unsaved tab behind.
+   */
+  const replaceOverlay = (): Map<string, string> => {
+    const overlay = new Map<string, string>()
+    const active = activePath()
+    for (const [path, buffer] of Object.entries(buffers)) {
+      if (buffer && (buffer.dirty || path === active)) overlay.set(path, buffer.content)
+    }
+    return overlay
+  }
+
+  /**
    * Save-then-format: the formatter rewrites the file in place, and the result
    * comes back into the buffer only if nothing typed over it while the tool ran
    * — a keystroke during the run wins, and the next save reformats anyway. The
@@ -551,6 +569,83 @@ export function createWorkspace(deps: {
     return { changed, deleted }
   }
 
+  /**
+   * Replace the one match a panel row points at, wherever its file is: the
+   * overlay's text for buffered paths, a fresh encoding-preserving read for the
+   * rest. The drift guard runs against whichever text the apply would touch.
+   */
+  const applyMatchReplace = (match: Match, replacement: string) => {
+    const open = replaceOverlay().get(match.path)
+    if (open != null) {
+      const next = replaceMatch(open, match, replacement)
+      if (next === null) return say('That match is gone', 'warn')
+      pinTab(match.path)
+      setBuffers(match.path, { content: next, dirty: true })
+      if (match.path === activePath()) editor.pushEdit(next)
+      return
+    }
+    let read: { text: string; encoding: TextEncoding }
+    try {
+      read = readTextFile(match.path)
+    } catch {
+      return say('That match is gone', 'warn')
+    }
+    const next = replaceMatch(read.text, match, replacement)
+    if (next === null) return say('That match is gone', 'warn')
+    const error = writeFile(match.path, next, read.encoding)
+    if (error) return say(`Replace failed: ${error}`, 'error')
+    syncFromDisk()
+    git.bump()
+  }
+
+  /**
+   * Replace across the planned `paths`. Reported counts are what the pass did,
+   * not what the confirm promised — the two drift whenever the tree moves while
+   * the modal is up.
+   */
+  const applyProjectReplace = (
+    paths: readonly string[],
+    query: string,
+    replacement: string,
+    options: SearchOptions,
+  ) => {
+    const overlay = replaceOverlay()
+    const result = replaceProject(paths, query, replacement, options, overlay)
+
+    let pending = 0
+    let wroteDisk = false
+    const active = activePath()
+    for (const file of result.replaced) {
+      if (file.content == null) {
+        wroteDisk = true
+        continue
+      }
+      pinTab(file.path)
+      setBuffers(file.path, { content: file.content, dirty: true })
+      // Any other buffer is updated in the store alone: pushEdit targets the
+      // active editor, and would paint this file's text over the one on screen.
+      if (file.path === active) editor.pushEdit(file.content)
+      pending++
+    }
+    if (wroteDisk) {
+      // The watcher would get there in a debounce anyway; syncing now means the
+      // reloaded clean buffers and the git marks never lag the status message.
+      syncFromDisk()
+      git.bump()
+    }
+
+    const files = result.replaced.length
+    if (result.matches === 0 && result.failed.length === 0) return say('Nothing to replace')
+    const counts = `Replaced ${result.matches} ${result.matches === 1 ? 'match' : 'matches'} in ${files} ${files === 1 ? 'file' : 'files'}`
+    const tail = pending > 0 ? ` — ${pending} in open tabs, unsaved` : ''
+    if (result.failed.length > 0) {
+      const names = result.failed.map(entry => basename(entry.split(' — ')[0]!)).join(', ')
+      say(`${counts}${tail}; failed: ${names}`, 'warn')
+    } else {
+      say(`${counts}${tail}`)
+    }
+  }
+
   /** The watcher's warning for a sync, or null when nothing clashed. */
   const clashWarning = (sync: DiskSync): string | null => {
     const parts: string[] = []
@@ -640,6 +735,9 @@ export function createWorkspace(deps: {
     switchTab,
     onEditorChange,
     applyReplacement,
+    replaceOverlay,
+    applyMatchReplace,
+    applyProjectReplace,
     writeBuffer,
     saveActive,
     saveDirtyOnBlur,
