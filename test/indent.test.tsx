@@ -2,7 +2,8 @@ import { expect, test } from 'bun:test'
 
 import { getSyntaxStyle } from '../src/languages/highlight'
 import { THEMES } from '../src/themes'
-import { fixture, launch, press, pressTimes, runCommand } from './helpers'
+import { fixture, launch, openFile, press, pressTimes, runCommand, until } from './helpers'
+import type { Harness } from './helpers'
 import { allSegments } from './syntax'
 
 const NESTED = 'function f() {\n  if (x) {\n    return 1\n  }\n}\n'
@@ -73,6 +74,42 @@ test('tab indents keep drawing guides after the view scrolls', async () => {
   expect(frame).toContain('█ █ <marker/>')
   const control = [...frame].filter(ch => ch !== '\n' && ch.codePointAt(0)! < 0x20)
   expect(control).toEqual([])
+})
+
+/** The foreground of each character of `needle`, once per row that draws it. */
+function coloursOf(t: Harness, needle: string): string[][] {
+  const frame = t.captureSpans() as unknown as {
+    lines: { spans: { text: string; fg?: { buffer: Uint8Array } }[] }[]
+  }
+  const rows: string[][] = []
+  for (const line of frame.lines) {
+    const cells: { ch: string; fg: string }[] = []
+    for (const span of line.spans) {
+      const fg = span.fg ? Array.from(span.fg.buffer.slice(0, 3)).join(',') : '-'
+      for (const ch of span.text) cells.push({ ch, fg })
+    }
+    const at = cells
+      .map(c => c.ch)
+      .join('')
+      .indexOf(needle)
+    if (at >= 0) rows.push(cells.slice(at, at + needle.length).map(c => c.fg))
+  }
+  return rows
+}
+
+test('a tab-indented line is coloured where its text is drawn', async () => {
+  // OpenTUI addresses highlights in rendered cells and draws a tab as two of
+  // them, so handing it character columns slid every colour on this line one
+  // cell left per tab — the deeper the nesting, the further off.
+  const body = 'KV: KVNamespace'
+  const source = `interface A {\n\t${body}\n}\ninterface B {\n  ${body}\n}\n`
+  const t = await launch(fixture({ 'a.ts': source }), {}, { width: 70, height: 16 })
+  await openFile(t, 'a.ts')
+  await until(t, () => new Set(coloursOf(t, body).flat()).size > 1)
+
+  const [tabbed, spaced] = coloursOf(t, body)
+  // Same text, same indent width: only the tab can make the two disagree.
+  expect(tabbed).toEqual(spaced!)
 })
 
 test('indent guides are visible in every theme', () => {

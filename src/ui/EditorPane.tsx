@@ -7,6 +7,7 @@ import { copyToClipboard, readClipboard } from '../core/clipboard'
 import type { CursorStyle } from '../core/config'
 import type { LineChange } from '../core/git'
 import { changeRows } from '../editor/changes'
+import { inCells } from '../editor/columns'
 import { History } from '../editor/history'
 import { duplicateLines, moveLines, toggleComment } from '../editor/lines'
 import { problemRows } from '../editor/problems'
@@ -665,6 +666,19 @@ export function EditorPane(props: EditorPaneProps) {
   }
 
   /**
+   * Text of logical line `line` as the parse holds it — what a segment's columns
+   * index. Null until a file's first parse lands, which is the only state in
+   * which a line can be marked without having been segmented.
+   */
+  const parsedLine = (line: number): string | null => {
+    const doc = parsed
+    const at = doc?.starts[line]
+    if (!doc || at === undefined) return null
+    const next = doc.starts[line + 1]
+    return next === undefined ? doc.content.slice(at) : doc.content.slice(at, next - 1)
+  }
+
+  /**
    * The spans, bucketed by the line they start on. `applyWindow` marks one line
    * at a time, so a flat scan meant every line of the window walked every
    * diagnostic in the file — a file with hundreds of them paid that on each
@@ -688,15 +702,19 @@ export function EditorPane(props: EditorPaneProps) {
    * continuation line costs more than it says.
    */
   const markProblems = (line: number) => {
-    if (!editor) return
-    for (const problem of problemsByLine().get(line) ?? []) {
+    const problems = problemsByLine().get(line)
+    if (!editor || !problems) return
+    // Only now: without a parse this walks the buffer to find the line, and most
+    // lines of a window carry no diagnostic at all.
+    const text = parsedLine(line) ?? lineTextAt(line)
+    for (const problem of problems) {
       const group = problem.unnecessary ? 'unnecessary' : problem.severity
       const styleId = styleIdForGroup(`druk.problem.${group}`)
       if (styleId == null) continue
       const sameLine = problem.endLine === problem.line
       // A zero-width or line-crossing span still marks something visible.
       const end = sameLine ? Math.max(problem.endCol, problem.col + 1) : problem.col + 1
-      editor.addHighlight(line, { start: problem.col, end, styleId, priority: 100 })
+      editor.addHighlight(line, inCells({ start: problem.col, end, styleId, priority: 100 }, text))
     }
   }
 
@@ -720,7 +738,11 @@ export function EditorPane(props: EditorPaneProps) {
     for (let line = from; line <= to; line++) {
       if (appliedLines.has(line)) continue
       appliedLines.add(line)
-      for (const segment of byLine.get(line) ?? []) editor.addHighlight(line, segment)
+      const segments = byLine.get(line)
+      if (segments) {
+        const text = parsedLine(line) ?? ''
+        for (const segment of segments) editor.addHighlight(line, inCells(segment, text))
+      }
       markProblems(line)
     }
   }
