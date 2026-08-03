@@ -330,13 +330,14 @@
     {
       "id": "json",
       "name": "JSON",
-      "version": "1.0.0",
-      "description": "JSON highlighting and the VS Code JSON server. Also reads `bun.lock`.",
+      "version": "1.1.0",
+      "description": "JSON and JSONC highlighting and the VS Code JSON server. Also reads `bun.lock`.",
       "provides": {
         "themes": [],
         "icons": [],
         "filetypes": [
-          "json"
+          "json",
+          "jsonc"
         ]
       },
       "categories": [
