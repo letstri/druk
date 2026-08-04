@@ -2118,7 +2118,9 @@ export function EditorPane(props: EditorPaneProps) {
           )
         }
         editor.setCursor(shownLine(target.line), target.col)
+        scrollTo(Math.max(0, shownLine(target.line) - Math.floor(editor.height / 2)))
         editor.focus()
+        scheduleCursorSync()
       },
     ),
   )

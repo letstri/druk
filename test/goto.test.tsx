@@ -5,6 +5,7 @@ import {
   fixture,
   launch,
   loadMarketExtensions,
+  press,
   pressTimes,
   runCommand,
   untilFrame,
@@ -85,3 +86,36 @@ test('go to definition with LSP off says why nothing happened', async () => {
   await runCommand(t, 'Go to definition')
   await untilFrame(t, 'LSP is off')
 }, 15_000)
+
+test('go to definition scrolls the definition into view', async () => {
+  const filler = Array.from({ length: 80 }, (_, i) => `const pad${i} = ${i}`).join('\n')
+  const dir = fixture({
+    'a.ts': `${filler}\nconst a = beta\n`,
+    'def.ts': '// the declaration\nconst beta = 1\n',
+  })
+  const t = await launch(
+    dir,
+    { lsp: true, lspServers: { typescript: [process.execPath, FAKE], eslint: [], oxlint: [] } },
+    {},
+    { openFile: join(dir, 'a.ts') },
+  )
+
+  // Scroll the viewport well past the top — the definition lives in another file
+  // near its start, so without an explicit scroll the caret would move but the
+  // eye would still be reading filler lines.
+  await pressTimes(t, 60, input => input.pressArrow('down'))
+  await runCommand(t, 'Go to definition')
+  await untilFrame(t, 'const beta = 1', LSP_WAIT)
+}, 30_000)
+
+test('go to line scrolls the line into view', async () => {
+  const filler = Array.from({ length: 80 }, (_, i) => `const pad${i} = ${i}`).join('\n')
+  const dir = fixture({ 'big.ts': `const target = 0\n${filler}\n` })
+  const t = await launch(dir, {}, {}, { openFile: join(dir, 'big.ts') })
+
+  await pressTimes(t, 60, input => input.pressArrow('down'))
+  await press(t, input => input.pressKey('g', { ctrl: true }))
+  await press(t, input => void input.typeText('1'))
+  await press(t, input => input.pressEnter())
+  await untilFrame(t, 'const target = 0')
+}, 20_000)
