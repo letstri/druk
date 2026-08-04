@@ -24,6 +24,7 @@ import { handleTyping } from '../editor/typing'
 import { handleVimKey, initialVimState } from '../editor/vim'
 import type { VimMode } from '../editor/vim'
 import { lineAt, logicalWindow } from '../editor/window'
+import { lineRangeAt, wordRangeAt } from '../editor/words'
 import { commentPrefix } from '../languages'
 import {
   computeHighlights,
@@ -270,6 +271,37 @@ export function ignoreScrollOutsideBounds(el: TextareaRenderable) {
       if (!inside) return
     }
     handle(event)
+  }
+}
+
+/** OpenTUI has no double-click event, so detect it from consecutive downs — same as FileTree. */
+const DOUBLE_CLICK_MS = 400
+
+/**
+ * Expand the selection on a double-click (word) or triple-click (line). Runs after
+ * the buffer has taken the click: the renderer places the caret in `startSelection`
+ * before this hook sees the down, and `setSelection` clears that zero-width mouse
+ * selection so the word/line range is what survives the mouse-up.
+ */
+export function selectOnMultiClick(el: TextareaRenderable, after: () => void) {
+  let last = { x: -1, y: -1, at: 0, count: 0 }
+  const host = el as unknown as { onMouseEvent: (event: MouseEvent) => void }
+  const handle = host.onMouseEvent.bind(host)
+  host.onMouseEvent = (event: MouseEvent) => {
+    handle(event)
+    if (event.type !== 'down') return
+    const now = Date.now()
+    const same = event.x === last.x && event.y === last.y && now - last.at < DOUBLE_CLICK_MS
+    const count = same ? last.count + 1 : 1
+    last = { x: event.x, y: event.y, at: now, count }
+    if (count < 2) return
+    const text = el.plainText
+    const at = el.cursorOffset
+    const range = count >= 3 ? lineRangeAt(text, at) : wordRangeAt(text, at)
+    if (range.start >= range.end) return
+    el.setSelection(range.start, range.end)
+    if (count >= 3) last.count = 0
+    after()
   }
 }
 
@@ -2035,6 +2067,7 @@ export function EditorPane(props: EditorPaneProps) {
                 editor = el
                 setEditorEl(el)
                 ignoreScrollOutsideBounds(el)
+                selectOnMultiClick(el, () => scheduleCursorSync())
                 // The gutter paints into a cached buffer and repaints only when
                 // it is dirty or the scroll moved. A file switch reuses this
                 // textarea (setText), and the rewrap lands after the git-signs
