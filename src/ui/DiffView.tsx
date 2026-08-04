@@ -6,6 +6,7 @@ import { unifiedDiff } from '../core/diff'
 import type { ComparisonFileStatus, FileStatus } from '../core/git'
 import {
   computeHighlights,
+  DIFF_FILLER,
   filetypeForPath,
   getSyntaxStyle,
   highlightClient,
@@ -86,9 +87,13 @@ function blend(color: string, base: string, amount: number): string {
   return `#${mix(0)}${mix(1)}${mix(2)}`
 }
 
-/** What a split pane's padded rows are filled with — no palette ships the role,
- * so it is the theme's dim colour laid faintly over the editor background. */
-export const fillerBg = () => blend(ui.dim, ui.solidBg, 0.1)
+/**
+ * What a split pane's padded rows are hatched with. A row that shows no line is
+ * marked the way every diff viewer marks it — slanted strokes, not a painted
+ * block — and a terminal has no fill patterns, so the hatch is text written into
+ * the pane's own content.
+ */
+export const HATCH = '╱'
 
 /** `[startOffset, endOffset, captureGroup]` in the pane document's coordinates. */
 type PaneHighlight = [number, number, string]
@@ -101,22 +106,17 @@ type OnHighlight = (
 interface CodePane {
   scrollY: number
   maxScrollY: number
+  /** Columns the code itself owns — the side minus its gutter. */
+  width: number
+  content: string
   onHighlight?: OnHighlight
 }
 
-/** A pane's gutter wrapper: `setLineColor` is how the renderable tints its own rows. */
-interface SidePane {
-  setLineColor: (line: number, color: { gutter?: string; content?: string }) => void
-}
-
 /** The panes inside the `<diff>` renderable — private upstream, but assigning
- * `scrollY`/`onHighlight` and calling `setLineColor` is how its own internals
- * drive them. */
+ * `scrollY`/`content`/`onHighlight` is how its own internals drive them. */
 interface DiffSides {
   leftCodeRenderable?: CodePane | null
   rightCodeRenderable?: CodePane | null
-  leftSide?: SidePane | null
-  rightSide?: SidePane | null
 }
 
 /** Which source document a pane line shows, and which of its lines. */
@@ -270,6 +270,17 @@ export function DiffView(props: DiffViewProps) {
         })
 
         const out: PaneHighlight[] = []
+        // The padding rows carry the hatch rather than code, so their color is
+        // one span over the whole row instead of anything tree-sitter said.
+        refs.forEach((ref, paneLine) => {
+          if (ref) return
+          const from = paneStarts[paneLine]!
+          const to =
+            paneLine + 1 < paneStarts.length
+              ? paneStarts[paneLine + 1]! - 1
+              : context.content.length
+          if (to > from) out.push([from, to, DIFF_FILLER])
+        })
         const emit = (doc: Highlighted | null, side: 'old' | 'new') => {
           if (!doc || bySource[side].size === 0) return
           // `ordered` runs least specific first and the painter applies in
@@ -322,39 +333,50 @@ export function DiffView(props: DiffViewProps) {
 
   /**
    * The rows split view pads a side with where the other side has more lines.
-   * The renderable leaves them the pane's own background, so a block of
-   * additions reads as a hole in the left pane rather than as "nothing stood
-   * here"; a flat tint is what every diff viewer draws instead.
+   * The renderable leaves them blank, so a block of additions reads as a hole in
+   * the left pane rather than as "nothing stood here" — every diff viewer hatches
+   * them instead, and in a terminal the only way to a hatch is glyphs, so the
+   * strokes are written into the pane's content. (`setLineColor` can tint a row
+   * but cannot put anything in it.)
    *
    * The padded rows are `paneLines`' nulls, and replaying them is exact only
    * because `wrapMode` is `none`: with wrapping on, the renderable inserts
    * further padding rows to keep two wrapped lines level, and those are not in
    * the patch.
    */
-  const paintFillers = (host: DiffSides, view: 'unified' | 'split') => {
+  const paintHatch = (host: DiffSides, view: 'unified' | 'split') => {
     if (view !== 'split') return
-    const fill = { gutter: fillerBg(), content: fillerBg() }
     const refs = paneLines(diff().patch, 'split')
-    for (const [which, side] of [
-      ['left', host.leftSide],
-      ['right', host.rightSide],
+    for (const [which, code] of [
+      ['left', host.leftCodeRenderable],
+      ['right', host.rightCodeRenderable],
     ] as const) {
-      if (!side) continue
+      if (!code) continue
+      // Before the first layout the pane has no width yet; half the pane's own
+      // columns overshoots by the gutter, which `wrapMode="none"` clips away.
+      const bar = HATCH.repeat(Math.max(1, code.width || Math.ceil(props.width / 2)))
+      const lines = code.content.split('\n')
+      let hatched = false
       refs[which].forEach((ref, row) => {
-        if (!ref) side.setLineColor(row, fill)
+        if (ref || lines[row] !== '') return
+        lines[row] = bar
+        hatched = true
       })
+      if (hatched) code.content = lines.join('\n')
     }
   }
 
   // Attach after the renderable's own (microtask-queued) rebuild has created
   // the panes for this diff and view; assigning marks highlights dirty, so an
   // already-finished pass simply runs again with the callback in place. The
-  // fillers go the same way round: a rebuild replaces every line color the side
-  // holds, so painting them earlier would paint nothing. Reading the two theme
-  // colors here is what repaints them after a theme switch, which rebuilds the
-  // panes through the `syntaxStyle` prop.
+  // hatch goes the same way round and *after* the callback: a rebuild replaces
+  // the pane content, so writing it earlier would write into a document about
+  // to be thrown away, and the content write is what re-runs the pass that
+  // colors it. Reading the theme colors and the width here is what puts the
+  // hatch back after a theme switch (which rebuilds the panes through the
+  // `syntaxStyle` prop) and after a resize (which rebuilds them itself).
   createEffect(
-    on([current, mode, client, () => ui.dim, () => ui.solidBg], () => {
+    on([current, mode, client, () => props.width, () => ui.dim, () => ui.solidBg], () => {
       const highlighter = current().highlighter
       const view = mode() === 'split' ? 'split' : 'unified'
       setTimeout(() => {
@@ -364,7 +386,7 @@ export function DiffView(props: DiffViewProps) {
         if (host.rightCodeRenderable) {
           host.rightCodeRenderable.onHighlight = highlighter('right', view)
         }
-        paintFillers(host, view)
+        paintHatch(host, view)
       }, 0)
     }),
   )

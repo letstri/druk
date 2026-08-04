@@ -10,6 +10,9 @@ import type { Language } from './index'
 /** Two dots so it outranks any syntax capture on the same whitespace. */
 const INDENT_GUIDE = 'indent.guide'
 
+/** The stroke color of a split diff's hatched padding rows (see `DiffView`). */
+export const DIFF_FILLER = 'druk.diff.filler'
+
 let clientDead = false
 let initPromise: Promise<TreeSitterClient | null> | null = null
 let syntaxStyle: SyntaxStyle | null = null
@@ -87,6 +90,9 @@ export function getSyntaxStyle(): SyntaxStyle {
       // it fades toward the background instead of gaining a tint, whatever
       // severity the server gave it.
       'druk.problem.unnecessary': { fg: mixColors(ui.solidBg, ui.text, 0.4) },
+      // The hatch a split diff pads a side with is glyphs, not a line color, so
+      // its stroke is a capture group like any other painted span.
+      [DIFF_FILLER]: { fg: mixColors(ui.solidBg, ui.dim, 0.55) },
     })
   }
   return syntaxStyle

@@ -43,8 +43,8 @@ scripts/
     editor.ts        one-shot signal channels into EditorPane (goto, undo, edits…)
     market.ts        the market as the editor sees it: updates, offers, installs
     extensionsPanel.ts the sidebar's extensions view: rows, cursor, fold state
-    review.ts        the review view: draft notes on lines, the pull request's
-                     comments, and the Markdown block both leave as
+    review.ts        the review view: draft notes on lines and the pull
+                     request's comments, as one list
     lsp.ts           language servers: spawn per language, sync buffers, diagnostics,
                      completion requests (flushing the didChange debounce first)
     settings.ts      the two config layers (user / project) resolved into one store,
@@ -68,8 +68,7 @@ scripts/
                      is in — filesystem-only, so the tree may ask per row
     forge.ts         a remote URL -> which forge, and its open pull request's
                      comments: GitHub, GitLab, Gitea/Forgejo, Bitbucket Cloud
-    review.ts        review notes (model + store beside the config) and the
-                     Markdown block the export puts on the clipboard
+    review.ts        review notes: the model, and the store beside the config
     diff.ts          Myers line diff between two texts, emitted as a unified patch
     imports.ts       the path token under the cursor, and where it resolves —
                      relative, project-root, or through tsconfig/jsconfig aliases
@@ -686,11 +685,10 @@ is just a diff against the empty tree.
   placeholder and destroys the native buffer while `editor` still points at it. Both
   pending timers touch it, so they are cleared from the ref's own `onCleanup` — the pane's
   `onCleanup` fires far too late and the timer throws from outside any handler.
-- **The review is read-only, and the clipboard is its only exit.** `core/forge.ts`
-  asks a forge three questions — which change is open for this branch, what was said
-  on it, and where each remark sits — and has no code path that writes. Nothing
-  posts a comment, approves, or resolves a thread: the export is a Markdown block
-  the user pastes wherever they meant to, which is also why a token is optional
+- **The review is read-only.** `core/forge.ts` asks a forge three questions — which
+  change is open for this branch, what was said on it, and where each remark sits —
+  and has no code path that writes. Nothing posts a comment, approves, or resolves
+  a thread, which is also why a token is optional
   (a public repository answers all three questions unauthenticated). The one place
   a guess would be tempting is the forge itself, and it is refused: a self-hosted
   GitLab and a self-hosted Gitea are identical from the outside, and asking one of

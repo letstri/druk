@@ -2,6 +2,7 @@ import { TextAttributes } from '@opentui/core'
 import { createEffect, createMemo, For, on, Show } from 'solid-js'
 
 import type { ChangeRow, DirRow, FileRow } from '../core/changeTree'
+import { iconFor } from '../icons'
 import { ui } from '../themes'
 import { MARKS, statusColor } from './FileTree'
 import { createScrollList, rowBg, scrollbarOptions } from './list'
@@ -11,7 +12,15 @@ import { createScrollList, rowBg, scrollbarOptions } from './list'
 const dirRow = (row: ChangeRow) => (row.kind === 'dir' ? row : undefined)
 const fileRow = (row: ChangeRow) => (row.kind === 'file' ? row : undefined)
 
-const glyph = (dir: DirRow) => (dir.collapsed ? '▸ ' : '▾ ')
+/**
+ * The name an icon theme is keyed by. A folder row's label is a *joined* chain
+ * (`src/app` is one row), and the files sit under its last segment, so that is
+ * the folder the glyph is about; a file row's label is the whole rel path in
+ * flat view, where the theme's whole-name rules (`package.json`) only match the
+ * basename.
+ */
+const iconName = (row: ChangeRow): string =>
+  (row.kind === 'file' ? row.change.rel : row.label).split('/').pop() ?? row.label
 
 export interface GitPanelProps {
   /** Repository the header is about, when the folder holds more than one. */
@@ -29,11 +38,17 @@ export interface GitPanelProps {
   focused: boolean
   width: number
   inRepo: boolean
+  /** `iconTheme`: the glyph column, or `'none'` for the tree's plain arrow. */
+  iconTheme: string
   onFocus: () => void
   /** A row clicked: move the cursor there, and diff it or fold it. */
   onActivate: (index: number) => void
   /** The header's ▴: fold every folder at once. */
   onCollapseAll: () => void
+  /** Notes and fetched comments together — what the header's ◆ counts. */
+  reviewCount: number
+  /** The header's ◆: swap this panel for the review of the same change. */
+  onReview: () => void
 }
 
 /**
@@ -101,11 +116,30 @@ export function GitPanel(props: GitPanelProps) {
         </Show>
         {/* The base has to be said somewhere: against another branch every file
             it touches is marked, which reads as a broken tree until you know why. */}
+        <Show when={props.base}>
+          <text
+            fg={ui.accent}
+            bg={ui.sidebarBg}
+            flexShrink={0}
+            wrapMode="none"
+            content={`vs ${props.base}`}
+          />
+        </Show>
+        {/* The way into the review, in the slot a label naming the panel used to
+            decorate — the pressed `Git` button above says that already, and at
+            thirty columns the label is the room this needs. Spelt out rather
+            than left as a glyph, and drawn whether or not anything is in it: a
+            control that appears only once there is something to show is one
+            nobody finds, and the review is where a note is *made*. Carries its
+            own leading space — at the widths where the headline is being cut
+            there is no slack left to space it from what precedes it. */}
         <text
-          fg={props.base ? ui.accent : ui.faint}
+          fg={props.reviewCount > 0 ? ui.accent : ui.dim}
           bg={ui.sidebarBg}
           flexShrink={0}
-          content={props.base ? `vs ${props.base}` : 'source control'}
+          wrapMode="none"
+          content={props.reviewCount > 0 ? ` ◆ review ${props.reviewCount}` : ' ◆ review'}
+          onMouseDown={() => props.onReview()}
         />
       </box>
       <Show
@@ -132,6 +166,21 @@ export function GitPanel(props: GitPanelProps) {
             {(row, at) => {
               const index = () => list.window().start + at()
               const bg = () => rowBg(index() === cursor(), props.focused)
+              /**
+               * The icon takes the folder arrow's column, as it does in the tree:
+               * the open and shut forms are what keep a folded row readable, and a
+               * file row — which has no arrow — spends the same single column, so
+               * the two views line their names up whether icons are on or off.
+               */
+              const icon = () =>
+                iconFor(props.iconTheme, {
+                  name: iconName(row),
+                  isDir: row.kind === 'dir',
+                  expanded: row.kind === 'dir' && !row.collapsed,
+                })
+              const glyph = () =>
+                icon()?.glyph ?? (row.kind === 'dir' ? (row.collapsed ? '▸' : '▾') : '')
+              const glyphColor = () => icon()?.color ?? (row.kind === 'dir' ? ui.dim : ui.faint)
               return (
                 <box
                   height={1}
@@ -151,18 +200,12 @@ export function GitPanel(props: GitPanelProps) {
                     flexShrink={0}
                     content={` ${'│ '.repeat(row.depth)}`}
                   />
-                  {/* `when` narrows the union for the block below it — the two
-                      row kinds share no fields past `depth` and `label`. */}
-                  <Show when={dirRow(row)}>
-                    {(dir: () => DirRow) => (
-                      <text fg={ui.dim} bg={bg()} flexShrink={0} content={glyph(dir())} />
-                    )}
-                  </Show>
+                  <text fg={glyphColor()} bg={bg()} flexShrink={0} content={`${glyph()} `} />
                   <box flexGrow={1} flexDirection="row" backgroundColor={bg()}>
                     <text
                       fg={row.kind === 'dir' ? ui.folder : ui.text}
                       bg={bg()}
-                      content={row.kind === 'dir' ? row.label : ` ${row.label}`}
+                      content={row.label}
                       attributes={row.kind === 'dir' ? TextAttributes.BOLD : undefined}
                     />
                   </box>

@@ -47,7 +47,7 @@ import type { CompletionReply } from '../lsp/completion'
 import type { CompletionItem, ProblemSeverity } from '../lsp/protocol'
 import { paintedTheme, ui } from '../themes'
 import { CompletionMenu, MENU_ROWS, menuWidth } from './CompletionMenu'
-import { cut } from './text'
+import { cut, wrapText } from './text'
 import { useKeys } from './useKeys'
 import { Welcome } from './Welcome'
 
@@ -105,6 +105,16 @@ export interface EditorPaneProps {
    */
   reviews: Map<number, { draft: boolean; label: string; text: string }>
   reviewText: boolean
+  /**
+   * The one remark to open in full, under the line it is about — the review
+   * panel's cursor, so reading a comment is reading it in its code rather than
+   * in a thirty-column row. Null whenever the panel is not up, which is what
+   * keeps the card out of ordinary editing.
+   *
+   * `line` is the *file's*, as every line in these props is; the card finds its
+   * own row, folds included.
+   */
+  reviewCard: { line: number; draft: boolean; heading: string; body: string } | null
   /**
    * Ask the language server for completions at a buffer position. Null when the
    * feature is off — the resolver also answers null, but a null prop is what
@@ -586,6 +596,77 @@ export function EditorPane(props: EditorPaneProps) {
     return { top: el.y - host.y + (lastRow - top), left, room }
   }
 
+  /** Rows of body a card will show before it says how many it left. */
+  const CARD_LINES = 8
+
+  /**
+   * The card under its line: a box drawn over the rows that follow, GitHub's
+   * arrangement, for the one remark the review panel's cursor is on.
+   *
+   * Over rather than between, because the editor draws the file and a row that
+   * is not in the file cannot be inserted into it without the caret, the gutter
+   * and undo all having to agree about a line that does not exist.
+   *
+   * So it covers rows, and two things follow. It spans the *whole* pane, gutter
+   * included: half-covered, the code shows through on the right and the numbers
+   * of the covered lines show on the left, and a number beside a row that is not
+   * that line is worse than no number. And it says how many lines are behind it,
+   * in the words a fold uses — the gap in the numbering is then something the
+   * editor has told you about rather than something you have to work out.
+   */
+  const reviewCard = createMemo(() => {
+    wrapKey()
+    void props.content
+    const card = props.reviewCard
+    const el = editorEl()
+    if (!card || !el || !host) return null
+    const view = folded()
+    const row = view ? view.display[card.line] : card.line
+    if (row === undefined || row < 0) return null
+
+    const top = viewTop()
+    const height = viewHeight() || el.height
+    const { sources } = lineLayout()
+    const first = rowAtLine(row)
+    if (sources[first] !== row) return null
+    let lastRow = first
+    while (sources[lastRow + 1] === row) lastRow++
+    // The card hangs below its line, so the line itself being the last one on
+    // screen leaves nowhere to hang it.
+    if (lastRow < top || lastRow >= top + height - 1) return null
+
+    const width = host.width
+    // Two columns of border and one of padding either side.
+    const room = width - 4
+    if (room < 12) return null
+
+    const wrapped = wrapText(card.body.replaceAll(/\s+/g, ' ').trim(), room)
+    // What is left below the line, less the two border rows and the row that
+    // says what is behind the card.
+    const space = top + height - (lastRow + 1) - 3
+    if (space < 1) return null
+    const body =
+      wrapped.length <= Math.min(CARD_LINES, space)
+        ? wrapped
+        : [
+            ...wrapped.slice(0, Math.min(CARD_LINES, space) - 1),
+            `… ${wrapped.length - (Math.min(CARD_LINES, space) - 1)} more lines`,
+          ]
+    // Border rows included: every row the box occupies is a row of code it hides.
+    const covers = body.length + 3
+    return {
+      /** Buffer row the card hangs from, as `displayReviews` keys its marks. */
+      row,
+      top: el.y - host.y + (lastRow + 1 - top),
+      width,
+      // Spaces of its own: the border draws straight up to the title otherwise.
+      heading: cut(` ${REVIEW_GLYPH[card.draft ? 'draft' : 'fetched']} ${card.heading} `, room),
+      lines: body.map(line => cut(line, room)),
+      behind: `⋯ ${covers} line${covers === 1 ? '' : 's'} behind`,
+      draft: card.draft,
+    }
+  })
+
   /**
    * The worst problem's message, drawn after the end of its line — the gutter
    * dot says where, this says what, without a trip to the problems list.
@@ -599,7 +680,11 @@ export function EditorPane(props: EditorPaneProps) {
     // the line the buffer draws are two different numbers.
     const wanted = new Map<number, { text: string; color: string }>()
     if (props.reviewText) {
+      // The row the card is open on says the same thing twice otherwise — the
+      // suffix is the short form of exactly what the box below it spells out.
+      const opened = reviewCard()?.row
       for (const [row, mark] of displayReviews()) {
+        if (row === opened) continue
         wanted.set(row, { text: `${mark.label}: ${mark.text}`, color: reviewNoteColor(mark.draft) })
       }
     }
@@ -2165,6 +2250,35 @@ export function EditorPane(props: EditorPaneProps) {
               />
             )}
           </For>
+          {/* The remark under the review panel's cursor, opened under its line.
+              Above the inline notes' zIndex: it covers the rows below, and the
+              text drawn after one of them would otherwise show through it. */}
+          <Show when={reviewCard()}>
+            {(card: () => NonNullable<ReturnType<typeof reviewCard>>) => (
+              <box
+                position="absolute"
+                top={card().top}
+                left={0}
+                width={card().width}
+                zIndex={20}
+                flexDirection="column"
+                backgroundColor={ui.panelBg}
+                paddingLeft={1}
+                paddingRight={1}
+                border
+                borderStyle="rounded"
+                borderColor={reviewColor(card().draft)}
+                title={card().heading}
+              >
+                <For each={card().lines}>
+                  {line => <text fg={ui.text} bg={ui.panelBg} wrapMode="none" content={line} />}
+                </For>
+                {/* The gap the card leaves in the gutter's numbering, said out
+                    loud in the words a collapsed block uses. */}
+                <text fg={ui.faint} bg={ui.panelBg} wrapMode="none" content={card().behind} />
+              </box>
+            )}
+          </Show>
           {/* The hit target over each of the gutter's chevrons — painting
               nothing, since the gutter has already drawn the glyph. A box is
               simply the only thing that reports a click. */}

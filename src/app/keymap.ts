@@ -107,7 +107,6 @@ export const BINDABLE: Bindable[] = [
   // A for annotate: R is the panel, and the note is the thing pressed far more often.
   { id: 'review.note', label: 'Note this line for a review', defaults: [`Ctrl+${ALT}+A`] },
   { id: 'review.fetch', label: 'Fetch pull request comments', defaults: [] },
-  { id: 'review.copy', label: 'Copy review as Markdown', defaults: [] },
   { id: 'problems.list', label: 'List problems', defaults: [] },
   { id: 'problems.next', label: 'Next problem', defaults: [] },
   { id: 'problems.prev', label: 'Previous problem', defaults: [] },

@@ -86,7 +86,7 @@ test('a folder folds on â† and says how many changes it hides, and unfolds on â
 test('the arrows page the diff through the files and step over the folders', async () => {
   const t = await launch(repo())
   await openPanel(t)
-  await press(t, i => i.pressEnter()) // the first row is the root file
+  await press(t, i => i.pressArrow('up')) // a landing on the first row: the root file
   // The diff renderable assembles its panes on a queued microtask, so poll.
   await untilFrame(t, '+ ROOT')
 
@@ -102,7 +102,7 @@ test('the arrows page the diff through the files and step over the folders', asy
   await untilFrame(t, '+ ACTIONS')
 })
 
-test('Enter folds the folder under the cursor and diffs a file', async () => {
+test('Enter folds the folder under the cursor', async () => {
   const t = await launch(repo())
   await openPanel(t)
 

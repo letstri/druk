@@ -94,6 +94,7 @@ export interface CommandActions {
   /** Not commands: the source-control panel's cursor, moved and pressed. */
   gitMoveTo: (row: number) => void
   gitActivateRow: (row: number) => void
+  gitOpenRow: (row: number) => void
   /** Not a command: `App` runs it when git or a buffer moves under an open diff. */
   refreshDiff: () => void
   gitCommit: () => void
@@ -114,10 +115,13 @@ export interface CommandActions {
   reviewNote: () => void
   reviewNoteOf: (kind: NoteKind) => void
   reviewFetch: () => void
-  reviewCopy: () => void
   reviewClear: () => void
   /** Not commands: the review panel's cursor, moved and pressed. */
   reviewMoveTo: (row: number) => void
+  /** The cursor as a pager — move it, and put the code it points at up. */
+  reviewMove: (delta: number) => void
+  /** The code the cursor already points at, for the panel just opened. */
+  reviewShow: () => void
   reviewActivate: (row: number) => void
   reviewCollapseAll: () => void
   openExtensions: () => void
@@ -278,12 +282,6 @@ export function buildCommands(actions: CommandActions, ctx: CommandContext): Com
           id: 'review.fetch',
           label: 'Fetch pull request comments',
           run: actions.reviewFetch,
-        },
-        {
-          id: 'review.copy',
-          label: 'Copy review as Markdown (for an agent)',
-          hint: 'y in review',
-          run: actions.reviewCopy,
         },
         { id: 'review.clear', label: 'Clear review notes', run: actions.reviewClear },
       ],

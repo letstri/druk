@@ -161,6 +161,12 @@ export interface Config {
   reviewForge: ForgeSetting
   /** Remote whose URL says where the pull request lives. */
   reviewRemote: string
+  /**
+   * Ask the forge for the pull request's comments whenever the panel is opened,
+   * rather than only when `f` is pressed. Off is for a rate limit: the fetch is
+   * four unauthenticated requests, and GitHub allows sixty an hour per address.
+   */
+  reviewAutoFetch: boolean
   /** Draw a review note's text after the end of its line, as `lspInline` does. */
   reviewInline: boolean
   /** Language servers: spawn one per language as matching files open. */
@@ -243,6 +249,7 @@ export const DEFAULTS: Config = {
   respectGitignore: false,
   reviewForge: 'auto',
   reviewRemote: 'origin',
+  reviewAutoFetch: true,
   reviewInline: true,
   lsp: true,
   lspInline: true,
@@ -330,6 +337,7 @@ const VALIDATORS: { [K in keyof Config]: Validator<K> } = {
   // A remote name, so anything git would accept as one. Empty means the panel
   // has nothing to ask, which is reported when the fetch runs.
   reviewRemote: text,
+  reviewAutoFetch: bool,
   reviewInline: bool,
   lsp: bool,
   lspInline: bool,

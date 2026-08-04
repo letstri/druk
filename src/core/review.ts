@@ -1,17 +1,11 @@
 /**
- * Review notes: the remarks made while reading code, and the Markdown block
- * they leave the editor as.
+ * Review notes: the remarks made while reading code, and where they are kept.
  *
  * A note is a line, a kind and a sentence — nothing else, because the whole
  * point is that writing one costs a keystroke and a line of typing. They are
  * kept beside the config rather than in the project, keyed by project path, as
  * `sessions.json` is: a draft remark is personal scratch, and a `.druk/` file
  * would land in somebody's commit the first time they staged everything.
- *
- * The export is the reason the notes exist. It is a clipboard block and only a
- * clipboard block — druk posts nothing to a forge, so what leaves the editor is
- * whatever the user pastes, which is the arrangement an agent-assisted review
- * actually wants.
  */
 import fs from 'node:fs'
 import { dirname, join } from 'node:path'
@@ -112,71 +106,4 @@ export function saveNotes(
   } catch {
     // best-effort — losing a draft note is never worth interrupting the editor
   }
-}
-
-/** One line of the export, whether it started as a draft note or a forge comment. */
-export interface ReviewEntry {
-  /** `ISSUE`, `SUGGESTION`, `QUESTION`, `NOTE` — what the item is. */
-  label: string
-  /** Path as the reader knows it: relative to the project root. */
-  rel: string
-  /** 1-based, as an editor and a forge both quote line numbers. */
-  line: number | null
-  /** The code the remark is about, already cut to a sensible length. */
-  snippet: string[]
-  /** Fence tag for `snippet`; empty for a file whose language is unknown. */
-  language: string
-  body: string
-  /** Set when the item came from the forge rather than from this editor. */
-  author?: string
-}
-
-/** The opening line, and the one thing in the block that is not the user's own words. */
-export const REVIEW_INTRO = 'I reviewed the diff and need you to address the following items:'
-
-/**
- * The block that goes on the clipboard.
- *
- * Shaped for an agent to act on rather than for a person to skim: one numbered
- * item per remark, the location as `path:line` so a tool can open it, the code
- * quoted so the model does not have to guess what was meant, and the remark
- * itself under **Instruction:** — the imperative an agent reads as the task.
- */
-export function reviewMarkdown(entries: ReviewEntry[], intro = REVIEW_INTRO): string {
-  if (entries.length === 0) return ''
-  const out: string[] = [intro, '']
-  entries.forEach((entry, at) => {
-    const where = entry.line === null ? entry.rel : `${entry.rel}:${entry.line}`
-    out.push(`${at + 1}. **[${entry.label}]** \`${where}\``)
-    if (entry.snippet.length > 0) {
-      // Quoted *and* fenced: the block sits inside a numbered item, and a bare
-      // fence there ends the list in most renderers.
-      out.push(`> \`\`\`${entry.language}`)
-      for (const line of entry.snippet) out.push(`> ${line}`)
-      out.push('> ```')
-    }
-    const body = entry.body.trim()
-    if (entry.author) out.push(`**Comment from @${entry.author}:** ${body}`)
-    else out.push(`**Instruction:** ${body}`)
-    out.push('')
-  })
-  return `${out.join('\n').trimEnd()}\n`
-}
-
-/** How many lines of code an item quotes before it is cut short. */
-export const MAX_SNIPPET_LINES = 12
-
-/**
- * The lines `from`..`to` of `content`, capped. A note on a fifty-line selection
- * is a note about the shape of the thing, and pasting all fifty lines into a
- * prompt buys nothing that the path and the first few do not.
- */
-export function snippetOf(content: string, from: number, to: number): string[] {
-  const lines = content.split('\n')
-  const start = Math.max(0, Math.min(from, lines.length - 1))
-  const end = Math.max(start, Math.min(to, lines.length - 1))
-  const taken = lines.slice(start, Math.min(end + 1, start + MAX_SNIPPET_LINES))
-  if (end - start + 1 > MAX_SNIPPET_LINES)
-    taken.push(`… ${end - start + 1 - MAX_SNIPPET_LINES} more lines`)
-  return taken
 }

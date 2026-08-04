@@ -69,27 +69,48 @@ rejects offers to merge origin in and push again, VS Code's prompt, rather than
 naming the two commands and stopping — and for branches
 (switch, create, create-from, merge, rename, delete), a diff view (inline or
 side-by-side — an added or deleted file is inline whatever `diffView` says, having no
-second side to put beside it, and the rows split view pads a side with are filled
-rather than left reading as blank editor) for whichever change the panel's cursor is
+second side to put beside it, and the rows split view pads a side with are hatched
+rather than left reading as blank editor — a terminal has no fill patterns, so the
+strokes are written into the pane's own content) for whichever change the panel's cursor is
 on — the arrows page through
-them, the panel is the only way in, and the diff is a tab of its own in the strip
+them and Enter opens the changed file itself over the diff (a folder row folds
+instead), the panel is the only way in, and the diff is a tab of its own in the strip
 (`⇄ name`), so opening a file switches away from it instead of leaving it on top — a
 comparison base that points marks, gutter, panel and diff at another branch instead of
 HEAD (palette → Git → Compare against branch…), branch comparison against the
 repository's default branch or any selected base (palette → Git → Compare branches, or
 `B` in the panel) with merge-base file scoping, a commit list and lazily loaded diffs,
-a review panel — the sidebar's fourth view (`Ctrl+Opt+R`, palette → Review) for reading
-code with an agent beside you: `Ctrl+Opt+A` drops a note on the line or selection under
+a review panel — a view of the source-control panel rather than a button of its own in
+the strip, reached by the `◆` in that panel's header (drawn whether or not anything is
+in it, and carrying the count when there is), by `r` there, or by `Ctrl+Opt+R` and
+palette → Review from anywhere; Git stays the pressed tab while it is up, which is what
+makes that button the way back, as Esc and Shift+Tab are — for reading
+code with the remarks beside it: `Ctrl+Opt+A` drops a note on the line or selection under
 the cursor (issue / suggestion / question / note, each spelled out in the palette as
 well as behind the chooser), the notes show as `◆` in the gutter and after the line
-(`reviewInline`) and outlive the session in `review.json` beside the config, `f` in the
-panel fetches the open pull request's comments for the current branch — GitHub, GitLab,
+(`reviewInline`) and outlive the session in `review.json` beside the config; the panel's
+cursor pages the editor the way the source-control panel's pages the diff — the remark's
+file goes up in a preview tab at its line, the keyboard staying in the panel, and the
+remark itself opens as a card under that line, GitHub's arrangement (drawn *over* the
+rows below rather than between them: the editor draws the file, and a row that is not in
+the file cannot be inserted without the caret, the gutter and undo all having to agree
+about a line that does not exist — so it spans the whole pane, gutter included, since a
+half-covered row shows code through on the right and the covered lines' *numbers* on the
+left, and it ends with `⋯ N lines behind`, the words a fold uses, so the gap in the
+numbering is something the editor said rather than something to work out; the card is
+only up while the panel is, and the trailing text is suppressed on the line it covers so
+nothing is said twice), opening the
+panel fetches the open pull request's comments for the current branch by itself
+(`reviewAutoFetch`, and again whenever the branch changes under an open panel, since the
+comments belong to the branch; `f` asks again on demand, and is the loud path — the
+automatic one keeps quiet about a checkout with no remote and no open change, which is a
+fact about the repository rather than about that attempt, but never about an error) —
+GitHub, GitLab,
 Gitea/Forgejo and Bitbucket Cloud, told apart by the remote's host, with `reviewForge`
 naming the one a self-hosted host cannot be guessed from and `reviewRemote` saying which
 remote to read; a token comes from `GITHUB_TOKEN` / `GITLAB_TOKEN` / `GITEA_TOKEN` /
-`BITBUCKET_TOKEN` or `DRUK_FORGE_TOKEN`, and a public repository needs none — and `y`
-copies drafts and comments together as one Markdown block ready to paste into a prompt
-(the export is the only way anything leaves: druk reads a forge and never writes to one),
+`BITBUCKET_TOKEN` or `DRUK_FORGE_TOKEN`, and a public repository needs none (the fetch
+is a read and only a read: druk posts to no forge and nothing leaves the editor),
 an image viewer (PNG/JPEG as half-block cells), a PDF viewer (page, zoom and pan controls
 rendered into terminal cells), a rendered view for markdown files (`Ctrl+Opt+M`, palette → View — OpenTUI's
 `<markdown>` renderable over the editor slot, per path so each tab keeps the view it
@@ -188,12 +209,15 @@ command id to one chord, replacing whatever it had — the settings page's Short
 row lists every bindable command with the key it answers to, refuses a chord another
 custom binding holds and names whatever default a rebind takes the key from, while a
 clash or a value that is not a chord is reported on startup),
-file icons in the tree (`iconTheme` — `unicode` shapes any font has, or a theme a
+file icons in the tree and the source-control panel (`iconTheme` — `unicode` shapes any
+font has, or a theme a
 extension contributes: `material-icons` in the market is the Material Icon Theme's
 associations and colours drawn with Material Design Icons, `nerd-icons` a smaller
 Devicons set, both wanting a patched font, which they declare with `patchedFont`
 so the editor can say so; the glyph takes the expansion
-arrow's column, since a folder icon has an open and a closed form, and the
+arrow's column, since a folder icon has an open and a closed form — in the git panel
+that is the column a file row spent on nothing, so the two sidebar views line their
+names up either way — and the
 default is `none` because nothing can ask a terminal what its font holds),
 an extension system (JSON manifests in `$XDG_CONFIG_HOME/druk/extensions/<id>/extension.json`
 — or `<id>.json` for a one-file extension — and in `<project>/.druk/extensions/` for a
@@ -427,7 +451,7 @@ dependency rule, and recipes for the extension points:
 | sidebar view | `SidebarView` in `src/ui/SidebarTabs.tsx` (add a `short` initial — the strip falls back to those in a narrow sidebar), a branch in `App.tsx`'s sidebar, one in `keyboard.ts`'s pane switch, a `KeyScope` in `src/ui/keys.ts` with a `SCOPE_LABELS` entry in `KeyPeek.tsx`, and a `toggle…View` on `src/app/panes.ts` |
 | branch-comparison behaviour | git queries and models in `src/core/git.ts`, state and caches in `src/app/comparison.ts`, rows in `ComparePanel` and the detail page in `ComparisonView` |
 | forge (pull-request comments) | a `ForgeKind` in `src/core/forge.ts`: the host names it answers to in `kindForHost`, its API base in `apiBase`, the header its token goes in, and a `find…`/`…Comments` pair mapping its JSON onto `PullRequest` / `ForgeComment` — 0-based lines, because that is what the rest of druk counts in. A host no name places is an error naming `reviewForge`, never a guess. Everything is read-only: druk posts no comment and approves nothing |
-| review row or key | `src/app/review.ts` (the notes, the fetched comments, the rows and what Enter does); `ui/ReviewPanel.tsx` draws `rows()` and reports clicks, the keys sit in `keyboard.ts` beside the git panel's, and the export's Markdown shape is `reviewMarkdown` in `src/core/review.ts` |
+| review row or key | `src/app/review.ts` (the notes, the fetched comments, the rows and what Enter does); `ui/ReviewPanel.tsx` draws `rows()` and reports clicks, the keys sit in `keyboard.ts` beside the git panel's, and the note's shape and where it is persisted are `src/core/review.ts` |
 | git command | run it in `git.activeRepo()`, never in `rootDir` — the opened folder may hold several repositories and be none itself. A mutation goes through `gitOp`, which refuses when no repository is picked and *hands the chosen one to the callback*; a query asks `git.repoFor(path)` for the repository of the path it is about. Which repositories exist is `discoverRepos` (`src/core/repos.ts`), refreshed in `wireGitEffects` |
 
 Key handlers subscribe through `useKeys` (`src/ui/useKeys.ts`), never OpenTUI's

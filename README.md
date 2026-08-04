@@ -211,34 +211,27 @@ undo-commit and the branch commands live beside it.
 
 ## Review
 
-Reading a change with an AI agent beside you means copying paths, line numbers and
-snippets into a prompt. `Ctrl+Opt+A` does that part for you: it notes the line — or the
-selection — the cursor is on as an **issue**, **suggestion**, **question** or **note**,
-and the remark shows as `◆` in the gutter and after the line. Notes are per project and
-survive a restart.
+Reading a change means keeping track of what you meant to say about it. `Ctrl+Opt+A`
+does that part for you: it notes the line — or the selection — the cursor is on as an
+**issue**, **suggestion**, **question** or **note**, and the remark shows as `◆` in the
+gutter and after the line. Notes are per project and survive a restart.
 
-`Ctrl+Opt+R` opens the review panel beside the tree: every note under the file it is
-about, `Enter` jumps to the line, `Backspace` drops one. `f` fetches the comments on the
-pull request open for the current branch, which then read in the same list and beside the
-same lines. `y` copies the lot — your notes and the comments — as one Markdown block,
-ready to paste into an agent:
-
-```markdown
-I reviewed the diff and need you to address the following items:
-
-1. **[ISSUE]** `src/auth.ts:49`
-> ```typescript
-> const claims = decodeToken(token)
-> ```
-**Instruction:** Surface the timestamp when claims expire so the error has the context.
-```
+The review lives inside the source-control panel: the `◆` in its header opens it, as
+does `r` there or `Ctrl+Opt+R` from anywhere, and `Git` stays the pressed tab — click it,
+or press `Esc`, to get back to the change list. Every note sits under the file it is
+about. The cursor is a pager: the file a remark is about goes up beside the list at its
+line, and the remark opens as a card under that line the way a comment reads on GitHub —
+`↑↓` walks it, `Enter` puts the caret there, `Backspace` drops a note. Opening it also
+fetches the
+comments on the pull request open for the current branch, which then read in the same
+list and beside the same lines — `f` asks again, and *Fetch comments on open* in the
+settings page turns the automatic one off.
 
 The pull request can be on **GitHub, GitLab, Gitea/Forgejo or Bitbucket Cloud** — druk
 reads the remote's URL to know which, self-hosted instances included. A private
 repository wants a token in `GITHUB_TOKEN`, `GITLAB_TOKEN`, `GITEA_TOKEN`,
 `BITBUCKET_TOKEN` or `DRUK_FORGE_TOKEN`; a public one needs none. druk only ever *reads*
-a forge: nothing is posted, approved or resolved, and the clipboard is the only way
-anything leaves the editor.
+a forge: nothing is posted, approved or resolved.
 
 ## Settings
 

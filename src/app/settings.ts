@@ -506,6 +506,11 @@ export function createSettings(deps: {
     status.say(`Pull requests read from "${remote}"`)
   }
 
+  const toggleReviewAutoFetch = () => {
+    patchConfig({ reviewAutoFetch: !view().reviewAutoFetch })
+    status.say(`Fetching on open ${onOff(config.reviewAutoFetch)}`)
+  }
+
   const toggleReviewInline = () => {
     patchConfig({ reviewInline: !view().reviewInline })
     status.say(`Inline review notes ${onOff(config.reviewInline)}`)
@@ -855,6 +860,13 @@ export function createSettings(deps: {
         hint: ['A git remote name — its URL says which forge', 'Empty: origin'],
         apply: values => applyReviewRemote(values[0] ?? ''),
       },
+    },
+    {
+      section: 'Review',
+      key: 'reviewAutoFetch',
+      label: 'Fetch comments on open',
+      value: onOff(view().reviewAutoFetch),
+      cycle: toggleReviewAutoFetch,
     },
     {
       section: 'Review',

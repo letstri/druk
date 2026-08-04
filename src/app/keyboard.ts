@@ -88,7 +88,6 @@ export function installKeyboard(ctx: AppContext, actions: CommandActions) {
     'view.extensions': panes.toggleExtensionsView,
     'review.note': actions.reviewNote,
     'review.fetch': actions.reviewFetch,
-    'review.copy': actions.reviewCopy,
     'view.collapse': actions.collapseSidebar,
     'view.markdown': workspace.toggleRendered,
     'view.wrap': actions.toggleWrap,
@@ -274,14 +273,18 @@ export function installKeyboard(ctx: AppContext, actions: CommandActions) {
     if (panes.view() === 'review') {
       switch (config.vim ? (vimNav[k] ?? k) : k) {
         case 'tab':
-          if (key.shift) panes.showView('extensions')
+          // Out of the strip's cycle, so Shift+Tab goes back to the panel the
+          // review was opened from rather than on to the next button.
+          if (key.shift) panes.showView('git')
           else if (workspace.activePath() || workspace.diff()) panes.setFocus('editor')
           break
+        // The cursor is the pager, as it is in the source-control panel: the
+        // file the remark is about follows it into the editor slot.
         case 'up':
-          review.move(-1)
+          actions.reviewMove(-1)
           break
         case 'down':
-          review.move(1)
+          actions.reviewMove(1)
           break
         case 'right':
           review.fold(false)
@@ -299,11 +302,6 @@ export function installKeyboard(ctx: AppContext, actions: CommandActions) {
           break
         case 'f':
           actions.reviewFetch()
-          break
-        // Yank, as a copy from a list of things is spelled in every modal editor
-        // — and `c` is taken by the git panel's commit, which this sits beside.
-        case 'y':
-          actions.reviewCopy()
           break
         case 'escape':
           panes.toggleReviewView()
@@ -366,7 +364,7 @@ export function installKeyboard(ctx: AppContext, actions: CommandActions) {
         case 'tab':
           // Shift+Tab walks the tab strip above the sidebar, the way it walks any
           // other one; plain Tab keeps handing the keyboard to the editor.
-          if (key.shift) panes.showView('review')
+          if (key.shift) panes.showView('extensions')
           else if (workspace.activePath() || workspace.diff()) panes.setFocus('editor')
           break
         case 'up':
@@ -386,7 +384,7 @@ export function installKeyboard(ctx: AppContext, actions: CommandActions) {
           break
         case 'return':
         case 'enter':
-          actions.gitActivateRow(at)
+          actions.gitOpenRow(at)
           break
         case 'c':
           actions.gitCommit()
@@ -396,6 +394,10 @@ export function installKeyboard(ctx: AppContext, actions: CommandActions) {
           break
         case 'b':
           actions.gitSwitchBranch()
+          break
+        // The header's ◆ as a key, since every other control on this panel has one.
+        case 'r':
+          panes.showView('review')
           break
         case 'escape':
           // A diff opened from this panel sits on top of it: Esc dismisses that

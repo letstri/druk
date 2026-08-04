@@ -4,7 +4,7 @@ import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { fillerBg } from '../src/ui/DiffView'
+import { HATCH } from '../src/ui/DiffView'
 import {
   launch,
   openDiff,
@@ -21,16 +21,6 @@ interface Span {
   text: string
   fg: unknown
 }
-
-interface Frame {
-  lines: { spans: { text: string; bg?: { buffer: Record<string, number> } }[] }[]
-}
-
-const rgbOf = (color: { buffer: Record<string, number> }) =>
-  [0, 1, 2].map(i => color.buffer[String(i)]).join(',')
-
-const hexToRgb = (hex: string) =>
-  [1, 3, 5].map(i => Number.parseInt(hex.slice(i, i + 2), 16)).join(',')
 
 /** A real repository with committed files. */
 function repo(files: Record<string, string>) {
@@ -79,7 +69,7 @@ test('"Diff current file" opens the panel on that file, cursor and all', async (
   await runCommand(t, 'Diff current file')
 
   let frame = t.captureCharFrame()
-  expect(frame).toContain('source control')
+  expect(frame).toContain('◆ review')
   expect(frame).toContain('+ BETA')
 
   // The cursor landed on b.ts's row, so the arrows page on from there.
@@ -152,7 +142,7 @@ test('an added file stays inline in split view — there is no side to compare',
   expect(t.captureCharFrame()).not.toContain('side-by-side')
 })
 
-test('split view fills the rows it pads a side with', async () => {
+test('split view hatches the rows it pads a side with', async () => {
   // One line becomes three: the left pane is padded with two rows the patch has
   // nothing for, and those are what must not read as blank editor.
   const dir = repo({ 'a.ts': 'one\ntwo\nthree\n' })
@@ -162,11 +152,13 @@ test('split view fills the rows it pads a side with', async () => {
   await openDiff(t)
   await untilFrame(t, '+ five')
 
-  const fill = hexToRgb(fillerBg())
-  const filled = (t.captureSpans() as unknown as Frame).lines.filter(line =>
-    line.spans.some(span => span.bg && rgbOf(span.bg) === fill),
-  )
-  expect(filled.length).toBeGreaterThanOrEqual(2)
+  const run = HATCH.repeat(8)
+  await until(t, () => t.captureCharFrame().includes(run))
+  const hatched = t
+    .captureCharFrame()
+    .split('\n')
+    .filter(line => line.includes(run))
+  expect(hatched.length).toBeGreaterThanOrEqual(2)
 })
 
 test('the panel cursor pages the diff: ↓ to the next change, ↑ back', async () => {
@@ -303,7 +295,7 @@ test('the diff is a page: sidebar, tabs and status bar all stay around it', asyn
 
   const frame = t.captureCharFrame()
   expect(frame).toContain('+1 −1') // the diff itself
-  expect(frame).toContain('source control') // the panel does not make way
+  expect(frame).toContain('◆ review') // the panel does not make way
   const lines = frame.split('\n')
   expect(lines[0]).toContain('a.ts') // tab row still up top
   expect(lines.at(-2)).toContain('⎇ main') // status bar still below

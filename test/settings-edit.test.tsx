@@ -30,7 +30,7 @@ const LATE_ROW = 15_000
 
 /** Walk the settings page's selection down until it sits on `label`. */
 async function gotoRow(t: Harness, label: string) {
-  for (let step = 0; step < 30; step++) {
+  for (let step = 0; step < 40; step++) {
     const row = t
       .captureCharFrame()
       .split('\n')

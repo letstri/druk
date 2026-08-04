@@ -14,10 +14,11 @@ export interface SidebarTabsProps {
   onSelect: (view: SidebarView) => void
 }
 
+// No review tab: the review is reached from the `◆` in the source-control
+// panel's header, being about the change that panel is already listing.
 const TABS: { id: SidebarView; label: string; short: string }[] = [
   { id: 'files', label: 'Files', short: 'F' },
   { id: 'git', label: 'Git', short: 'G' },
-  { id: 'review', label: 'Rev', short: 'R' },
   { id: 'extensions', label: 'Ext', short: 'E' },
 ]
 
@@ -46,8 +47,6 @@ export function SidebarTabs(props: SidebarTabsProps) {
   // Initials beside a narrow sidebar, as the settings page's hints do it, and
   // then initials with the padding dropped: the strip cannot wrap, and
   // overflowing it paints the buttons over whatever is in the editor's slot.
-  // Both fallbacks are needed at four views — padded initials want 17 columns
-  // and a sidebar may be pinned to 15.
   const long = () => stripWidth(NAMES, 1) <= props.width
   const padded = () => long() || stripWidth(INITIALS, 1) <= props.width
   const pad = () => (padded() ? 1 : 0)

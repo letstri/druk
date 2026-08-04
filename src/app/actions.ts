@@ -146,11 +146,28 @@ export function createCommands(ctx: AppContext) {
     panes.setGitCursor(at >= 0 ? at : Math.min(panes.gitCursor(), Math.max(0, rows.length - 1)))
   }
 
-  /** Enter, or a click: a file diffs, a folder folds. */
+  /** A click: a file diffs, a folder folds. */
   const gitActivateRow = (row: number) => {
     gitMoveTo(row)
     const target = git.rows()[panes.gitCursor()]
     if (target?.kind === 'dir') git.toggleCollapsed(target.rel)
+  }
+
+  /**
+   * Enter: a folder folds, a file opens for editing. The diff is already on
+   * screen — moving the cursor put it there — so Enter is the way past it into
+   * the file itself, and a deleted one keeps the diff, which is all that is
+   * left of it.
+   */
+  const gitOpenRow = (row: number) => {
+    const rows = git.rows()
+    const at = Math.max(0, Math.min(row, rows.length - 1))
+    const target = rows[at]
+    if (!target) return
+    panes.setGitCursor(at)
+    if (target.kind === 'dir') return git.toggleCollapsed(target.rel)
+    if (target.change.status === 'deleted') return say('File was deleted', 'warn')
+    workspace.openFile(target.change.path)
   }
 
   /**
@@ -192,6 +209,26 @@ export function createCommands(ctx: AppContext) {
 
   /** Enter in the review panel: land on the line a remark is about. */
   const openNote = (path: string, line: number) => openAt(path, line, 0)
+
+  /**
+   * The review panel's cursor as a pager, the way the git panel's cursor pages
+   * the diff: the remark's file goes up beside the list, at its line, so the
+   * comment is read in the code it is about rather than in a thirty-column row.
+   *
+   * Two differences from `openAt`, and both are what make it a pager rather than
+   * a jump: a preview tab, so walking a list of twenty remarks does not leave
+   * twenty tabs on the strip, and no `setFocus` — the arrows belong to the panel
+   * or there is nothing left to page with. Enter is still the way in.
+   */
+  const showNote = () => {
+    const target = ctx.review.targetOf()
+    if (!target) return
+    workspace.setDiff(null)
+    workspace.setPage(null)
+    if (target.path !== workspace.activePath()) workspace.openFile(target.path, true)
+    if (workspace.activePath() !== target.path) return
+    editor.requestGoto(target.line, 0)
+  }
 
   /** Jump to the neighbouring problem and read it out in the status bar. */
   const jumpProblem = (direction: 1 | -1) => {
@@ -365,6 +402,7 @@ export function createCommands(ctx: AppContext) {
     },
     gitMoveTo,
     gitActivateRow,
+    gitOpenRow,
     /**
      * "Diff current file" — the palette's way into the panel: it opens the
      * source-control view with the cursor on the file being edited, so the
@@ -481,9 +519,13 @@ export function createCommands(ctx: AppContext) {
         ctx.prompts.setPrompt({ kind: 'reviewNote', ...target, noteKind: kind }),
       ),
     reviewFetch: ctx.review.fetchPullRequest,
-    reviewCopy: ctx.review.copyForAgent,
     reviewClear: ctx.review.clear,
     reviewMoveTo: (row: number) => ctx.review.moveTo(row),
+    reviewMove: (delta: number) => {
+      ctx.review.move(delta)
+      showNote()
+    },
+    reviewShow: showNote,
     reviewActivate: (row: number) => ctx.review.activate(row, openNote),
     reviewCollapseAll: ctx.review.collapseAll,
     openExtensions: panes.toggleExtensionsView,

@@ -66,10 +66,10 @@ test('comparing against a branch shows work that is already committed', async ()
   expect(frame(t)).toContain('b.ts')
 
   // And the diff page is against that branch too, not against HEAD.
-  await press(t, i => i.pressEnter())
+  await press(t, i => i.pressArrow('up'))
   await untilFrame(t, 'beta on feature')
 
   await runCommand(t, 'Compare against HEAD')
-  await untilFrame(t, 'source control')
+  await untilFrame(t, '◆ review')
   expect(frame(t)).not.toContain('vs main')
 }, 20000)

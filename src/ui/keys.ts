@@ -227,13 +227,13 @@ export const KEYS: KeyInfo[] = [
   // measures exactly that.
   {
     key: '↑↓ · Enter · →←',
-    label: 'Diff a change · fold a folder',
+    label: 'Diff a change · open it · fold',
     section: 'Source control',
     where: 'git',
   },
   {
-    key: 'c p b B Esc',
-    label: 'Commit/push/branch/compare/back',
+    key: 'c p b B r Esc',
+    label: 'Commit/push/branch/review/back',
     section: 'Source control',
     where: 'git',
   },
@@ -250,7 +250,12 @@ export const KEYS: KeyInfo[] = [
   },
   // Short labels on purpose, as the source-control rows are: the help table only
   // just fits a 60-row terminal, and a wrapped label costs it a second row.
-  { key: 'Enter · f · y', label: 'Jump · fetch PR · copy', section: 'Review', where: 'review' },
+  {
+    key: 'Enter · f · Esc',
+    label: 'Jump · fetch · back',
+    section: 'Review',
+    where: 'review',
+  },
 
   {
     key: 'Ctrl+B',

@@ -7,7 +7,7 @@ import { join } from 'node:path'
 import { fetchComments, findPullRequest, forgeFor, tokenFor } from '../src/core/forge'
 import type { Fetcher, ForgeTarget } from '../src/core/forge'
 import { remoteUrl } from '../src/core/git'
-import { loadNotes, reviewMarkdown, saveNotes, snippetOf } from '../src/core/review'
+import { loadNotes, saveNotes } from '../src/core/review'
 import {
   fixture,
   launch,
@@ -252,45 +252,6 @@ test('notes survive a restart, and clearing forgets the project', () => {
   expect(loadNotes('/p', file)).toEqual([])
 })
 
-test('the export is the block an agent is meant to act on', () => {
-  const markdown = reviewMarkdown([
-    {
-      label: 'ISSUE',
-      rel: 'src/auth.ts',
-      line: 49,
-      snippet: ['const claims = decode(token)'],
-      language: 'typescript',
-      body: 'say when it expired',
-    },
-    {
-      label: 'NOTE',
-      rel: 'test/auth.test.ts',
-      line: 15,
-      snippet: [],
-      language: '',
-      body: 'a case for expired refresh tokens?',
-      author: 'peer-dev',
-    },
-  ])
-
-  expect(markdown).toContain('1. **[ISSUE]** `src/auth.ts:49`')
-  expect(markdown).toContain('> ```typescript')
-  expect(markdown).toContain('> const claims = decode(token)')
-  expect(markdown).toContain('**Instruction:** say when it expired')
-  // A fetched comment reads as somebody else's words, not as an instruction.
-  expect(markdown).toContain('2. **[NOTE]** `test/auth.test.ts:15`')
-  expect(markdown).toContain('**Comment from @peer-dev:**')
-})
-
-test('a long selection quotes its head and says what it left out', () => {
-  const content = Array.from({ length: 40 }, (_, at) => `line ${at}`).join('\n')
-  const snippet = snippetOf(content, 0, 29)
-  expect(snippet).toHaveLength(13)
-  expect(snippet.at(-1)).toContain('18 more lines')
-  // A range past the end of the file is clamped, never empty.
-  expect(snippetOf('one\ntwo\n', 5, 9)).toEqual([''])
-})
-
 test('the configured remote is the one read', () => {
   const dir = mkdtempSync(join(tmpdir(), 'druk-remote-'))
   const git = (...args: string[]) => execFileSync('git', args, { cwd: dir })
@@ -328,19 +289,47 @@ test('a note lands in the panel, in the gutter and after the line', async () => 
   expect(t.captureCharFrame()).toContain('a.ts')
 })
 
-test('the panel copies the whole review as Markdown', async () => {
-  const t = await launch(fixture(PROJECT), {}, { width: 100, height: 24 })
+test('the panel opens the remark as a card under its line, and pages files', async () => {
+  const t = await launch(
+    fixture({ 'a.ts': 'const a = 1\n', 'b.ts': 'const b = 2\nconst c = 3\n' }),
+    {},
+    { width: 100, height: 24 },
+  )
+  await openFile(t, 'b.ts')
+  await press(t, i => i.pressArrow('down'))
+  await noteLine(t, 'issue', 'wrong on b')
   await openFile(t, 'a.ts')
-  await noteLine(t, 'suggestion', 'name it better')
+  await noteLine(t, 'question', 'why on a')
 
-  await runCommand(t, 'Copy review as Markdown')
-  await untilFrame(t, 'Copied 1 review item')
+  // The cursor lands on the first file's heading, and the card opens under the
+  // line of its first remark rather than waiting for a keypress.
+  await runCommand(t, 'Review panel')
+  await untilFrame(t, 'why on a')
+  const card = t.captureCharFrame()
+  expect(card).toContain('◆ QUESTION')
+  // It covers rows, gutter included, so it says how many rather than leaving a
+  // gap in the numbering for the reader to work out.
+  expect(card).toContain('lines behind')
+
+  // Two rows down is b.ts's heading — a file that is not the one on screen, so
+  // the cursor pages the editor to it and the card follows.
+  await press(t, i => i.pressArrow('down'))
+  await press(t, i => i.pressArrow('down'))
+  await untilFrame(t, 'wrong on b')
+  expect(t.captureCharFrame()).toContain('const b = 2')
 })
 
-test('with nothing noted the copy says so rather than emptying the clipboard', async () => {
+test('opening the panel fetches by itself, and is quiet where the key is loud', async () => {
   const t = await launch(fixture(PROJECT), {}, { width: 100, height: 24 })
-  await runCommand(t, 'Copy review as Markdown')
-  expect(t.captureCharFrame()).toContain('Nothing to copy')
+  await runCommand(t, 'Review panel')
+  // Nothing to ask — no repository at all — and the panel says so to nobody:
+  // the user changed sidebar view, they did not ask for a fetch.
+  await settle(t, 200)
+  expect(t.captureCharFrame()).not.toContain('Not a git repository')
+
+  // The command the user reaches for still reports what stopped it.
+  await runCommand(t, 'Fetch pull request comments')
+  await untilFrame(t, 'Not a git repository')
 })
 
 test('a note needs a file, and says so from the tree', async () => {

@@ -141,7 +141,7 @@ test('Esc closes detail before leaving comparison', async () => {
 
   t.mockInput.pressEscape()
   await new Promise(resolve => setTimeout(resolve, 60))
-  await untilFrame(t, 'source control')
+  await untilFrame(t, '◆ review')
   expect(t.captureCharFrame()).not.toContain('base  trunk')
 })
 

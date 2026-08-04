@@ -173,7 +173,6 @@ export function App(props: {
     workspace,
     git,
     panes,
-    renderer,
   })
   const promptHandlers = createPromptHandlers({
     renderer,
@@ -430,6 +429,37 @@ export function App(props: {
     ),
   )
 
+  // The same arrangement for the review panel, and for the same reason: the
+  // comments are the half of the list druk cannot know without asking, and `f`
+  // is a key nobody finds. The branch is in the signal too, so a switch while
+  // the panel is up re-asks — the comments belong to the branch, not to the
+  // session.
+  createEffect(
+    on(
+      () => (panes.sidebar() && panes.view() === 'review' ? git.branch() : null),
+      branch => {
+        if (branch) review.autoFetch()
+      },
+    ),
+  )
+
+  // …and puts the code the cursor points at into the editor slot beside it. The
+  // remarks are drawn on their own lines, so the panel is the index and the file
+  // is the review — a list of rows over an unrelated file is neither.
+  // The count rather than the view alone, so the comments a fetch brings back
+  // land in the editor too — arriving a second after the panel opened is the
+  // ordinary case, and by then the view has not changed to fire on. The guard
+  // reads focus untracked: once the keyboard has gone to the editor the user is
+  // reading something, and a late fetch must not swap the file under them.
+  createEffect(
+    on(
+      () => (panes.sidebar() && panes.view() === 'review' ? review.count() : -1),
+      count => {
+        if (count > 0 && panes.focus() === 'tree') actions.reviewShow()
+      },
+    ),
+  )
+
   // Focus reporting (DECSET 1004): the terminal sends CSI I / CSI O as the window
   // gains / loses focus. OpenTUI's key parser recognises both and swallows them,
   // so the raw stdin stream is the only place left to see the blur. The mode is
@@ -539,7 +569,10 @@ export function App(props: {
             backgroundColor={ui.sidebarBg}
           >
             <SidebarTabs
-              view={panes.view()}
+              // The review has no button of its own: it is a view of the change
+              // the source-control panel lists, so the strip keeps Git pressed
+              // while it is up — which also makes that button the way back.
+              view={panes.view() === 'review' ? 'git' : panes.view()}
               focused={panes.focus() === 'tree'}
               width={settings.treeWidth()}
               onSelect={view => panes.showView(view)}
@@ -615,9 +648,12 @@ export function App(props: {
                     focused={panes.focus() === 'tree'}
                     width={settings.treeWidth()}
                     inRepo={git.inRepo()}
+                    iconTheme={settings.activeIconTheme()}
                     onFocus={() => panes.setFocus('tree')}
                     onActivate={actions.gitActivateRow}
                     onCollapseAll={actions.gitCollapseAll}
+                    reviewCount={review.count()}
+                    onReview={() => panes.showView('review')}
                   />
                 }
               >
@@ -707,6 +743,10 @@ export function App(props: {
             problemText={config.lspInline}
             reviews={review.marks()}
             reviewText={config.reviewInline}
+            // Only while the panel is showing: the card is a reading aid that
+            // covers the lines under it, which is a trade worth making for the
+            // review and not for ordinary editing.
+            reviewCard={panes.sidebar() && panes.view() === 'review' ? review.card() : null}
             complete={
               config.lsp && config.lspCompletion
                 ? (line, col) => {

@@ -1,28 +1,23 @@
 /**
- * Reviewing code with an agent beside you: the draft notes dropped on lines
- * while reading, the pull-request comments fetched from whichever forge the
- * repository is on, and the one command that turns both into a Markdown block
- * on the clipboard.
+ * Reading code with a review beside you: the draft notes dropped on lines while
+ * reading, and the pull-request comments fetched from whichever forge the
+ * repository is on.
  *
  * The division is the panel's usual one — this owns the list, the cursor and
  * the fold state, `ui/ReviewPanel.tsx` draws whatever `rows()` returns and
  * reports clicks, and `app/keyboard.ts` holds the keys.
  *
- * Nothing here writes to a forge. The fetch is a read, and the export is a
- * clipboard block: what leaves the editor is what the user pastes.
+ * Nothing here writes to a forge: the fetch is a read and only a read.
  */
 import { basename, join, relative } from 'node:path'
 
 import { createMemo, createSignal } from 'solid-js'
 
-import { copyToClipboard } from '../core/clipboard'
 import { fetchComments, findPullRequest, forgeFor } from '../core/forge'
 import type { ForgeComment, PullRequest } from '../core/forge'
-import { readFile } from '../core/fs'
 import { remoteUrl } from '../core/git'
-import { loadNotes, NOTE_LABELS, reviewMarkdown, saveNotes, snippetOf } from '../core/review'
-import type { NoteKind, ReviewEntry, ReviewNote } from '../core/review'
-import { filetypeForPath } from '../languages/highlight'
+import { loadNotes, NOTE_LABELS, saveNotes } from '../core/review'
+import type { NoteKind, ReviewNote } from '../core/review'
 import type { Git } from './git'
 import type { Panes } from './panes'
 import type { Settings } from './settings'
@@ -57,10 +52,8 @@ export function createReview(deps: {
   workspace: Workspace
   git: Git
   panes: Panes
-  /** OSC 52 as well as the subprocess — over SSH it is the only route that lands. */
-  renderer: { copyToClipboardOSC52: (text: string) => void }
 }) {
-  const { rootDir, status, settings, workspace, git, panes, renderer } = deps
+  const { rootDir, status, settings, workspace, git, panes } = deps
   const { say } = status
   const { config } = settings
 
@@ -218,6 +211,64 @@ export function createReview(deps: {
 
   const collapseAll = () => setCollapsed(new Set(grouped().map(entry => entry.rel)))
 
+  /** The line one remark is about, or nothing for a comment on no file at all. */
+  const placeOf = (remark: ReviewNote | AnchoredComment) =>
+    'kind' in remark
+      ? { path: remark.path, line: remark.line }
+      : remark.path && remark.comment.line !== null
+        ? { path: remark.path, line: remark.comment.line }
+        : null
+
+  /**
+   * The remark the row at `index` speaks for, which is what both the editor
+   * that follows the cursor and the card under the line are about.
+   *
+   * A heading answers with the first remark of its file rather than with
+   * nothing: it is the row the cursor lands on when the panel opens, and a
+   * review that shows no code until the second keypress is the thing this is
+   * for. A collapsed group still answers — the remarks are hidden, not gone.
+   */
+  const remarkOf = (index = at()): ReviewNote | AnchoredComment | null => {
+    const current = rows()[Math.max(0, Math.min(index, rows().length - 1))]
+    if (!current || current.kind === 'hint') return null
+    if (current.kind === 'note') return current.note
+    if (current.kind === 'comment') return current.entry
+    const group = grouped().find(entry => entry.rel === current.rel)
+    const held = [...(group?.notes ?? []), ...(group?.comments ?? [])]
+    return held.find(remark => placeOf(remark)) ?? null
+  }
+
+  const targetOf = (index = at()) => {
+    const remark = remarkOf(index)
+    return remark ? placeOf(remark) : null
+  }
+
+  /**
+   * The remark under the cursor as the editor opens it: a card under its line,
+   * and only while it is about the file on screen — the card is drawn in that
+   * file's coordinates, so one belonging to another file has nowhere to go.
+   */
+  const card = createMemo(() => {
+    const remark = remarkOf()
+    const path = workspace.activePath()
+    if (!remark || !path) return null
+    const place = placeOf(remark)
+    if (!place || place.path !== path) return null
+    return 'kind' in remark
+      ? {
+          line: place.line,
+          draft: true,
+          heading: NOTE_LABELS[remark.kind],
+          body: remark.body,
+        }
+      : {
+          line: place.line,
+          draft: false,
+          heading: `@${remark.comment.author || 'reviewer'}`,
+          body: remark.comment.body,
+        }
+  })
+
   /** Enter: fold a heading, or land on the line the remark is about. */
   const activate = (index = at(), open?: (path: string, line: number) => void) => {
     moveTo(index)
@@ -243,25 +294,35 @@ export function createReview(deps: {
    *
    * Every step reports what stopped it: no remote, a host druk cannot place, a
    * private repository, no open change for this branch. "Nothing happened" is
-   * the one outcome a fetch must never have.
+   * the one outcome a fetch the user asked for must never have — so `quiet`
+   * silences exactly the outcomes that are facts about the checkout rather than
+   * about this attempt, and never an error. It is what the fetch on opening the
+   * panel uses: a repository with no pull request would otherwise say so every
+   * time the sidebar changed view.
    */
-  const fetchPullRequest = async () => {
-    if (fetching()) return say('Already fetching', 'warn')
+  const fetchPullRequest = async (quiet = false) => {
+    const absent = (message: string) => {
+      if (!quiet) say(message, 'warn')
+    }
+    if (fetching()) return absent('Already fetching')
     const repo = git.activeRepo()
-    if (!repo) return say('Not a git repository', 'warn')
+    if (!repo) return absent('Not a git repository')
     const branch = git.branch()
-    if (!branch) return say('No branch — a detached HEAD has no pull request', 'warn')
+    if (!branch) return absent('No branch — a detached HEAD has no pull request')
     const url = remoteUrl(repo, config.reviewRemote)
-    if (!url) return say(`No "${config.reviewRemote}" remote to ask`, 'warn')
+    if (!url) return absent(`No "${config.reviewRemote}" remote to ask`)
     const target = forgeFor(url, config.reviewForge)
     if (!target.ok) return say(target.error, 'error')
 
     setFetching(true)
-    say(`Looking for ${branch} on ${target.value.host}…`)
+    if (!quiet) say(`Looking for ${branch} on ${target.value.host}…`)
     try {
       const found = await findPullRequest(target.value, branch)
       if (!found.ok) return say(found.error, 'error')
-      if (!found.value) return say(`No open pull request for ${branch}`)
+      if (!found.value) {
+        if (!quiet) say(`No open pull request for ${branch}`)
+        return
+      }
       setPull(found.value)
       const said = await fetchComments(target.value, found.value)
       if (!said.ok) return say(said.error, 'error')
@@ -273,78 +334,25 @@ export function createReview(deps: {
           path: comment.path ? join(repo, comment.path) : null,
         })),
       )
-      panes.showView('review')
+      // Not while quiet: the panel is already up, and the fetch is slow enough
+      // that the user may have tabbed into the editor — `showView` would take
+      // the keyboard back from under them.
+      if (!quiet) panes.showView('review')
       const count = said.value.length
-      say(
-        count === 0
-          ? `#${found.value.number} "${found.value.title}" — no comments yet`
-          : `#${found.value.number}: ${count} comment${count === 1 ? '' : 's'}`,
-      )
+      if (count > 0) say(`#${found.value.number}: ${count} comment${count === 1 ? '' : 's'}`)
+      else if (!quiet) say(`#${found.value.number} "${found.value.title}" — no comments yet`)
     } finally {
       setFetching(false)
     }
   }
 
-  /** The text of a file as the review should quote it: the buffer, else the disk. */
-  const textOf = (path: string): string | null => {
-    const open = workspace.buffers[path]
-    if (open) return open.content
-    try {
-      return readFile(path)
-    } catch {
-      return null
-    }
-  }
-
-  const entryFor = (note: ReviewNote): ReviewEntry => {
-    const content = textOf(note.path)
-    return {
-      label: NOTE_LABELS[note.kind],
-      rel: relative(rootDir, note.path) || basename(note.path),
-      line: note.line + 1,
-      snippet: content === null ? [] : snippetOf(content, note.line, note.endLine),
-      language: filetypeForPath(note.path) ?? '',
-      body: note.body,
-    }
-  }
-
-  const commentEntry = (held: AnchoredComment): ReviewEntry => {
-    const { comment, path } = held
-    const content = path && comment.line !== null ? textOf(path) : null
-    return {
-      label: 'NOTE',
-      rel: path ? relative(rootDir, path) || basename(path) : GENERAL,
-      line: comment.line === null ? null : comment.line + 1,
-      snippet:
-        content === null || comment.line === null
-          ? []
-          : snippetOf(content, comment.line, comment.line),
-      language: path ? (filetypeForPath(path) ?? '') : '',
-      body: comment.body,
-      author: comment.author || 'reviewer',
-    }
-  }
-
   /**
-   * The whole review as one Markdown block on the clipboard — the point of the
-   * feature. Drafts first and in the order they were written, then whatever the
-   * forge had to say: a reviewer's own list is the instruction, and the
-   * comments are the context around it.
+   * The fetch an opened panel makes for itself, which is what `reviewAutoFetch`
+   * turns off: four unauthenticated requests land on GitHub's sixty an hour, and
+   * a panel toggled often enough would spend them.
    */
-  const copyForAgent = () => {
-    const entries = [...notes().map(entryFor), ...comments().map(commentEntry)]
-    if (entries.length === 0) return say('Nothing to copy — no notes and no comments', 'warn')
-    const pr = pull()
-    const intro = pr
-      ? `I reviewed ${pr.url || `#${pr.number}`} and need you to address the following items:`
-      : undefined
-    const text = reviewMarkdown(entries, intro)
-    copyToClipboard(text)
-    // Both routes, as the copy-path command does: the subprocess reaches this
-    // machine's clipboard and the escape sequence the terminal's own, which over
-    // SSH is the one the user is sitting at.
-    renderer.copyToClipboardOSC52(text)
-    say(`Copied ${entries.length} review item${entries.length === 1 ? '' : 's'} as Markdown`)
+  const autoFetch = () => {
+    if (config.reviewAutoFetch) void fetchPullRequest(true)
   }
 
   return {
@@ -357,6 +365,8 @@ export function createReview(deps: {
     cursor: at,
     move,
     moveTo,
+    targetOf,
+    card,
     activate,
     fold,
     collapseAll,
@@ -365,7 +375,7 @@ export function createReview(deps: {
     removeNote,
     clear,
     fetchPullRequest: () => void fetchPullRequest(),
-    copyForAgent,
+    autoFetch,
     /** The header's count, which no fold narrows. */
     count: () => notes().length + comments().length,
   }

@@ -48,7 +48,7 @@ test('Esc closes the diff opened from the panel, not the panel under it', async 
   const after = frame(t)
   expect(after).not.toContain('alpha changed')
   // The panel is still the sidebar's view: only the page it opened went away.
-  expect(after).toContain('source control')
+  expect(after).toContain('◆ review')
 })
 
 test('a commit elsewhere closes the page for the file it committed', async () => {

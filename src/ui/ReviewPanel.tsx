@@ -198,7 +198,7 @@ export function ReviewPanel(props: ReviewPanelProps) {
           fg={ui.faint}
           bg={ui.sidebarBg}
           wrapMode="none"
-          content="↑↓ · Enter · f fetch · y copy"
+          content="↑↓ · Enter · f fetch · Esc"
         />
       </box>
     </box>
