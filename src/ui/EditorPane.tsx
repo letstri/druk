@@ -1211,27 +1211,48 @@ export function EditorPane(props: EditorPaneProps) {
   }
 
   /**
-   * Scroll so visual row `row` is the top one.
-   *
-   * `scrollY` is read-only, and moving the caret would be wrong — dragging a
-   * scrollbar must not retarget the cursor. So the move is delivered as the one
-   * scroll input the buffer already accepts: a wheel event, whose delta is in rows.
-   * The coordinates have to land inside the textarea or `ignoreScrollOutsideBounds`
-   * drops it.
+   * Scroll the viewport by `delta` visual rows. The buffer's own `handleScroll`
+   * is used rather than a synthetic wheel event — those are dropped by
+   * `ignoreScrollOutsideBounds` when the textarea's screen bounds are not ready,
+   * which is exactly when a programmatic jump runs.
    */
-  const scrollToRow = (row: number) => {
-    if (!editor) return
-    const delta = Math.max(0, Math.round(row)) - editor.scrollY
-    if (delta === 0) return
-    const host = editor as unknown as { onMouseEvent: (event: unknown) => void }
-    host.onMouseEvent({
-      type: 'scroll',
-      x: editor.x + 1,
-      y: editor.y + 1,
+  const scrollByRows = (delta: number) => {
+    if (!editor || delta === 0) return
+    const host = editor as unknown as {
+      handleScroll: (event: { scroll: { direction: 'up' | 'down'; delta: number } }) => void
+    }
+    host.handleScroll({
       scroll: { direction: delta > 0 ? 'down' : 'up', delta: Math.abs(delta) },
     })
     syncViewport()
     applyWindow()
+  }
+
+  /**
+   * Scroll so visual row `row` is the top one.
+   *
+   * `scrollY` is read-only, and moving the caret would be wrong — dragging a
+   * scrollbar must not retarget the cursor.
+   */
+  const scrollToRow = (row: number) => {
+    if (!editor) return
+    scrollByRows(Math.max(0, Math.round(row)) - editor.scrollY)
+  }
+
+  /**
+   * Land on a file line with the viewport centered on it. The viewport moves
+   * before the caret — the buffer scrolls a moved caret into view by the
+   * smallest amount that shows it, which pins it to an edge without this.
+   */
+  const revealLine = (line: number, col: number) => {
+    if (!editor) return
+    const viewLine = shownLine(line)
+    const row = rowAtLine(viewLine)
+    const height = editor.height || editor.editorView.getViewport().height
+    scrollByRows(Math.max(0, row - Math.floor(height / 2)) - editor.scrollY)
+    editor.setCursor(viewLine, col)
+    editor.requestRender()
+    scheduleCursorSync()
   }
 
   /** The same, for callers that count in lines rather than in wrapped rows. */
@@ -2102,25 +2123,29 @@ export function EditorPane(props: EditorPaneProps) {
 
   // Not deferred: `druk file.ts:42` sets the target before this effect first
   // runs, and a deferred effect would swallow exactly that initial value.
+  // A microtask after the handler still lets a same-tick file switch finish
+  // loading — the path effect resets the buffer to the top before this lands.
   createEffect(
     on(
       () => props.goto?.key,
       () => {
         const target = props.goto
-        if (!target || !editor) return
-        // A jump names a line of the file, and landing on the anchor that hides
-        // it would be a jump to the wrong place — the block opens instead.
-        const view = folded()
-        if (view && (view.display[target.line] ?? 0) < 0) {
-          setFolds(
-            view.folds.filter(fold => target.line <= fold.start || target.line > fold.end),
-            target.line,
-          )
-        }
-        editor.setCursor(shownLine(target.line), target.col)
-        scrollTo(Math.max(0, shownLine(target.line) - Math.floor(editor.height / 2)))
-        editor.focus()
-        scheduleCursorSync()
+        if (!target) return
+        const key = target.key
+        queueMicrotask(() => {
+          if (!editor || props.goto?.key !== key) return
+          // A jump names a line of the file, and landing on the anchor that hides
+          // it would be a jump to the wrong place — the block opens instead.
+          const view = folded()
+          if (view && (view.display[target.line] ?? 0) < 0) {
+            setFolds(
+              view.folds.filter(fold => target.line <= fold.start || target.line > fold.end),
+              target.line,
+            )
+          }
+          revealLine(target.line, target.col)
+          editor.focus()
+        })
       },
     ),
   )

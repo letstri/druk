@@ -1,4 +1,4 @@
-import { test } from 'bun:test'
+import { expect, test } from 'bun:test'
 import { join } from 'node:path'
 
 import {
@@ -100,12 +100,13 @@ test('go to definition scrolls the definition into view', async () => {
     { openFile: join(dir, 'a.ts') },
   )
 
-  // Scroll the viewport well past the top — the definition lives in another file
-  // near its start, so without an explicit scroll the caret would move but the
-  // eye would still be reading filler lines.
   await pressTimes(t, 60, input => input.pressArrow('down'))
+  await untilFrame(t, 'const pad59')
+  expect(t.captureCharFrame()).not.toContain('const pad0 = 0')
+
   await runCommand(t, 'Go to definition')
   await untilFrame(t, 'const beta = 1', LSP_WAIT)
+  await untilFrame(t, '// the declaration', LSP_WAIT)
 }, 30_000)
 
 test('go to line scrolls the line into view', async () => {
@@ -114,8 +115,29 @@ test('go to line scrolls the line into view', async () => {
   const t = await launch(dir, {}, {}, { openFile: join(dir, 'big.ts') })
 
   await pressTimes(t, 60, input => input.pressArrow('down'))
+  await untilFrame(t, 'const pad58')
+  expect(t.captureCharFrame()).not.toContain('const target = 0')
+
   await press(t, input => input.pressKey('g', { ctrl: true }))
   await press(t, input => void input.typeText('1'))
   await press(t, input => input.pressEnter())
   await untilFrame(t, 'const target = 0')
+}, 20_000)
+
+test('go to line from deep in the file replaces what is on screen', async () => {
+  const body = Array.from({ length: 120 }, (_, i) => `const line${i} = ${i}`).join('\n')
+  const dir = fixture({ 'big.ts': `${body}\n` })
+  const t = await launch(dir, {}, {}, { openFile: join(dir, 'big.ts') })
+
+  await press(t, input => input.pressKey('g', { ctrl: true }))
+  await press(t, input => void input.typeText('111'))
+  await press(t, input => input.pressEnter())
+  await untilFrame(t, 'const line110 = 110')
+  expect(t.captureCharFrame()).not.toContain('const line0 = 0')
+
+  await press(t, input => input.pressKey('g', { ctrl: true }))
+  await press(t, input => void input.typeText('1'))
+  await press(t, input => input.pressEnter())
+  await untilFrame(t, 'const line0 = 0')
+  expect(t.captureCharFrame()).not.toContain('const line110 = 110')
 }, 20_000)
