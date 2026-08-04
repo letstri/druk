@@ -18,7 +18,7 @@
 /** OpenTUI draws a tab as the indicator glyph plus one blank, with no setting for it. */
 const TAB_CELLS = 2
 
-/** The cell character column `col` of `line` is drawn at. */
+/** Character column `col` in cell space — the two differ wherever a tab sits. */
 export function cellColumn(line: string, col: number): number {
   const stop = Math.min(col, line.length)
   let cells = col - stop // a column past the end of the line counts as itself

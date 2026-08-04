@@ -7,7 +7,7 @@
  * grows to two, five, ninety lines and takes the panel's layout with it.
  */
 
-/** `text` in at most `room` columns, ending in an ellipsis where it was cut. */
+/** At most `room` columns, the ellipsis counted inside the budget. */
 export function cut(text: string, room: number): string {
   if (room <= 0) return ''
   return text.length > room ? `${text.slice(0, room - 1)}…` : text

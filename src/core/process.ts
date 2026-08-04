@@ -91,7 +91,7 @@ export function run(bin: string, args: string[], options: RunOptions): Promise<P
   })
 }
 
-/** Whether `result` failed because the program is not there at all. */
+/** The program is not on PATH at all, as against having run and failed. */
 export const notInstalled = (result: ProcessResult): boolean => result.error?.code === 'ENOENT'
 
 /** The first non-empty line of `text`, which is the useful half of most tool output. */
