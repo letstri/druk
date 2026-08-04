@@ -46,6 +46,11 @@ overrides while it is on, since there the shape is what tells normal from insert
 word wrap on by default with a toggle (`wrap`, palette → View → Toggle word wrap —
 off, a long line's tail is reached by moving the cursor into it, since OpenTUI
 scrolls sideways only with the caret),
+selecting a word by double-click and a line by triple-click (OpenTUI has no such
+event, so both are counted from consecutive mouse-downs at one cell, the way the
+file tree already counts its own; a line terminator is not a token, so a click
+past the end of a line or on a blank line selects nothing rather than the `\n` —
+which the next keystroke would otherwise pull the following line up over),
 code folding (`Ctrl+Opt+S` / `Ctrl+Opt+E`, palette → Editor → Fold / Unfold block at
 cursor, and fold/unfold everything: blocks come from indentation rather than from the
 grammar, so they work for the languages druk paints with `patterns` and no tree at

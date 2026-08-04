@@ -36,6 +36,23 @@ describe('wordRangeAt', () => {
     })
   })
 
+  test('a run of punctuation stops at the end of the line', () => {
+    const text = 'foo();\nnext\n'
+    const at = text.indexOf('(')
+    expect(wordRangeAt(text, at)).toEqual({ start: at, end: at + 3 })
+  })
+
+  test('a caret on the line terminator selects nothing', () => {
+    const text = 'const a = 1\nconst b = 2\n'
+    const at = text.indexOf('\n')
+    expect(wordRangeAt(text, at)).toEqual({ start: at, end: at })
+  })
+
+  test('a blank line does not select the blank lines around it', () => {
+    const text = 'a\n\n\n\nb\n'
+    expect(wordRangeAt(text, 2)).toEqual({ start: 2, end: 2 })
+  })
+
   test('an empty buffer is a zero range', () => {
     expect(wordRangeAt('', 0)).toEqual({ start: 0, end: 0 })
   })

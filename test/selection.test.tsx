@@ -98,4 +98,26 @@ describe('mouse selection', () => {
     await save(t)
     expect(readFileSync(join(dir, 'a.ts'), 'utf8')).toBe('const s = "X world"\n')
   })
+
+  test('double-clicking past the end of a line keeps the line break', async () => {
+    const { t, dir } = await withOpenFile()
+    // The caret clamps to the line's `\n`, which is not a token: selecting it
+    // would make the next keystroke pull the following line up.
+    const at = colOf(t, 'const alpha = 1') + 'const alpha = 1'.length + 3
+    await t.mockMouse.doubleClick(at, 1)
+    await settle(t)
+    await press(t, input => void input.typeText('X'))
+    await save(t)
+    expect(readFileSync(join(dir, 'a.ts'), 'utf8')).toBe('const alpha = 1X\nconst beta = 2\n')
+  })
+
+  test('double-clicking a blank line does not eat the blank lines around it', async () => {
+    const { t, dir } = await withOpenFile('const alpha = 1\n\n\n\nconst beta = 2\n')
+    const at = colOf(t, 'const alpha = 1')
+    await t.mockMouse.doubleClick(at, 2)
+    await settle(t)
+    await press(t, input => void input.typeText('X'))
+    await save(t)
+    expect(readFileSync(join(dir, 'a.ts'), 'utf8')).toBe('const alpha = 1\nX\n\n\nconst beta = 2\n')
+  })
 })
