@@ -14,7 +14,7 @@ import { homedir } from 'node:os'
 import { addDependencyCommand } from 'nypm'
 import type { PackageManagerName } from 'nypm'
 
-export type InstallKind = 'brew' | 'script' | 'package'
+export type InstallKind = 'brew' | 'script' | 'system' | 'package'
 
 export interface Install {
   kind: InstallKind
@@ -46,6 +46,13 @@ export function detectInstall(
   if (/[/\\](?:Cellar|homebrew|linuxbrew)[/\\]/.test(paths)) return { kind: 'brew' }
   // Where the curl installer puts it; nothing else owns that directory.
   if (paths.includes(`${home}/.druk`)) return { kind: 'script' }
+  // The compiled binary at the packaged path: our .deb/.rpm put it there, and so
+  // do other system packagings (the AUR's druk-bin) — hence "a system package
+  // manager" and not a package by name. execPath alone: an npm shim at
+  // /usr/bin/druk runs under node, whose execPath this is not. Ahead of the
+  // manager fallbacks, whose npm default would install a second druk beside
+  // the system one — the exact failure this module exists to avoid.
+  if (execPath === '/usr/bin/druk') return { kind: 'system' }
 
   for (const [manager, pattern] of MANAGER_PATHS) {
     if (pattern.test(paths)) return { kind: 'package', manager }
@@ -53,10 +60,16 @@ export function detectInstall(
   return { kind: 'package', manager: fallback }
 }
 
+/** Where the packages live; a system install is pointed here, never run for. */
+export const RELEASES_URL = 'https://github.com/letstri/druk/releases/latest'
+
 /** The shell command that upgrades this install, ready to print and to run. */
 export function upgradeCommand(install: Install): string {
   if (install.kind === 'brew') return 'brew upgrade letstri/tap/druk'
   if (install.kind === 'script') return 'curl -fsSL https://druk.letstri.dev/install | bash'
+  // Not runnable: no repository is hosted, and the manager that installed it is
+  // not ours to invoke. The URL is the honest answer.
+  if (install.kind === 'system') return RELEASES_URL
   return addDependencyCommand(install.manager ?? 'npm', 'druk@latest', { global: true })
 }
 
@@ -64,8 +77,13 @@ export function upgradeCommand(install: Install): string {
 const DESCRIPTION: Record<InstallKind, (install: Install) => string> = {
   brew: () => 'Updating the Homebrew install.',
   script: () => 'Re-running the install script.',
+  system: () => 'Installed by a system package manager.',
   package: install => `Updating the global ${install.manager ?? 'npm'} install.`,
 }
+
+/** The package filenames for this machine, so the pointer names what to take. */
+const packageNames = (arch: string) =>
+  arch === 'arm64' ? 'the arm64 .deb or aarch64 .rpm' : 'the amd64 .deb or x86_64 .rpm'
 
 /**
  * Run the upgrade, with the child's output going straight to the terminal — the
@@ -76,8 +94,27 @@ const DESCRIPTION: Record<InstallKind, (install: Install) => string> = {
  */
 export async function runUpgrade(
   write: (text: string) => void = text => process.stdout.write(text),
+  // Injectable for the tests, which cannot present /usr/bin/druk as their own
+  // execPath; the defaults are the process's, as before.
+  detection: { execPath?: string; scriptPath?: string; home?: string; arch?: string } = {},
 ): Promise<number> {
-  const install = detectInstall(process.execPath, process.argv[1] ?? '', homedir())
+  const install = detectInstall(
+    detection.execPath ?? process.execPath,
+    detection.scriptPath ?? process.argv[1] ?? '',
+    detection.home ?? homedir(),
+  )
+
+  // Nothing safe to run: updating through the manager that installed it is the
+  // user's move, and running a package manager of our own choosing beside it is
+  // the two-copies failure described at the top of this file.
+  if (install.kind === 'system') {
+    write(
+      `${DESCRIPTION.system(install)}\nUpdate it through that manager, or take ` +
+        `${packageNames(detection.arch ?? process.arch)} from:\n${RELEASES_URL}\n`,
+    )
+    return 0
+  }
+
   const command = upgradeCommand(install)
 
   write(`${DESCRIPTION[install.kind](install)}\n$ ${command}\n\n`)

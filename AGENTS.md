@@ -400,6 +400,7 @@ bun run build            # compile a binary for this machine into dist/<target>/
 bun run build linux-x64  # …or for a named target, if its native package is installed
 bun run release          # package dist/ for npm + release archives (--publish to ship)
 bun run formula          # Homebrew formula for those archives, into dist/release/druk.rb
+bun run packages         # .deb/.rpm from the linux binaries, into dist/release/ (needs nfpm)
 bun run extensions          # regenerate extensions/index.json — the market's catalog
 bun run test             # unit + UI, one file per process, sequential (~4 min)
 bun test test/foo.tsx    # a single file, where the flag buys nothing
@@ -473,6 +474,14 @@ step may be made conditional on its own, because druk 1.0.0 reached npm from a r
 release upload was skipped, and the published shim spent its life fetching a release that
 did not exist. Re-running a shipped version is safe — `release.ts` skips a version already
 on the registry and the upload clobbers its assets.
+
+**The deb/rpm packages are a hard step of the release, not a tap-style extra.** The
+publish job fetches nfpm pinned by version and by a SHA-256 written into the workflow
+(a checksum fetched beside the artifact would verify nothing) and runs
+`bun run packages` after the formula. It fails the release when it fails, on purpose:
+`druk update` points system installs at these assets, so a release without them is the
+published-pointer-to-nothing failure the npm and upload steps already refuse to allow
+each other — the tap's graceful skip is for a result nothing reads.
 
 **Homebrew needs the one credential the rest of the release does without.** The workflow
 runs `bun run formula` after packaging, so `druk.rb` — checksummed against the archives
