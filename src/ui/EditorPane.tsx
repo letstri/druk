@@ -1239,22 +1239,6 @@ export function EditorPane(props: EditorPaneProps) {
     scrollByRows(Math.max(0, Math.round(row)) - editor.scrollY)
   }
 
-  /**
-   * Land on a file line with the viewport centered on it. The viewport moves
-   * before the caret — the buffer scrolls a moved caret into view by the
-   * smallest amount that shows it, which pins it to an edge without this.
-   */
-  const revealLine = (line: number, col: number) => {
-    if (!editor) return
-    const viewLine = shownLine(line)
-    const row = rowAtLine(viewLine)
-    const height = editor.height || editor.editorView.getViewport().height
-    scrollByRows(Math.max(0, row - Math.floor(height / 2)) - editor.scrollY)
-    editor.setCursor(viewLine, col)
-    editor.requestRender()
-    scheduleCursorSync()
-  }
-
   /** The same, for callers that count in lines rather than in wrapped rows. */
   const scrollTo = (wanted: number) => scrollToRow(rowAtLine(Math.round(wanted)))
 
@@ -1309,6 +1293,22 @@ export function EditorPane(props: EditorPaneProps) {
       syncCursor()
       refreshMenu()
     }, 0)
+  }
+
+  /**
+   * Land on a file line with the viewport centered on it. The viewport moves
+   * before the caret — the buffer scrolls a moved caret into view by the
+   * smallest amount that shows it, which pins it to an edge without this.
+   */
+  const revealLine = (line: number, col: number) => {
+    if (!editor) return
+    const viewLine = shownLine(line)
+    const row = rowAtLine(viewLine)
+    const height = editor.height || editor.editorView.getViewport().height
+    scrollByRows(Math.max(0, row - Math.floor(height / 2)) - editor.scrollY)
+    editor.setCursor(viewLine, col)
+    editor.requestRender()
+    scheduleCursorSync()
   }
 
   /**
