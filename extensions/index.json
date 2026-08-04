@@ -493,6 +493,27 @@
       ]
     },
     {
+      "id": "oxlint",
+      "name": "oxlint",
+      "version": "1.0.0",
+      "description": "oxlint diagnostics from the project's own oxlint, beside whatever language server is already serving the file. The oxc linter, in Rust.",
+      "provides": {
+        "themes": [],
+        "icons": [],
+        "filetypes": [
+          "typescript",
+          "typescriptreact",
+          "javascript",
+          "javascriptreact",
+          "vue",
+          "svelte"
+        ]
+      },
+      "categories": [
+        "lsp"
+      ]
+    },
+    {
       "id": "php",
       "name": "PHP",
       "version": "1.0.0",

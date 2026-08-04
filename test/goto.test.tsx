@@ -66,7 +66,7 @@ test('go to definition opens where the server points', async () => {
   })
   const t = await launch(
     dir,
-    { lsp: true, lspServers: { typescript: [process.execPath, FAKE], eslint: [] } },
+    { lsp: true, lspServers: { typescript: [process.execPath, FAKE], eslint: [], oxlint: [] } },
     {},
     { openFile: join(dir, 'a.ts') },
   )

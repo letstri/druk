@@ -26,9 +26,10 @@ const READY_FILE = { 'a.ts': 'oops\n' }
 
 const lspConfig = {
   lsp: true,
-  // The market's eslint extension serves typescript too; these tests are about
-  // the one server they name, so the other is turned off rather than spawned.
-  lspServers: { typescript: [process.execPath, FAKE], eslint: [] },
+  // The market's eslint and oxlint extensions serve typescript too; these tests
+  // are about the one server they name, so the rest are turned off rather than
+  // spawned.
+  lspServers: { typescript: [process.execPath, FAKE], eslint: [], oxlint: [] },
 }
 
 async function readyEditor(files = READY_FILE) {

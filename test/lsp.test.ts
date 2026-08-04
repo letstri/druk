@@ -122,24 +122,30 @@ describe('protocol mapping', () => {
     // The hint names the default's package; an override would send them elsewhere.
     expect(resolveServer('typescript', { typescript: ['deno', 'lsp'] })?.install).toBeUndefined()
     // An empty command disables that server, not every server for the language:
-    // eslint serves typescript too, and is left where it was.
+    // the two linters serve typescript too, and are left where they were.
     expect(resolveServers('typescript', { typescript: [] }).map(server => server.id)).toEqual([
       'eslint',
+      'oxlint',
     ])
     expect(resolveServers('brainfuck', {})).toEqual([])
     expect(resolveServer(undefined, {})).toBeNull()
   })
 
   test('a language may have several servers, the language server first', () => {
-    // Both are spawned and both report; the order is what decides which one is
-    // asked for a completion first, and a linter must never be that one.
+    // All of them are spawned and all of them report; the order is what decides
+    // which one is asked for a completion first, and a linter must never be that
+    // one.
     expect(resolveServers('typescript', {}).map(server => server.id)).toEqual([
       'typescript',
       'eslint',
+      'oxlint',
     ])
-    // Only the linter carries settings — it does nothing at all without them.
+    // Only the linters carry settings — eslint does nothing at all without them,
+    // and oxlint would lint on save alone.
     const eslint = resolveServers('typescript', {}).find(server => server.id === 'eslint')
     expect((eslint?.settings as { validate?: string } | undefined)?.validate).toBe('on')
+    const oxlint = resolveServers('typescript', {}).find(server => server.id === 'oxlint')
+    expect((oxlint?.settings as { run?: string } | undefined)?.run).toBe('onType')
   })
 
   test('typescript is pinned to 5, the last line that ships a tsserver.js', () => {

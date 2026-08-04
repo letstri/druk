@@ -28,7 +28,7 @@ test('the status page shows a running server, its log, and closes on Esc', async
   const dir = fixture({ 'a.ts': 'const oops = 1\n' })
   const t = await launch(
     dir,
-    { lsp: true, lspServers: { typescript: [process.execPath, FAKE], eslint: [] } },
+    { lsp: true, lspServers: { typescript: [process.execPath, FAKE], eslint: [], oxlint: [] } },
     { width: 100 },
     { openFile: join(dir, 'a.ts') },
   )
@@ -56,7 +56,10 @@ test('a server that could not start shows as failed, with the reason', async () 
   const dir = fixture({ 'a.ts': 'const a = 1\n' })
   const t = await launch(
     dir,
-    { lsp: true, lspServers: { typescript: ['druk-no-such-language-server'], eslint: [] } },
+    {
+      lsp: true,
+      lspServers: { typescript: ['druk-no-such-language-server'], eslint: [], oxlint: [] },
+    },
     { width: 110 },
     { openFile: join(dir, 'a.ts') },
   )
@@ -76,7 +79,10 @@ test('r on the page restarts the servers', async () => {
   const marker = join(dir, 'spawn-marker')
   const t = await launch(
     dir,
-    { lsp: true, lspServers: { typescript: [process.execPath, MARKER, marker], eslint: [] } },
+    {
+      lsp: true,
+      lspServers: { typescript: [process.execPath, MARKER, marker], eslint: [], oxlint: [] },
+    },
     {},
     { openFile: join(dir, 'a.ts') },
   )
@@ -93,7 +99,7 @@ test('d on the page refuses to remove a server druk did not install', async () =
   const dir = fixture({ 'a.ts': 'const oops = 1\n' })
   const t = await launch(
     dir,
-    { lsp: true, lspServers: { typescript: [process.execPath, FAKE], eslint: [] } },
+    { lsp: true, lspServers: { typescript: [process.execPath, FAKE], eslint: [], oxlint: [] } },
     { width: 100 },
     { openFile: join(dir, 'a.ts') },
   )

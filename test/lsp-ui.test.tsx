@@ -33,7 +33,7 @@ test('diagnostics reach the status bar, the problems list, and next-problem', as
   const dir = fixture({ 'a.ts': 'const a = 1\n' })
   const t = await launch(
     dir,
-    { lsp: true, lspServers: { typescript: [process.execPath, FAKE], eslint: [] } },
+    { lsp: true, lspServers: { typescript: [process.execPath, FAKE], eslint: [], oxlint: [] } },
     {},
     { openFile: join(dir, 'a.ts') },
   )
@@ -107,7 +107,10 @@ test('a missing server druk cannot install just says so', async () => {
   // Wide enough for the whole sentence: the status bar truncates at 80 columns.
   const t = await launch(
     dir,
-    { lsp: true, lspServers: { typescript: ['druk-no-such-language-server'], eslint: [] } },
+    {
+      lsp: true,
+      lspServers: { typescript: ['druk-no-such-language-server'], eslint: [], oxlint: [] },
+    },
     { width: 110 },
     { openFile: join(dir, 'a.ts') },
   )
@@ -119,7 +122,7 @@ test('a missing server druk cannot install just says so', async () => {
 test('the chosen TypeScript is handed to the server, and no choice sends nothing', async () => {
   const dir = fixture({ 'a.ts': 'const a = 1\n' })
   const dump = join(dir, 'init.json')
-  const server = { typescript: [process.execPath, INIT, dump], eslint: [] }
+  const server = { typescript: [process.execPath, INIT, dump], eslint: [], oxlint: [] }
 
   const chosen = await launch(
     dir,
@@ -150,7 +153,7 @@ test('a server spawns only once a file of its language opens', async () => {
   const marker = join(dir, 'spawn-marker')
   const t = await launch(dir, {
     lsp: true,
-    lspServers: { typescript: [process.execPath, MARKER, marker], eslint: [] },
+    lspServers: { typescript: [process.execPath, MARKER, marker], eslint: [], oxlint: [] },
   })
 
   // No file open: nothing may spawn, however long the editor sits there.
@@ -173,7 +176,7 @@ test('inline text hides when the setting is off, the gutter dot stays', async ()
     {
       lsp: true,
       lspInline: false,
-      lspServers: { typescript: [process.execPath, FAKE], eslint: [] },
+      lspServers: { typescript: [process.execPath, FAKE], eslint: [], oxlint: [] },
     },
     {},
     { openFile: join(dir, 'a.ts') },
@@ -189,7 +192,7 @@ test('a problem far below the viewport is marked on the track', async () => {
   const dir = fixture({ 'big.ts': `${lines.join('\n')}\n` })
   const t = await launch(
     dir,
-    { lsp: true, lspServers: { typescript: [process.execPath, FAKE], eslint: [] } },
+    { lsp: true, lspServers: { typescript: [process.execPath, FAKE], eslint: [], oxlint: [] } },
     { width: 100, height: 24 },
     { openFile: join(dir, 'big.ts') },
   )
@@ -213,7 +216,10 @@ test('the restart command spawns the servers again and re-opens the documents', 
   const marker = join(dir, 'spawn-marker')
   const t = await launch(
     dir,
-    { lsp: true, lspServers: { typescript: [process.execPath, MARKER, marker], eslint: [] } },
+    {
+      lsp: true,
+      lspServers: { typescript: [process.execPath, MARKER, marker], eslint: [], oxlint: [] },
+    },
     {},
     { openFile: join(dir, 'a.ts') },
   )
@@ -234,7 +240,10 @@ test('installing dependencies restarts the servers by itself', async () => {
   const marker = join(dir, 'spawn-marker')
   const t = await launch(
     dir,
-    { lsp: true, lspServers: { typescript: [process.execPath, MARKER, marker], eslint: [] } },
+    {
+      lsp: true,
+      lspServers: { typescript: [process.execPath, MARKER, marker], eslint: [], oxlint: [] },
+    },
     {},
     { openFile: join(dir, 'a.ts') },
   )
@@ -253,7 +262,7 @@ test('a server that only answers pulls still fills the gutter and the list', asy
   const dir = fixture({ 'a.ts': 'const oops = 1\n' })
   const t = await launch(
     dir,
-    { lsp: true, lspServers: { typescript: [process.execPath, PULL], eslint: [] } },
+    { lsp: true, lspServers: { typescript: [process.execPath, PULL], eslint: [], oxlint: [] } },
     {},
     { openFile: join(dir, 'a.ts') },
   )
@@ -279,6 +288,7 @@ test('a file is served by every server for its language, and their marks merge',
       lspServers: {
         typescript: [process.execPath, FAKE],
         eslint: [process.execPath, CONFIG],
+        oxlint: [],
       },
     },
     { height: 30 },
