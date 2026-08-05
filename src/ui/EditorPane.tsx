@@ -1296,16 +1296,22 @@ export function EditorPane(props: EditorPaneProps) {
   }
 
   /**
-   * Land on a file line with the viewport centered on it. The viewport moves
-   * before the caret — the buffer scrolls a moved caret into view by the
-   * smallest amount that shows it, which pins it to an edge without this.
+   * Land on a file line, centering it only when it is not already drawn.
+   *
+   * Viewport first, caret second — the buffer scrolls a moved caret into view by
+   * the smallest amount that shows it, which pins a far jump to an edge with the
+   * code around it off screen. A line that is already on screen is left where it
+   * is: walking search hits or the problems list steps a few lines at a time, and
+   * recentring each of those would slide the text out from under the eye.
    */
   const revealLine = (line: number, col: number) => {
     if (!editor) return
     const viewLine = shownLine(line)
     const row = rowAtLine(viewLine)
     const height = editor.height || editor.editorView.getViewport().height
-    scrollByRows(Math.max(0, row - Math.floor(height / 2)) - editor.scrollY)
+    if (height > 0 && (row < editor.scrollY || row >= editor.scrollY + height)) {
+      scrollToRow(row - Math.floor(height / 2))
+    }
     editor.setCursor(viewLine, col)
     editor.requestRender()
     scheduleCursorSync()

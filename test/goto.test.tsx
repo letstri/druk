@@ -141,3 +141,41 @@ test('go to line from deep in the file replaces what is on screen', async () => 
   await untilFrame(t, 'const line0 = 0')
   expect(t.captureCharFrame()).not.toContain('const line110 = 110')
 }, 20_000)
+
+const numbered = (count: number) =>
+  Array.from({ length: count }, (_, i) => `const line${i} = ${i}`).join('\n')
+
+const gotoLine = async (t: Awaited<ReturnType<typeof launch>>, line: string) => {
+  await press(t, input => input.pressKey('g', { ctrl: true }))
+  await press(t, input => void input.typeText(line))
+  await press(t, input => input.pressEnter())
+}
+
+// The buffer scrolls a moved caret into view by itself, so "the target is on
+// screen" holds without any of this and cannot tell the two apart. What the
+// reveal adds is where it lands: pinned to the bottom edge, only three rows
+// follow it, and the point of jumping to a line is reading what comes after.
+test('a jump off screen centres the target, with the lines after it drawn', async () => {
+  const dir = fixture({ 'big.ts': `${numbered(200)}\n` })
+  const t = await launch(dir, {}, {}, { openFile: join(dir, 'big.ts') })
+
+  await gotoLine(t, '111')
+  await untilFrame(t, 'const line110 = 110')
+  expect(t.captureCharFrame()).toContain('const line116 = 116')
+}, 20_000)
+
+test('a jump to a line already drawn leaves the viewport alone', async () => {
+  const dir = fixture({ 'big.ts': `${numbered(200)}\n` })
+  const t = await launch(dir, {}, {}, { openFile: join(dir, 'big.ts') })
+
+  await gotoLine(t, '100')
+  await untilFrame(t, 'const line99 = 99')
+  const top = 'const line90 = 90'
+  expect(t.captureCharFrame()).toContain(top)
+
+  // Four lines on — well inside what is already drawn, the step walking search
+  // hits or the problems list takes. Recentring here would slide the text.
+  await gotoLine(t, '104')
+  await untilFrame(t, 'Ln 104')
+  expect(t.captureCharFrame()).toContain(top)
+}, 20_000)
