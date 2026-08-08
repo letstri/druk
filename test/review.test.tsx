@@ -471,6 +471,27 @@ test('a stale overwrite gives back the note it never saw', async () => {
   await until(t, () => readFileSync(NOTES_PATH, 'utf8').includes('written here'))
 })
 
+test('an agent may delete a note druk wrote, once it is not a race', async () => {
+  const dir = fixture(PROJECT)
+  const t = await launch(dir, {}, { width: 100, height: 24 })
+  await openFile(t, 'a.ts')
+  await noteLine(t, 'issue', 'fix this')
+  await runCommand(t, 'Review panel')
+  await untilFrame(t, 'fix this')
+  expect(readFileSync(NOTES_PATH, 'utf8')).toContain('fix this')
+
+  // Long enough that the note is no longer young enough to rescue — the whole
+  // point being that past that age an absence is a delete and not a clobber,
+  // which is the flow the notes exist for: the agent fixes and strikes off.
+  await settle(t, 2300)
+  writeFileSync(NOTES_PATH, JSON.stringify({ [dir]: { notes: [], touchedAt: 2 } }))
+
+  await untilGone(t, 'fix this')
+  // And it stays gone: no save puts it back behind the panel.
+  await settle(t, 200)
+  expect(readFileSync(NOTES_PATH, 'utf8')).not.toContain('fix this')
+})
+
 test('an unreadable notes file changes nothing on screen', async () => {
   const dir = fixture(PROJECT)
   writeFileSync(

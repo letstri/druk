@@ -45,6 +45,9 @@ const GENERAL = 'On the pull request'
 /** One line of a remark, for a row that has one line to draw it in. */
 const oneLine = (text: string) => text.replaceAll(/\s+/g, ' ').trim()
 
+/** How long after creating a note an external write missing it reads as a stale clobber. */
+const RESCUE_WINDOW = 2000
+
 export function createReview(deps: {
   rootDir: string
   status: Status
@@ -66,12 +69,10 @@ export function createReview(deps: {
   const [cursor, setCursor] = createSignal(0)
 
   // What lets a save merge instead of clobber (`seen`), and an adopt tell an
-  // external delete from a stale writer's overwrite: a note this session
-  // created is only surrendered once some external read contained it
-  // (`acknowledged`) — before that, a file without it was written blind.
+  // external delete from a stale writer's overwrite (`created`, against the
+  // note's own age).
   const seen = new Set(initial.map(note => note.id))
   const created = new Set<string>()
-  const acknowledged = new Set<string>()
 
   /** Notes are the one thing here that outlives the session, so every write persists. */
   const writeNotes = (next: ReviewNote[]) => {
@@ -91,9 +92,10 @@ export function createReview(deps: {
 
   /**
    * Adopt what the file says — the way git state made in another terminal
-   * shows up without a restart. The value compare is what absorbs the watcher
-   * reporting druk's own renamed-into-place save, and it must run before any
-   * bookkeeping: an equal file has nothing external in it to acknowledge.
+   * shows up without a restart. The value compare absorbs a watch event that
+   * reports a save of druk's own, which some platforms deliver and some do
+   * not: a rename is announced under whichever of the two names the platform
+   * picks, and the temp one is filtered out by name.
    */
   const reloadNotes = () => {
     const fresh = readNotes(rootDir)
@@ -102,16 +104,17 @@ export function createReview(deps: {
     const held = notes()
     if (fresh.length === held.length && fresh.every((note, i) => sameNote(note, held[i]!))) return
     const freshIds = new Set(fresh.map(note => note.id))
-    // A session-created note no external read has ever contained was clobbered
-    // by a writer holding a stale copy, not deleted — it goes back, and back to
-    // disk. One that some read did contain is the file's to delete.
+    // A note this session created seconds ago, gone from a file druk did not
+    // write, was clobbered by a writer holding a copy read before it existed —
+    // so it goes back, and back to disk. Age is what separates that from a
+    // deliberate delete: druk cannot see whether the other side read the file
+    // before or after the save, and only the racing writer is quick. Past the
+    // window the file is right and the note is the file's to delete.
     const orphaned = held.filter(
-      note => created.has(note.id) && !acknowledged.has(note.id) && !freshIds.has(note.id),
+      note =>
+        created.has(note.id) && !freshIds.has(note.id) && Date.now() - note.at < RESCUE_WINDOW,
     )
-    for (const id of freshIds) {
-      seen.add(id)
-      if (created.has(id)) acknowledged.add(id)
-    }
+    for (const id of freshIds) seen.add(id)
     if (orphaned.length === 0) return setNotes(fresh)
     writeNotes([...fresh, ...orphaned])
   }
