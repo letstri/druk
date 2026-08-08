@@ -101,7 +101,14 @@ makes that button the way back, as Esc and Shift+Tab are — for reading
 code with the remarks beside it: `Ctrl+Opt+A` drops a note on the line or selection under
 the cursor (issue / suggestion / question / note, each spelled out in the palette as
 well as behind the chooser), the notes show as `◆` in the gutter and after the line
-(`reviewInline`) and outlive the session in `review.json` beside the config; the panel's
+(`reviewInline`) and outlive the session in `review.json` beside the config — a file druk
+does not own alone: an agent editing it while druk is open is the intended flow, so
+another writer's notes appear live (the config directory is watched; a rename-replaced
+file would strand a watcher on the file itself), druk's saves merge with what the file
+holds rather than clobbering it (an id both sides hold is the file's to win — druk never
+changes a note after creating it), land by temp-and-rename so a reader never catches
+half a file, and set an unreadable file aside as `review.json.corrupt-<ts>` rather than
+rewriting it from nothing; the panel's
 cursor pages the editor the way the source-control panel's pages the diff — the remark's
 file goes up in a preview tab at its line, the keyboard staying in the panel, and the
 remark itself opens as a card under that line, GitHub's arrangement — drawn in a gap of

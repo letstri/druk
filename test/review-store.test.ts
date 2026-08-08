@@ -24,7 +24,11 @@ test('a save keeps the note another writer added meanwhile', () => {
   // The agent wrote first; this session has never seen "theirs".
   saveNotes('/p', [note('theirs')], { file })
   saveNotes('/p', [note('mine')], { seen: new Set(['mine']), file })
-  expect(loadNotes('/p', file).map(held => held.id).toSorted()).toEqual(['mine', 'theirs'])
+  expect(
+    loadNotes('/p', file)
+      .map(held => held.id)
+      .toSorted(),
+  ).toEqual(['mine', 'theirs'])
 })
 
 test('a note removed this session stays removed', () => {
