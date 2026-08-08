@@ -16,7 +16,7 @@ import { createMemo, createSignal } from 'solid-js'
 import { fetchComments, findPullRequest, forgeFor } from '../core/forge'
 import type { ForgeComment, PullRequest } from '../core/forge'
 import { remoteUrl } from '../core/git'
-import { loadNotes, NOTE_LABELS, saveNotes } from '../core/review'
+import { loadNotes, NOTE_LABELS, readNotes, saveNotes } from '../core/review'
 import type { NoteKind, ReviewNote } from '../core/review'
 import type { Git } from './git'
 import type { Panes } from './panes'
@@ -57,17 +57,63 @@ export function createReview(deps: {
   const { say } = status
   const { config } = settings
 
-  const [notes, setNotes] = createSignal<ReviewNote[]>(loadNotes(rootDir))
+  const initial = loadNotes(rootDir)
+  const [notes, setNotes] = createSignal<ReviewNote[]>(initial)
   const [comments, setComments] = createSignal<AnchoredComment[]>([])
   const [pull, setPull] = createSignal<PullRequest | null>(null)
   const [fetching, setFetching] = createSignal(false)
   const [collapsed, setCollapsed] = createSignal<ReadonlySet<string>>(new Set())
   const [cursor, setCursor] = createSignal(0)
 
+  // What lets a save merge instead of clobber (`seen`), and an adopt tell an
+  // external delete from a stale writer's overwrite: a note this session
+  // created is only surrendered once some external read contained it
+  // (`acknowledged`) — before that, a file without it was written blind.
+  const seen = new Set(initial.map(note => note.id))
+  const created = new Set<string>()
+  const acknowledged = new Set<string>()
+
   /** Notes are the one thing here that outlives the session, so every write persists. */
   const writeNotes = (next: ReviewNote[]) => {
+    for (const note of next) seen.add(note.id)
     setNotes(next)
-    saveNotes(rootDir, next)
+    saveNotes(rootDir, next, { seen })
+  }
+
+  const sameNote = (a: ReviewNote, b: ReviewNote) =>
+    a.id === b.id &&
+    a.path === b.path &&
+    a.line === b.line &&
+    a.endLine === b.endLine &&
+    a.kind === b.kind &&
+    a.body === b.body &&
+    a.at === b.at
+
+  /**
+   * Adopt what the file says — the way git state made in another terminal
+   * shows up without a restart. The value compare is what absorbs the watcher
+   * reporting druk's own renamed-into-place save, and it must run before any
+   * bookkeeping: an equal file has nothing external in it to acknowledge.
+   */
+  const reloadNotes = () => {
+    const fresh = readNotes(rootDir)
+    // Unreadable is another writer caught mid-file: "not now", never "no notes".
+    if (fresh === null) return
+    const held = notes()
+    if (fresh.length === held.length && fresh.every((note, i) => sameNote(note, held[i]!))) return
+    const freshIds = new Set(fresh.map(note => note.id))
+    // A session-created note no external read has ever contained was clobbered
+    // by a writer holding a stale copy, not deleted — it goes back, and back to
+    // disk. One that some read did contain is the file's to delete.
+    const orphaned = held.filter(
+      note => created.has(note.id) && !acknowledged.has(note.id) && !freshIds.has(note.id),
+    )
+    for (const id of freshIds) {
+      seen.add(id)
+      if (created.has(id)) acknowledged.add(id)
+    }
+    if (orphaned.length === 0) return setNotes(fresh)
+    writeNotes([...fresh, ...orphaned])
   }
 
   /** Ids only have to be unique within this list; the clock plus a counter is that. */
@@ -76,6 +122,7 @@ export function createReview(deps: {
 
   const add = (note: Omit<ReviewNote, 'id' | 'at'>) => {
     const full: ReviewNote = { ...note, id: nextId(), at: Date.now() }
+    created.add(full.id)
     writeNotes([...notes(), full])
     const where = `${basename(note.path)}:${note.line + 1}`
     say(`${NOTE_LABELS[note.kind]} noted on ${where} — ${notes().length} in this review`)
@@ -374,6 +421,7 @@ export function createReview(deps: {
     add,
     removeNote,
     clear,
+    reloadNotes,
     fetchPullRequest: () => void fetchPullRequest(),
     autoFetch,
     /** The header's count, which no fold narrows. */
