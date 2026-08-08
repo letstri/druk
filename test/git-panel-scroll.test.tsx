@@ -83,4 +83,23 @@ describe('the source-control panel scrolls', () => {
 
     expect(sidebar(t)).toBe(scrolled)
   })
+
+  test('a save elsewhere in the repo leaves the scrolled panel where it was', async () => {
+    const dir = repo()
+    const t = await launch(dir, {}, { width: 100, height: 24 })
+    await press(t, i => void i.pressKeys([TOGGLE]))
+    await settle(t, 200)
+    await scrollDown(t, 20)
+    const scrolled = sidebar(t)
+    expect(scrolled).not.toContain('f000.ts')
+
+    // A real revision: the watcher sees the write, every row is rebuilt, and the
+    // panel's cursor — still row 0 — used to drag the view back to the top with
+    // it, once per save. With a lot of changes that is most of the session.
+    writeFileSync(join(dir, NAMES[0]!), 'changed again\n')
+    for (let n = 0; n < 6; n++) {
+      await settle(t, 250)
+      expect(sidebar(t)).toBe(scrolled)
+    }
+  }, 30000)
 })

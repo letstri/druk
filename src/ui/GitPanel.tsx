@@ -58,7 +58,15 @@ export interface GitPanelProps {
  * tree's, so this renders and reports clicks, nothing more.
  */
 export function GitPanel(props: GitPanelProps) {
-  const cursor = () => Math.max(0, Math.min(props.cursor, props.rows.length - 1))
+  /**
+   * A memo, not a plain function: `rows` is a fresh array on every git refresh,
+   * and reading its length is what makes the reveal below a dependent of it. As
+   * a function that effect re-runs on every refresh — a save, a watcher event —
+   * and yanks a list the mouse scrolled away back to the cursor. The value is
+   * unchanged, so a memo simply does not notify (the tree's `selectedRow` is the
+   * same fix).
+   */
+  const cursor = createMemo(() => Math.max(0, Math.min(props.cursor, props.rows.length - 1)))
 
   const list = createScrollList(() => props.rows.length)
   const visible = createMemo(() => props.rows.slice(list.window().start, list.window().end))

@@ -36,7 +36,8 @@ export interface ExtensionsPanelProps {
  * reports clicks, nothing more.
  */
 export function ExtensionsPanel(props: ExtensionsPanelProps) {
-  const cursor = () => Math.max(0, Math.min(props.cursor, props.rows.length - 1))
+  /** A memo so the reveal below fires on the cursor's *value* — see GitPanel. */
+  const cursor = createMemo(() => Math.max(0, Math.min(props.cursor, props.rows.length - 1)))
 
   const list = createScrollList(() => props.rows.length)
   const visible = createMemo(() => props.rows.slice(list.window().start, list.window().end))
