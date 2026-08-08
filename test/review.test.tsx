@@ -17,6 +17,7 @@ import {
   pressTimes,
   runCommand,
   settle,
+  until,
   untilFrame,
   untilGone,
 } from './helpers'
@@ -245,11 +246,11 @@ test('notes survive a restart, and clearing forgets the project', () => {
     body: 'wrong',
     at: 1,
   }
-  saveNotes('/p', [note], 1, file)
+  saveNotes('/p', [note], { now: 1, file })
   expect(loadNotes('/p', file)).toEqual([note])
   // Another project's notes are not this one's.
   expect(loadNotes('/other', file)).toEqual([])
-  saveNotes('/p', [], 2, file)
+  saveNotes('/p', [], { now: 2, file })
   expect(loadNotes('/p', file)).toEqual([])
 })
 
@@ -418,4 +419,93 @@ test('a note taken on a selection carries the whole span', async () => {
   await runCommand(t, 'Note this line as issue')
   expect(t.captureCharFrame()).toContain('a.ts:1-2')
   await pressEscape(t)
+})
+
+// ── Another writer, while druk is open ──────────────────────────────────────
+
+const NOTES_PATH = join(process.env.XDG_CONFIG_HOME!, 'druk', 'review.json')
+
+const theirNote = (dir: string, id: string, body: string) => ({
+  id,
+  path: join(dir, 'a.ts'),
+  line: 0,
+  endLine: 0,
+  kind: 'note',
+  body,
+  at: 1,
+})
+
+test('a note written by another process appears, and its delete empties', async () => {
+  const dir = fixture(PROJECT)
+  const t = await launch(dir, {}, { width: 100, height: 24 })
+  await runCommand(t, 'Review panel')
+  await untilFrame(t, 'No notes yet')
+
+  writeFileSync(
+    NOTES_PATH,
+    JSON.stringify({ [dir]: { notes: [theirNote(dir, 'x1', 'left by an agent')], touchedAt: 1 } }),
+  )
+  await untilFrame(t, 'left by an agent')
+
+  writeFileSync(NOTES_PATH, '{}\n')
+  await untilGone(t, 'left by an agent')
+})
+
+test('a stale overwrite gives back the note it never saw', async () => {
+  const dir = fixture(PROJECT)
+  const t = await launch(dir, {}, { width: 100, height: 24 })
+  await openFile(t, 'a.ts')
+  await noteLine(t, 'issue', 'written here')
+  await untilFrame(t, 'written here')
+
+  // An agent that read the file before the note existed writes its stale copy
+  // back — with its own note, without druk's.
+  writeFileSync(
+    NOTES_PATH,
+    JSON.stringify({ [dir]: { notes: [theirNote(dir, 'x2', 'left by an agent')], touchedAt: 1 } }),
+  )
+  await runCommand(t, 'Review panel')
+  await untilFrame(t, 'left by an agent')
+  await untilFrame(t, 'written here')
+  // And the rescue reached the disk, not just the panel.
+  await until(t, () => readFileSync(NOTES_PATH, 'utf8').includes('written here'))
+})
+
+test('an agent may delete a note druk wrote, once it is not a race', async () => {
+  const dir = fixture(PROJECT)
+  const t = await launch(dir, {}, { width: 100, height: 24 })
+  await openFile(t, 'a.ts')
+  await noteLine(t, 'issue', 'fix this')
+  await runCommand(t, 'Review panel')
+  await untilFrame(t, 'fix this')
+  expect(readFileSync(NOTES_PATH, 'utf8')).toContain('fix this')
+
+  // Long enough that the note is no longer young enough to rescue — the whole
+  // point being that past that age an absence is a delete and not a clobber,
+  // which is the flow the notes exist for: the agent fixes and strikes off.
+  await settle(t, 2300)
+  writeFileSync(NOTES_PATH, JSON.stringify({ [dir]: { notes: [], touchedAt: 2 } }))
+
+  await untilGone(t, 'fix this')
+  // And it stays gone: no save puts it back behind the panel.
+  await settle(t, 200)
+  expect(readFileSync(NOTES_PATH, 'utf8')).not.toContain('fix this')
+})
+
+test('an unreadable notes file changes nothing on screen', async () => {
+  const dir = fixture(PROJECT)
+  writeFileSync(
+    NOTES_PATH,
+    JSON.stringify({
+      [dir]: { notes: [theirNote(dir, 'x3', 'held before the tear')], touchedAt: 1 },
+    }),
+  )
+  const t = await launch(dir, {}, { width: 100, height: 24 })
+  await runCommand(t, 'Review panel')
+  await untilFrame(t, 'held before the tear')
+
+  writeFileSync(NOTES_PATH, '{ torn mid-write')
+  // The assertion is that nothing happened, so the fixed wait is the right tool.
+  await settle(t, 300)
+  expect(t.captureCharFrame()).toContain('held before the tear')
 })

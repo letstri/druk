@@ -16,7 +16,7 @@ import { createMemo, createSignal } from 'solid-js'
 import { fetchComments, findPullRequest, forgeFor } from '../core/forge'
 import type { ForgeComment, PullRequest } from '../core/forge'
 import { remoteUrl } from '../core/git'
-import { loadNotes, NOTE_LABELS, saveNotes } from '../core/review'
+import { loadNotes, NOTE_LABELS, readNotes, saveNotes } from '../core/review'
 import type { NoteKind, ReviewNote } from '../core/review'
 import type { Git } from './git'
 import type { Panes } from './panes'
@@ -45,6 +45,9 @@ const GENERAL = 'On the pull request'
 /** One line of a remark, for a row that has one line to draw it in. */
 const oneLine = (text: string) => text.replaceAll(/\s+/g, ' ').trim()
 
+/** How long after creating a note an external write missing it reads as a stale clobber. */
+const RESCUE_WINDOW = 2000
+
 export function createReview(deps: {
   rootDir: string
   status: Status
@@ -57,17 +60,63 @@ export function createReview(deps: {
   const { say } = status
   const { config } = settings
 
-  const [notes, setNotes] = createSignal<ReviewNote[]>(loadNotes(rootDir))
+  const initial = loadNotes(rootDir)
+  const [notes, setNotes] = createSignal<ReviewNote[]>(initial)
   const [comments, setComments] = createSignal<AnchoredComment[]>([])
   const [pull, setPull] = createSignal<PullRequest | null>(null)
   const [fetching, setFetching] = createSignal(false)
   const [collapsed, setCollapsed] = createSignal<ReadonlySet<string>>(new Set())
   const [cursor, setCursor] = createSignal(0)
 
+  // What lets a save merge instead of clobber (`seen`), and an adopt tell an
+  // external delete from a stale writer's overwrite (`created`, against the
+  // note's own age).
+  const seen = new Set(initial.map(note => note.id))
+  const created = new Set<string>()
+
   /** Notes are the one thing here that outlives the session, so every write persists. */
   const writeNotes = (next: ReviewNote[]) => {
+    for (const note of next) seen.add(note.id)
     setNotes(next)
-    saveNotes(rootDir, next)
+    saveNotes(rootDir, next, { seen })
+  }
+
+  const sameNote = (a: ReviewNote, b: ReviewNote) =>
+    a.id === b.id &&
+    a.path === b.path &&
+    a.line === b.line &&
+    a.endLine === b.endLine &&
+    a.kind === b.kind &&
+    a.body === b.body &&
+    a.at === b.at
+
+  /**
+   * Adopt what the file says — the way git state made in another terminal
+   * shows up without a restart. The value compare absorbs a watch event that
+   * reports a save of druk's own, which some platforms deliver and some do
+   * not: a rename is announced under whichever of the two names the platform
+   * picks, and the temp one is filtered out by name.
+   */
+  const reloadNotes = () => {
+    const fresh = readNotes(rootDir)
+    // Unreadable is another writer caught mid-file: "not now", never "no notes".
+    if (fresh === null) return
+    const held = notes()
+    if (fresh.length === held.length && fresh.every((note, i) => sameNote(note, held[i]!))) return
+    const freshIds = new Set(fresh.map(note => note.id))
+    // A note this session created seconds ago, gone from a file druk did not
+    // write, was clobbered by a writer holding a copy read before it existed —
+    // so it goes back, and back to disk. Age is what separates that from a
+    // deliberate delete: druk cannot see whether the other side read the file
+    // before or after the save, and only the racing writer is quick. Past the
+    // window the file is right and the note is the file's to delete.
+    const orphaned = held.filter(
+      note =>
+        created.has(note.id) && !freshIds.has(note.id) && Date.now() - note.at < RESCUE_WINDOW,
+    )
+    for (const id of freshIds) seen.add(id)
+    if (orphaned.length === 0) return setNotes(fresh)
+    writeNotes([...fresh, ...orphaned])
   }
 
   /** Ids only have to be unique within this list; the clock plus a counter is that. */
@@ -76,6 +125,7 @@ export function createReview(deps: {
 
   const add = (note: Omit<ReviewNote, 'id' | 'at'>) => {
     const full: ReviewNote = { ...note, id: nextId(), at: Date.now() }
+    created.add(full.id)
     writeNotes([...notes(), full])
     const where = `${basename(note.path)}:${note.line + 1}`
     say(`${NOTE_LABELS[note.kind]} noted on ${where} — ${notes().length} in this review`)
@@ -374,6 +424,7 @@ export function createReview(deps: {
     add,
     removeNote,
     clear,
+    reloadNotes,
     fetchPullRequest: () => void fetchPullRequest(),
     autoFetch,
     /** The header's count, which no fold narrows. */
