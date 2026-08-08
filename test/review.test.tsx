@@ -245,11 +245,11 @@ test('notes survive a restart, and clearing forgets the project', () => {
     body: 'wrong',
     at: 1,
   }
-  saveNotes('/p', [note], 1, file)
+  saveNotes('/p', [note], { now: 1, file })
   expect(loadNotes('/p', file)).toEqual([note])
   // Another project's notes are not this one's.
   expect(loadNotes('/other', file)).toEqual([])
-  saveNotes('/p', [], 2, file)
+  saveNotes('/p', [], { now: 2, file })
   expect(loadNotes('/p', file)).toEqual([])
 })
 
