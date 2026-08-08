@@ -11,6 +11,7 @@ import { watchGitRefs, watchTree } from '../core/fs'
 import { isImagePath } from '../core/image'
 import { isMarkdownPath } from '../core/markdown'
 import { isPdfPath } from '../core/pdf'
+import { watchNotes } from '../core/review'
 import { checkForUpdate, currentVersion } from '../core/update'
 import { extensionProblems } from '../extensions'
 import { languageLabel } from '../languages'
@@ -504,6 +505,11 @@ export function App(props: {
       })
     }),
   )
+
+  // Review notes written by another process — an agent editing review.json is
+  // the notes' documented interop — appear the way git made in another
+  // terminal does: without a restart.
+  onMount(() => onCleanup(watchNotes(review.reloadNotes)))
 
   // The watcher has no follow-up message of its own, so unlike the git callers it
   // reports the clash itself — and clears it again once the files agree, since
