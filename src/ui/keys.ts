@@ -97,6 +97,13 @@ export const KEYS: KeyInfo[] = [
     section: 'Editing',
     where: 'editor',
   },
+  {
+    key: `Ctrl+${ALT}+D`,
+    label: 'Delete line or selection',
+    section: 'Editing',
+    where: 'editor',
+    ids: ['editor.deleteLine'],
+  },
   { key: 'Shift+Tab', label: 'Outdent', section: 'Editing', where: 'editor' },
   { key: 'Ctrl+Space', label: 'Autocomplete (Tab accepts)', section: 'Editing', where: 'editor' },
   {

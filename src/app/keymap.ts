@@ -81,6 +81,9 @@ export const BINDABLE: Bindable[] = [
   // Shrink and expand, since the bracket pair every GUI editor uses for this is
   // Ctrl+Shift+[ / ] — a shifted Ctrl chord no terminal can deliver, and Ctrl+[
   // is the Escape byte anyway. C, the other obvious letter, is Copy path.
+  // D for delete, since Ctrl+Shift+K — every GUI editor's chord for this — is a
+  // shifted Ctrl chord no terminal can deliver.
+  { id: 'editor.deleteLine', label: 'Delete line', defaults: [`Ctrl+${ALT}+D`] },
   { id: 'editor.fold', label: 'Fold block at cursor', defaults: [`Ctrl+${ALT}+S`] },
   { id: 'editor.unfold', label: 'Unfold block at cursor', defaults: [`Ctrl+${ALT}+E`] },
   { id: 'editor.foldAll', label: 'Fold everything', defaults: [] },

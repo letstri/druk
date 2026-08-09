@@ -21,7 +21,7 @@ export function createEditorBridge(vim: boolean) {
    * Opt needs "Option as Esc+" on macOS terminals.
    */
   const [lineOp, setLineOp] = createSignal<{
-    op: 'comment' | 'up' | 'down' | 'duplicate'
+    op: 'comment' | 'up' | 'down' | 'duplicate' | 'delete'
     key: number
   } | null>(null)
   /** Folding, the same one-shot shape: the pane owns which blocks are collapsed. */
@@ -47,7 +47,7 @@ export function createEditorBridge(vim: boolean) {
     setGoto(prev => ({ line, col, key: (prev?.key ?? 0) + 1 }))
   /** Push `content` into the active editor as one undoable step. */
   const pushEdit = (content: string) => setEdit(prev => ({ content, key: (prev?.key ?? 0) + 1 }))
-  const requestLineOp = (op: 'comment' | 'up' | 'down' | 'duplicate') =>
+  const requestLineOp = (op: 'comment' | 'up' | 'down' | 'duplicate' | 'delete') =>
     setLineOp(prev => ({ op, key: (prev?.key ?? 0) + 1 }))
   const requestCompletion = () => setCompletion(prev => ({ key: (prev?.key ?? 0) + 1 }))
   const requestFoldOp = (op: FoldOp) => setFoldOp(prev => ({ op, key: (prev?.key ?? 0) + 1 }))

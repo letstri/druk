@@ -46,6 +46,22 @@ export function moveLines(text: string, from: number, to: number, delta: -1 | 1)
   return lines.join('\n')
 }
 
+/**
+ * Drop lines `from`..`to`, the newline that ends each of them included, so what
+ * follows keeps its own indentation instead of being pulled onto the line above.
+ */
+export function removeLines(text: string, from: number, to: number): string {
+  const lines = text.split('\n')
+  // The trailing empty string after a final newline is not a line to delete —
+  // taking it would leave the file without its final newline.
+  const last = lines.at(-1) === '' ? lines.length - 2 : lines.length - 1
+  const start = Math.max(0, from)
+  const end = Math.min(to, last)
+  if (end < start) return text
+  lines.splice(start, end - start + 1)
+  return lines.join('\n')
+}
+
 /** Insert a copy of lines `from`..`to` directly below them. */
 export function duplicateLines(text: string, from: number, to: number): string {
   const lines = text.split('\n')

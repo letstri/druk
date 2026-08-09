@@ -1,6 +1,12 @@
 import { describe, expect, test } from 'bun:test'
 
-import { duplicateLines, moveLines, toggleComment, trimTrailing } from '../src/editor/lines'
+import {
+  duplicateLines,
+  moveLines,
+  removeLines,
+  toggleComment,
+  trimTrailing,
+} from '../src/editor/lines'
 
 describe('toggleComment', () => {
   test('comments a line and uncomments it back', () => {
@@ -53,6 +59,30 @@ describe('duplicateLines', () => {
 
   test('copies a block below the block', () => {
     expect(duplicateLines('a\nb\nc\n', 0, 1)).toBe('a\nb\na\nb\nc\n')
+  })
+})
+
+describe('removeLines', () => {
+  test('takes the line and its newline, so the next one keeps its indent', () => {
+    expect(removeLines('  a,\n  b,\n  c,\n', 1, 1)).toBe('  a,\n  c,\n')
+  })
+
+  test('takes a block as one unit', () => {
+    expect(removeLines('a\nb\nc\nd\n', 1, 2)).toBe('a\nd\n')
+  })
+
+  test('the last line goes without taking the file’s final newline elsewhere', () => {
+    expect(removeLines('a\nb\n', 1, 1)).toBe('a\n')
+    expect(removeLines('a\nb', 1, 1)).toBe('a')
+  })
+
+  test('deleting every line empties the file', () => {
+    expect(removeLines('a\nb\n', 0, 1)).toBe('')
+  })
+
+  test('a range past the end is clamped, and an empty file is left alone', () => {
+    expect(removeLines('a\nb\n', 1, 9)).toBe('a\n')
+    expect(removeLines('', 0, 0)).toBe('')
   })
 })
 

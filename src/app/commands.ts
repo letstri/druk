@@ -65,7 +65,7 @@ export interface CommandActions {
   setIconTheme: (id: string) => void
   previewIcons: (id: string) => void
   restoreIcons: () => void
-  lineOp: (op: 'comment' | 'up' | 'down' | 'duplicate') => void
+  lineOp: (op: 'comment' | 'up' | 'down' | 'duplicate' | 'delete') => void
   foldOp: (op: FoldOp) => void
   triggerCompletion: () => void
   openSettings: () => void
@@ -466,6 +466,12 @@ export function buildCommands(actions: CommandActions, ctx: CommandContext): Com
           label: 'Duplicate line',
           hint: `${ALT}+Shift+↓`,
           run: () => actions.lineOp('duplicate'),
+        },
+        {
+          id: 'editor.deleteLine',
+          label: 'Delete line',
+          hint: `Ctrl+${ALT}+D`,
+          run: () => actions.lineOp('delete'),
         },
         {
           id: 'editor.complete',

@@ -78,6 +78,7 @@ export function installKeyboard(ctx: AppContext, actions: CommandActions) {
     'nav.forward': actions.navForward,
     'tabs.closeOthers': actions.closeOthers,
     'tabs.closeAll': actions.closeAll,
+    'editor.deleteLine': () => actions.lineOp('delete'),
     'editor.fold': () => actions.foldOp('fold'),
     'editor.unfold': () => actions.foldOp('unfold'),
     'editor.foldAll': () => actions.foldOp('foldAll'),

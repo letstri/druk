@@ -20,7 +20,7 @@ import {
 } from '../editor/folds'
 import type { FoldOp, FoldRegion, FoldView } from '../editor/folds'
 import { History } from '../editor/history'
-import { duplicateLines, moveLines, toggleComment } from '../editor/lines'
+import { duplicateLines, moveLines, removeLines, toggleComment } from '../editor/lines'
 import { problemRows } from '../editor/problems'
 import { handleTyping } from '../editor/typing'
 import { handleVimKey, initialVimState } from '../editor/vim'
@@ -73,7 +73,7 @@ export interface EditorPaneProps {
    */
   edit: { content: string; key: number } | null
   /** A line edit asked for from the palette; bumped `key` re-applies. */
-  lineOp: { op: 'comment' | 'up' | 'down' | 'duplicate'; key: number } | null
+  lineOp: { op: 'comment' | 'up' | 'down' | 'duplicate' | 'delete'; key: number } | null
   /** A fold asked for from the palette or a chord; bumped `key` re-applies. */
   foldOp: { op: FoldOp; key: number } | null
   vim: boolean
@@ -1673,6 +1673,27 @@ export function EditorPane(props: EditorPaneProps) {
     applyLineEdit(duplicateLines(docText(), from, to), follow ? row + (to - from + 1) : row, col)
   }
 
+  /**
+   * Delete the cursor's line, or every line the selection touches. The caret
+   * lands on the line that took the first one's place, at the column it was on,
+   * so a run of deletes takes line after line without moving the hand.
+   */
+  const deleteSelectedLines = () => {
+    if (!editor) return
+    const { from, to } = realRange(editRange(editor.plainText))
+    const col = editor.logicalCursor.col
+    withoutFolds()
+    const next = removeLines(docText(), from, to)
+    // The old selection is a pair of offsets into text that no longer exists,
+    // and the next keystroke would delete whatever now sits at them.
+    editor.clearSelection()
+    const lines = next.split('\n')
+    // The empty string after the file's final newline is no line to land on.
+    const lastRow = Math.max(0, lines.length - (lines.at(-1) === '' ? 2 : 1))
+    const row = Math.min(from, lastRow)
+    applyLineEdit(next, row, Math.min(col, lines[row]?.length ?? 0))
+  }
+
   const stepHistory = (kind: 'undo' | 'redo') => {
     if (!editor) return
     const at = kind === 'undo' ? history.undo() : history.redo()
@@ -1716,6 +1737,8 @@ export function EditorPane(props: EditorPaneProps) {
             return moveSelectedLines(1)
           case 'duplicate':
             return duplicateSelectedLines(true)
+          case 'delete':
+            return deleteSelectedLines()
         }
       },
       { defer: true },
