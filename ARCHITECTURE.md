@@ -128,9 +128,13 @@ scripts/
     Overlay, TextInput, PromptModal, ConfirmModal, ChoiceModal, HelpOverlay, Welcome
     modal.ts         modal geometry: width, list rows, text wrapping
     list.ts          list behaviour: windowing, panel scroll, picker keys, row colour
+    completionLayout.ts  how big the completion popup gets and what its detail
+                     panel holds — the one place EditorPane and CompletionMenu
+                     both read, so placement and painting cannot disagree
 ```
 
-Dependency direction is one-way: `ui/` and feature folders never import from `app/`.
+Dependency direction is one-way: `ui/` and feature folders never import from `app/` —
+`test/boundaries.test.ts` fails the suite on any such import.
 State lives in the `app/` controllers — factories (`createWorkspace`, `createTree`, …)
 that `App.tsx` calls once, in dependency order, inside the component body, so their
 signals and effects live under the app's render root. Components take props and call
@@ -184,6 +188,12 @@ Highlight queries are easy to get wrong in a way that fails *silently*: a query 
 node the grammar does not have simply matches nothing, and one invalid pattern stops the
 parser from loading at all. Compile a query against its grammar before trusting it, and
 assert in `test/languages.test.ts` that a sample really produces highlights.
+
+Order inside a query is load-bearing where two patterns capture the same node. Equal
+specificity is broken by paint order, and paint order for one node is query order, so a
+catch-all like tsx's `(identifier) @variable` has to come *first* and every refinement of
+it — the call, the declaration, the namespace import — after. Put it last and every name
+in the file is a plain variable again.
 
 When no grammar works — tree-sitter-yaml, for one, needs an external scanner OpenTUI's
 worker cannot link — declare `patterns` instead: a list of `{ group, re }` painted in
@@ -673,12 +683,21 @@ is just a diff against the empty tree.
   the tab. Owning it in `overlays` instead meant each caller had to remember, and the
   tree's Enter did not — a diff stayed on screen over the file just opened.
 - **The source-control panel is the diff's pager, and its only entry point.** The page
-  holds one file because `panes.gitCursor` says which: ↑/↓ in the panel move the cursor
+  holds one file because the panel's cursor says which: ↑/↓ in the panel move the cursor
   and swap the page under it, so nothing else may open a diff without moving that cursor
   first (`actions.gitDiffFile` shows the panel and selects the row). A page reached any
   other way would be one the arrows could not move from. Inside the page the arrows scroll
   and Tab toggles the layout — the panel and the page each own their arrows, so neither
   needs a chord, and that split only holds while the panel keeps the focus.
+- **A row's heading is part of what it means.** `Staged Changes` and `Changes` are not two
+  views of one list: a half-staged path is a `Change` under each, distinguished only by
+  `area`, and everything downstream has to carry it — the fold key (`foldKey`), the diff
+  (`diffFileFor` takes the area and picks HEAD-vs-index or index-vs-worktree), and the
+  cursor's row, which is what `refreshDiff` reads to keep a page on the side it was
+  opened from. Dropping `area` anywhere collapses the two rows into one and the split
+  stops meaning anything. Opening the panel lands the cursor on the first *file* row
+  (`actions.gitLandOnFile`) without diffing it — a heading has no page behind it, and
+  merely showing the sidebar has never thrown a diff over the editor.
 - **Branch comparison replaces the panel rather than sitting beside it.** `app/comparison.ts`
   owns its own file, commit and commit-file cursors and its caches; uppercase `B` enters it
   or picks a new base, lowercase `b` stays branch switching. Its detail page is layered over
@@ -782,7 +801,15 @@ is just a diff against the empty tree.
   and judged on the cursor-sync tick (after the buffer settled), the request flushes
   the didChange debounce first so the server answers against what is on screen, and
   a stale reply — a newer request, a changed file, a cursor that left the line — is
-  dropped by generation counter. `ui/CompletionMenu.tsx` only paints. The global Esc
+  dropped by generation counter. The item under the selection is resolved on its own
+  after a short rest — servers withhold documentation from the list because it is
+  expensive per candidate — and the answer is cached per item, so walking back up
+  the list costs no round trip and accepting one usually needs no second ask.
+  `ui/completionLayout.ts` sizes the popup — list rows, then a detail panel whose
+  height is *reserved* rather than measured, because walking the list changes what
+  is in it on every keystroke and a box that resized around each item's docs would
+  jump under the cursor; a pane too short to hold both drops the panel and keeps the
+  list. `ui/CompletionMenu.tsx` only paints what it computed. The global Esc
   handler consults `editor.completionOpen()` so dismissing the menu does not also
   move focus to the tree.
 - **Navigation is two commands, and only one of them needs a server.** Go to

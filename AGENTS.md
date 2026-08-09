@@ -11,7 +11,7 @@ reconciler on a native Zig core). Shipped as a standalone binary — npm, Homebr
 installer — and run as a CLI.
 
 Features: file tree with bulk file operations and opt-in hiding of dotfiles and
-git-ignored files, the sidebar (Files / Git / Extensions) on the left or the right
+git-ignored files, the sidebar (Files / Git / Review / Extensions) on the left or the right
 (`sidebarPosition`, settings → Files → Sidebar position, or palette → View →
 Toggle sidebar position), a `▴` in the sidebar header that shuts every folder at once
 (palette → View → Collapse folders in sidebar, which folds whichever of the two
@@ -21,7 +21,13 @@ path / Copy relative path — whichever file the tree's cursor is on while the t
 the keyboard, and the open file otherwise; sent over OSC 52 as well as to `pbcopy`/
 `wl-copy`, so it reaches the clipboard of the terminal an SSH session is really on,
 and a path outside the project has no relative form so it copies absolute and says so),
-preview/pinned tabs, a quick look at the row under the tree's cursor that opens no
+preview/pinned tabs that say what state their file is in — a dirty one keeps the `●`
+where the close × goes, and a file its language server has something to say about
+wears that server's worst mark (`●` error, `▲` warning, the glyphs the status bar and
+the problems list use) in the slot before its name, with the name in the same colour;
+the mark outranks the file icon rather than sitting beside it, so a tab that starts
+erroring shifts nothing —
+a quick look at the row under the tree's cursor that opens no
 tab at all (Space in the tree, palette → View → Preview file — the file over the
 editor slot, syntax-coloured, following the cursor as ↑↓ walks the tree and paging
 with PgUp/PgDn, since the tree keeps the keyboard; Enter opens the file for real and
@@ -38,10 +44,13 @@ hit beside its replacement, Enter applies one match, Ctrl+A applies everywhere b
 confirm naming true counts past the 200-row display cap, open buffers take the edit
 unsaved while closed files are written with their encoding kept, and the scan reads open
 dirty buffers instead of their disk copies so what is listed is what is replaced;
-the last file search outlives its panel — Ctrl+F reopens carrying the query it was
-last given, on the row it was last left on, with the text selected so the first
-keystroke replaces it; a selection wins over the remembered query, being this
-moment's intent against the last one's, and brings no row back with it),
+the last search of each scope outlives its panel — Ctrl+F and Ctrl+Opt+F each reopen
+carrying the query that scope was last given, on the row it was last left on and with
+the files it was left folded, with the text selected so the first keystroke replaces
+it, so reading a hit and coming back is not a search thrown away; the toggles ride
+along, being a mode rather than part of one query, and a selection wins over the
+remembered query, being this moment's intent against the last one's, and brings back
+neither row nor folds),
 command palette,
 themes, vim mode, a caret shape (`cursorStyle` — block, line or underline, which vim mode
 overrides while it is on, since there the shape is what tells normal from insert),
@@ -53,19 +62,38 @@ event, so both are counted from consecutive mouse-downs at one cell, the way the
 file tree already counts its own; a line terminator is not a token, so a click
 past the end of a line or on a blank line selects nothing rather than the `\n` —
 which the next keystroke would otherwise pull the following line up over),
+deleting whole lines (`Ctrl+Opt+D`, palette → Editor → Delete line — the cursor's
+line, or every line a selection touches, the newline that ends each of them
+included; the chord is D rather than every GUI editor's Ctrl+Shift+K, which is a
+shifted Ctrl chord no terminal can deliver. It exists because a *selection* that
+reaches the end of a line quietly covers the newline as well and the renderer
+paints nothing there, so deleting one that looked like exactly one line pulled the
+line below up onto the line above — [#75](https://github.com/letstri/druk/issues/75)),
 code folding (`Ctrl+Opt+S` / `Ctrl+Opt+E`, palette → Editor → Fold / Unfold block at
 cursor, and fold/unfold everything: blocks come from indentation rather than from the
 grammar, so they work for the languages druk paints with `patterns` and no tree at
 all; a `▾` sits between the line number and the code of every foldable block and
 `▸` where one is closed — clicking it folds or opens that block, since a terminal has
 no hover to hide the control behind, and the column it needs is only reserved for a
-file that has something to fold; the collapsed line says `⋯ N lines` after its text
+file that has something to fold; the collapsed line says `⋯ N lines` after its text —
+and, on the row the caret is on, the chord that opens it again, the `▸` being an
+affordance only a mouse has —
 and the gutter keeps the file's own numbering across the gap, a tab comes back folded
 the way it was left, and anything that replaces the text wholesale — undo, a reload,
 replace, moving lines — opens the file first),
 git marks in tree/gutter/status bar plus a source-control panel in the sidebar
 (changed files as a folder tree or a flat list — `gitPanelView` — folders folding on
-→ / ←, or all of them from the header's `▴`), for however many repositories the
+→ / ←, or all of them from the header's `▴`; the files sit under VS Code's two
+headings, `Staged Changes` and `Changes`, and Space is what moves a row between them —
+`+`/`−` drawn on the cursor's row alone, a terminal having no hover to hide a button
+behind. A path staged and then edited again is a row under *each* heading, which is
+what git reports and what makes staging the rest of it a thing to do, and the two
+rows diff different things: staged is HEAD against the index, unstaged the index
+against the working tree. Space on a heading or a folder carries everything under it,
+folded or not — VS Code's `+` on a group header — and with something staged `c` skips
+the file picker and commits exactly the index. An empty heading is not drawn, and
+none of it exists against a comparison base, where there is no index to speak of),
+for however many repositories the
 opened folder holds: a folder that only *contains* checkouts (`~/code`, a folder of
 worktrees) is scanned `gitScanDepth` levels down and every repository found is queried
 in its own root, with the status bar and the panel header naming it (`beta/main`)
@@ -93,15 +121,16 @@ comparison base that points marks, gutter, panel and diff at another branch inst
 HEAD (palette → Git → Compare against branch…), branch comparison against the
 repository's default branch or any selected base (palette → Git → Compare branches, or
 `B` in the panel) with merge-base file scoping, a commit list and lazily loaded diffs,
-a review panel — a view of the source-control panel rather than a button of its own in
-the strip, reached by the `◆` in that panel's header (drawn whether or not anything is
-in it, and carrying the count when there is), by `r` there, or by `Ctrl+Opt+R` and
-palette → Review from anywhere; Git stays the pressed tab while it is up, which is what
-makes that button the way back, as Esc and Shift+Tab are — for reading
+a review panel — a button of its own in the strip, carrying the count when there is one
+(`Review 3`, falling to `R` in a narrow sidebar), and reached by `r` in the
+source-control panel, by `Ctrl+Opt+R`, or from the palette; it is in the Shift+Tab cycle
+with the other three and Esc leaves it the way the others are left — for reading
 code with the remarks beside it: `Ctrl+Opt+A` drops a note on the line or selection under
 the cursor (issue / suggestion / question / note, each spelled out in the palette as
 well as behind the chooser), the notes show as `◆` in the gutter and after the line
-(`reviewInline`) and outlive the session in `review.json` beside the config — a file druk
+(`reviewInline`, with the panel's chord after a remark the row was too narrow for —
+the same "name the key where the text ran out" rule the diagnostics follow) and
+outlive the session in `review.json` beside the config — a file druk
 does not own alone: an agent editing it while druk is open is the intended flow, so
 another writer's notes appear live (the config directory is watched; a rename-replaced
 file would strand a watcher on the file itself), druk's saves merge with what the file
@@ -172,8 +201,22 @@ the file; a feature request goes to each in turn and keeps the first real answer
 since load order cannot say which of them answers completions —
 (gutter marks, dots on a track beside the scrollbar — errors
 and warnings only, left of the git track and deliberately a different glyph —
-inline message text after the line, status-bar
-counts, a problems list in the palette, spans given a faint severity tint — no
+inline message text after the line — what broke and not how to fix it, since a
+server appends its advice to the same sentence (`help:`, `note:`, a second
+paragraph) and that half is the longer one, so the row carries `headline()`'s
+part of it and an ellipsis where there is more; `Ctrl+Opt+I`, palette → Problems →
+Show problem at cursor reads the whole of it, the same modal as the list over the
+cursor's line alone, which is what a terminal has instead of a hover — and the
+chord is drawn dim after the note *on the caret's row alone*, since a key nobody
+has been told about is a key nobody presses, and the same hint down every line
+would be noise (`chordFor` in `src/ui/keys.ts` reads the spelling in force, so a
+rebind renames the hint and unbinding it removes one) — status-bar
+counts, a problems list in the palette — errors above warnings, each row the
+severity glyph in its own colour, the path from the project root in a column the
+rows share, the message, and the rule that fired (`eslint(import/no-cycle)`),
+over a block that spells the selected row's whole message out, since a server's
+sentence is routinely longer than a row and a list of them cut mid-word is a list
+of diagnostics nobody can read — spans given a faint severity tint — no
 underline, which OpenTUI can only draw in the text's own colour — except where
 the server tagged them Unnecessary, where unused code fades toward the
 background instead; the
@@ -212,12 +255,28 @@ go with it, and refused for a server on PATH or in the project, which are not
 druk's to remove — and the log survives a restart so the run before stays
 readable), LSP autocomplete (a fuzzy-filtered menu that opens as you
 type or on Ctrl+Space, applies auto-import edits, and is toggled by
-`lspCompletion`), go to definition (F12, the server's answer in whichever of the
+`lspCompletion` — a row carries the kind glyph, the label with its matched
+letters lit, the server's own signature and, at the right edge, where the symbol
+comes from; under the list a counter names the selected item's kind, the key that
+takes it (`Tab accepts` — dropped rather than cut on a row too narrow for it, and
+the only place that says so while the menu covers the footer) and its
+place in the list, and a panel carries that item's full signature and documentation,
+markdown flattened for a terminal, fetched with `completionItem/resolve` once
+the selection has rested a moment and cached per item; the panel's rows are
+reserved rather than measured, so the box is one size for as long as it is open
+— an item's docs change on every keystroke and a box that fitted itself to them
+would jump under the cursor — and a pane too short for both drops the panel and
+keeps the list), go to definition (F12, the server's answer in whichever of the
 protocol's three shapes it comes) and open the file under the cursor
 (`Ctrl+Opt+O` — the path or import specifier the cursor is in, resolved on disk
 relative to the file and to the project root, then through the aliases
 `tsconfig.json`/`jsconfig.json` declares, and only then handed to the language
 server, which is what places a bare package or an alias druk cannot read),
+a fuzzy file picker (`Ctrl+P` / `Ctrl+O`, and the same modal for Switch tab) that
+reads a trailing `:line` or `:line:col` off the query as a destination rather than
+as part of the path — the shape a compiler or a stack trace prints, so it is what
+gets pasted in — filtering on what is left of it, echoing the landing place in its
+footer, and clamping a line past the end of the file onto its last one,
 a visit history — every tab the editor lands on, kept at the position it was left
 at, walked with `Ctrl+Opt+Z` / `Ctrl+Opt+Y` or the ← → arrows at the left of the
 tab strip, so a jump to a definition has a way back; a jump that stays inside the
@@ -242,7 +301,9 @@ so the editor can say so; the glyph takes the expansion
 arrow's column, since a folder icon has an open and a closed form — in the git panel
 that is the column a file row spent on nothing, so the two sidebar views line their
 names up either way — and the
-default is `none` because nothing can ask a terminal what its font holds),
+default is `none` because nothing can ask a terminal what its font holds; the same
+icon reaches the tab strip with `tabIcons`, off by default because the strip is one
+row and a column per tab is a tab fewer on a narrow terminal),
 an extension system (JSON manifests in `$XDG_CONFIG_HOME/druk/extensions/<id>/extension.json`
 — or `<id>.json` for a one-file extension — and in `<project>/.druk/extensions/` for a
 project's own; a manifest contributes themes, icon themes and language servers,
@@ -462,7 +523,7 @@ dependency rule, and recipes for the extension points:
 | language server | a `languageServers` entry in a market manifest — `extensions/<language>/extension.json`, then `bun run extensions`. `install` is `{"kind": "npm", "packages": […]}` or `{"kind": "download", "urls": {"<platform>-<arch>": "…"}}` when druk can fetch it itself, and `{"kind": "manual", "command": "…"}` for a line to print — a `download` carries a `command` too, for the machines the release has no build for; `settings` is the server's own configuration object, passed through unvalidated (it is the *server's* shape, not druk's) and given to it both ways the protocol offers — answered to every `workspace/configuration` item and pushed once as `didChangeConfiguration`. Several servers may claim one filetype and all of them are spawned; users override per-server with the `lspServers` setting, which can only *replace* a command some extension declared (an empty one disables that server alone). A server whose command depends on what the project installed goes in `projectCommand` (`src/lsp/project.ts`) instead, which every server consults first — that part is code, and stays in `src/` |
 | PDF viewer | rendering in `src/core/pdf.ts`, UI in `src/ui/PdfView.tsx`, and bufferless routing in `src/app/workspace.ts` |
 | mermaid diagram type | a parser in `src/core/mermaid/parse.ts` answering one of the models in `model.ts`, and a renderer for it in `index.ts`. A type that is a graph of boxes needs no renderer — map it onto `GraphDiagram` and `graph.ts` lays it out. Lines are drawn as the directions they leave a cell in (`canvas.ts`), never as characters, so corners and crossings resolve themselves; `set`/`text` are for glyphs that must win over a line. A type nothing draws must parse to `unsupported`, which is what makes the fence fall back to its source |
-| theme | a `themes` entry in a market manifest — `extensions/<family>/extension.json`, one extension per palette family (catppuccin carries its four flavors), then `bun run extensions`. Only `dark` and `light` are built in, in `src/themes/`, because the defaults name them. Chrome roles that are a *relationship* between two colours (`border`, `sidebarBg`, `solidBg`) are derived in `colorsFor` there and are never listed by a theme |
+| theme | a `themes` entry in a market manifest — `extensions/<family>/extension.json`, one extension per palette family (catppuccin carries its four flavors), then `bun run extensions`. Only `dark` and `light` are built in, in `src/themes/`, because the defaults name them. Chrome roles that are a *relationship* between two colours (`border`, `sidebarBg`, `solidBg`) are derived in `colorsFor` there and are never listed by a theme. A `syntax` map lists *root* scopes and the sub-scopes it wants to differ: `styleIdForGroup` walks `type.builtin` → `type` by itself, and `FALLBACK_GROUP` (`src/languages/highlight.ts`) is what saves a root the theme never heard of — `attribute` → `property`, `constructor` → `function`, `namespace` → `type`. A group nothing resolves to paints as plain text, which is why that walk decides membership with `getStyle` and not with `getStyleId`: the native style table invents an id for any name it is asked about, so `getStyleId` never answers null |
 | icon theme | an `icons` entry in a market manifest — one codepoint per glyph, since the tree gives it the arrow's single column, and a two-cell glyph is dropped rather than drawn (a Nerd Font one is not two-cell, wherever in the private-use planes it sits). A map's value may name an entry in `definitions`, whose `open` is the expanded form of a folder, so a set of thousands lists each icon once. `unicode` alone is built in (`src/icons/index.ts`), being the set any font already has |
 | extension contribution kind | a list on the manifest (`src/extensions/manifest.ts`) parsed into `Extension` (`src/extensions/types.ts`), registered in `loadExtensions` (`src/extensions/index.ts`), and a `register…`/`clearExtension…` pair on whichever registry owns it — the registry has to be read through a function everywhere, since extensions load after the modules that list its contents are evaluated |
 | previewable value | `preview` + `restore` on the palette `Command` (`src/app/commands.ts`) or on a row's `select` (`src/ui/SettingsView.tsx`) — `preview` paints while the selection sits on the value, `restore` runs when the list is torn down, so it must put back what the config says rather than remember what it replaced |
@@ -471,11 +532,12 @@ dependency rule, and recipes for the extension points:
 | keybinding | a row in `BINDABLE` (`src/app/keymap.ts`) plus a handler under the same id in `src/app/keyboard.ts` — or, for an editor-only key, `src/ui/EditorPane.tsx` — advertised in `src/ui/keys.ts` (feeds the footer hints, help overlay, Ctrl+K peek and the welcome screen), with the row's `ids` naming the commands it spells out |
 | git error message | a row in `KNOWN` in `src/core/git.ts`, with the git output it matches pinned in `test/git.test.tsx` |
 | market extension | a folder under `extensions/` holding `extension.json`, then `bun run extensions` to regenerate `extensions/index.json` — `test/extensions-repo.test.ts` fails when the committed index is stale, and bumping the manifest `version` is what makes installed copies see an update |
-| row in the extensions panel | `src/app/extensionsPanel.ts` (the row model, the cursor, the fold state and what Enter does); `src/ui/ExtensionsPanel.tsx` draws whatever `rows()` returns and reports clicks, and the keys live in `src/app/keyboard.ts` beside the tree's and the git panel's |
-| sidebar view | `SidebarView` in `src/ui/SidebarTabs.tsx` (add a `short` initial — the strip falls back to those in a narrow sidebar), a branch in `App.tsx`'s sidebar, one in `keyboard.ts`'s pane switch, a `KeyScope` in `src/ui/keys.ts` with a `SCOPE_LABELS` entry in `KeyPeek.tsx`, and a `toggle…View` on `src/app/panes.ts` |
+| row in the extensions panel | `src/app/extensionsPanel.ts` (the cursor, the fold state and what Enter does); `src/ui/ExtensionsPanel.tsx` owns the `ExtensionRow` type, draws whatever `rows()` returns and reports clicks, and the keys live in `src/app/keyboard.ts` beside the tree's and the git panel's. Row/view-model types live in the ui component and the controller imports them — the `SettingRow` arrangement, enforced by `test/boundaries.test.ts` |
+| sidebar view | `SidebarView` in `src/ui/SidebarTabs.tsx` (add a `short` initial — the strip falls back to those in a narrow sidebar), a branch in `App.tsx`'s sidebar, one in `keyboard.ts`'s pane switch, a `KeyScope` in `src/ui/keys.ts` with a `SCOPE_LABELS` entry in `KeyPeek.tsx`, a `toggle…View` on `src/app/panes.ts`, and its place in the Shift+Tab cycle, which is spelt out as one `showView` per pane block in `keyboard.ts` rather than held as a list |
 | branch-comparison behaviour | git queries and models in `src/core/git.ts`, state and caches in `src/app/comparison.ts`, rows in `ComparePanel` and the detail page in `ComparisonView` |
 | forge (pull-request comments) | a `ForgeKind` in `src/core/forge.ts`: the host names it answers to in `kindForHost`, its API base in `apiBase`, the header its token goes in, and a `find…`/`…Comments` pair mapping its JSON onto `PullRequest` / `ForgeComment` — 0-based lines, because that is what the rest of druk counts in. A host no name places is an error naming `reviewForge`, never a guess. Everything is read-only: druk posts no comment and approves nothing |
 | review row or key | `src/app/review.ts` (the notes, the fetched comments, the rows and what Enter does); `ui/ReviewPanel.tsx` draws `rows()` and reports clicks, the keys sit in `keyboard.ts` beside the git panel's, and the note's shape and where it is persisted are `src/core/review.ts` |
+| source-control row kind | `ChangeRow` in `src/core/changeTree.ts` — `changeRows` builds the headings and `rowArea`/`rowRel`/`foldKey` are how a row's fold state is addressed, the area being part of the key because one path can sit under both headings at once. `changesFor` answers what a row *stands for*, and reads the change list rather than the rows: a folded folder's files are not in `rows` and staging one still has to reach them |
 | git command | run it in `git.activeRepo()`, never in `rootDir` — the opened folder may hold several repositories and be none itself. A mutation goes through `gitOp`, which refuses when no repository is picked and *hands the chosen one to the callback*; an operation offered for a particular row pins `options.repo` so a later refresh cannot redirect it. A query asks `git.repoFor(path)` for the repository of the path it is about. A path passed after `--` is a *pathspec*, so it goes through `literal()` (`src/core/git.ts`) — `[`, `*` and `?` are glob metacharacters there, and `git clean -f -- '[id].tsx'` deletes `i.tsx` as well. Which repositories exist is `discoverRepos` (`src/core/repos.ts`), refreshed in `wireGitEffects` |
 
 Key handlers subscribe through `useKeys` (`src/ui/useKeys.ts`), never OpenTUI's
