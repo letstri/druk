@@ -179,3 +179,40 @@ test('a jump to a line already drawn leaves the viewport alone', async () => {
   await untilFrame(t, 'Ln 104')
   expect(t.captureCharFrame()).toContain(top)
 }, 20_000)
+
+const pick = async (t: Awaited<ReturnType<typeof launch>>, query: string) => {
+  await runCommand(t, 'Open file…')
+  await untilFrame(t, 'Open file')
+  await press(t, input => void input.typeText(query))
+}
+
+test('the file picker takes a :line:col suffix and lands on it', async () => {
+  const dir = fixture({ 'big.ts': `${numbered(200)}\n` })
+  const t = await launch(dir)
+
+  await pick(t, 'big.ts:111:7')
+  // The suffix is a destination rather than part of the path, so the row is
+  // still there to open — and the footer says where Enter will land.
+  expect(t.captureCharFrame()).toContain('at 111:7')
+  await press(t, input => input.pressEnter())
+  await untilFrame(t, 'Ln 111, Col 7')
+  expect(t.captureCharFrame()).toContain('const line110 = 110')
+}, 20_000)
+
+test('a bare :line in the picker opens at the first column', async () => {
+  const dir = fixture({ 'big.ts': `${numbered(200)}\n` })
+  const t = await launch(dir)
+
+  await pick(t, 'big.ts:40')
+  await press(t, input => input.pressEnter())
+  await untilFrame(t, 'Ln 40, Col 1')
+}, 20_000)
+
+test('a line past the end of the file lands on its last one', async () => {
+  const dir = fixture({ 'small.ts': 'const a = 1\nconst b = 2\n' })
+  const t = await launch(dir)
+
+  await pick(t, 'small.ts:999')
+  await press(t, input => input.pressEnter())
+  await untilFrame(t, 'Ln 3')
+}, 20_000)

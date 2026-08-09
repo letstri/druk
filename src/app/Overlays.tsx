@@ -363,9 +363,19 @@ export function OverlayStack(props: { ctx: AppContext; commands: Accessor<Comman
             rootDir={app.rootDir}
             files={kind() === 'tabs' ? workspace.tabs() : undefined}
             title={kind() === 'tabs' ? 'Switch tab' : 'Open file'}
-            onPick={path => {
+            onPick={(path, position) => {
               overlays.setPicker(null)
+              // A position in the file already up changes no tab, so nothing else
+              // records where the jump started — and the way back is half of a jump.
+              if (position && path === workspace.activeView()) app.navigation.mark()
               workspace.openFile(path)
+              // A file that would not open leaves the goto unsent, or it would aim
+              // at the file still on screen. No buffer is a viewer tab, which has
+              // no lines to land on; a line past the end lands on the last one.
+              const lines = workspace.buffers[path]?.content.split('\n').length
+              if (position && lines && workspace.activePath() === path) {
+                editor.requestGoto(Math.min(position.line, lines - 1), position.col)
+              }
             }}
             onClose={() => overlays.setPicker(null)}
           />
