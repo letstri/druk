@@ -1,6 +1,8 @@
 import fs from 'node:fs'
 import { basename, dirname, join } from 'node:path'
 
+import { errorMessage } from './errors'
+
 export interface TreeNode {
   name: string
   path: string
@@ -350,7 +352,7 @@ const attempt = (run: () => void): FsResult => {
     run()
     return null
   } catch (e) {
-    return (e as Error).message
+    return errorMessage(e)
   }
 }
 

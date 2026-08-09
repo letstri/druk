@@ -26,12 +26,13 @@ import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import { join } from 'node:path'
 
-// `../extensions` itself is deliberately not imported: it reads `core/config`, which
-// reads `MARKET_URL` from here for its default — so the extensions folder is passed
-// in by the caller rather than closing that cycle.
 import { parseManifest } from '../extensions/manifest'
 import { CATEGORIES } from '../extensions/types'
 import type { Extension, ExtensionCategory } from '../extensions/types'
+// `../extensions` itself is deliberately not imported: it reads `core/config`, which
+// reads `MARKET_URL` from here for its default — so the extensions folder is passed
+// in by the caller rather than closing that cycle.
+import { errorMessage } from './errors'
 
 /** druk's own market. `extensionRegistry` points elsewhere for a fork or a test. */
 export const MARKET_URL = 'https://raw.githubusercontent.com/letstri/druk/main/extensions/'
@@ -248,7 +249,7 @@ export async function fetchExtension(
   try {
     raw = JSON.parse(body)
   } catch (error) {
-    const reason = error instanceof Error ? error.message : String(error)
+    const reason = errorMessage(error)
     return { ok: false, error: `${id} is not valid JSON: ${reason}` }
   }
   const { extension, problems } = parseManifest(raw, source)
@@ -298,7 +299,7 @@ export async function writeExtension(
     }
     return null
   } catch (error) {
-    return error instanceof Error ? error.message : String(error)
+    return errorMessage(error)
   }
 }
 
@@ -308,7 +309,7 @@ export function removeFromDisk(id: string, root: string): string | null {
     rmSync(extensionDir(id, root), { recursive: true, force: true })
     return null
   } catch (error) {
-    return error instanceof Error ? error.message : String(error)
+    return errorMessage(error)
   }
 }
 

@@ -5,6 +5,7 @@ import type { BoxRenderable, KeyEvent, OptimizedBuffer } from '@opentui/core'
 import { useKeyboard, useRenderer } from '@opentui/solid'
 import { createEffect, createMemo, createSignal, on, onCleanup, Show } from 'solid-js'
 
+import { errorMessage } from '../core/errors'
 import { toCells } from '../core/image'
 import type { CellImage } from '../core/image'
 import { centerPdfPan, clampPdfPan, openPdf, stepPdfZoom } from '../core/pdf'
@@ -95,7 +96,7 @@ export function PdfView(props: PdfViewProps) {
           setPdf(opened)
         } catch (cause) {
           if (!disposed && pendingPath === undefined && props.path === path) {
-            setError((cause as Error).message)
+            setError(errorMessage(cause))
             setLoading(false)
           }
         }
@@ -176,7 +177,7 @@ export function PdfView(props: PdfViewProps) {
         setPan(centerPdfPan(next.cols, next.rows, request.cols, request.rows))
         setError(null)
       } catch (cause) {
-        if (request.id === requestId) setError((cause as Error).message)
+        if (request.id === requestId) setError(errorMessage(cause))
       }
     }
     draining = false

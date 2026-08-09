@@ -4,6 +4,7 @@ import { RGBA } from '@opentui/core'
 import type { BoxRenderable, OptimizedBuffer } from '@opentui/core'
 import { createMemo, createSignal, Show } from 'solid-js'
 
+import { errorMessage } from '../core/errors'
 import { decodeImage, toCells } from '../core/image'
 import type { CellImage, RawImage } from '../core/image'
 import { ui } from '../themes'
@@ -34,7 +35,7 @@ export function ImageView(props: ImageViewProps) {
       const image = decodeImage(props.path)
       return { image, kb: `${Math.max(1, Math.round(image.bytes / 1024))} KB` }
     } catch (e) {
-      return { error: (e as Error).message }
+      return { error: errorMessage(e) }
     }
   })
 
