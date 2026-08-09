@@ -3,13 +3,14 @@ import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { buildCommands, flattenCommands } from '../src/app/commands'
+import { buildCommands } from '../src/app/commands'
 import type { CommandActions } from '../src/app/commands'
 import { readFile, watchTree } from '../src/core/fs'
 import type { Changed } from '../src/core/fs'
 import { searchProject, searchText } from '../src/core/search'
 import { isNewer } from '../src/core/update'
 import { THEMES } from '../src/themes'
+import { flattenCommands } from '../src/ui/CommandPalette'
 
 describe('search', () => {
   const text = 'const alpha = 1\nlet beta = 2\n// alpha again\n'

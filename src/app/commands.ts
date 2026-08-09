@@ -15,20 +15,10 @@ import type { FoldOp } from '../editor/folds'
 import { iconThemeLabel, iconThemeNames, iconThemeNeedsFont } from '../icons'
 import { themeLabel, themeNames } from '../themes'
 import type { ThemeName } from '../themes'
+import type { Command } from '../ui/CommandPalette'
 import { ALT } from '../ui/keys'
 
-export interface Command {
-  id: string
-  label: string
-  /** Keybinding shown right-aligned, e.g. "Ctrl+S". Leaves only. */
-  hint?: string
-  run?: () => void
-  /** Paint a value while the selection sits on it — used by the themes submenu. */
-  preview?: () => void
-  /** Put back what the config says, once the preview is over. */
-  restore?: () => void
-  children?: Command[]
-}
+export type { Command } from '../ui/CommandPalette'
 
 export interface CommandActions {
   save: () => void
@@ -536,19 +526,4 @@ export function buildCommands(actions: CommandActions, ctx: CommandContext): Com
     { id: 'help', label: 'Keyboard shortcuts', run: actions.showHelp },
     { id: 'quit', label: 'Quit', hint: 'Ctrl+Q', run: actions.quit },
   ]
-}
-
-export interface FlatCommand {
-  command: Command
-  /** Breadcrumb of ancestor labels, e.g. ["Themes"]. */
-  trail: string[]
-}
-
-/** Every runnable leaf, with its path — used while filtering. */
-export function flattenCommands(commands: Command[], trail: string[] = []): FlatCommand[] {
-  return commands.flatMap(command =>
-    command.children
-      ? flattenCommands(command.children, [...trail, command.label])
-      : [{ command, trail }],
-  )
 }

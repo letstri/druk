@@ -17,39 +17,15 @@ import { createMemo, createSignal } from 'solid-js'
 import type { MarketEntry } from '../core/market'
 import { isNewer } from '../core/update'
 import { contributionSummary, extensions } from '../extensions'
-import type { Extension, ExtensionCategory } from '../extensions'
+import type { Extension } from '../extensions'
+import type { ExtensionRow } from '../ui/ExtensionsPanel'
 import type { Lsp } from './lsp'
 import type { Market } from './market'
 import type { PromptState } from './prompts'
 import type { Settings } from './settings'
 import type { Status } from './status'
 
-export type ExtensionRow =
-  | { kind: 'section'; id: string; label: string; count: number; collapsed: boolean }
-  | {
-      kind: 'installed'
-      id: string
-      label: string
-      version: string
-      /** What it is — `language`, `lsp`, `theme`, `icons` — drawn where there is room. */
-      categories: ExtensionCategory[]
-      /** What the market has that this does not, or null. */
-      update: string | null
-      disabled: boolean
-      builtin: boolean
-      /** What it contributes — the search matches on it too. */
-      about: string
-    }
-  | {
-      kind: 'available'
-      id: string
-      label: string
-      version: string
-      about: string
-      categories: ExtensionCategory[]
-    }
-  /** An inert line: what the cap left out. Enter on it does nothing. */
-  | { kind: 'note'; id: string; label: string }
+export type { ExtensionRow } from '../ui/ExtensionsPanel'
 
 const SECTIONS = { installed: 'INSTALLED', available: 'AVAILABLE' } as const
 

@@ -2,14 +2,40 @@ import type { KeyEvent } from '@opentui/core'
 import { useTerminalDimensions } from '@opentui/solid'
 import { createEffect, createMemo, createSignal, For, onCleanup, Show } from 'solid-js'
 
-import type { Command, FlatCommand } from '../app/commands'
-import { flattenCommands } from '../app/commands'
 import { ui } from '../themes'
 import { windowAround } from './list'
 import { listRows, modalWidth } from './modal'
 import { ModalPanel, topInset } from './Overlay'
 import { TextInput } from './TextInput'
 import { useKeys } from './useKeys'
+
+export interface Command {
+  id: string
+  label: string
+  /** Keybinding shown right-aligned, e.g. "Ctrl+S". Leaves only. */
+  hint?: string
+  run?: () => void
+  /** Paint a value while the selection sits on it — used by the themes submenu. */
+  preview?: () => void
+  /** Put back what the config says, once the preview is over. */
+  restore?: () => void
+  children?: Command[]
+}
+
+export interface FlatCommand {
+  command: Command
+  /** Breadcrumb of ancestor labels, e.g. ["Themes"]. */
+  trail: string[]
+}
+
+/** Every runnable leaf, with its path — used while filtering. */
+export function flattenCommands(commands: Command[], trail: string[] = []): FlatCommand[] {
+  return commands.flatMap(command =>
+    command.children
+      ? flattenCommands(command.children, [...trail, command.label])
+      : [{ command, trail }],
+  )
+}
 
 export interface CommandPaletteProps {
   commands: Command[]

@@ -1,10 +1,37 @@
 import { TextAttributes } from '@opentui/core'
 import { createEffect, createMemo, For, on, Show } from 'solid-js'
 
-import type { ExtensionRow } from '../app/extensionsPanel'
+import type { ExtensionCategory } from '../extensions'
 import { ui } from '../themes'
 import { createScrollList, rowBg, scrollbarOptions } from './list'
 import { TextInput } from './TextInput'
+
+export type ExtensionRow =
+  | { kind: 'section'; id: string; label: string; count: number; collapsed: boolean }
+  | {
+      kind: 'installed'
+      id: string
+      label: string
+      version: string
+      /** What it is — `language`, `lsp`, `theme`, `icons` — drawn where there is room. */
+      categories: ExtensionCategory[]
+      /** What the market has that this does not, or null. */
+      update: string | null
+      disabled: boolean
+      builtin: boolean
+      /** What it contributes — the search matches on it too. */
+      about: string
+    }
+  | {
+      kind: 'available'
+      id: string
+      label: string
+      version: string
+      about: string
+      categories: ExtensionCategory[]
+    }
+  /** An inert line: what the cap left out. Enter on it does nothing. */
+  | { kind: 'note'; id: string; label: string }
 
 /** `Show`'s `when` takes a value, not a predicate: these hand it the narrowed row
  * (or nothing) so the block inside needs no cast. */

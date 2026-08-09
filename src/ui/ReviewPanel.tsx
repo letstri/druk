@@ -1,10 +1,26 @@
 import { TextAttributes } from '@opentui/core'
 import { createEffect, createMemo, For, on, Show } from 'solid-js'
 
-import type { ReviewRow } from '../app/review'
+import type { ForgeComment } from '../core/forge'
+import type { ReviewNote } from '../core/review'
 import { ui } from '../themes'
 import { createScrollList, rowBg, scrollbarOptions } from './list'
 import { cut } from './text'
+
+/** A comment with the absolute path it belongs to, once one could be worked out. */
+export interface AnchoredComment {
+  comment: ForgeComment
+  /** Absolute path, or null for a remark on the change as a whole. */
+  path: string | null
+}
+
+export type ReviewRow =
+  /** A file heading, or the one that holds the comments belonging to no file. */
+  | { kind: 'file'; id: string; rel: string; count: number; collapsed: boolean }
+  | { kind: 'note'; id: string; note: ReviewNote; label: string; text: string }
+  | { kind: 'comment'; id: string; entry: AnchoredComment; label: string; text: string }
+  /** An inert line — what there is to do when there is nothing in the list yet. */
+  | { kind: 'hint'; id: string; label: string }
 
 /** `Show`'s `when` takes a value, not a predicate: these hand it the narrowed row
  * (or nothing) so the block inside needs no cast. */
