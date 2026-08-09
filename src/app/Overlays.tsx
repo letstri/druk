@@ -22,7 +22,7 @@ import { ProblemsModal } from '../ui/ProblemsModal'
 import type { ProblemEntry } from '../ui/ProblemsModal'
 import { PromptModal } from '../ui/PromptModal'
 import { MIN_QUERY, SearchPanel } from '../ui/SearchPanel'
-import type { SearchScope } from '../ui/SearchPanel'
+import type { SearchMemory, SearchScope } from '../ui/SearchPanel'
 import { UpdateBanner } from '../ui/UpdateBanner'
 import type { Branches } from './branches'
 import type { Command } from './commands'
@@ -75,17 +75,17 @@ export function createOverlays(deps: {
   /** Open search: its scope, and whether the replacement field starts showing. */
   const [search, setSearch] = createSignal<{ scope: SearchScope; replacing?: boolean } | null>(null)
   /**
-   * The last file-scope search, kept after the panel dies so reopening it comes
-   * back where it was left rather than empty. Flags ride along — a case toggle
-   * flipped after the final keystroke is part of what was searched for — and so
-   * does the selected row, which is what makes Esc and Ctrl+F a way to glance at
-   * the file rather than a way to lose your place.
+   * The last search of each scope, kept after the panel dies so reopening it
+   * comes back where it was left rather than empty. Flags ride along — a case
+   * toggle flipped after the final keystroke is part of what was searched for —
+   * and so do the selected row and the folds, which is what makes reading a hit
+   * and reopening a way to glance at a file rather than a way to lose your place.
+   * Per scope, because the two are separate searches: a project query is not
+   * what Ctrl+F was last given.
    */
-  const [lastFileSearch, setLastFileSearch] = createSignal<{
-    query: string
-    options: SearchOptions
-    index: number
-  } | null>(null)
+  const [lastSearch, setLastSearch] = createSignal<Partial<Record<SearchScope, SearchMemory>>>({})
+  const rememberSearch = (scope: SearchScope, state: SearchMemory) =>
+    setLastSearch(prev => ({ ...prev, [scope]: state }))
   const [update, setUpdate] = createSignal<UpdateInfo | null>(null)
   /**
    * The problems list, jumping to a diagnostic on Enter. `cursor` is the same
@@ -164,8 +164,8 @@ export function createOverlays(deps: {
     setPicker,
     search,
     setSearch,
-    lastFileSearch,
-    setLastFileSearch,
+    lastSearch,
+    rememberSearch,
     searchOpensWith,
     update,
     setUpdate,
@@ -292,13 +292,8 @@ export function OverlayStack(props: { ctx: AppContext; commands: Accessor<Comman
             rootDir={app.rootDir}
             activePath={workspace.activePath()}
             activeContent={workspace.activeBuffer()?.content ?? ''}
-            initialQuery={overlays.searchOpensWith(open().scope).query}
-            initialIndex={overlays.searchOpensWith(open().scope).index}
-            onSearch={
-              open().scope === 'file'
-                ? (query, options, index) => overlays.setLastFileSearch({ query, options, index })
-                : undefined
-            }
+            initial={overlays.searchOpensWith(open().scope)}
+            onSearch={state => overlays.rememberSearch(open().scope, state)}
             replacing={open().replacing}
             buffers={open().scope === 'project' ? workspace.replaceOverlay : undefined}
             suspended={prompts.prompt() !== null}

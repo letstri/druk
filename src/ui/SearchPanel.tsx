@@ -25,13 +25,31 @@ import { useKeys } from './useKeys'
 
 export type SearchScope = 'file' | 'project'
 
+/**
+ * A search as it stood when its panel died: enough to bring the same list back
+ * on the same row. The folds are in it because they move the rows — restoring
+ * the index without them lands on whatever else now sits at that position.
+ */
+export interface SearchMemory {
+  query: string
+  options: SearchOptions
+  /** Row of the selection, not match: a folded heading is a row and no match. */
+  index: number
+  /** Paths hidden behind their heading; project scope only. */
+  folded: readonly string[]
+}
+
 export interface SearchPanelProps {
   scope: SearchScope
   rootDir: string
   activePath: string | null
   activeContent: string
-  /** What the editor had selected, so the obvious query is already typed. */
-  initialQuery?: string
+  /**
+   * What the panel opens carrying: the editor's selection, or the search this
+   * scope was left on. Read once at mount — the panel is built fresh each time
+   * it opens, so nothing here has to be reactive.
+   */
+  initial?: SearchMemory
   /** Open with the replacement field already showing. */
   replacing?: boolean
   /**
@@ -47,13 +65,11 @@ export interface SearchPanelProps {
    */
   suspended?: boolean
   /**
-   * Told what is being searched for as it changes — query, flags and which match
-   * is selected. The caller keeps it past the panel's death so reopening lands
-   * back where this one was left; `initialIndex` is that value coming home.
+   * Told what is being searched for as it changes. The caller keeps it past the
+   * panel's death so reopening lands back where this one was left; `initial` is
+   * that value coming home.
    */
-  onSearch?: (query: string, options: SearchOptions, index: number) => void
-  /** Row to select on open, for a panel reopened on the query it remembered. */
-  initialIndex?: number
+  onSearch?: (state: SearchMemory) => void
   onPick: (match: Match) => void
   /** Replace the selected match only. */
   onReplaceOne?: (match: Match, replacement: string) => void
@@ -133,7 +149,8 @@ export function SearchPanel(props: SearchPanelProps) {
   const dimensions = useTerminalDimensions()
   // Read once: the panel is mounted fresh each time it opens, and re-reading would
   // fight whatever has been typed since.
-  const opened = props.initialQuery ?? ''
+  const initial = props.initial
+  const opened = initial?.query ?? ''
   const [query, setQuery] = createSignal(opened)
   /** The query the results belong to; trails `query` while a project scan is pending. */
   const [scanned, setScanned] = createSignal(opened)
@@ -147,13 +164,15 @@ export function SearchPanel(props: SearchPanelProps) {
    * query — otherwise the query is the thing not yet typed.
    */
   const [field, setField] = createSignal<'query' | 'replace'>(
-    props.replacing && props.initialQuery ? 'replace' : 'query',
+    props.replacing && opened ? 'replace' : 'query',
   )
   /** Row the selection is nearest to, not the match: rows outnumber matches. */
-  const [index, setIndex] = createSignal(props.initialIndex ?? 0)
+  const [index, setIndex] = createSignal(props.initial?.index ?? 0)
   /** Paths whose matches are hidden behind their heading. */
-  const [folded, setFolded] = createSignal<ReadonlySet<string>>(new Set())
-  const [options, setOptions] = createSignal<SearchOptions>({})
+  const [folded, setFolded] = createSignal<ReadonlySet<string>>(
+    new Set(props.initial?.folded ?? []),
+  )
+  const [options, setOptions] = createSignal<SearchOptions>(props.initial?.options ?? {})
 
   let scanTimer: ReturnType<typeof setTimeout> | null = null
   onCleanup(() => {
@@ -178,8 +197,10 @@ export function SearchPanel(props: SearchPanelProps) {
   const [generation, setGeneration] = createSignal(0)
 
   createEffect(
-    on([query, options, index], ([q, opts, at]) => {
-      if (q.length >= MIN_QUERY) props.onSearch?.(q, opts, at)
+    on([query, options, index, folded], ([q, opts, at, shut]) => {
+      if (q.length >= MIN_QUERY) {
+        props.onSearch?.({ query: q, options: opts, index: at, folded: [...shut] })
+      }
     }),
   )
 
