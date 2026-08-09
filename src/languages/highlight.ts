@@ -171,24 +171,48 @@ async function ensureClient(): Promise<TreeSitterClient | null> {
 }
 
 /**
+ * Where a root scope goes when the theme lists no colour for it. Dropping to the
+ * scope's parent covers everything with a dot in it, but a root has no parent, so
+ * without this a theme that never heard of `attribute` leaves every JSX attribute
+ * painted as plain text — which is what a grammar being taught new captures does
+ * to every theme that predates them.
+ */
+const FALLBACK_GROUP: Record<string, string> = {
+  attribute: 'property',
+  constructor: 'function',
+  namespace: 'type',
+}
+
+/**
  * Resolve a capture group to a style id, walking from the most specific scope
  * ("type.builtin") to the least ("type"). Memoized per group: segmentation asks
  * for the same handful of groups once per capture in every window it paints.
+ *
+ * `getStyle` rather than `getStyleId` is what decides whether a scope is really
+ * in the theme: the native table hands out an id for any name it is asked about,
+ * registering a blank style on the way, so `getStyleId` never answers null and a
+ * walk driven by it stops on the first scope and paints nothing.
  */
 export function styleIdForGroup(group: string): number | null {
+  // Before the memo, not after: the table is what drops the memo on a theme
+  // switch, so consulting the memo first hands out the previous theme's ids
+  // until something else happens to ask for the table.
+  const ss = getSyntaxStyle()
   const hit = styleIdByGroup.get(group)
   if (hit !== undefined) return hit
-  const ss = getSyntaxStyle()
   let resolved: number | null = null
   let g = group
   while (g.length > 0) {
-    const id = ss.getStyleId(g)
-    if (id != null) {
-      resolved = id
+    if (ss.getStyle(g)) {
+      resolved = ss.getStyleId(g)
       break
     }
     const dot = g.lastIndexOf('.')
-    if (dot < 0) break
+    if (dot < 0) {
+      const alias = FALLBACK_GROUP[g]
+      if (alias && ss.getStyle(alias)) resolved = ss.getStyleId(alias)
+      break
+    }
     g = g.slice(0, dot)
   }
   styleIdByGroup.set(group, resolved)

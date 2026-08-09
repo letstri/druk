@@ -1,7 +1,7 @@
 {
   "id": "solarized",
   "name": "Solarized",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Solarized Dark and Light. Palette from https://github.com/altercation/solarized; the capture groups follow that repository’s own vim colorscheme — Statement is green, Constant cyan, Identifier blue, Type yellow, Special red.",
   "themes": [
     {
@@ -56,14 +56,29 @@
         "function": {
           "fg": "#268bd2"
         },
+        "constructor": {
+          "fg": "#268bd2"
+        },
         "type": {
           "fg": "#b58900"
+        },
+        "namespace": {
+          "fg": "#6c71c4"
         },
         "variable": {
           "fg": "#839496"
         },
+        "variable.builtin": {
+          "fg": "#cb4b16"
+        },
+        "variable.member": {
+          "fg": "#268bd2"
+        },
         "property": {
           "fg": "#268bd2"
+        },
+        "attribute": {
+          "fg": "#b58900"
         },
         "tag": {
           "fg": "#dc322f"
@@ -73,6 +88,9 @@
         },
         "punctuation": {
           "fg": "#839496"
+        },
+        "punctuation.special": {
+          "fg": "#d33682"
         },
         "label": {
           "fg": "#859900"
@@ -169,14 +187,29 @@
         "function": {
           "fg": "#268bd2"
         },
+        "constructor": {
+          "fg": "#268bd2"
+        },
         "type": {
           "fg": "#b58900"
+        },
+        "namespace": {
+          "fg": "#6c71c4"
         },
         "variable": {
           "fg": "#657b83"
         },
+        "variable.builtin": {
+          "fg": "#cb4b16"
+        },
+        "variable.member": {
+          "fg": "#268bd2"
+        },
         "property": {
           "fg": "#268bd2"
+        },
+        "attribute": {
+          "fg": "#b58900"
         },
         "tag": {
           "fg": "#dc322f"
@@ -186,6 +219,9 @@
         },
         "punctuation": {
           "fg": "#657b83"
+        },
+        "punctuation.special": {
+          "fg": "#d33682"
         },
         "label": {
           "fg": "#859900"

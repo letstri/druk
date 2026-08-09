@@ -1,7 +1,7 @@
 {
   "id": "nord",
   "name": "Nord",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Nord. Palette from https://www.nordtheme.com/docs/colors-and-palettes",
   "themes": [
     {
@@ -56,13 +56,28 @@
         "function": {
           "fg": "#88c0d0"
         },
+        "constructor": {
+          "fg": "#88c0d0"
+        },
         "type": {
+          "fg": "#8fbcbb"
+        },
+        "namespace": {
           "fg": "#8fbcbb"
         },
         "variable": {
           "fg": "#d8dee9"
         },
+        "variable.builtin": {
+          "fg": "#81a1c1"
+        },
+        "variable.member": {
+          "fg": "#d8dee9"
+        },
         "property": {
+          "fg": "#8fbcbb"
+        },
+        "attribute": {
           "fg": "#8fbcbb"
         },
         "tag": {
@@ -73,6 +88,9 @@
         },
         "punctuation": {
           "fg": "#eceff4"
+        },
+        "punctuation.special": {
+          "fg": "#ebcb8b"
         },
         "label": {
           "fg": "#d08770"

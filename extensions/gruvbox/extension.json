@@ -1,7 +1,7 @@
 {
   "id": "gruvbox",
   "name": "Gruvbox",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Gruvbox Dark and Light. Palette from https://github.com/morhetz/gruvbox",
   "themes": [
     {
@@ -56,14 +56,29 @@
         "function": {
           "fg": "#b8bb26"
         },
+        "constructor": {
+          "fg": "#fabd2f"
+        },
         "type": {
           "fg": "#fabd2f"
+        },
+        "namespace": {
+          "fg": "#83a598"
         },
         "variable": {
           "fg": "#ebdbb2"
         },
+        "variable.builtin": {
+          "fg": "#d3869b"
+        },
+        "variable.member": {
+          "fg": "#83a598"
+        },
         "property": {
           "fg": "#83a598"
+        },
+        "attribute": {
+          "fg": "#8ec07c"
         },
         "tag": {
           "fg": "#8ec07c"
@@ -73,6 +88,9 @@
         },
         "punctuation": {
           "fg": "#a89984"
+        },
+        "punctuation.special": {
+          "fg": "#fe8019"
         },
         "label": {
           "fg": "#fe8019"
@@ -169,14 +187,29 @@
         "function": {
           "fg": "#79740e"
         },
+        "constructor": {
+          "fg": "#b57614"
+        },
         "type": {
           "fg": "#b57614"
+        },
+        "namespace": {
+          "fg": "#076678"
         },
         "variable": {
           "fg": "#3c3836"
         },
+        "variable.builtin": {
+          "fg": "#8f3f71"
+        },
+        "variable.member": {
+          "fg": "#076678"
+        },
         "property": {
           "fg": "#076678"
+        },
+        "attribute": {
+          "fg": "#427b58"
         },
         "tag": {
           "fg": "#427b58"
@@ -186,6 +219,9 @@
         },
         "punctuation": {
           "fg": "#7c6f64"
+        },
+        "punctuation.special": {
+          "fg": "#af3a03"
         },
         "label": {
           "fg": "#af3a03"

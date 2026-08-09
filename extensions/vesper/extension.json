@@ -1,7 +1,7 @@
 {
   "id": "vesper",
   "name": "Vesper",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Vesper. Palette from https://github.com/raunofreiberg/vesper",
   "themes": [
     {
@@ -56,14 +56,29 @@
         "function": {
           "fg": "#ffc799"
         },
+        "constructor": {
+          "fg": "#ffc799"
+        },
         "type": {
+          "fg": "#ffc799"
+        },
+        "namespace": {
           "fg": "#ffc799"
         },
         "variable": {
           "fg": "#ffffff"
         },
+        "variable.builtin": {
+          "fg": "#ffc799"
+        },
+        "variable.member": {
+          "fg": "#ffffff"
+        },
         "property": {
           "fg": "#ffffff"
+        },
+        "attribute": {
+          "fg": "#ffc799"
         },
         "tag": {
           "fg": "#ffc799"
@@ -72,6 +87,9 @@
           "fg": "#a0a0a0"
         },
         "punctuation": {
+          "fg": "#a0a0a0"
+        },
+        "punctuation.special": {
           "fg": "#a0a0a0"
         },
         "label": {

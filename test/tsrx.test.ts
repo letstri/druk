@@ -80,7 +80,7 @@ export function App(props: { rows: Row[]; step: string }) @{
     expect(group('keyword')).toContain('import')
     expect(group('keyword')).toContain('const')
     expect(group('string')).toContain(`'octane'`)
-    expect(group('tag')).toContain('main')
+    expect(group('tag')).toContain('<main')
     expect(group('attribute')).toContain('class')
     expect(group('type')).toContain('string')
   })

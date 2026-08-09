@@ -1,7 +1,7 @@
 {
   "id": "kanagawa",
   "name": "Kanagawa",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Kanagawa Wave, Dragon and Lotus. Palette from https://github.com/rebelot/kanagawa.nvim",
   "themes": [
     {
@@ -56,13 +56,28 @@
         "function": {
           "fg": "#7e9cd8"
         },
+        "constructor": {
+          "fg": "#7e9cd8"
+        },
         "type": {
+          "fg": "#7aa89f"
+        },
+        "namespace": {
           "fg": "#7aa89f"
         },
         "variable": {
           "fg": "#dcd7ba"
         },
+        "variable.builtin": {
+          "fg": "#ffa066"
+        },
+        "variable.member": {
+          "fg": "#e6c384"
+        },
         "property": {
+          "fg": "#e6c384"
+        },
+        "attribute": {
           "fg": "#e6c384"
         },
         "tag": {
@@ -73,6 +88,9 @@
         },
         "punctuation": {
           "fg": "#9cabca"
+        },
+        "punctuation.special": {
+          "fg": "#ff9e3b"
         },
         "label": {
           "fg": "#ff9e3b"
@@ -169,13 +187,28 @@
         "function": {
           "fg": "#8ba4b0"
         },
+        "constructor": {
+          "fg": "#8ba4b0"
+        },
         "type": {
+          "fg": "#8ea4a2"
+        },
+        "namespace": {
           "fg": "#8ea4a2"
         },
         "variable": {
           "fg": "#c5c9c5"
         },
+        "variable.builtin": {
+          "fg": "#b6927b"
+        },
+        "variable.member": {
+          "fg": "#c4b28a"
+        },
         "property": {
+          "fg": "#c4b28a"
+        },
+        "attribute": {
           "fg": "#c4b28a"
         },
         "tag": {
@@ -186,6 +219,9 @@
         },
         "punctuation": {
           "fg": "#9e9b93"
+        },
+        "punctuation.special": {
+          "fg": "#b6927b"
         },
         "label": {
           "fg": "#ff9e3b"
@@ -282,13 +318,28 @@
         "function": {
           "fg": "#4d699b"
         },
+        "constructor": {
+          "fg": "#4d699b"
+        },
         "type": {
+          "fg": "#597b75"
+        },
+        "namespace": {
           "fg": "#597b75"
         },
         "variable": {
           "fg": "#545464"
         },
+        "variable.builtin": {
+          "fg": "#cc6d00"
+        },
+        "variable.member": {
+          "fg": "#77713f"
+        },
         "property": {
+          "fg": "#77713f"
+        },
+        "attribute": {
           "fg": "#77713f"
         },
         "tag": {
@@ -299,6 +350,9 @@
         },
         "punctuation": {
           "fg": "#4e8ca2"
+        },
+        "punctuation.special": {
+          "fg": "#cc6d00"
         },
         "label": {
           "fg": "#cc6d00"

@@ -1,7 +1,7 @@
 {
   "id": "rose-pine",
   "name": "Rosé Pine",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Rosé Pine, Moon and Dawn. Palette from https://github.com/rose-pine/neovim (`lua/rose-pine/palette.lua`); the capture groups and UI slots follow the official VS Code port, https://github.com/rose-pine/vscode.",
   "themes": [
     {
@@ -56,14 +56,29 @@
         "function": {
           "fg": "#ebbcba"
         },
+        "constructor": {
+          "fg": "#9ccfd8"
+        },
         "type": {
           "fg": "#9ccfd8"
+        },
+        "namespace": {
+          "fg": "#c4a7e7"
         },
         "variable": {
           "fg": "#e0def4"
         },
+        "variable.builtin": {
+          "fg": "#eb6f92"
+        },
+        "variable.member": {
+          "fg": "#e0def4"
+        },
         "property": {
           "fg": "#9ccfd8"
+        },
+        "attribute": {
+          "fg": "#ebbcba"
         },
         "tag": {
           "fg": "#9ccfd8"
@@ -73,6 +88,9 @@
         },
         "punctuation": {
           "fg": "#908caa"
+        },
+        "punctuation.special": {
+          "fg": "#c4a7e7"
         },
         "label": {
           "fg": "#c4a7e7"
@@ -169,14 +187,29 @@
         "function": {
           "fg": "#ea9a97"
         },
+        "constructor": {
+          "fg": "#9ccfd8"
+        },
         "type": {
           "fg": "#9ccfd8"
+        },
+        "namespace": {
+          "fg": "#c4a7e7"
         },
         "variable": {
           "fg": "#e0def4"
         },
+        "variable.builtin": {
+          "fg": "#eb6f92"
+        },
+        "variable.member": {
+          "fg": "#e0def4"
+        },
         "property": {
           "fg": "#9ccfd8"
+        },
+        "attribute": {
+          "fg": "#ea9a97"
         },
         "tag": {
           "fg": "#9ccfd8"
@@ -186,6 +219,9 @@
         },
         "punctuation": {
           "fg": "#908caa"
+        },
+        "punctuation.special": {
+          "fg": "#c4a7e7"
         },
         "label": {
           "fg": "#c4a7e7"
@@ -282,14 +318,29 @@
         "function": {
           "fg": "#d7827e"
         },
+        "constructor": {
+          "fg": "#56949f"
+        },
         "type": {
           "fg": "#56949f"
+        },
+        "namespace": {
+          "fg": "#907aa9"
         },
         "variable": {
           "fg": "#575279"
         },
+        "variable.builtin": {
+          "fg": "#b4637a"
+        },
+        "variable.member": {
+          "fg": "#575279"
+        },
         "property": {
           "fg": "#56949f"
+        },
+        "attribute": {
+          "fg": "#d7827e"
         },
         "tag": {
           "fg": "#56949f"
@@ -299,6 +350,9 @@
         },
         "punctuation": {
           "fg": "#797593"
+        },
+        "punctuation.special": {
+          "fg": "#907aa9"
         },
         "label": {
           "fg": "#907aa9"

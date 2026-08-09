@@ -1,7 +1,7 @@
 {
   "id": "one-dark",
   "name": "One Dark",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Atom One Dark. Colors from atom/atom `one-dark-syntax` (`styles/colors.less`, resolved from HSL) and `one-dark-ui`; the capture groups follow the \"Official Syntax Variables\" in `styles/syntax-variables.less` and `styles/syntax/base.less`.",
   "themes": [
     {
@@ -56,14 +56,29 @@
         "function": {
           "fg": "#61afef"
         },
+        "constructor": {
+          "fg": "#61afef"
+        },
         "type": {
+          "fg": "#e5c07b"
+        },
+        "namespace": {
           "fg": "#e5c07b"
         },
         "variable": {
           "fg": "#abb2bf"
         },
+        "variable.builtin": {
+          "fg": "#e06c75"
+        },
+        "variable.member": {
+          "fg": "#e06c75"
+        },
         "property": {
           "fg": "#abb2bf"
+        },
+        "attribute": {
+          "fg": "#d19a66"
         },
         "tag": {
           "fg": "#e06c75"
@@ -73,6 +88,9 @@
         },
         "punctuation": {
           "fg": "#abb2bf"
+        },
+        "punctuation.special": {
+          "fg": "#56b6c2"
         },
         "label": {
           "fg": "#abb2bf",

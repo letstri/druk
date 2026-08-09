@@ -3,7 +3,7 @@
     {
       "id": "ayu",
       "name": "Ayu",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "description": "Ayu Dark, Mirage and Light. Palette from https://github.com/dempfi/ayu (the sublime-color-scheme files).",
       "provides": {
         "themes": [
@@ -55,7 +55,7 @@
     {
       "id": "catppuccin",
       "name": "Catppuccin",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "description": "The four Catppuccin flavors. Palette from https://github.com/catppuccin/palette, capture groups following the project style guide.",
       "provides": {
         "themes": [
@@ -159,7 +159,7 @@
     {
       "id": "dracula",
       "name": "Dracula",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "description": "Dracula. Palette from https://draculatheme.com/contribute",
       "provides": {
         "themes": [
@@ -213,7 +213,7 @@
     {
       "id": "everforest",
       "name": "Everforest",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "description": "Everforest Dark and Light, medium contrast. Palette and highlight semantics from https://github.com/sainnhe/everforest/blob/master/palette.md — the syntax colors follow that table’s Treesitter notes, which differ from the Vim ones (strings are aqua, not green; fields are blue).",
       "provides": {
         "themes": [
@@ -247,7 +247,7 @@
     {
       "id": "gruvbox",
       "name": "Gruvbox",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "description": "Gruvbox Dark and Light. Palette from https://github.com/morhetz/gruvbox",
       "provides": {
         "themes": [
@@ -348,7 +348,7 @@
     {
       "id": "kanagawa",
       "name": "Kanagawa",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "description": "Kanagawa Wave, Dragon and Lotus. Palette from https://github.com/rebelot/kanagawa.nvim",
       "provides": {
         "themes": [
@@ -463,7 +463,7 @@
     {
       "id": "nord",
       "name": "Nord",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "description": "Nord. Palette from https://www.nordtheme.com/docs/colors-and-palettes",
       "provides": {
         "themes": [
@@ -479,7 +479,7 @@
     {
       "id": "one-dark",
       "name": "One Dark",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "description": "Atom One Dark. Colors from atom/atom `one-dark-syntax` (`styles/colors.less`, resolved from HSL) and `one-dark-ui`; the capture groups follow the \"Official Syntax Variables\" in `styles/syntax-variables.less` and `styles/syntax/base.less`.",
       "provides": {
         "themes": [
@@ -550,7 +550,7 @@
     {
       "id": "rose-pine",
       "name": "Rosé Pine",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "description": "Rosé Pine, Moon and Dawn. Palette from https://github.com/rose-pine/neovim (`lua/rose-pine/palette.lua`); the capture groups and UI slots follow the official VS Code port, https://github.com/rose-pine/vscode.",
       "provides": {
         "themes": [
@@ -618,7 +618,7 @@
     {
       "id": "solarized",
       "name": "Solarized",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "description": "Solarized Dark and Light. Palette from https://github.com/altercation/solarized; the capture groups follow that repository’s own vim colorscheme — Statement is green, Constant cyan, Identifier blue, Type yellow, Special red.",
       "provides": {
         "themes": [
@@ -701,7 +701,7 @@
     {
       "id": "tokyo-night",
       "name": "Tokyo Night",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "description": "Tokyo Night. Palette from https://github.com/folke/tokyonight.nvim",
       "provides": {
         "themes": [
@@ -769,7 +769,7 @@
     {
       "id": "vesper",
       "name": "Vesper",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "description": "Vesper. Palette from https://github.com/raunofreiberg/vesper",
       "provides": {
         "themes": [

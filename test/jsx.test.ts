@@ -36,8 +36,10 @@ describe('jsx', () => {
     // most of what a component file is made of.
     const group = await painted('typescriptreact')
 
-    expect(group('tag')).toContain('section')
-    expect(group('tag')).toContain('hr')
+    // The angle brackets carry the tag's colour, so they merge into its segment.
+    expect(group('tag')).toContain('<section')
+    expect(group('tag')).toContain('<hr')
+    expect(group('tag')).toContain('</section>')
   })
 
   test('attributes read as attributes', async () => {
@@ -67,7 +69,7 @@ describe('jsx', () => {
   test('jsx applies to .jsx as well as .tsx', async () => {
     const group = await painted('javascriptreact')
 
-    expect(group('tag')).toContain('section')
+    expect(group('tag')).toContain('<section')
     expect(group('attribute')).toContain('className')
   })
 })

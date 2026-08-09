@@ -1,7 +1,7 @@
 {
   "id": "ayu",
   "name": "Ayu",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Ayu Dark, Mirage and Light. Palette from https://github.com/dempfi/ayu (the sublime-color-scheme files).",
   "themes": [
     {
@@ -56,14 +56,29 @@
         "function": {
           "fg": "#ffb454"
         },
+        "constructor": {
+          "fg": "#ffb454"
+        },
         "type": {
+          "fg": "#59c2ff"
+        },
+        "namespace": {
           "fg": "#59c2ff"
         },
         "variable": {
           "fg": "#bfbdb6"
         },
+        "variable.builtin": {
+          "fg": "#d2a6ff"
+        },
+        "variable.member": {
+          "fg": "#f07178"
+        },
         "property": {
           "fg": "#f07178"
+        },
+        "attribute": {
+          "fg": "#ffb454"
         },
         "tag": {
           "fg": "#39bae6"
@@ -73,6 +88,9 @@
         },
         "punctuation": {
           "fg": "#bfbdb6"
+        },
+        "punctuation.special": {
+          "fg": "#e6b673"
         },
         "label": {
           "fg": "#e6b673"
@@ -169,14 +187,29 @@
         "function": {
           "fg": "#ffd173"
         },
+        "constructor": {
+          "fg": "#ffd173"
+        },
         "type": {
+          "fg": "#73d0ff"
+        },
+        "namespace": {
           "fg": "#73d0ff"
         },
         "variable": {
           "fg": "#cccac2"
         },
+        "variable.builtin": {
+          "fg": "#dfbfff"
+        },
+        "variable.member": {
+          "fg": "#f28779"
+        },
         "property": {
           "fg": "#f28779"
+        },
+        "attribute": {
+          "fg": "#ffd173"
         },
         "tag": {
           "fg": "#5ccfe6"
@@ -186,6 +219,9 @@
         },
         "punctuation": {
           "fg": "#cccac2"
+        },
+        "punctuation.special": {
+          "fg": "#ffdfb3"
         },
         "label": {
           "fg": "#ffdfb3"
@@ -282,14 +318,29 @@
         "function": {
           "fg": "#f2ae49"
         },
+        "constructor": {
+          "fg": "#f2ae49"
+        },
         "type": {
+          "fg": "#22a4e6"
+        },
+        "namespace": {
           "fg": "#22a4e6"
         },
         "variable": {
           "fg": "#5c6166"
         },
+        "variable.builtin": {
+          "fg": "#a37acc"
+        },
+        "variable.member": {
+          "fg": "#f07171"
+        },
         "property": {
           "fg": "#f07171"
+        },
+        "attribute": {
+          "fg": "#f2ae49"
         },
         "tag": {
           "fg": "#55b4d4"
@@ -299,6 +350,9 @@
         },
         "punctuation": {
           "fg": "#5c6166"
+        },
+        "punctuation.special": {
+          "fg": "#e6b673"
         },
         "label": {
           "fg": "#e6b673"

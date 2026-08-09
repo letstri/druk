@@ -1,7 +1,7 @@
 {
   "id": "catppuccin",
   "name": "Catppuccin",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "The four Catppuccin flavors. Palette from https://github.com/catppuccin/palette, capture groups following the project style guide.",
   "themes": [
     {
@@ -56,14 +56,29 @@
         "function": {
           "fg": "#89b4fa"
         },
+        "constructor": {
+          "fg": "#74c7ec"
+        },
         "type": {
           "fg": "#f9e2af"
+        },
+        "namespace": {
+          "fg": "#b4befe"
         },
         "variable": {
           "fg": "#cdd6f4"
         },
+        "variable.builtin": {
+          "fg": "#f38ba8"
+        },
+        "variable.member": {
+          "fg": "#b4befe"
+        },
         "property": {
           "fg": "#89b4fa"
+        },
+        "attribute": {
+          "fg": "#94e2d5"
         },
         "tag": {
           "fg": "#f38ba8"
@@ -73,6 +88,9 @@
         },
         "punctuation": {
           "fg": "#9399b2"
+        },
+        "punctuation.special": {
+          "fg": "#f5c2e7"
         },
         "label": {
           "fg": "#f5c2e7"
@@ -169,14 +187,29 @@
         "function": {
           "fg": "#8aadf4"
         },
+        "constructor": {
+          "fg": "#7dc4e4"
+        },
         "type": {
           "fg": "#eed49f"
+        },
+        "namespace": {
+          "fg": "#b7bdf8"
         },
         "variable": {
           "fg": "#cad3f5"
         },
+        "variable.builtin": {
+          "fg": "#ed8796"
+        },
+        "variable.member": {
+          "fg": "#b7bdf8"
+        },
         "property": {
           "fg": "#8aadf4"
+        },
+        "attribute": {
+          "fg": "#8bd5ca"
         },
         "tag": {
           "fg": "#ed8796"
@@ -186,6 +219,9 @@
         },
         "punctuation": {
           "fg": "#939ab7"
+        },
+        "punctuation.special": {
+          "fg": "#f5bde6"
         },
         "label": {
           "fg": "#f5bde6"
@@ -282,14 +318,29 @@
         "function": {
           "fg": "#8caaee"
         },
+        "constructor": {
+          "fg": "#85c1dc"
+        },
         "type": {
           "fg": "#e5c890"
+        },
+        "namespace": {
+          "fg": "#babbf1"
         },
         "variable": {
           "fg": "#c6d0f5"
         },
+        "variable.builtin": {
+          "fg": "#e78284"
+        },
+        "variable.member": {
+          "fg": "#babbf1"
+        },
         "property": {
           "fg": "#8caaee"
+        },
+        "attribute": {
+          "fg": "#81c8be"
         },
         "tag": {
           "fg": "#e78284"
@@ -299,6 +350,9 @@
         },
         "punctuation": {
           "fg": "#949cbb"
+        },
+        "punctuation.special": {
+          "fg": "#f4b8e4"
         },
         "label": {
           "fg": "#f4b8e4"
@@ -395,14 +449,29 @@
         "function": {
           "fg": "#1e66f5"
         },
+        "constructor": {
+          "fg": "#209fb5"
+        },
         "type": {
           "fg": "#df8e1d"
+        },
+        "namespace": {
+          "fg": "#7287fd"
         },
         "variable": {
           "fg": "#4c4f69"
         },
+        "variable.builtin": {
+          "fg": "#d20f39"
+        },
+        "variable.member": {
+          "fg": "#7287fd"
+        },
         "property": {
           "fg": "#1e66f5"
+        },
+        "attribute": {
+          "fg": "#179299"
         },
         "tag": {
           "fg": "#d20f39"
@@ -412,6 +481,9 @@
         },
         "punctuation": {
           "fg": "#7c7f93"
+        },
+        "punctuation.special": {
+          "fg": "#ea76cb"
         },
         "label": {
           "fg": "#ea76cb"

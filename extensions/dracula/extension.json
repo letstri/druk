@@ -1,7 +1,7 @@
 {
   "id": "dracula",
   "name": "Dracula",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Dracula. Palette from https://draculatheme.com/contribute",
   "themes": [
     {
@@ -56,14 +56,29 @@
         "function": {
           "fg": "#50fa7b"
         },
+        "constructor": {
+          "fg": "#50fa7b"
+        },
         "type": {
+          "fg": "#8be9fd"
+        },
+        "namespace": {
           "fg": "#8be9fd"
         },
         "variable": {
           "fg": "#f8f8f2"
         },
+        "variable.builtin": {
+          "fg": "#bd93f9"
+        },
+        "variable.member": {
+          "fg": "#f8f8f2"
+        },
         "property": {
           "fg": "#8be9fd"
+        },
+        "attribute": {
+          "fg": "#50fa7b"
         },
         "tag": {
           "fg": "#ff79c6"
@@ -73,6 +88,9 @@
         },
         "punctuation": {
           "fg": "#f8f8f2"
+        },
+        "punctuation.special": {
+          "fg": "#ff79c6"
         },
         "label": {
           "fg": "#ffb86c"

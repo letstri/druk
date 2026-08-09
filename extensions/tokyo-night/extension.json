@@ -1,7 +1,7 @@
 {
   "id": "tokyo-night",
   "name": "Tokyo Night",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Tokyo Night. Palette from https://github.com/folke/tokyonight.nvim",
   "themes": [
     {
@@ -56,14 +56,29 @@
         "function": {
           "fg": "#7aa2f7"
         },
+        "constructor": {
+          "fg": "#7aa2f7"
+        },
         "type": {
           "fg": "#2ac3de"
+        },
+        "namespace": {
+          "fg": "#73daca"
         },
         "variable": {
           "fg": "#c0caf5"
         },
+        "variable.builtin": {
+          "fg": "#f7768e"
+        },
+        "variable.member": {
+          "fg": "#7dcfff"
+        },
         "property": {
           "fg": "#7dcfff"
+        },
+        "attribute": {
+          "fg": "#bb9af7"
         },
         "tag": {
           "fg": "#f7768e"
@@ -73,6 +88,9 @@
         },
         "punctuation": {
           "fg": "#a9b1d6"
+        },
+        "punctuation.special": {
+          "fg": "#89ddff"
         },
         "label": {
           "fg": "#e0af68"

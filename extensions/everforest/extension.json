@@ -1,7 +1,7 @@
 {
   "id": "everforest",
   "name": "Everforest",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Everforest Dark and Light, medium contrast. Palette and highlight semantics from https://github.com/sainnhe/everforest/blob/master/palette.md — the syntax colors follow that table’s Treesitter notes, which differ from the Vim ones (strings are aqua, not green; fields are blue).",
   "themes": [
     {
@@ -56,14 +56,29 @@
         "function": {
           "fg": "#a7c080"
         },
+        "constructor": {
+          "fg": "#a7c080"
+        },
         "type": {
+          "fg": "#dbbc7f"
+        },
+        "namespace": {
           "fg": "#dbbc7f"
         },
         "variable": {
           "fg": "#d3c6aa"
         },
+        "variable.builtin": {
+          "fg": "#d699b6"
+        },
+        "variable.member": {
+          "fg": "#7fbbb3"
+        },
         "property": {
           "fg": "#7fbbb3"
+        },
+        "attribute": {
+          "fg": "#83c092"
         },
         "tag": {
           "fg": "#e69875"
@@ -73,6 +88,9 @@
         },
         "punctuation": {
           "fg": "#859289"
+        },
+        "punctuation.special": {
+          "fg": "#d699b6"
         },
         "label": {
           "fg": "#e69875"
@@ -169,14 +187,29 @@
         "function": {
           "fg": "#8da101"
         },
+        "constructor": {
+          "fg": "#8da101"
+        },
         "type": {
+          "fg": "#dfa000"
+        },
+        "namespace": {
           "fg": "#dfa000"
         },
         "variable": {
           "fg": "#5c6a72"
         },
+        "variable.builtin": {
+          "fg": "#df69ba"
+        },
+        "variable.member": {
+          "fg": "#3a94c5"
+        },
         "property": {
           "fg": "#3a94c5"
+        },
+        "attribute": {
+          "fg": "#35a77c"
         },
         "tag": {
           "fg": "#f57d26"
@@ -186,6 +219,9 @@
         },
         "punctuation": {
           "fg": "#939f91"
+        },
+        "punctuation.special": {
+          "fg": "#df69ba"
         },
         "label": {
           "fg": "#f57d26"
