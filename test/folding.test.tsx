@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
+import { ALT } from '../src/ui/keys'
 import { fixture, launch, openFile, press, pressTimes, runCommand, settle, until } from './helpers'
 
 const FILE = [
@@ -30,6 +31,10 @@ test('folding hides the block and says how much it took', async () => {
   // under the folded one is the file's line 4, not the buffer's line 2.
   expect(folded).toMatch(/4\s+\}/)
   expect(folded).toMatch(/6\s+const after = 2/)
+
+  // The chord that opens it again, on the row the caret is on: the `▸` in the
+  // gutter is for a mouse, and nothing else names the key.
+  expect(folded).toContain(`⋯ 2 lines Ctrl+${ALT}+E`)
 
   await runCommand(t, 'Unfold block at cursor')
   expect(t.captureCharFrame()).toContain('const secret = 1')

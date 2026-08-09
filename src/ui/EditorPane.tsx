@@ -777,17 +777,26 @@ export function EditorPane(props: EditorPaneProps) {
     void props.content
     const view = folded()
     if (!view) return []
-    const notes: { top: number; left: number; text: string }[] = []
+    // The `▸` in the gutter opens it with a click; the chord is what a keyboard
+    // has, and only the row the caret is standing on says it — see the inline
+    // diagnostic note for why the hint follows the caret rather than the marks.
+    const chord = chordFor('editor.unfold')
+    const notes: { top: number; left: number; text: string; hint?: boolean }[] = []
     for (const [line, count] of view.hidden) {
       const row = view.display[line]
       if (row === undefined || row < 0) continue
       const slot = noteSlot(row)
       if (!slot) continue
-      notes.push({
-        top: slot.top,
-        left: slot.left,
-        text: cut(`⋯ ${count} line${count === 1 ? '' : 's'}`, slot.room),
-      })
+      const text = `⋯ ${count} line${count === 1 ? '' : 's'}`
+      notes.push({ top: slot.top, left: slot.left, text: cut(text, slot.room) })
+      if (chord && row === cursorRow() && slot.room - text.length > chord.length + 1) {
+        notes.push({
+          top: slot.top,
+          left: slot.left + text.length,
+          text: ` ${chord}`,
+          hint: true,
+        })
+      }
     }
     return notes
   })
@@ -2447,7 +2456,7 @@ export function EditorPane(props: EditorPaneProps) {
                 top={note.top}
                 left={note.left}
                 zIndex={5}
-                fg={ui.dim}
+                fg={note.hint ? ui.faint : ui.dim}
                 bg={ui.bg}
                 content={note.text}
               />
