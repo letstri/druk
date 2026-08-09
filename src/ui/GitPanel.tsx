@@ -1,7 +1,8 @@
 import { TextAttributes } from '@opentui/core'
 import { createEffect, createMemo, For, on, Show } from 'solid-js'
 
-import type { ChangeRow, DirRow, FileRow } from '../core/changeTree'
+import type { ChangeRow, DirRow, FileRow, SectionRow } from '../core/changeTree'
+import { rowArea } from '../core/changeTree'
 import { iconFor } from '../icons'
 import { ui } from '../themes'
 import { MARKS, statusColor } from './FileTree'
@@ -11,6 +12,7 @@ import { createScrollList, rowBg, scrollbarOptions } from './list'
  * (or nothing) so the block inside needs no cast. */
 const dirRow = (row: ChangeRow) => (row.kind === 'dir' ? row : undefined)
 const fileRow = (row: ChangeRow) => (row.kind === 'file' ? row : undefined)
+const sectionRow = (row: ChangeRow) => (row.kind === 'section' ? row : undefined)
 
 /**
  * The name an icon theme is keyed by. A folder row's label is a *joined* chain
@@ -21,6 +23,9 @@ const fileRow = (row: ChangeRow) => (row.kind === 'file' ? row : undefined)
  */
 const iconName = (row: ChangeRow): string =>
   (row.kind === 'file' ? row.change.rel : row.label).split('/').pop() ?? row.label
+
+/** `+` puts a row in the index, `−` takes it back out — VS Code's two buttons. */
+const stageGlyph = (row: ChangeRow) => (rowArea(row) === 'staged' ? '−' : '+')
 
 export interface GitPanelProps {
   /** Repository the header is about, when the folder holds more than one. */
@@ -33,6 +38,8 @@ export interface GitPanelProps {
   rows: ChangeRow[]
   /** Branch the list is against, or null for HEAD and the working tree. */
   base: string | null
+  /** Whether the index is in play at all — false against a comparison base. */
+  staging: boolean
   /** Row under the cursor; may point past the end after a commit shrinks the list. */
   cursor: number
   focused: boolean
@@ -49,6 +56,8 @@ export interface GitPanelProps {
   reviewCount: number
   /** The header's ◆: swap this panel for the review of the same change. */
   onReview: () => void
+  /** A row's `+`/`−`: stage or unstage whatever the cursor is on. */
+  onToggleStage: () => void
 }
 
 /**
@@ -180,15 +189,19 @@ export function GitPanel(props: GitPanelProps) {
                * file row — which has no arrow — spends the same single column, so
                * the two views line their names up whether icons are on or off.
                */
+              // A heading is not a file, so it takes the arrow itself rather
+              // than an icon theme's folder glyph.
               const icon = () =>
-                iconFor(props.iconTheme, {
-                  name: iconName(row),
-                  isDir: row.kind === 'dir',
-                  expanded: row.kind === 'dir' && !row.collapsed,
-                })
-              const glyph = () =>
-                icon()?.glyph ?? (row.kind === 'dir' ? (row.collapsed ? '▸' : '▾') : '')
-              const glyphColor = () => icon()?.color ?? (row.kind === 'dir' ? ui.dim : ui.faint)
+                row.kind === 'section'
+                  ? null
+                  : iconFor(props.iconTheme, {
+                      name: iconName(row),
+                      isDir: row.kind === 'dir',
+                      expanded: row.kind === 'dir' && !row.collapsed,
+                    })
+              const arrow = () => (row.kind !== 'file' && row.collapsed ? '▸' : '▾')
+              const glyph = () => icon()?.glyph ?? (row.kind === 'file' ? '' : arrow())
+              const glyphColor = () => icon()?.color ?? (row.kind === 'file' ? ui.faint : ui.dim)
               return (
                 <box
                   height={1}
@@ -211,14 +224,27 @@ export function GitPanel(props: GitPanelProps) {
                   <text fg={glyphColor()} bg={bg()} flexShrink={0} content={`${glyph()} `} />
                   <box flexGrow={1} flexDirection="row" backgroundColor={bg()}>
                     <text
-                      fg={row.kind === 'dir' ? ui.folder : ui.text}
+                      wrapMode="none"
+                      fg={row.kind === 'file' ? ui.text : ui.folder}
                       bg={bg()}
                       content={row.label}
-                      attributes={row.kind === 'dir' ? TextAttributes.BOLD : undefined}
+                      attributes={row.kind === 'file' ? undefined : TextAttributes.BOLD}
                     />
                   </box>
-                  {/* A folded folder says how many changes it is hiding, so the row
-                      still carries its files' worth of information while it is shut. */}
+                  {/* A heading always says how many are under it — that count is
+                      what a group heading is *for*. A folder says so only while
+                      it is shut, so the row keeps its files' worth of
+                      information with them out of sight. */}
+                  <Show when={sectionRow(row)}>
+                    {(section: () => SectionRow) => (
+                      <text
+                        fg={ui.faint}
+                        bg={bg()}
+                        flexShrink={0}
+                        content={`${section().files} `}
+                      />
+                    )}
+                  </Show>
                   <Show when={dirRow(row)}>
                     {(dir: () => DirRow) => (
                       <text
@@ -239,6 +265,22 @@ export function GitPanel(props: GitPanelProps) {
                       />
                     )}
                   </Show>
+                  {/* The stage control, on every row: a terminal has no hover to
+                      hide it behind, and it is drawn on the cursor's row alone so
+                      the list is not a column of `+`. Its own handler, and it runs
+                      before the row's — pressing `+` is not pressing the row. */}
+                  <Show when={props.staging && index() === cursor()}>
+                    <box
+                      flexShrink={0}
+                      backgroundColor={bg()}
+                      onMouseDown={event => {
+                        event.stopPropagation()
+                        props.onToggleStage()
+                      }}
+                    >
+                      <text fg={ui.accent} bg={bg()} content={`${stageGlyph(row)} `} />
+                    </box>
+                  </Show>
                 </box>
               )
             }}
@@ -255,7 +297,12 @@ export function GitPanel(props: GitPanelProps) {
           <text
             fg={ui.faint}
             bg={ui.sidebarBg}
-            content="↑↓ diff · →← fold · d discard · c commit · p push · B compare"
+            wrapMode="none"
+            content={
+              props.staging
+                ? 'space stage · d discard · c commit · p push · B compare'
+                : '↑↓ diff · →← fold · d discard · c commit · p push · B compare'
+            }
           />
         </box>
       </Show>

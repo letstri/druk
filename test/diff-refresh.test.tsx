@@ -35,8 +35,8 @@ function repo() {
 
 const frame = (t: Harness) => t.captureCharFrame()
 
-/** The panel's first change row, under the tab strip, the view tabs and the header. */
-const FIRST_ROW = 3
+/** The panel's first change row: tab strip, view tabs, header, `Changes`. */
+const FIRST_ROW = 4
 
 test('Esc closes the diff opened from the panel, not the panel under it', async () => {
   const t = await launch(repo())
@@ -48,7 +48,7 @@ test('Esc closes the diff opened from the panel, not the panel under it', async 
   const after = frame(t)
   expect(after).not.toContain('alpha changed')
   // The panel is still the sidebar's view: only the page it opened went away.
-  expect(after).toContain('◆ review')
+  expect(after).toContain('▾ Changes')
 })
 
 test('a commit elsewhere closes the page for the file it committed', async () => {

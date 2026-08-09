@@ -220,11 +220,12 @@ export async function runCommand(t: Harness, label: string) {
  */
 export async function openDiff(t: Harness, row = 0) {
   await runCommand(t, 'Source control')
-  // The panel nests changes under folder rows by default, so which row holds the
-  // first file is not knowable from here — the arrows are what walks past the
-  // folders, and they diff whatever file they land on. ↑ at the top counts as a
-  // landing, which is how the file already under the cursor gets its page.
+  // The panel nests changes under headings and folder rows, so which row holds
+  // the first file is not knowable from here — the arrows are what walks past
+  // them, and they diff whatever file they land on. The panel opens on the first
+  // change without diffing it, so ↓ and back up is the landing on that row.
   // Enter is deliberately not used: on a folder row it would fold it away.
+  await press(t, input => input.pressArrow('down'))
   await press(t, input => input.pressArrow('up'))
   let seen = header(t) ? 0 : -1
   let shown = header(t)

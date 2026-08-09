@@ -2,17 +2,19 @@ import { join, relative } from 'node:path'
 
 import { createEffect, createMemo, createSignal, on, onCleanup } from 'solid-js'
 
-import { ancestorDirs, changeRows } from '../core/changeTree'
+import { ancestorDirs, changeRows, foldKey } from '../core/changeTree'
+import type { Change } from '../core/changeTree'
 import type { Config } from '../core/config'
 import {
+  combinedStatus,
   currentBranch,
   diffLines,
   ignoredAmong,
   inRepository,
-  statusMapAsync,
+  statusEntriesAsync,
   upstreamOf,
 } from '../core/git'
-import type { FileStatus, GitResult, LineChange, Upstream } from '../core/git'
+import type { GitResult, LineChange, StageArea, StatusEntry, Upstream } from '../core/git'
 import { discoverRepos, groupByRepo, repoOf } from '../core/repos'
 import type { CommitFile } from '../ui/CommitModal'
 import type { EditorBridge } from './editor'
@@ -26,7 +28,7 @@ import type { Workspace } from './workspace'
  * There may be more than one: a folder that only *holds* checkouts is as ordinary
  * a thing to open as a checkout itself, and every query runs in the repository
  * the path it is about belongs to. One of them is the *active* one — whose branch
- * the status bar shows and which the commands act on — and `panelCursor` is what
+ * the status bar shows and which the commands act on — and the panel's cursor is what
  * makes it follow the source-control panel: acting on a repository other than the
  * one whose change is under the cursor is never what was meant.
  *
@@ -36,12 +38,20 @@ import type { Workspace } from './workspace'
 export function createGit(
   rootDir: string,
   panelView: () => 'tree' | 'list',
-  panelCursor: () => number | null = () => null,
+  panelShowing: () => boolean = () => false,
 ) {
+  /** Row under the cursor in the source-control panel; clamped where it is read,
+   * because the change list shrinks under it on every commit. */
+  const [gitCursor, setGitCursor] = createSignal(0)
   const [gitLines, setGitLines] = createSignal<Map<number, LineChange>>(new Map())
   /** Bumped when something may have changed what git would report. */
   const [revision, setRevision] = createSignal(0)
-  const [gitStatus, setGitStatus] = createSignal<Map<string, FileStatus>>(new Map())
+  /** Both porcelain columns per path — what the panel's two headings come from. */
+  const [statusEntries, setStatusEntries] = createSignal<Map<string, StatusEntry>>(new Map())
+  /** One mark per path, for the tree and the gutter, which want no such split. */
+  const gitStatus = createMemo(
+    () => new Map([...statusEntries()].map(([path, e]) => [path, combinedStatus(e)])),
+  )
   /** Visible tree paths that `.gitignore` excludes — dimmed in the sidebar. */
   const [gitIgnored, setGitIgnored] = createSignal<Set<string>>(new Set())
   // Starts null and is filled by `wireGitEffects` after the first frame: reading
@@ -76,32 +86,48 @@ export function createGit(
 
   const bump = () => setRevision(n => n + 1)
 
-  /** The changed files as the source-control panel lists them, in path order. */
+  /**
+   * The changed files as the source-control panel lists them, in path order.
+   * A path staged and then edited again is two changes, one under each heading —
+   * git reports two states for it, and staging the rest of it is a thing to do.
+   */
   const changes = createMemo(() =>
-    [...gitStatus()]
-      .map(([path, status]) => ({ path, rel: relative(rootDir, path), status }))
+    [...statusEntries()]
+      .flatMap(([path, entry]) => {
+        const rel = relative(rootDir, path)
+        const both: Change[] = []
+        if (entry.staged) both.push({ path, rel, status: entry.staged, area: 'staged' })
+        if (entry.unstaged) both.push({ path, rel, status: entry.unstaged, area: 'unstaged' })
+        return both
+      })
       .toSorted((a, b) => a.rel.localeCompare(b.rel)),
   )
 
-  /** Folders the panel's tree has folded away, by path relative to the root. */
+  /** Whether anything can be staged at all — see `statusEntries` in `core/git`. */
+  const staging = () => diffBase() === null
+
+  /** Folder and heading rows the panel has folded away, keyed by `foldKey`. */
   const [collapsed, setCollapsed] = createSignal<ReadonlySet<string>>(new Set())
 
   /**
-   * What the panel draws and what the cursor counts, folder rows included. Every
-   * caller works in row indices: `changes` is no longer addressable by cursor,
-   * because in tree mode most rows are not files.
+   * What the panel draws and what the cursor counts, folder and heading rows
+   * included. Every caller works in row indices: `changes` is no longer
+   * addressable by cursor, because in tree mode most rows are not files.
    */
-  const rows = createMemo(() => changeRows(changes(), panelView(), collapsed()))
+  const rows = createMemo(() => changeRows(changes(), panelView(), collapsed(), staging()))
 
   /** Which repository a path belongs to — the innermost, so a nested one wins. */
   const repoFor = (path: string) => repoOf(path, repos())
 
   /** The repository the source-control panel's cursor is in, when it is showing. */
   const cursorRepo = createMemo(() => {
-    const at = panelCursor()
-    if (at === null) return null
+    if (!panelShowing()) return null
+    const at = gitCursor()
     const row = rows()[Math.max(0, Math.min(at, rows().length - 1))]
     if (!row) return null
+    // A heading is about no path in particular, so it says nothing about which
+    // repository is meant and the open file answers instead.
+    if (row.kind === 'section') return null
     return repoFor(row.kind === 'file' ? row.change.path : join(rootDir, row.rel))
   })
 
@@ -116,15 +142,17 @@ export function createGit(
 
   const inRepo = () => repos().length > 0
 
-  const toggleCollapsed = (rel: string) =>
+  const toggleCollapsed = (area: StageArea, rel: string) =>
     setCollapsed(previous => {
       const next = new Set(previous)
-      if (!next.delete(rel)) next.add(rel)
+      const key = foldKey(area, rel)
+      if (!next.delete(key)) next.add(key)
       return next
     })
 
   /**
-   * Fold every folder the panel can draw.
+   * Fold every folder the panel can draw. Headings stay open: folding them hides
+   * the whole panel, which is not what "collapse folders" offers anywhere else.
    *
    * Taken from a fully expanded pass rather than from the changes' own ancestors:
    * a chain of single-child folders is drawn as one row keyed on the outermost of
@@ -132,26 +160,37 @@ export function createGit(
    */
   const collapseAll = () =>
     setCollapsed(
-      new Set(changeRows(changes(), 'tree').flatMap(row => (row.kind === 'dir' ? [row.rel] : []))),
+      new Set(
+        changeRows(changes(), 'tree', new Set(), staging()).flatMap(row =>
+          row.kind === 'dir' ? [foldKey(row.area, row.rel)] : [],
+        ),
+      ),
     )
 
   /** Unfold every folder on the way to `rel`, so its row is on screen to land on. */
-  const revealChange = (rel: string) =>
+  const revealChange = (area: StageArea, rel: string) =>
     setCollapsed(previous => {
-      const hiding = ancestorDirs(rel).filter(dir => previous.has(dir))
+      const hiding = [
+        foldKey(area, ''),
+        ...ancestorDirs(rel).map(dir => foldKey(area, dir)),
+      ].filter(key => previous.has(key))
       if (hiding.length === 0) return previous
       const next = new Set(previous)
-      for (const dir of hiding) next.delete(dir)
+      for (const key of hiding) next.delete(key)
       return next
     })
 
   return {
+    gitCursor,
+    setGitCursor,
     gitLines,
     setGitLines,
     revision,
     bump,
     gitStatus,
-    setGitStatus,
+    statusEntries,
+    setStatusEntries,
+    staging,
     gitIgnored,
     setGitIgnored,
     branch,
@@ -359,13 +398,13 @@ export function wireGitEffects(deps: {
 
     const run = ++generation
     const base = git.diffBase()
-    void Promise.all(git.repos().map(repo => statusMapAsync(repo, base))).then(maps => {
+    void Promise.all(git.repos().map(repo => statusEntriesAsync(repo, base))).then(maps => {
       if (run !== generation) return
-      const merged = new Map<string, FileStatus>()
+      const merged = new Map<string, StatusEntry>()
       for (const map of maps) {
-        for (const [path, status] of map) merged.set(path, status)
+        for (const [path, entry] of map) merged.set(path, entry)
       }
-      git.setGitStatus(merged)
+      git.setStatusEntries(merged)
     })
 
     // With the rows hidden outright there is nothing left to dim, and the

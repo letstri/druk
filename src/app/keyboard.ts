@@ -2,7 +2,7 @@ import { dirname } from 'node:path'
 
 import type { KeyEvent } from '@opentui/core'
 
-import { parentRow } from '../core/changeTree'
+import { parentRow, rowArea, rowRel } from '../core/changeTree'
 import { secondary } from '../core/keybindings'
 import { useKeys } from '../ui/useKeys'
 import type { CommandActions } from './commands'
@@ -96,6 +96,7 @@ export function installKeyboard(ctx: AppContext, actions: CommandActions) {
     'view.focus': actions.toggleFocus,
     'git.diffFile': actions.gitDiffFile,
     'git.commit': actions.gitCommit,
+    'git.stage': actions.gitToggleStage,
     'git.discard': actions.gitDiscard,
     'git.push': actions.gitPush,
     'git.compare': actions.gitCompareBranches,
@@ -357,7 +358,7 @@ export function installKeyboard(ctx: AppContext, actions: CommandActions) {
       }
 
       const rows = git.rows()
-      const at = Math.max(0, Math.min(panes.gitCursor(), rows.length - 1))
+      const at = Math.max(0, Math.min(git.gitCursor(), rows.length - 1))
       const row = rows[at]
       /** The cursor is the diff's pager: the page follows it, so `gitMoveTo` is
        * the only way through the changes. */
@@ -378,15 +379,22 @@ export function installKeyboard(ctx: AppContext, actions: CommandActions) {
         // Folder rows fold as the tree's do. On a file, ← walks out to the folder
         // holding it, which is the only way back to a row the arrows have passed.
         case 'right':
-          if (row?.kind === 'dir' && row.collapsed) git.toggleCollapsed(row.rel)
+          if (row && row.kind !== 'file' && row.collapsed) {
+            git.toggleCollapsed(rowArea(row), rowRel(row))
+          }
           break
         case 'left':
-          if (row?.kind === 'dir' && !row.collapsed) git.toggleCollapsed(row.rel)
-          else if (row) goTo(parentRow(rows, at))
+          if (row && row.kind !== 'file' && !row.collapsed) {
+            git.toggleCollapsed(rowArea(row), rowRel(row))
+          } else if (row) goTo(parentRow(rows, at))
           break
         case 'return':
         case 'enter':
           actions.gitOpenRow(at)
+          break
+        // VS Code's `+`/`−` on a row, on the one key this panel had spare.
+        case 'space':
+          actions.gitToggleStage()
           break
         case 'c':
           actions.gitCommit()

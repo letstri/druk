@@ -3,7 +3,14 @@ import { basename, dirname, join } from 'node:path'
 import { createMemo, createSignal } from 'solid-js'
 
 import { createDir, createFile, isDirectory } from '../core/fs'
-import { commitPaths, discardChange, pullAndPush, PUSH_REJECTED, undoLastCommit } from '../core/git'
+import {
+  commitPaths,
+  commitStaged,
+  discardChange,
+  pullAndPush,
+  PUSH_REJECTED,
+  undoLastCommit,
+} from '../core/git'
 import { NOTE_KINDS, NOTE_LABELS } from '../core/review'
 import { SERVER_ROOT } from '../lsp/install'
 import { installHint } from '../lsp/servers'
@@ -111,7 +118,10 @@ export function createPromptHandlers(deps: {
       if (err) return say(err, 'error')
       say(`Renamed to ${name}`)
     } else if (p.kind === 'commit') {
-      gitOp('Committing', repo => commitPaths(repo, name, p.paths))
+      const paths = p.paths
+      gitOp('Committing', repo =>
+        paths === null ? commitStaged(repo, name) : commitPaths(repo, name, paths),
+      )
     } else if (p.kind === 'newBranch') {
       branches.create(name, p.from)
     } else if (p.kind === 'renameBranch') {

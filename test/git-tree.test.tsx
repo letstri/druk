@@ -59,7 +59,7 @@ test('the panel nests the changes under folder rows', async () => {
   expect(rows.some(row => row.includes('▾ app'))).toBe(true)
   expect(rows.some(row => row.includes('▾ ui'))).toBe(true)
   // Leaves carry their own name only: the path is what the folder rows say.
-  expect(rows.some(row => row.endsWith('actions.ts            M'))).toBe(true)
+  expect(rows.some(row => row.includes('actions.ts') && row.trimEnd().endsWith('M'))).toBe(true)
   expect(frame(t)).not.toContain('src/app/actions.ts')
 })
 
@@ -86,7 +86,10 @@ test('a folder folds on ← and says how many changes it hides, and unfolds on �
 test('the arrows page the diff through the files and step over the folders', async () => {
   const t = await launch(repo())
   await openPanel(t)
-  await press(t, i => i.pressArrow('up')) // a landing on the first row: the root file
+  // The panel opens on the first change without diffing it; down onto the folder
+  // and back is the shortest landing on that row.
+  await press(t, i => i.pressArrow('down'))
+  await press(t, i => i.pressArrow('up'))
   // The diff renderable assembles its panes on a queued microtask, so poll.
   await untilFrame(t, '+ ROOT')
 
@@ -122,7 +125,8 @@ test('the flat list is one command away, and shows whole paths again', async () 
 
   const rows = panelRows(t)
   expect(rows.some(row => row.includes('src/app/actions.ts'))).toBe(true)
-  expect(rows.some(row => row.includes('▾'))).toBe(false)
+  // No folder rows left — the `Changes` heading keeps its own arrow.
+  expect(rows.some(row => row.includes('▾ src'))).toBe(false)
 })
 
 test('"Diff current file" lands on the file even with its folder folded', async () => {

@@ -69,7 +69,7 @@ test('"Diff current file" opens the panel on that file, cursor and all', async (
   await runCommand(t, 'Diff current file')
 
   let frame = t.captureCharFrame()
-  expect(frame).toContain('◆ review')
+  expect(frame).toContain('▾ Changes')
   expect(frame).toContain('+ BETA')
 
   // The cursor landed on b.ts's row, so the arrows page on from there.
@@ -295,7 +295,7 @@ test('the diff is a page: sidebar, tabs and status bar all stay around it', asyn
 
   const frame = t.captureCharFrame()
   expect(frame).toContain('+1 −1') // the diff itself
-  expect(frame).toContain('◆ review') // the panel does not make way
+  expect(frame).toContain('▾ Changes') // the panel does not make way
   const lines = frame.split('\n')
   expect(lines[0]).toContain('a.ts') // tab row still up top
   expect(lines.at(-2)).toContain('⎇ main') // status bar still below

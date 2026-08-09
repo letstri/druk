@@ -1,4 +1,4 @@
-import type { FileStatus } from './git'
+import type { FileStatus, StageArea } from './git'
 
 /** One changed file, as the source-control panel lists it. */
 export interface Change {
@@ -6,6 +6,8 @@ export interface Change {
   /** Relative to the project root, `/`-separated — what the tree is built from. */
   rel: string
   status: FileStatus
+  /** Which heading it sits under. A path edited after being staged has one of each. */
+  area: StageArea
 }
 
 /**
@@ -24,20 +26,54 @@ export interface DirRow {
   kind: 'dir'
   depth: number
   label: string
-  /** Path relative to the root — the key `collapsed` holds. */
+  /** Path relative to the root — half of the key `collapsed` holds. */
   rel: string
+  area: StageArea
   collapsed: boolean
   /** Changed files under it, which is what a folded row shows instead of them. */
   files: number
 }
 
-export type ChangeRow = FileRow | DirRow
+/** A `Staged Changes` / `Changes` heading — VS Code's two groups. */
+export interface SectionRow {
+  kind: 'section'
+  depth: 0
+  label: string
+  area: StageArea
+  collapsed: boolean
+  files: number
+}
+
+export type ChangeRow = FileRow | DirRow | SectionRow
+
+/**
+ * What `collapsed` holds. A folder appears under both headings whenever a path
+ * is half-staged, and folding it in one has nothing to do with the other, so the
+ * area is part of the key rather than the rel alone.
+ */
+export const foldKey = (area: StageArea, rel: string) => `${area}:${rel}`
+
+/** The area a row's fold state is keyed under — its own, headings included. */
+export const rowArea = (row: ChangeRow): StageArea =>
+  row.kind === 'file' ? row.change.area : row.area
+
+/** The rel a row's fold state is keyed under; a heading folds under its own name. */
+export const rowRel = (row: ChangeRow): string =>
+  row.kind === 'file' ? row.change.rel : row.kind === 'dir' ? row.rel : ''
 
 /** Every folder on the way to `rel`, outermost first: `a/b/c.ts` → `a`, `a/b`. */
 export function ancestorDirs(rel: string): string[] {
   const parts = rel.split('/')
   return parts.slice(0, -1).map((_, at) => parts.slice(0, at + 1).join('/'))
 }
+
+const SECTION_LABEL: Record<StageArea, string> = {
+  staged: 'Staged Changes',
+  unstaged: 'Changes',
+}
+
+/** The order the headings are drawn in, staged first as VS Code has it. */
+const AREAS: StageArea[] = ['staged', 'unstaged']
 
 /**
  * The panel's rows for `changes`, which must already be sorted by `rel`.
@@ -47,17 +83,52 @@ export function ancestorDirs(rel: string): string[] {
  * row stays, so there is something to press to bring it back. Folders with a
  * single child folder are joined into one row (`src/app` rather than two rows),
  * which is what keeps a deep project readable in a 24-column sidebar.
+ *
+ * `sections` draws the two headings over the whole thing. It is off against a
+ * comparison base, where nothing can be staged and a lone `Changes` heading
+ * would spend a row saying so.
  */
 export function changeRows(
   changes: readonly Change[],
   mode: 'list' | 'tree',
   collapsed: ReadonlySet<string> = new Set(),
+  sections = true,
 ): ChangeRow[] {
+  if (!sections) return rowsFor(changes, mode, collapsed)
+
+  const rows: ChangeRow[] = []
+  for (const area of AREAS) {
+    const mine = changes.filter(change => change.area === area)
+    // An empty group is not drawn at all — the heading of a section with nothing
+    // in it is a row spent saying "nothing", which a 24-column sidebar cannot
+    // afford and VS Code does not spend either.
+    if (mine.length === 0) continue
+    const shut = collapsed.has(foldKey(area, ''))
+    rows.push({
+      kind: 'section',
+      depth: 0,
+      label: SECTION_LABEL[area],
+      area,
+      collapsed: shut,
+      files: mine.length,
+    })
+    if (shut) continue
+    // Headings own a level of indent, so what is under them starts one in.
+    for (const row of rowsFor(mine, mode, collapsed)) rows.push({ ...row, depth: row.depth + 1 })
+  }
+  return rows
+}
+
+function rowsFor(
+  changes: readonly Change[],
+  mode: 'list' | 'tree',
+  collapsed: ReadonlySet<string>,
+): (FileRow | DirRow)[] {
   if (mode === 'list') {
     return changes.map(change => ({ kind: 'file', depth: 0, label: change.rel, change }))
   }
 
-  const rows: ChangeRow[] = []
+  const rows: (FileRow | DirRow)[] = []
   /** Folder rows already emitted, by rel path, so a subtree is opened once. */
   const emitted = new Map<string, { depth: number }>()
 
@@ -79,7 +150,8 @@ export function changeRows(
           depth,
           label: folded.slice(dir.lastIndexOf('/') + 1),
           rel: dir,
-          collapsed: collapsed.has(dir),
+          area: change.area,
+          collapsed: collapsed.has(foldKey(change.area, dir)),
           files: changes.filter(c => c.rel.startsWith(`${dir}/`)).length,
         })
         // The joined folders count as one row: everything under them sits one
@@ -88,7 +160,7 @@ export function changeRows(
         for (const joined of ancestorsUnder(dir, folded)) emitted.set(joined, { depth })
         depth += 1
       }
-      if (collapsed.has(dir)) hidden = true
+      if (collapsed.has(foldKey(change.area, dir))) hidden = true
     }
     if (hidden) continue
     rows.push({
@@ -124,13 +196,25 @@ function ancestorsUnder(dir: string, folded: string): string[] {
   return ancestorDirs(`${folded}/x`).filter(rel => rel.length > dir.length)
 }
 
-/** The folder row `rows[at]` sits under, or `at` itself when it is at the top
- * level — ← on a file walks out to it, and there is nowhere further to go. */
+/** The row `rows[at]` sits under — its folder, else its heading, else itself.
+ * ← walks out along this, and there is nowhere further to go from a heading. */
 export function parentRow(rows: readonly ChangeRow[], at: number): number {
   const depth = rows[at]?.depth ?? 0
   for (let up = at - 1; up >= 0; up--) {
     const row = rows[up]!
-    if (row.kind === 'dir' && row.depth < depth) return up
+    if (row.kind !== 'file' && row.depth < depth) return up
   }
   return at
+}
+
+/**
+ * The changes a row stands for: itself for a file, everything under it for a
+ * folder or a heading — folded or not, which is why this reads the change list
+ * rather than the rows.
+ */
+export function changesFor(changes: readonly Change[], row: ChangeRow): Change[] {
+  if (row.kind === 'file') return [row.change]
+  const area = rowArea(row)
+  const mine = changes.filter(change => change.area === area)
+  return row.kind === 'section' ? mine : mine.filter(c => c.rel.startsWith(`${row.rel}/`))
 }

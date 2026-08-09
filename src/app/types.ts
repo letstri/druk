@@ -42,7 +42,8 @@ export type Prompt =
   | { kind: 'delete'; targets: string[] }
   | { kind: 'closeDirty'; paths: string[]; names: string[] }
   | { kind: 'quitDirty'; names: string[] }
-  | { kind: 'commit'; paths: string[] }
+  /** `paths` null commits the index as it stands — what the panel's Space built. */
+  | { kind: 'commit'; paths: string[] | null }
   | { kind: 'undoCommit'; subject: string }
   | { kind: 'discardChange'; target: DiscardTarget }
   /** `from` is the branch to start at, or null for HEAD. */

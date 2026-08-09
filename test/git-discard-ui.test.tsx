@@ -44,7 +44,8 @@ test('left click still opens a diff', async () => {
   const t = await launch(dir)
   await runCommand(t, 'Source control')
 
-  await t.mockMouse.click(4, 3)
+  // Row 3 is the `Changes` heading now; the first file sits under it.
+  await t.mockMouse.click(4, 4)
   await until(t, () => t.captureCharFrame().includes('+1 −1'))
 }, 20_000)
 

@@ -398,3 +398,15 @@ test('with respectGitignore on there is nothing left to dim', async () => {
   expect(t.captureCharFrame()).not.toContain('dist')
   expect(nameColor(t, 'a.ts')).toBe(hexToRgb(THEMES.dark.ui.text))
 })
+
+test('a typechange is a modification, not an invisible file', () => {
+  const dir = repo('one\n')
+  writeFileSync(join(dir, 'link-me'), 'target\n')
+  execFileSync('git', ['add', '.'], { cwd: dir })
+  execFileSync('git', ['commit', '-q', '-m', 'add link-me'], { cwd: dir })
+  execFileSync('git', ['rm', '-q', 'link-me'], { cwd: dir })
+  symlinkSync('a.ts', join(dir, 'link-me'))
+  execFileSync('git', ['add', '.'], { cwd: dir })
+
+  expect(statusMap(dir).get(join(dir, 'link-me'))).toBe('modified')
+})

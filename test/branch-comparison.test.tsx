@@ -4,7 +4,15 @@ import { mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { launch, openComparison, press, pressTimes, runCommand, untilFrame } from './helpers'
+import {
+  launch,
+  openComparison,
+  press,
+  pressTimes,
+  runCommand,
+  untilFrame,
+  untilGone,
+} from './helpers'
 
 function repo() {
   const dir = mkdtempSync(join(tmpdir(), 'druk-compare-ui-'))
@@ -141,7 +149,7 @@ test('Esc closes detail before leaving comparison', async () => {
 
   t.mockInput.pressEscape()
   await new Promise(resolve => setTimeout(resolve, 60))
-  await untilFrame(t, '◆ review')
+  await untilGone(t, 'base  trunk')
   expect(t.captureCharFrame()).not.toContain('base  trunk')
 })
 

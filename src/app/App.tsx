@@ -126,9 +126,9 @@ export function App(props: {
   const git = createGit(
     rootDir,
     () => settings.config.gitPanelView,
-    // Null unless the source-control panel is the sidebar's view: the tree's own
-    // cursor must not decide which repository a command acts on.
-    () => (panes.view() === 'git' ? panes.gitCursor() : null),
+    // Only while the source-control panel is the sidebar's view may its cursor
+    // decide which repository a command acts on.
+    () => panes.view() === 'git',
   )
   const comparison = createComparison({ rootDir, git, status })
   const promptState = createPromptState()
@@ -282,6 +282,20 @@ export function App(props: {
         actions.refreshDiff()
         comparison.refresh()
       },
+    ),
+  )
+
+  // Landing on the `Changes` heading would show no diff and take a keypress to
+  // leave, so opening the panel puts the cursor on the first change instead —
+  // wherever it was opened from. Only on the way in: resting on a heading is how
+  // a whole group is staged, so nothing may push the cursor off one later.
+  createEffect(
+    on(
+      () => panes.view(),
+      view => {
+        if (view === 'git') actions.gitLandOnFile()
+      },
+      { defer: true },
     ),
   )
 
@@ -661,7 +675,8 @@ export function App(props: {
                     behind={git.upstream()?.behind ?? 0}
                     rows={git.rows()}
                     base={git.diffBase()}
-                    cursor={panes.gitCursor()}
+                    staging={git.staging()}
+                    cursor={git.gitCursor()}
                     focused={panes.focus() === 'tree'}
                     width={settings.treeWidth()}
                     inRepo={git.inRepo()}
@@ -671,6 +686,7 @@ export function App(props: {
                     onCollapseAll={actions.gitCollapseAll}
                     reviewCount={review.count()}
                     onReview={() => panes.showView('review')}
+                    onToggleStage={actions.gitToggleStage}
                   />
                 }
               >

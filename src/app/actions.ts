@@ -2,23 +2,26 @@ import { dirname, relative } from 'node:path'
 
 import { createMemo } from 'solid-js'
 
-import { ancestorDirs } from '../core/changeTree'
+import { ancestorDirs, changesFor, rowArea, rowRel } from '../core/changeTree'
 import { readFile } from '../core/fs'
 import type { TreeNode } from '../core/fs'
 import {
   discardTarget,
   fetchRemote,
+  indexText,
   lastCommitSubject,
   pull,
   push,
   PUSH_REJECTED,
   refText,
   stagedPaths,
+  stagePaths,
   stashPop,
   stashPush,
   statusMap,
+  unstagePaths,
 } from '../core/git'
-import type { FileStatus } from '../core/git'
+import type { FileStatus, StageArea } from '../core/git'
 import { pathTokenAt, resolveImportPath } from '../core/imports'
 import type { NoteKind } from '../core/review'
 import type { DiffFile } from '../ui/DiffView'
@@ -82,6 +85,7 @@ export function createCommands(ctx: AppContext) {
     base: string | null
     buffer: string | undefined
     status: FileStatus
+    area: StageArea
     file: DiffFile | null
   }
   const diffFileCache = new Map<string, DiffFileSlot>()
@@ -91,8 +95,18 @@ export function createCommands(ctx: AppContext) {
    * Both texts of one file's diff. The new side prefers the open buffer over the
    * disk, so unsaved edits show — that is the diff the user is looking at. Null
    * for a file that cannot be read (binary), which the callers skip.
+   *
+   * `area` is which of the panel's two headings the row came from, and it decides
+   * what the diff is *between*: a staged row is HEAD against the index, an
+   * unstaged one the index against the working tree. Without that the same file
+   * half-staged draws the same diff under both headings, which is the one thing
+   * the split exists to tell apart.
    */
-  const diffFileFor = (path: string, fileStatus: FileStatus): DiffFile | null => {
+  const diffFileFor = (
+    path: string,
+    fileStatus: FileStatus,
+    area: StageArea = 'unstaged',
+  ): DiffFile | null => {
     const revision = git.revision()
     const reloadKey = editor.reloadKey()
     const base = git.diffBase()
@@ -104,7 +118,8 @@ export function createCommands(ctx: AppContext) {
       hit.reloadKey === reloadKey &&
       hit.base === base &&
       hit.buffer === buffer &&
-      hit.status === fileStatus
+      hit.status === fileStatus &&
+      hit.area === area
     ) {
       return hit.file
     }
@@ -114,13 +129,25 @@ export function createCommands(ctx: AppContext) {
     // several repositories open those are not the same string.
     const repo = git.repoFor(path)
     const rel = relative(rootDir, path)
+    const repoRel = repo === null ? null : relative(repo, path)
+    /** The index's copy, when this path has one — null says it has none. */
+    const staged =
+      repo === null || repoRel === null || !git.statusEntries().get(path)?.staged
+        ? null
+        : indexText(repo, repoRel)
     const oldText =
-      fileStatus === 'untracked' || repo === null
+      fileStatus === 'untracked' || repo === null || repoRel === null
         ? ''
-        : (refText(repo, relative(repo, path), base ?? 'HEAD') ?? '')
+        : area === 'staged'
+          ? (refText(repo, repoRel, base ?? 'HEAD') ?? '')
+          : // Unstaged is measured from whatever `git diff` would measure it from:
+            // the index when something is staged there, HEAD otherwise.
+            (staged ?? refText(repo, repoRel, base ?? 'HEAD') ?? '')
     let newText = ''
     if (fileStatus !== 'deleted') {
-      if (buffer !== undefined) {
+      if (area === 'staged') {
+        newText = staged ?? ''
+      } else if (buffer !== undefined) {
         newText = buffer
       } else {
         try {
@@ -132,7 +159,7 @@ export function createCommands(ctx: AppContext) {
     }
     const file: DiffFile = { path, rel, status: fileStatus, oldText, newText }
     diffFileCache.delete(path)
-    diffFileCache.set(path, { revision, reloadKey, base, buffer, status: fileStatus, file })
+    diffFileCache.set(path, { revision, reloadKey, base, buffer, status: fileStatus, area, file })
     // Oldest out first — the texts are the whole file twice over, so the cap is
     // what bounds a walk across many huge changes.
     while (diffFileCache.size > DIFF_FILE_CACHE_LIMIT) {
@@ -147,11 +174,13 @@ export function createCommands(ctx: AppContext) {
    * a diff moves that cursor first and calls this second — a page the arrows
    * cannot move from is a dead end.
    */
-  const showDiff = (path: string) => {
+  const showDiff = (path: string, area: StageArea = 'unstaged') => {
     // The panel only lists changed files, but its list is a frame behind a fresh
     // edit — 'modified' is the fallback for a path git has not caught up with,
     // and diffing it against the base is right either way.
-    const file = diffFileFor(path, git.gitStatus().get(path) ?? 'modified')
+    const entry = git.statusEntries().get(path)
+    const fileStatus = (area === 'staged' ? entry?.staged : entry?.unstaged) ?? 'modified'
+    const file = diffFileFor(path, fileStatus, area)
     if (!file) return say('Cannot diff this file', 'warn')
     ctx.workspace.setPage(null)
     ctx.workspace.setDiff(file)
@@ -160,16 +189,16 @@ export function createCommands(ctx: AppContext) {
   /**
    * Move the panel's cursor to `row`, diffing it if it is a file. The only way
    * the cursor moves, so the page and the cursor cannot disagree about which
-   * change is on screen. A folder row leaves the page as it was: folding is what
-   * `gitActivateRow` is for, and a mere pass over a folder must not fold it.
+   * change is on screen. A folder or heading row leaves the page as it was:
+   * folding is what `gitActivateRow` is for, and a mere pass must not fold one.
    */
   const gitMoveTo = (row: number) => {
     const rows = git.rows()
     const at = Math.max(0, Math.min(row, rows.length - 1))
     const target = rows[at]
     if (!target) return
-    panes.setGitCursor(at)
-    if (target.kind === 'file') showDiff(target.change.path)
+    git.setGitCursor(at)
+    if (target.kind === 'file') showDiff(target.change.path, target.change.area)
   }
 
   /**
@@ -179,13 +208,63 @@ export function createCommands(ctx: AppContext) {
    * throw a diff over whatever page is up for a mere fold.
    */
   const gitCollapseAll = () => {
-    const row = git.rows()[panes.gitCursor()]
-    const rel = row ? (row.kind === 'dir' ? row.rel : row.change.rel) : null
+    const row = git.rows()[git.gitCursor()]
+    const rel = row ? rowRel(row) : null
+    const area = row ? rowArea(row) : null
     git.collapseAll()
     const rows = git.rows()
     const top = rel ? (ancestorDirs(rel)[0] ?? rel) : null
-    const at = rows.findIndex(r => (r.kind === 'dir' ? r.rel : r.change.rel) === top)
-    panes.setGitCursor(at >= 0 ? at : Math.min(panes.gitCursor(), Math.max(0, rows.length - 1)))
+    const at = rows.findIndex(r => rowArea(r) === area && rowRel(r) === top)
+    git.setGitCursor(at >= 0 ? at : Math.min(git.gitCursor(), Math.max(0, rows.length - 1)))
+  }
+
+  /**
+   * Space: stage the row, or take it back out of the index. A heading or a folder
+   * carries everything under it, folded or not — which is VS Code's `+` on a
+   * group header, and the only way to stage a subtree without walking it.
+   */
+  const gitToggleStage = () => {
+    if (comparison.active()) return say('Staging is unavailable while comparing branches', 'warn')
+    if (!git.staging())
+      return say('Staging compares against HEAD — reset the comparison base', 'warn')
+    const row = git.rows()[git.gitCursor()]
+    if (!row) return say('Nothing to stage', 'warn')
+    const area = rowArea(row)
+    const targets = changesFor(git.changes(), row)
+    if (targets.length === 0) return say('Nothing to stage', 'warn')
+    // One repository's paths per call: `git add` runs in a repository, and a
+    // folder of checkouts can put two of them under one heading.
+    const repo = git.repoFor(targets[0]!.path)
+    if (repo === null) return say(noRepository(git), 'warn')
+    const paths = [...new Set(targets.filter(c => git.repoFor(c.path) === repo).map(c => c.path))]
+    const what = paths.length === 1 ? relative(rootDir, paths[0]!) : `${paths.length} files`
+    if (area === 'staged') {
+      gitOp(
+        'Unstaging',
+        r =>
+          unstagePaths(
+            r,
+            paths.map(p => relative(r, p)),
+          ),
+        {
+          repo,
+          done: () => `Unstaged ${what}`,
+        },
+      )
+    } else {
+      gitOp(
+        'Staging',
+        r =>
+          stagePaths(
+            r,
+            paths.map(p => relative(r, p)),
+          ),
+        {
+          repo,
+          done: () => `Staged ${what}`,
+        },
+      )
+    }
   }
 
   const offerDiscard = () => {
@@ -194,8 +273,8 @@ export function createCommands(ctx: AppContext) {
     if (panes.view() !== 'git') {
       return say('Open the Git panel and select a changed file', 'warn')
     }
-    const row = git.rows()[panes.gitCursor()]
-    if (row?.kind === 'dir') return say('Select a changed file, not a folder', 'warn')
+    const row = git.rows()[git.gitCursor()]
+    if (row && row.kind !== 'file') return say('Select a changed file, not a folder', 'warn')
     const path = row?.kind === 'file' ? row.change.path : null
     const repo = path ? git.repoFor(path) : null
     if (!path || !repo) return say('Select a changed file in the Git panel', 'warn')
@@ -204,26 +283,26 @@ export function createCommands(ctx: AppContext) {
     ctx.prompts.setPrompt({ kind: 'discardChange', target })
   }
 
-  /** A click: a file diffs, a folder folds. */
+  /** A click: a file diffs, a folder or heading folds. */
   const gitActivateRow = (row: number) => {
     gitMoveTo(row)
-    const target = git.rows()[panes.gitCursor()]
-    if (target?.kind === 'dir') git.toggleCollapsed(target.rel)
+    const target = git.rows()[git.gitCursor()]
+    if (target && target.kind !== 'file') git.toggleCollapsed(rowArea(target), rowRel(target))
   }
 
   /**
-   * Enter: a folder folds, a file opens for editing. The diff is already on
-   * screen — moving the cursor put it there — so Enter is the way past it into
-   * the file itself, and a deleted one keeps the diff, which is all that is
-   * left of it.
+   * Enter: a folder or heading folds, a file opens for editing. The diff is
+   * already on screen — moving the cursor put it there — so Enter is the way past
+   * it into the file itself, and a deleted one keeps the diff, which is all that
+   * is left of it.
    */
   const gitOpenRow = (row: number) => {
     const rows = git.rows()
     const at = Math.max(0, Math.min(row, rows.length - 1))
     const target = rows[at]
     if (!target) return
-    panes.setGitCursor(at)
-    if (target.kind === 'dir') return git.toggleCollapsed(target.rel)
+    git.setGitCursor(at)
+    if (target.kind !== 'file') return git.toggleCollapsed(rowArea(target), rowRel(target))
     if (target.change.status === 'deleted') return say('File was deleted', 'warn')
     workspace.openFile(target.change.path)
   }
@@ -473,6 +552,21 @@ export function createCommands(ctx: AppContext) {
     gitActivateRow,
     gitOpenRow,
     gitDiscard: () => offerDiscard(),
+    gitToggleStage,
+    /**
+     * Not a command: `App` runs it as the panel opens. A heading under the cursor
+     * is a row with no diff behind it, so the panel would come up showing nothing
+     * until an arrow was pressed.
+     */
+    gitLandOnFile: () => {
+      const rows = git.rows()
+      if (rows[git.gitCursor()]?.kind === 'file') return
+      const at = rows.findIndex(row => row.kind === 'file')
+      // The cursor alone, not `gitMoveTo`: opening the panel is not a landing,
+      // and throwing a diff over the editor for merely showing the sidebar is
+      // not what the panel has ever done.
+      if (at >= 0) git.setGitCursor(at)
+    },
     /**
      * "Diff current file" — the palette's way into the panel: it opens the
      * source-control view with the cursor on the file being edited, so the
@@ -482,16 +576,25 @@ export function createCommands(ctx: AppContext) {
       if (!git.inRepo()) return say('Not a git repository', 'warn')
       const path = workspace.activePath()
       if (!path) return say('No file open', 'warn')
-      const change = git.changes().find(entry => entry.path === path)
+      // Unstaged first: what is being edited is what "diff this file" is about,
+      // and a file with both has one row under each heading.
+      const change =
+        git.changes().find(entry => entry.path === path && entry.area === 'unstaged') ??
+        git.changes().find(entry => entry.path === path)
       if (!change) return say(`No changes in ${relative(rootDir, path)}`)
       panes.showView('git')
       // A folded folder would leave the cursor pointing at a row that is not on
       // screen — the file's own row has to exist before it can be landed on.
-      git.revealChange(change.rel)
-      panes.setGitCursor(
-        git.rows().findIndex(row => row.kind === 'file' && row.change.path === path),
+      git.revealChange(change.area, change.rel)
+      git.setGitCursor(
+        git
+          .rows()
+          .findIndex(
+            row =>
+              row.kind === 'file' && row.change.path === path && row.change.area === change.area,
+          ),
       )
-      showDiff(path)
+      showDiff(path, change.area)
     },
     /**
      * Rebuild the open diff from the repository as it is now. The page is a
@@ -504,9 +607,14 @@ export function createCommands(ctx: AppContext) {
       if (!shown) return
       // The page belongs to a row in the panel: once the change is committed,
       // stashed or reverted the row is gone, and so is the page it opened.
-      const fileStatus = git.gitStatus().get(shown)
+      // Which heading's row it was is the cursor's, so staging the file it shows
+      // moves the page to the staged side rather than closing it.
+      const row = git.rows()[git.gitCursor()]
+      const area = row?.kind === 'file' && row.change.path === shown ? row.change.area : 'unstaged'
+      const entry = git.statusEntries().get(shown)
+      const fileStatus = area === 'staged' ? entry?.staged : entry?.unstaged
       if (!fileStatus) return ctx.workspace.setDiff(null)
-      ctx.workspace.setDiff(diffFileFor(shown, fileStatus))
+      ctx.workspace.setDiff(diffFileFor(shown, fileStatus, area))
     },
     /**
      * Point everything at another branch: the tree marks, the gutter, the
@@ -524,10 +632,12 @@ export function createCommands(ctx: AppContext) {
     gitCommit: () => {
       const repo = git.activeRepo()
       if (repo === null) return say(noRepository(git), 'warn')
-      // A hand-built index is a selection already made, so the picker mirrors
-      // it: staged files start checked, the rest unchecked. With nothing
-      // staged there is no selection to respect and everything starts checked.
+      // A hand-built index is a selection already made — and now that Space
+      // builds one from the panel itself, it is *the* selection: the message
+      // prompt goes straight up and the picker never appears. VS Code's rule,
+      // and the reason staging is worth doing at all.
       const staged = stagedPaths(repo)
+      if (staged.size > 0) return ctx.prompts.setPrompt({ kind: 'commit', paths: null })
       // One repository's changes: a commit is one repository's, and offering
       // another's files would stage nothing and fail on the path.
       //
@@ -539,7 +649,7 @@ export function createCommands(ctx: AppContext) {
           path,
           rel: relative(rootDir, path),
           status: fileStatus,
-          checked: staged.size === 0 || staged.has(path),
+          checked: true,
         }))
         .toSorted((a, b) => a.rel.localeCompare(b.rel))
       if (changes.length === 0) return say('Nothing to commit — working tree clean')

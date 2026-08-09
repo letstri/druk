@@ -103,6 +103,7 @@ export const BINDABLE: Bindable[] = [
   { id: 'view.focus', label: 'Focus tree / editor', defaults: [] },
   { id: 'git.diffFile', label: 'Diff current file', defaults: [] },
   { id: 'git.commit', label: 'Commit…', defaults: [] },
+  { id: 'git.stage', label: 'Stage / unstage selection', defaults: [] },
   { id: 'git.discard', label: 'Discard changes', defaults: [] },
   { id: 'git.push', label: 'Push', defaults: [] },
   { id: 'git.compare', label: 'Compare branches', defaults: [] },

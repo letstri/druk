@@ -12,6 +12,24 @@ import type { ProcessResult } from './process'
 export type LineChange = 'added' | 'modified' | 'deleted'
 export type FileStatus = 'untracked' | 'added' | 'modified' | 'deleted'
 
+/** Which of git's two columns a change is in — the index, or the working tree. */
+export type StageArea = 'staged' | 'unstaged'
+
+/**
+ * One path's change split the way porcelain reports it. Both sides can be set at
+ * once: a file edited after being added is staged *and* unstaged, and the panel
+ * lists it under both headings, as VS Code does.
+ */
+export interface StatusEntry {
+  staged: FileStatus | null
+  unstaged: FileStatus | null
+}
+
+/** The single mark the tree and the gutter want: staged wins when both are set. */
+export function combinedStatus(entry: StatusEntry): FileStatus {
+  return entry.staged ?? entry.unstaged ?? 'modified'
+}
+
 /**
  * Queries run synchronously (`git`) — they sit behind the gutter marks, tree marks
  * and status bar, and finish in milliseconds. Mutations run through `mutate`,
@@ -589,6 +607,9 @@ const STATUS_BY_CODE: Record<string, FileStatus> = {
   'R': 'modified',
   'C': 'modified',
   'U': 'modified',
+  // Typechange — a file became a symlink or back. Without this row the entry
+  // parses to neither side and the file vanishes from the panel entirely.
+  'T': 'modified',
   'D': 'deleted',
 }
 
@@ -746,15 +767,27 @@ export function discardTarget(repo: string, path: string): DiscardTarget | null 
  * every accented or spaced name. `-uall`, or a brand-new directory collapses to a
  * single `?? newdir/` entry and every file inside it shows no mark at all.
  */
-function parsePorcelain(stdout: string, base: string): Map<string, FileStatus> {
-  const statuses = new Map<string, FileStatus>()
+function parsePorcelain(stdout: string, base: string): Map<string, StatusEntry> {
+  const statuses = new Map<string, StatusEntry>()
   for (const entry of parsePorcelainEntries(stdout)) {
-    // Both porcelain columns mean "differs from HEAD"; staged wins when both are set.
-    const code = entry.xy[0] !== ' ' ? entry.xy[0]! : entry.xy[1]!
-    const status = STATUS_BY_CODE[code]
-    if (status) statuses.set(join(base, entry.path), status)
+    // `??` is one code across both columns, not an index state: an untracked
+    // file is nothing the index has heard of, so it is unstaged and only that.
+    const untracked = entry.xy === '??'
+    const staged = untracked ? null : (STATUS_BY_CODE[entry.xy[0]!] ?? null)
+    const unstaged = untracked ? 'untracked' : (STATUS_BY_CODE[entry.xy[1]!] ?? null)
+    if (staged || unstaged) statuses.set(join(base, entry.path), { staged, unstaged })
   }
   return statuses
+}
+
+/** Every path with a change, whichever column it is in. */
+function flatten(entries: Map<string, StatusEntry>): Map<string, FileStatus> {
+  return new Map([...entries].map(([path, entry]) => [path, combinedStatus(entry)]))
+}
+
+/** A diff against a ref knows nothing of the index — every change is a change. */
+function asUnstaged(statuses: Map<string, FileStatus>): Map<string, StatusEntry> {
+  return new Map([...statuses].map(([path, status]) => [path, { staged: null, unstaged: status }]))
 }
 
 /**
@@ -795,6 +828,18 @@ function addUntracked(stdout: string, base: string, into: Map<string, FileStatus
  * mentions — from `ls-files`.
  */
 export function statusMap(cwd: string, ref: string | null = null): Map<string, FileStatus> {
+  return flatten(statusEntries(cwd, ref))
+}
+
+/**
+ * The same status, both columns kept apart — what the source-control panel's
+ * Staged/Changes headings are built from.
+ *
+ * Against a ref there is nothing staged to report: the index is always the
+ * index of HEAD, so a comparison base's changes are all unstaged and the panel
+ * draws one list, which is what it did before staging existed.
+ */
+export function statusEntries(cwd: string, ref: string | null = null): Map<string, StatusEntry> {
   const base = keyBase(cwd)
   if (base === null) return new Map()
   if (ref === null) {
@@ -807,19 +852,19 @@ export function statusMap(cwd: string, ref: string | null = null): Map<string, F
   const statuses = parseNameStatus(diff.stdout, base)
   const others = git(cwd, UNTRACKED_ARGS)
   if (others.status === 0) addUntracked(others.stdout, base, statuses)
-  return statuses
+  return asUnstaged(statuses)
 }
 
 /**
- * `statusMap` off the render thread. The multi-repository refresh runs one of
+ * `statusEntries` off the render thread. The multi-repository refresh runs one of
  * these per repository at once: a folder holding twenty checkouts is forty
  * subprocesses, which synchronously would be a visible freeze on every save and
  * every filesystem event, and in parallel costs about what the slowest one does.
  */
-export async function statusMapAsync(
+export async function statusEntriesAsync(
   cwd: string,
   ref: string | null = null,
-): Promise<Map<string, FileStatus>> {
+): Promise<Map<string, StatusEntry>> {
   const top = await gitAsync(cwd, ['rev-parse', '--show-toplevel'])
   if (top.status !== 0) return new Map()
   const base = sameOrRoot(cwd, top.stdout.trim())
@@ -835,7 +880,7 @@ export async function statusMapAsync(
   if (diff.status !== 0) return new Map()
   const statuses = parseNameStatus(diff.stdout, base)
   if (others.status === 0) addUntracked(others.stdout, base, statuses)
-  return statuses
+  return asUnstaged(statuses)
 }
 
 /**
@@ -927,6 +972,16 @@ export function refText(cwd: string, relPath: string, ref = 'HEAD'): string | nu
   // Normalized like every other text druk reads: the working-tree side of a diff
   // comes from an open buffer, which is always LF, so a blob committed with CRLF
   // would otherwise diff as every line changed.
+  return run.status === 0 ? decodeText(run.stdout).text : null
+}
+
+/**
+ * The staged copy of a path — the index's own blob, which is neither HEAD's nor
+ * the working tree's while a file is half-staged. `git show :./x` is how the
+ * index is addressed; there is no ref name for it.
+ */
+export function indexText(cwd: string, relPath: string): string | null {
+  const run = git(cwd, ['show', `:./${relPath}`], 3000)
   return run.status === 0 ? decodeText(run.stdout).text : null
 }
 
@@ -1259,6 +1314,38 @@ export async function discardChange(target: DiscardTarget): Promise<GitResult> {
   const reset = await mutate(target.repo, ['reset', '-q', 'HEAD', '--', literal(current.path)])
   if (!reset.ok) return reset
   return mutate(target.repo, ['clean', '-q', '-f', '--', literal(current.path)])
+}
+
+/**
+ * Put `paths` in the index. `-A` rather than a plain add: it is what records a
+ * deletion, and a folder row hands this the folder, whose files may include one.
+ */
+export function stagePaths(cwd: string, paths: readonly string[]): Promise<GitResult> {
+  return mutate(cwd, ['add', '-A', '--', ...paths.map(literal)])
+}
+
+/**
+ * Take `paths` back out of the index, leaving the working tree alone.
+ *
+ * `restore --staged` needs something to restore *from*, and on an unborn branch
+ * there is no HEAD to name — every staged file there is a fresh add, so removing
+ * the index entry is the whole of unstaging it.
+ */
+export function unstagePaths(cwd: string, paths: readonly string[]): Promise<GitResult> {
+  const spec = paths.map(literal)
+  return hasCommits(cwd)
+    ? mutate(cwd, ['restore', '--staged', '--', ...spec])
+    : mutate(cwd, ['rm', '-q', '--cached', '-r', '--', ...spec])
+}
+
+/** Whether HEAD names a commit — false on a repository with nothing committed yet. */
+function hasCommits(cwd: string): boolean {
+  return git(cwd, ['rev-parse', '--verify', '--quiet', 'HEAD'], 3000).status === 0
+}
+
+/** Commit whatever is in the index, as `git commit` with no pathspec does. */
+export function commitStaged(cwd: string, message: string): Promise<GitResult> {
+  return mutate(cwd, ['commit', '-m', message])
 }
 
 /** Stage and commit exactly `paths`; anything staged for other paths stays staged. */

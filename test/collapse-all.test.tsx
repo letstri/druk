@@ -85,11 +85,18 @@ describe('the source-control panel collapses everything', () => {
     const at = button(t)!
     await press(t, () => void t.mockMouse.click(at.x, at.y))
 
-    const frame = t.captureCharFrame()
-    expect(frame).not.toContain('one.ts')
-    expect(frame).not.toContain('two.ts')
+    // The panel's own columns alone: the cursor pages the diff, so a file's
+    // name may legitimately sit in the tab strip or the diff header — only the
+    // sidebar must have folded its rows away.
+    const sidebar = t
+      .captureCharFrame()
+      .split('\n')
+      .map(row => row.slice(0, 30))
+      .join('\n')
+    expect(sidebar).not.toContain('one.ts')
+    expect(sidebar).not.toContain('two.ts')
     // The folded row says how many changes it is hiding, and stays pressable.
-    expect(frame).toContain('src')
+    expect(sidebar).toContain('src')
     expect(button(t)).toBeNull()
   })
 })

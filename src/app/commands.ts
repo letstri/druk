@@ -87,6 +87,9 @@ export interface CommandActions {
   gitActivateRow: (row: number) => void
   gitOpenRow: (row: number) => void
   gitDiscard: () => void
+  gitToggleStage: () => void
+  /** Not a command: `App` runs it when the source-control panel opens. */
+  gitLandOnFile: () => void
   /** Not a command: `App` runs it when git or a buffer moves under an open diff. */
   refreshDiff: () => void
   gitCommit: () => void
@@ -195,6 +198,12 @@ export function buildCommands(actions: CommandActions, ctx: CommandContext): Com
         // The only way in: it opens the source-control panel on this file, which
         // is where the cursor pages through every other change.
         { id: 'git.diffFile', label: 'Diff current file', run: actions.gitDiffFile },
+        {
+          id: 'git.stage',
+          label: 'Stage / unstage selection',
+          hint: 'Space in source control',
+          run: actions.gitToggleStage,
+        },
         {
           id: 'git.discard',
           label: 'Discard changes',

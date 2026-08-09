@@ -12,9 +12,6 @@ export function createPanes(tree: Tree, initialSidebar: boolean) {
   const [sidebar, setSidebar] = createSignal(initialSidebar)
   const [focus, setFocus] = createSignal<Focus>(initialSidebar ? 'tree' : 'editor')
   const [view, setView] = createSignal<SidebarView>('files')
-  /** Row under the cursor in the source-control panel; clamped where it is read,
-   * because the change list shrinks under it on every commit. */
-  const [gitCursor, setGitCursor] = createSignal(0)
 
   // Focus is useless without a visible cursor: a file opened from the picker or a
   // tab may sit in a collapsed folder, leaving no row to highlight.
@@ -90,8 +87,6 @@ export function createPanes(tree: Tree, initialSidebar: boolean) {
     toggleExtensionsView,
     toggleReviewView,
     keyPane,
-    gitCursor,
-    setGitCursor,
   }
 }
 

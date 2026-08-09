@@ -89,7 +89,7 @@ test('the picker refuses an empty selection and A toggles everything', async () 
   expect(t.captureCharFrame()).toContain('1 of 1 files')
 }, 20000)
 
-test('a hand-built index prefills the picker, and Enter commits just that', async () => {
+test('a hand-built index is the selection: no picker, and it commits just that', async () => {
   const dir = repo('one\n')
   writeFileSync(join(dir, 'a.ts'), 'two\n')
   execFileSync('git', ['add', 'a.ts'], { cwd: dir })
@@ -97,12 +97,12 @@ test('a hand-built index prefills the picker, and Enter commits just that', asyn
 
   const t = await launch(dir)
   await runCommand(t, 'Commit')
-  const picker = t.captureCharFrame()
-  expect(picker).toContain('1 of 2 files')
-  expect(picker).toContain('[x] M a.ts')
-  expect(picker).toContain('[ ] U b.ts')
+  // Straight to the message — staging is a selection already made, and the
+  // panel's Space is how it is made.
+  const shown = t.captureCharFrame()
+  expect(shown).toContain('Commit message')
+  expect(shown).not.toContain('of 2 files')
 
-  await press(t, i => i.pressEnter())
   await press(t, i => void i.typeText('staged only'))
   await press(t, i => i.pressEnter())
 

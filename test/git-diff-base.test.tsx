@@ -70,6 +70,6 @@ test('comparing against a branch shows work that is already committed', async ()
   await untilFrame(t, 'beta on feature')
 
   await runCommand(t, 'Compare against HEAD')
-  await untilFrame(t, '◆ review')
+  await untilFrame(t, 'no changes')
   expect(frame(t)).not.toContain('vs main')
 }, 20000)
