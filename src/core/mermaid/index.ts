@@ -18,7 +18,7 @@ export function renderMermaid(source: string): Line[] | null {
   return renderDiagram(parseMermaid(source))
 }
 
-export function renderDiagram(diagram: Diagram): Line[] | null {
+function renderDiagram(diagram: Diagram): Line[] | null {
   switch (diagram.kind) {
     case 'graph': {
       // A header with nothing under it is a fence being typed, not a diagram.

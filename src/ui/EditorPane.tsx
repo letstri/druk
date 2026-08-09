@@ -256,7 +256,7 @@ function allowSelectionOnlyInEditor(el: TextareaRenderable) {
  * The scrollbar is measured against the pane, so it is wrong until it is read
  * again at the new size.
  */
-export function afterResize(el: TextareaRenderable, after: () => void) {
+function afterResize(el: TextareaRenderable, after: () => void) {
   const host = el as unknown as { onResize: (width: number, height: number) => void }
   const resize = host.onResize.bind(host)
   host.onResize = (width: number, height: number) => {

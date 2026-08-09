@@ -24,7 +24,7 @@ export interface Session {
   sidebar: boolean
 }
 
-export const EMPTY_SESSION: Session = {
+const EMPTY_SESSION: Session = {
   tabs: [],
   activePath: null,
   expanded: [],

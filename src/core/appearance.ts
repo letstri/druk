@@ -67,7 +67,7 @@ const PROBES: Record<string, Probe[]> = {
   ],
 }
 
-export function parseEnvAppearance(value: string | undefined): Appearance | null {
+function parseEnvAppearance(value: string | undefined): Appearance | null {
   const wanted = value?.trim().toLowerCase()
   return wanted === 'dark' || wanted === 'light' ? wanted : null
 }

@@ -52,7 +52,7 @@ const MAX_ASSET_BYTES = 8 * 1024 * 1024
 const ASSET_TIMEOUT_MS = 30_000
 
 /** How old the cached catalog may be before it is fetched again. */
-export const CATALOG_MAX_AGE_MS = 6 * 60 * 60 * 1000
+const CATALOG_MAX_AGE_MS = 6 * 60 * 60 * 1000
 
 /** One extension as the catalog lists it — enough to show and to match, never to run. */
 export interface MarketEntry {

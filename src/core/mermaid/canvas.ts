@@ -132,6 +132,3 @@ export class Canvas {
 }
 
 /** Columns a line of segments occupies. */
-export function lineWidth(line: Line): number {
-  return line.reduce((width, segment) => width + [...segment.text].length, 0)
-}

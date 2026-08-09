@@ -110,7 +110,7 @@ function headers(kind: ForgeKind, token: string | null): Record<string, string> 
 }
 
 /** Host and path of a remote, whichever of git's four spellings it is written in. */
-export function parseRemote(url: string): { host: string; path: string; https: boolean } | null {
+function parseRemote(url: string): { host: string; path: string; https: boolean } | null {
   const trimmed = url
     .trim()
     .replace(/\/+$/, '')
@@ -135,7 +135,7 @@ export function parseRemote(url: string): { host: string; path: string; https: b
 }
 
 /** Which forge a host is, by name alone. Null when the name says nothing. */
-export function kindForHost(host: string): ForgeKind | null {
+function kindForHost(host: string): ForgeKind | null {
   const name = host.toLowerCase()
   if (name === 'github.com' || name.startsWith('github.')) return 'github'
   if (name === 'bitbucket.org') return 'bitbucket'

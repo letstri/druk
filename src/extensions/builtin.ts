@@ -40,7 +40,7 @@ const MANIFESTS: unknown[] = [
 ]
 
 /** Where a built-in says it came from, since there is no file to point at. */
-export const BUILTIN_SOURCE = 'built in'
+const BUILTIN_SOURCE = 'built in'
 
 let parsed: Extension[] | null = null
 

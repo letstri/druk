@@ -19,7 +19,7 @@
 const TAB_CELLS = 2
 
 /** The cell character column `col` of `line` is drawn at. */
-export function cellColumn(line: string, col: number): number {
+function cellColumn(line: string, col: number): number {
   const stop = Math.min(col, line.length)
   let cells = col - stop // a column past the end of the line counts as itself
   for (let at = 0; at < stop; at++) cells += line.charCodeAt(at) === 9 ? TAB_CELLS : 1
