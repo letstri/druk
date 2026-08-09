@@ -14,17 +14,54 @@ const send = (message: object) => process.stdout.write(encodeMessage(message))
 // Chatter on stderr, the way real servers do — the status page's log shows it.
 process.stderr.write('fake-lsp standing by\n')
 
+/**
+ * A message no list row can hold, so the problems modal's detail block has
+ * something to spell out. As wordy as a real linter's help text, which is what
+ * makes a one-row list unreadable in the first place.
+ */
+const NAG = `this is a very wordy diagnostic help: real servers append the rule they
+  applied and the fix they suggest to the sentence, which is why one row of a
+  list is never enough to read one`
+
+/**
+ * One long sentence with no advice in it: `headline` has nothing to drop, so
+ * this is the message only the terminal's width can shorten — the other half of
+ * what earns the inline note its "there is more" hint.
+ */
+const NOT_FOUND = `Cannot find module '@fake/core' or its corresponding type declarations`
+
 const publish = (uri: string, text: string) => {
   const diagnostics: Diagnostic[] = []
   const lines = text.split('\n')
   for (let line = 0; line < lines.length; line++) {
+    const long = lines[line]!.indexOf('huh')
+    if (long >= 0) {
+      diagnostics.push({
+        range: { start: { line, character: long }, end: { line, character: long + 3 } },
+        severity: 1,
+        message: NOT_FOUND,
+        source: 'fake',
+        code: 2307,
+      })
+    }
     const col = lines[line]!.indexOf('oops')
-    if (col < 0) continue
+    if (col >= 0) {
+      diagnostics.push({
+        range: { start: { line, character: col }, end: { line, character: col + 4 } },
+        severity: 1,
+        message: 'found oops',
+        source: 'fake',
+        code: 'no-oops',
+      })
+    }
+    const nag = lines[line]!.indexOf('nag')
+    if (nag < 0) continue
     diagnostics.push({
-      range: { start: { line, character: col }, end: { line, character: col + 4 } },
-      severity: 1,
-      message: 'found oops',
+      range: { start: { line, character: nag }, end: { line, character: nag + 3 } },
+      severity: 2,
+      message: NAG,
       source: 'fake',
+      code: 'wordy',
     })
   }
   send({ jsonrpc: '2.0', method: 'textDocument/publishDiagnostics', params: { uri, diagnostics } })

@@ -1,4 +1,4 @@
-import { basename } from 'node:path'
+import { basename, relative } from 'node:path'
 
 import { createEffect, createMemo, createSignal, Show } from 'solid-js'
 import type { Accessor } from 'solid-js'
@@ -7,6 +7,7 @@ import type { Branch } from '../core/git'
 import { buildQuery, planProjectReplace, replaceAll, replaceMatch } from '../core/search'
 import type { Match, SearchOptions } from '../core/search'
 import type { UpdateInfo } from '../core/update'
+import { SEVERITY_RANK } from '../lsp/protocol'
 import { BranchPicker } from '../ui/BranchPicker'
 import { ChoiceModal } from '../ui/ChoiceModal'
 import { CommandPalette } from '../ui/CommandPalette'
@@ -17,6 +18,8 @@ import { ConfirmModal } from '../ui/ConfirmModal'
 import { FilePicker } from '../ui/FilePicker'
 import { HelpOverlay } from '../ui/HelpOverlay'
 import { KeyPeek } from '../ui/KeyPeek'
+import { ProblemsModal } from '../ui/ProblemsModal'
+import type { ProblemEntry } from '../ui/ProblemsModal'
 import { PromptModal } from '../ui/PromptModal'
 import { MIN_QUERY, SearchPanel } from '../ui/SearchPanel'
 import type { SearchScope } from '../ui/SearchPanel'
@@ -27,6 +30,8 @@ import type { Comparison } from './comparison'
 import type { AppContext } from './context'
 import type { EditorBridge } from './editor'
 import type { Git } from './git'
+import { problemsOn } from './lsp'
+import type { Problem } from './lsp'
 import type { Panes } from './panes'
 import type { PromptState } from './prompts'
 import { KIND_CHOICES } from './review'
@@ -35,6 +40,9 @@ import type { Workspace } from './workspace'
 
 type InstallServerPrompt = Extract<Prompt, { kind: 'installServer' }>
 type ReviewKindPrompt = Extract<Prompt, { kind: 'reviewKind' }>
+
+/** What the problems modal is showing: every open file's, or the cursor's line. */
+export type ProblemsScope = 'all' | 'cursor'
 
 /** The active search toggles, named in the confirm so what runs is what was agreed to. */
 const searchFlags = (options: SearchOptions) => {
@@ -79,8 +87,13 @@ export function createOverlays(deps: {
     index: number
   } | null>(null)
   const [update, setUpdate] = createSignal<UpdateInfo | null>(null)
-  /** The problems list, jumping to a diagnostic on Enter. */
-  const [problemsOpen, setProblemsOpen] = createSignal(false)
+  /**
+   * The problems list, jumping to a diagnostic on Enter. `cursor` is the same
+   * modal over the cursor's line alone — what the inline note was too narrow to
+   * say, which is the only way to read a server's whole sentence in a terminal
+   * that has no hover.
+   */
+  const [problemsOpen, setProblemsOpen] = createSignal<ProblemsScope | null>(null)
   /** True while a modal or overlay owns the keyboard. One list, two readers. */
   const overlay = createMemo(
     () =>
@@ -111,15 +124,22 @@ export function createOverlays(deps: {
 
   /**
    * What the search box opens carrying. A selection wins over the remembered
-   * query — it is this moment's intent against the last one's — and only the
-   * remembered query brings its row back, since an index into another search's
-   * results points at nothing in particular.
+   * query — it is this moment's intent against the last one's — and brings back
+   * neither row nor folds, since an index into another search's results points
+   * at nothing in particular. The flags stay either way: they are a mode the
+   * user set, not part of any one query.
    */
-  const searchOpensWith = (scope: SearchScope) => {
+  const searchOpensWith = (scope: SearchScope): SearchMemory => {
+    const last = lastSearch()[scope]
+    const options = last?.options ?? {}
     const selected = selection()
-    if (selected) return { query: selected, index: 0 }
-    const last = scope === 'file' ? lastFileSearch() : null
-    return { query: last?.query ?? '', index: last?.index ?? 0 }
+    if (selected) return { query: selected, options, index: 0, folded: [] }
+    return {
+      query: last?.query ?? '',
+      options,
+      index: last?.index ?? 0,
+      folded: last?.folded ?? [],
+    }
   }
 
   const jumpTo = (match: Match) => {
@@ -166,45 +186,39 @@ export function OverlayStack(props: { ctx: AppContext; commands: Accessor<Comman
   const { status, settings, panes, git, workspace, prompts, overlays, editor, lsp } = app
   const { say } = status
 
-  /** Rows before the cap; the last is capped so ChoiceModal never overflows. */
-  const PROBLEM_ROWS_MAX = 50
-
-  /** Every open file's problems flattened for the list, in tab order. */
-  const problemRows = createMemo(() => {
-    const glyph = { error: '●', warning: '▲', info: '○', hint: '○' }
-    const rows: { path: string; line: number; col: number; label: string }[] = []
-    for (const path of workspace.tabs()) {
-      for (const problem of lsp.problems[path] ?? []) {
-        rows.push({
-          path,
-          line: problem.line,
-          col: problem.col,
-          label:
-            `${basename(path)}:${problem.line + 1}:${problem.col + 1}  ` +
-            `${glyph[problem.severity]} ${problem.message.replaceAll(/\s+/g, ' ')}`,
-        })
-      }
-    }
-    return rows
+  const entry = (problem: Problem): ProblemEntry => ({
+    ...problem,
+    rel: relative(app.rootDir, problem.path) || basename(problem.path),
   })
 
-  /** ChoiceModal draws every row it is given, so a pathological file is capped. */
-  const problemChoices = createMemo(() => {
-    const rows = problemRows()
-    const shown = rows.slice(0, PROBLEM_ROWS_MAX).map((row, at) => ({
-      id: String(at),
-      label: row.label,
-    }))
-    if (rows.length > PROBLEM_ROWS_MAX) {
-      shown.push({ id: 'more', label: `…and ${rows.length - PROBLEM_ROWS_MAX} more` })
+  /**
+   * What the modal is listing: the cursor's line alone, or every open file's
+   * problems in tab order with errors first — a hundred style hints are worth
+   * less than the one type error under them, and the list opens on the top row.
+   */
+  const problemRows = createMemo<ProblemEntry[]>(() => {
+    const path = workspace.activePath()
+    if (overlays.problemsOpen() === 'cursor') {
+      const list = path ? lsp.problems[path] : undefined
+      return (list ? problemsOn(list, editor.cursor().line) : []).map(entry)
     }
-    return shown
+    const rows: ProblemEntry[] = []
+    for (const tab of workspace.tabs()) {
+      for (const problem of lsp.problems[tab] ?? []) rows.push(entry(problem))
+    }
+    return rows.toSorted(
+      (a, b) =>
+        SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity] ||
+        a.rel.localeCompare(b.rel) ||
+        a.line - b.line ||
+        a.col - b.col,
+    )
   })
 
   // The list closes itself when the last problem is fixed while it is up —
   // otherwise `overlay()` would keep the keyboard with a modal no longer there.
   createEffect(() => {
-    if (overlays.problemsOpen() && problemRows().length === 0) overlays.setProblemsOpen(false)
+    if (overlays.problemsOpen() && problemRows().length === 0) overlays.setProblemsOpen(null)
   })
 
   // A download answers the confirm modal below; only an npm install has a
@@ -400,15 +414,11 @@ export function OverlayStack(props: { ctx: AppContext; commands: Accessor<Comman
         />
       </Show>
       <Show when={overlays.problemsOpen()}>
-        <ChoiceModal
-          title="Problems"
-          message="Enter jumps to the diagnostic."
-          choices={problemChoices()}
-          onPick={id => {
-            const row = problemRows()[Number(id)]
-            overlays.setProblemsOpen(false)
-            // The "…and N more" row is a notice, not a destination.
-            if (!row || id === 'more') return
+        <ProblemsModal
+          problems={problemRows()}
+          title={overlays.problemsOpen() === 'cursor' ? 'Problem at cursor' : 'Problems'}
+          onPick={row => {
+            overlays.setProblemsOpen(null)
             // `openFile` closes the page, but a problem in the open file skips it.
             workspace.setDiff(null)
             workspace.setPage(null)
@@ -416,7 +426,7 @@ export function OverlayStack(props: { ctx: AppContext; commands: Accessor<Comman
             editor.requestGoto(row.line, row.col)
             panes.setFocus('editor')
           }}
-          onCancel={() => overlays.setProblemsOpen(false)}
+          onCancel={() => overlays.setProblemsOpen(null)}
         />
       </Show>
       <Show when={prompts.prompt()?.kind === 'discardChange' ? null : workspace.conflict()}>

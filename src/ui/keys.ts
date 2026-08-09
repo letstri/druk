@@ -82,6 +82,13 @@ export const KEYS: KeyInfo[] = [
     where: 'editor',
     ids: ['goto.definition', 'goto.file'],
   },
+  {
+    key: `Ctrl+${ALT}+I`,
+    label: 'Show problem at cursor',
+    section: 'General',
+    where: 'editor',
+    ids: ['problems.detail'],
+  },
   { key: 'Ctrl+Q', label: 'Quit', section: 'General', where: 'all', ids: ['quit'] },
 
   { key: 'Ctrl+S', label: 'Save file', section: 'Editing', where: 'editor', ids: ['save'] },
@@ -339,6 +346,14 @@ export interface KeyOverride {
 const [overrides, setOverrides] = createSignal<Record<string, KeyOverride>>({})
 
 export { setOverrides as setKeyOverrides }
+
+/**
+ * The chord one command answers to, for a surface that has to name a key in its
+ * own text rather than in the key table — the diagnostic note beside a line says
+ * how to read the rest of itself. Empty before the overrides are pushed and for
+ * a command with no key at all, which callers draw nothing for.
+ */
+export const chordFor = (id: string): string => overrides()[id]?.key ?? ''
 
 const UNBOUND = '—'
 

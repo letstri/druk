@@ -114,6 +114,9 @@ export const BINDABLE: Bindable[] = [
   { id: 'review.note', label: 'Note this line for a review', defaults: [`Ctrl+${ALT}+A`] },
   { id: 'review.fetch', label: 'Fetch pull request comments', defaults: [] },
   { id: 'problems.list', label: 'List problems', defaults: [] },
+  // I for inspect: a terminal has no hover, so this chord is the only way to read
+  // the whole of a diagnostic the inline note beside the line had to shorten.
+  { id: 'problems.detail', label: 'Show problem at cursor', defaults: [`Ctrl+${ALT}+I`] },
   { id: 'problems.next', label: 'Next problem', defaults: [] },
   { id: 'problems.prev', label: 'Previous problem', defaults: [] },
   { id: 'problems.restart', label: 'Restart language servers', defaults: [] },

@@ -71,6 +71,7 @@ export interface CommandActions {
   openSettings: () => void
   openProjectSettings: () => void
   problemsList: () => void
+  problemsAtCursor: () => void
   problemsNext: () => void
   problemsPrev: () => void
   restartLsp: () => void
@@ -298,6 +299,12 @@ export function buildCommands(actions: CommandActions, ctx: CommandContext): Com
       label: 'Problems',
       children: [
         { id: 'problems.list', label: 'List problems', run: actions.problemsList },
+        {
+          id: 'problems.detail',
+          label: 'Show problem at cursor',
+          hint: `Ctrl+${ALT}+I`,
+          run: actions.problemsAtCursor,
+        },
         { id: 'problems.next', label: 'Next problem', run: actions.problemsNext },
         { id: 'problems.prev', label: 'Previous problem', run: actions.problemsPrev },
         {

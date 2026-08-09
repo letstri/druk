@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test'
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
+import { ALT } from '../src/ui/keys'
 import {
   fixture,
   launch,
@@ -66,11 +67,113 @@ test('diagnostics reach the status bar, the problems list, and next-problem', as
   await untilFrame(t, 'found oops', LSP_WAIT)
 }, 30_000)
 
+test('the problems list carries the rule, the path and the whole message', async () => {
+  const dir = fixture({ 'src/deep/a.ts': 'const a = 1\nconst b = 2\n' })
+  const t = await launch(
+    dir,
+    { lsp: true, lspServers: { typescript: [process.execPath, FAKE], eslint: [], oxlint: [] } },
+    { width: 110, height: 34 },
+    { openFile: join(dir, 'src/deep/a.ts') },
+  )
+
+  // A warning on the first line and an error on the second, so the list has to
+  // put them in an order of its own rather than the file's.
+  await press(t, input => void input.typeText('nag'))
+  await press(t, input => input.pressArrow('down'))
+  await press(t, input => void input.typeText('oops'))
+  await untilFrame(t, '● 1', LSP_WAIT)
+
+  await runCommand(t, 'List problems')
+  await untilFrame(t, 'found oops', LSP_WAIT)
+  const list = t.captureCharFrame()
+  // The severity tally, the rule that fired, and the path from the project root
+  // rather than the bare file name two directories can share.
+  expect(list).toContain('1 error · 1 warning')
+  expect(list).toContain('fake(no-oops)')
+  expect(list).toContain('src/deep/a.ts:2:')
+  // The error is above the warning whatever order the file has them in. Counted
+  // from the modal's heading: the editor's own inline text is on screen above it.
+  const rows = list.split('\n')
+  const inList = rows.slice(rows.findIndex(row => row.includes('1 error · 1 warning')))
+  expect(inList.findIndex(row => row.includes('found oops'))).toBeLessThan(
+    inList.findIndex(row => row.includes('this is a very wordy')),
+  )
+
+  // The wordy one's tail fits in no row, so it is only readable once the
+  // selection reaches it and the detail block spells the message out.
+  expect(list).not.toContain('never enough to read one')
+  await press(t, input => input.pressArrow('down'))
+  await untilFrame(t, 'never enough to read one', LSP_WAIT)
+  expect(t.captureCharFrame()).toContain('warning · src/deep/a.ts:1:')
+}, 30_000)
+
+test('the inline note is what broke, and the whole of it is one chord away', async () => {
+  const dir = fixture({ 'a.ts': 'const a = 1\n' })
+  const t = await launch(
+    dir,
+    { lsp: true, lspServers: { typescript: [process.execPath, FAKE], eslint: [], oxlint: [] } },
+    { width: 120, height: 24 },
+    { openFile: join(dir, 'a.ts') },
+  )
+
+  await press(t, input => void input.typeText('nag'))
+  await untilFrame(t, '▲ 1', LSP_WAIT)
+  // The server's advice is dropped from the row beside the code — an ellipsis
+  // says there is more, and the chord that shows the rest is named on the row
+  // the caret is on, which is the only way to find a key nobody has been told.
+  const row = t
+    .captureCharFrame()
+    .split('\n')
+    .find(line => line.includes('nagconst'))
+  expect(row).toContain('this is a very wordy diagnostic…')
+  expect(row).not.toContain('real servers append')
+  expect(row).toContain(`Ctrl+${ALT}+I`)
+
+  await runCommand(t, 'Show problem at cursor')
+  await untilFrame(t, 'Problem at cursor', LSP_WAIT)
+  expect(t.captureCharFrame()).toContain('list is never enough to read one')
+
+  // A line with nothing on it says so rather than opening an empty modal — and
+  // the hint goes with the caret, so it is not repeated down the whole file.
+  await pressEscape(t)
+  await untilGone(t, 'Problem at cursor')
+  await press(t, input => input.pressArrow('down'))
+  expect(
+    t
+      .captureCharFrame()
+      .split('\n')
+      .find(line => line.includes('nagconst')),
+  ).not.toContain(`Ctrl+${ALT}+I`)
+  await runCommand(t, 'Show problem at cursor')
+  await untilFrame(t, 'No problem on this line', LSP_WAIT)
+}, 30_000)
+
+test('a message only the width shortened gets the hint too', async () => {
+  const dir = fixture({ 'a.ts': 'const a = 1\n' })
+  // Wide enough for the note to be drawn, narrow enough for it to be cut: the
+  // message carries no advice, so nothing but the terminal shortens it.
+  const t = await launch(
+    dir,
+    { lsp: true, lspServers: { typescript: [process.execPath, FAKE], eslint: [], oxlint: [] } },
+    { width: 80, height: 12 },
+    { openFile: join(dir, 'a.ts') },
+  )
+
+  await press(t, input => void input.typeText('huh'))
+  await untilFrame(t, 'Cannot find module', LSP_WAIT)
+  const row = t
+    .captureCharFrame()
+    .split('\n')
+    .find(line => line.includes('huhconst'))
+  expect(row).toContain('…')
+  expect(row).toContain(`Ctrl+${ALT}+I`)
+}, 30_000)
+
 test('the settings page shows the LSP rows and the master toggle flips', async () => {
   const dir = fixture({ 'a.ts': 'const a = 1\n' })
   // Tall enough for every section: the page windows its rows to what it can draw,
   // and the language-server rows are the last of them.
-  const t = await launch(dir, {}, { height: 46 })
+  const t = await launch(dir, {}, { height: 47 })
 
   await runCommand(t, 'Settings')
   await untilFrame(t, 'LSP diagnostics')

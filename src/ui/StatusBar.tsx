@@ -6,6 +6,7 @@ import { MODE_LABELS } from '../editor/vim'
 import type { VimMode } from '../editor/vim'
 import { ui } from '../themes'
 import { hintsFor } from './keys'
+import { SEVERITY_GLYPH } from './severity'
 import { cut } from './text'
 
 export type Tone = 'info' | 'warn' | 'error'
@@ -101,8 +102,8 @@ export function StatusBar(props: StatusBarProps) {
     const problems = props.problems
     if (!problems) return ''
     const parts: string[] = []
-    if (problems.errors > 0) parts.push(`● ${problems.errors}`)
-    if (problems.warnings > 0) parts.push(`▲ ${problems.warnings}`)
+    if (problems.errors > 0) parts.push(`${SEVERITY_GLYPH.error} ${problems.errors}`)
+    if (problems.warnings > 0) parts.push(`${SEVERITY_GLYPH.warning} ${problems.warnings}`)
     return parts.join(' ')
   }
 

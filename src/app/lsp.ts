@@ -20,8 +20,8 @@ import {
 } from '../lsp/install'
 import type { PackageManager } from '../lsp/install'
 import { projectCommand } from '../lsp/project'
-import { isUnnecessary, severityOf } from '../lsp/protocol'
-import type { CompletionItem, Diagnostic, ProblemSeverity } from '../lsp/protocol'
+import { isUnnecessary, SEVERITY_RANK, severityOf } from '../lsp/protocol'
+import type { CompletionItem, Diagnostic, Problem } from '../lsp/protocol'
 import { installHint, resolveServers, servers as serverSpecs } from '../lsp/servers'
 import type { FetchableInstall, ResolvedServer } from '../lsp/servers'
 import type { ServerLogLine, ServerView } from '../lsp/status'
@@ -30,20 +30,7 @@ import type { Settings } from './settings'
 import type { Status } from './status'
 import type { Workspace } from './workspace'
 
-export interface Problem {
-  path: string
-  /** 0-based, like every position the editor bridge speaks. */
-  line: number
-  col: number
-  /** Range end, for the underline; equal to the start when the server sent none. */
-  endLine: number
-  endCol: number
-  severity: ProblemSeverity
-  /** LSP's Unnecessary tag: unused code, dimmed instead of underlined. */
-  unnecessary: boolean
-  message: string
-  source?: string
-}
+export type { Problem } from '../lsp/protocol'
 
 /**
  * Keystrokes a didChange waits for more of. Higher than the highlighter's 16ms:
@@ -164,6 +151,7 @@ export function createLsp(deps: {
         unnecessary: isUnnecessary(diagnostic),
         message: diagnostic.message,
         source: diagnostic.source,
+        code: diagnostic.code === undefined ? undefined : String(diagnostic.code),
       })),
     )
     bySource.set(path, senders)
@@ -663,6 +651,13 @@ export function wireLspEffects(deps: { lsp: Lsp; settings: Settings; workspace: 
  * The problem at or after (`direction` 1) / before (−1) the cursor, wrapping
  * around the file. `list` is sorted by position, as `createLsp` stores it.
  */
+/** Every problem on `line`, worst first — what the cursor is standing in. */
+export function problemsOn(list: Problem[], line: number): Problem[] {
+  return list
+    .filter(problem => problem.line === line)
+    .toSorted((a, b) => SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity] || a.col - b.col)
+}
+
 export function problemFrom(
   list: Problem[],
   line: number,

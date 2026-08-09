@@ -46,9 +46,12 @@ import {
   wordStart,
 } from '../lsp/completion'
 import type { CompletionReply } from '../lsp/completion'
+import { headline } from '../lsp/protocol'
 import type { CompletionItem, ProblemSeverity } from '../lsp/protocol'
 import { paintedTheme, ui } from '../themes'
 import { CompletionMenu, MENU_ROWS, menuWidth } from './CompletionMenu'
+import { chordFor } from './keys'
+import { SEVERITY_COLOR } from './severity'
 import { cut, wrapText } from './text'
 import { useKeys } from './useKeys'
 import { Welcome } from './Welcome'
@@ -181,13 +184,6 @@ const CHANGE_COLORS: Record<LineChange, () => string> = {
   added: () => ui.gitAdded,
   modified: () => ui.gitModified,
   deleted: () => ui.gitDeleted,
-}
-
-const PROBLEM_COLORS: Record<ProblemSeverity, () => string> = {
-  error: () => ui.error,
-  warning: () => ui.dirty,
-  info: () => ui.dim,
-  hint: () => ui.dim,
 }
 
 /** A track row's color: the mark's own, or the background where the row is bare. */
@@ -386,6 +382,8 @@ export function EditorPane(props: EditorPaneProps) {
 
   const [editorEl, setEditorEl] = createSignal<TextareaRenderable | null>(null)
   const [cursorLine, setCursorLine] = createSignal(0)
+  /** The caret's *buffer* row, where `cursorLine` is the wrapped row it draws on. */
+  const [cursorRow, setCursorRow] = createSignal(0)
 
   // ── Folding ───────────────────────────────────────────────────────────────
   /**
@@ -698,21 +696,41 @@ export function EditorPane(props: EditorPaneProps) {
     // buffer row → what to draw — the review marks first, so a diagnostic on the
     // same line wins it. Keyed by *row*: with a fold open, the file's line and
     // the line the buffer draws are two different numbers.
-    const wanted = new Map<number, { text: string; color: string }>()
+    const wanted = new Map<
+      number,
+      { text: string; color: string; more?: boolean; chord?: string }
+    >()
     if (props.reviewText) {
       // The row the card is open on says the same thing twice otherwise — the
       // suffix is the short form of exactly what the box below it spells out.
       const opened = reviewCard()?.row
+      // A remark too long for its row is read in the panel, which opens the card
+      // under the line; the chord is the only way in that is not the sidebar.
+      const panel = chordFor('view.review')
       for (const [row, mark] of displayReviews()) {
         if (row === opened) continue
-        wanted.set(row, { text: `${mark.label}: ${mark.text}`, color: reviewNoteColor(mark.draft) })
+        wanted.set(row, {
+          text: `${mark.label}: ${mark.text}`,
+          color: reviewNoteColor(mark.draft),
+          chord: panel,
+        })
       }
     }
+    // The chord that reads the whole diagnostic, named after a note that could
+    // not say all of it — on the cursor's row alone, since a column of the same
+    // hint down the file is noise and the row being read is the one that needs
+    // it. Nothing to advertise when the command has been unbound.
+    const chord = chordFor('problems.detail')
     if (props.problemText) {
       for (const [row, problem] of displayProblems()) {
+        // What broke, not how to fix it: the whole of it is a keystroke away,
+        // and a row of a server's advice says nothing about this line.
+        const said = headline(problem.message)
         wanted.set(row, {
-          text: problem.message,
+          text: said.more ? `${said.text}…` : said.text,
           color: PROBLEM_NOTE_COLORS[problem.severity](),
+          more: said.more,
+          chord,
         })
       }
     }
@@ -721,12 +739,30 @@ export function EditorPane(props: EditorPaneProps) {
     for (const [row, note] of wanted) {
       const slot = noteSlot(row)
       if (!slot) continue
-      notes.push({
-        top: slot.top,
-        left: slot.left,
-        text: cut(note.text.replaceAll(/\s+/g, ' '), slot.room),
-        color: note.color,
-      })
+      const flat = note.text.replaceAll(/\s+/g, ' ')
+      // Cut by the terminal's width counts as well as cut by `headline`: a
+      // message that says all of itself needs no key, and one the pane ran out
+      // of columns for is exactly the case the chord exists for.
+      const hint =
+        note.chord &&
+        row === cursorRow() &&
+        (note.more || flat.length > slot.room) &&
+        // A hint that leaves no room for the message is two truncations, not one.
+        slot.room - note.chord.length > 12
+          ? ` ${note.chord}`
+          : ''
+      const text = cut(flat, slot.room - hint.length)
+      notes.push({ top: slot.top, left: slot.left, text, color: note.color })
+      // Its own renderable rather than a suffix on that string: the hint is not
+      // part of what the server said, and a shared colour would read as if it were.
+      if (hint) {
+        notes.push({
+          top: slot.top,
+          left: slot.left + text.length,
+          text: hint,
+          color: ui.faint,
+        })
+      }
     }
     return notes
   })
@@ -989,7 +1025,7 @@ export function EditorPane(props: EditorPaneProps) {
     }
     // Last of the three: a broken line is worth more than a remark about it.
     for (const [line, problem] of displayProblems()) {
-      signs.set(line, { before: '●', beforeColor: PROBLEM_COLORS[problem.severity]() })
+      signs.set(line, { before: '●', beforeColor: SEVERITY_COLOR[problem.severity]() })
     }
     // The sign column only widens the gutter while a sign exists, so the first
     // mark or diagnostic used to shift the whole file one column right — and
@@ -1098,6 +1134,7 @@ export function EditorPane(props: EditorPaneProps) {
     cursor.line = at.logicalRow
     cursor.col = at.logicalCol
     setCursorLine(at.visualRow)
+    setCursorRow(at.logicalRow)
     // Reported in the file's own lines: the status bar, the language server and
     // the visit history all mean the line someone would go to, not the row a
     // fold happens to have left it on.
@@ -2448,7 +2485,7 @@ export function EditorPane(props: EditorPaneProps) {
               <Index each={problemTrack()}>
                 {severity => (
                   <text
-                    fg={trackColor(PROBLEM_COLORS, severity())}
+                    fg={trackColor(SEVERITY_COLOR, severity())}
                     bg={ui.bg}
                     content={severity() ? '•' : ' '}
                   />

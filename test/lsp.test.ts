@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import { MARKET_DIR } from '../scripts/extensions'
-import { problemFrom } from '../src/app/lsp'
+import { problemFrom, problemsOn } from '../src/app/lsp'
 import type { Problem } from '../src/app/lsp'
 import { loadExtensions } from '../src/extensions'
 import { styleIdForGroup } from '../src/languages/highlight'
@@ -18,7 +18,7 @@ import {
 } from '../src/lsp/install'
 import { projectCommand, typescriptMajor } from '../src/lsp/project'
 import type { Diagnostic, RpcMessage } from '../src/lsp/protocol'
-import { isUnnecessary, severityOf } from '../src/lsp/protocol'
+import { headline, isUnnecessary, severityOf } from '../src/lsp/protocol'
 import { installHint, resolveServer, resolveServers } from '../src/lsp/servers'
 import { createDecoder, encodeMessage } from '../src/lsp/transport'
 
@@ -419,6 +419,40 @@ describe('problemFrom', () => {
     expect(problemFrom(list, 5, 9, -1)).toEqual(problem(5, 0))
     expect(problemFrom(list, 1, 4, -1)).toEqual(problem(5, 9))
     expect(problemFrom([], 0, 0, -1)).toBeNull()
+  })
+
+  test('collects one line, worst first', () => {
+    const warn = { ...problem(5, 2), severity: 'warning' as const }
+    expect(problemsOn([problem(1, 4), warn, problem(5, 9)], 5)).toEqual([problem(5, 9), warn])
+    expect(problemsOn(list, 2)).toEqual([])
+  })
+})
+
+describe('headline', () => {
+  test('drops the advice a server appends to the sentence', () => {
+    expect(headline('Expected a function expression. help: Enforce the consistent use')).toEqual({
+      text: 'Expected a function expression.',
+      more: true,
+    })
+    expect(headline('Dependency cycle detected Help: Refactor to remove the cycle')).toEqual({
+      text: 'Dependency cycle detected',
+      more: true,
+    })
+  })
+
+  test('keeps a message that is only what broke, and flattens it', () => {
+    expect(headline('Type  X\tis not\nassignable')).toEqual({
+      text: 'Type X is not',
+      more: true,
+    })
+    expect(headline('Cannot find name a')).toEqual({ text: 'Cannot find name a', more: false })
+  })
+
+  test('leaves a colon that is not advice alone', () => {
+    expect(headline("Property 'help' is missing: add it")).toEqual({
+      text: "Property 'help' is missing: add it",
+      more: false,
+    })
   })
 })
 

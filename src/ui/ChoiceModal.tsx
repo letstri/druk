@@ -57,9 +57,9 @@ export function ChoiceModal(props: ChoiceModalProps) {
             <box flexDirection="row" backgroundColor={bg()}>
               <text fg={ui.dirty} bg={bg()} flexShrink={0} content={active() ? '▌ ' : '  '} />
               <box flexGrow={1} backgroundColor={bg()}>
-                {/* One row each, whatever the label says. The problems list puts a
-                    server's own diagnostic text here, and fifty of those wrapped
-                    to three lines apiece is a modal several screens tall. */}
+                {/* One row each, whatever the label says: a choice carrying a path
+                    or a server's own text wraps to three lines otherwise, and a
+                    handful of those is a modal several screens tall. */}
                 <text
                   wrapMode="none"
                   fg={active() ? ui.text : ui.dim}

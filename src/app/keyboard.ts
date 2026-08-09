@@ -102,6 +102,7 @@ export function installKeyboard(ctx: AppContext, actions: CommandActions) {
     'git.push': actions.gitPush,
     'git.compare': actions.gitCompareBranches,
     'problems.list': actions.problemsList,
+    'problems.detail': actions.problemsAtCursor,
     'problems.next': actions.problemsNext,
     'problems.prev': actions.problemsPrev,
     'problems.restart': actions.restartLsp,

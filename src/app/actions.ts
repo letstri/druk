@@ -29,7 +29,7 @@ import { buildCommands } from './commands'
 import type { Command } from './commands'
 import type { AppContext } from './context'
 import { noRepository } from './git'
-import { problemFrom } from './lsp'
+import { problemFrom, problemsOn } from './lsp'
 
 /** Wire the palette's command tree to the controllers that carry the actions out. */
 export function createCommands(ctx: AppContext) {
@@ -518,7 +518,15 @@ export function createCommands(ctx: AppContext) {
     problemsList: () => {
       const any = workspace.tabs().some(path => (ctx.lsp.problems[path] ?? []).length > 0)
       if (!any) return say('No problems')
-      ctx.overlays.setProblemsOpen(true)
+      ctx.overlays.setProblemsOpen('all')
+    },
+    /** The whole of what the inline note beside this line could only start. */
+    problemsAtCursor: () => {
+      const path = workspace.activePath()
+      const list = path ? ctx.lsp.problems[path] : undefined
+      if (!list || problemsOn(list, editor.cursor().line).length === 0)
+        return say('No problem on this line')
+      ctx.overlays.setProblemsOpen('cursor')
     },
     problemsNext: () => jumpProblem(1),
     problemsPrev: () => jumpProblem(-1),
