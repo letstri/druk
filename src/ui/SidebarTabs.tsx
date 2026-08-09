@@ -11,14 +11,15 @@ export interface SidebarTabsProps {
   focused: boolean
   /** Columns the strip has. Narrower than the names need, it falls to initials. */
   width: number
+  /** Notes and fetched comments together — the Review button carries the count. */
+  reviewCount: number
   onSelect: (view: SidebarView) => void
 }
 
-// No review tab: the review is reached from the `◆` in the source-control
-// panel's header, being about the change that panel is already listing.
 const TABS: { id: SidebarView; label: string; short: string }[] = [
   { id: 'files', label: 'Files', short: 'F' },
   { id: 'git', label: 'Git', short: 'G' },
+  { id: 'review', label: 'Review', short: 'R' },
   { id: 'extensions', label: 'Ext', short: 'E' },
 ]
 
@@ -29,7 +30,6 @@ const TABS: { id: SidebarView; label: string; short: string }[] = [
 const stripWidth = (labels: string[], padding: number) =>
   1 + labels.reduce((sum, label) => sum + label.length + 1 + 2 * padding, 0)
 
-const NAMES = TABS.map(tab => tab.label)
 const INITIALS = TABS.map(tab => tab.short)
 
 /**
@@ -47,7 +47,12 @@ export function SidebarTabs(props: SidebarTabsProps) {
   // Initials beside a narrow sidebar, as the settings page's hints do it, and
   // then initials with the padding dropped: the strip cannot wrap, and
   // overflowing it paints the buttons over whatever is in the editor's slot.
-  const long = () => stripWidth(NAMES, 1) <= props.width
+  // The review's count rides on its own button — the panel's `◆` used to carry
+  // it, and a tab with no way to say "there are three of these" is a tab nobody
+  // opens. It is part of the label, so it is part of what has to fit.
+  const nameOf = (tab: (typeof TABS)[number]) =>
+    tab.id === 'review' && props.reviewCount > 0 ? `${tab.label} ${props.reviewCount}` : tab.label
+  const long = () => stripWidth(TABS.map(nameOf), 1) <= props.width
   const padded = () => long() || stripWidth(INITIALS, 1) <= props.width
   const pad = () => (padded() ? 1 : 0)
   return (
@@ -74,7 +79,7 @@ export function SidebarTabs(props: SidebarTabsProps) {
                 <text
                   fg={fg()}
                   bg={bg()}
-                  content={long() ? tab.label : tab.short}
+                  content={long() ? nameOf(tab) : tab.short}
                   attributes={active() ? TextAttributes.BOLD : undefined}
                 />
               </box>

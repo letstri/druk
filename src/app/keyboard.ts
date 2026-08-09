@@ -276,9 +276,9 @@ export function installKeyboard(ctx: AppContext, actions: CommandActions) {
     if (panes.view() === 'review') {
       switch (config.vim ? (vimNav[k] ?? k) : k) {
         case 'tab':
-          // Out of the strip's cycle, so Shift+Tab goes back to the panel the
-          // review was opened from rather than on to the next button.
-          if (key.shift) panes.showView('git')
+          // Shift+Tab walks the tab strip above the sidebar, the way it walks any
+          // other one; plain Tab keeps handing the keyboard to the editor.
+          if (key.shift) panes.showView('extensions')
           else if (workspace.activePath() || workspace.diff()) panes.setFocus('editor')
           break
         // The cursor is the pager, as it is in the source-control panel: the
@@ -367,7 +367,7 @@ export function installKeyboard(ctx: AppContext, actions: CommandActions) {
         case 'tab':
           // Shift+Tab walks the tab strip above the sidebar, the way it walks any
           // other one; plain Tab keeps handing the keyboard to the editor.
-          if (key.shift) panes.showView('extensions')
+          if (key.shift) panes.showView('review')
           else if (workspace.activePath() || workspace.diff()) panes.setFocus('editor')
           break
         case 'up':
@@ -408,7 +408,8 @@ export function installKeyboard(ctx: AppContext, actions: CommandActions) {
         case 'b':
           actions.gitSwitchBranch()
           break
-        // The header's ◆ as a key, since every other control on this panel has one.
+        // The review is a button of its own now, but it is still about the change
+        // this panel lists, so the shortcut into it stays here.
         case 'r':
           panes.showView('review')
           break

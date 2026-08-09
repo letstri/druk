@@ -52,10 +52,6 @@ export interface GitPanelProps {
   onActivate: (index: number) => void
   /** The header's ▴: fold every folder at once. */
   onCollapseAll: () => void
-  /** Notes and fetched comments together — what the header's ◆ counts. */
-  reviewCount: number
-  /** The header's ◆: swap this panel for the review of the same change. */
-  onReview: () => void
   /** A row's `+`/`−`: stage or unstage whatever the cursor is on. */
   onToggleStage: () => void
 }
@@ -142,22 +138,6 @@ export function GitPanel(props: GitPanelProps) {
             content={`vs ${props.base}`}
           />
         </Show>
-        {/* The way into the review, in the slot a label naming the panel used to
-            decorate — the pressed `Git` button above says that already, and at
-            thirty columns the label is the room this needs. Spelt out rather
-            than left as a glyph, and drawn whether or not anything is in it: a
-            control that appears only once there is something to show is one
-            nobody finds, and the review is where a note is *made*. Carries its
-            own leading space — at the widths where the headline is being cut
-            there is no slack left to space it from what precedes it. */}
-        <text
-          fg={props.reviewCount > 0 ? ui.accent : ui.dim}
-          bg={ui.sidebarBg}
-          flexShrink={0}
-          wrapMode="none"
-          content={props.reviewCount > 0 ? ` ◆ review ${props.reviewCount}` : ' ◆ review'}
-          onMouseDown={() => props.onReview()}
-        />
       </box>
       <Show
         when={props.inRepo && props.rows.length > 0}

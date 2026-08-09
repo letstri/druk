@@ -8,6 +8,7 @@ import { fetchComments, findPullRequest, forgeFor, tokenFor } from '../src/core/
 import type { Fetcher, ForgeTarget } from '../src/core/forge'
 import { remoteUrl } from '../src/core/git'
 import { loadNotes, saveNotes } from '../src/core/review'
+import { ALT } from '../src/ui/keys'
 import {
   fixture,
   launch,
@@ -289,6 +290,28 @@ test('a note lands in the panel, in the gutter and after the line', async () => 
   await runCommand(t, 'Review panel')
   await untilFrame(t, 'ISSUE 1')
   expect(t.captureCharFrame()).toContain('a.ts')
+})
+
+test('a remark too long for its row names the panel that holds the whole of it', async () => {
+  const t = await launch(fixture(PROJECT), {}, { width: 90, height: 16 })
+  await openFile(t, 'a.ts')
+  await noteLine(t, 'issue', 'this should be a const and the reason for it runs past the row')
+
+  const row = t
+    .captureCharFrame()
+    .split('\n')
+    .find(line => line.includes('const a = 1'))
+  expect(row).toContain('…')
+  expect(row).toContain(`Ctrl+${ALT}+R`)
+
+  // The hint follows the caret: the line below carries no note and no key.
+  await press(t, i => i.pressArrow('down'))
+  expect(
+    t
+      .captureCharFrame()
+      .split('\n')
+      .find(line => line.includes('const a = 1')),
+  ).not.toContain(`Ctrl+${ALT}+R`)
 })
 
 test('the panel opens the remark as a card under its line, and pages files', async () => {

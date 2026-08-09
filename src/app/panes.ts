@@ -57,14 +57,10 @@ export function createPanes(tree: Tree, initialSidebar: boolean) {
     showView('extensions')
   }
 
-  /**
-   * Ctrl+Opt+R: the review notes and the pull request's comments. Out is the
-   * source-control panel rather than the tree — the review has no button in the
-   * strip, it is reached from that panel's header, and landing anywhere else
-   * would leave no way back to where the ◆ was pressed.
-   */
+  /** Ctrl+Opt+R: the review notes and the pull request's comments, in and out
+   * the way the other two views do it — it is a button in the strip like them. */
   const toggleReviewView = () => {
-    if (sidebar() && view() === 'review') return showView('git')
+    if (sidebar() && view() === 'review') return showView('files')
     showView('review')
   }
 

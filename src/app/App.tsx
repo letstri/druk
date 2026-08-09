@@ -600,12 +600,10 @@ export function App(props: {
             backgroundColor={ui.sidebarBg}
           >
             <SidebarTabs
-              // The review has no button of its own: it is a view of the change
-              // the source-control panel lists, so the strip keeps Git pressed
-              // while it is up — which also makes that button the way back.
-              view={panes.view() === 'review' ? 'git' : panes.view()}
+              view={panes.view()}
               focused={panes.focus() === 'tree'}
               width={settings.treeWidth()}
+              reviewCount={review.count()}
               onSelect={view => panes.showView(view)}
             />
             <Show when={panes.view() === 'extensions'}>
@@ -684,8 +682,6 @@ export function App(props: {
                     onFocus={() => panes.setFocus('tree')}
                     onActivate={actions.gitActivateRow}
                     onCollapseAll={actions.gitCollapseAll}
-                    reviewCount={review.count()}
-                    onReview={() => panes.showView('review')}
                     onToggleStage={actions.gitToggleStage}
                   />
                 }

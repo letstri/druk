@@ -73,7 +73,7 @@ test('every advertised hotkey does something', async () => {
   // Ctrl+Opt+G: ESC prefix ahead of Ctrl+G (0x07).
   t = await tree()
   await press(t, i => void i.pressKeys([`${ESC}${String.fromCharCode(7)}`]))
-  check('Ctrl+Opt+G source control', frame(t).includes('◆ review'))
+  check('Ctrl+Opt+G source control', frame(t).includes('open a repository to use git'))
 
   t = await tree()
   await press(t, i => i.pressKey('b', { ctrl: true }))

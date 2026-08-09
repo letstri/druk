@@ -52,7 +52,7 @@ test('the tab strip switches the sidebar between its two views', async () => {
   await t.mockMouse.click(GIT_X, TABS_ROW)
   await settle(t)
   const panel = frame(t)
-  expect(panel).toContain('◆ review')
+  expect(panel).toContain('▾ Changes')
   expect(panel).not.toContain('explorer')
 
   await t.mockMouse.click(FILES_X, TABS_ROW)
