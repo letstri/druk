@@ -194,6 +194,7 @@ export function ExtensionsPanel(props: ExtensionsPanelProps) {
                         />
                         <box flexGrow={1} backgroundColor={bg()}>
                           <text
+                            wrapMode="none"
                             fg={ui.folder}
                             bg={bg()}
                             content={section().label}
@@ -210,7 +211,7 @@ export function ExtensionsPanel(props: ExtensionsPanelProps) {
                     )}
                   </Show>
                   <Show when={row.kind === 'note'}>
-                    <text fg={ui.faint} bg={bg()} content={`   ${row.label}`} />
+                    <text wrapMode="none" fg={ui.faint} bg={bg()} content={`   ${row.label}`} />
                   </Show>
                   <Show when={row.kind === 'installed' || row.kind === 'available'}>
                     {/* The state glyph never gives, as the tree's indent does not:
@@ -224,6 +225,7 @@ export function ExtensionsPanel(props: ExtensionsPanelProps) {
                       }
                     />
                     <text
+                      wrapMode="none"
                       fg={row.kind === 'installed' && row.disabled ? ui.dim : ui.text}
                       bg={bg()}
                       flexShrink={1}
