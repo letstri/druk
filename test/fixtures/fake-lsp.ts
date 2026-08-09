@@ -68,7 +68,15 @@ const publish = (uri: string, text: string) => {
 }
 
 const COMPLETIONS: CompletionItem[] = [
-  { label: 'drukAlpha', kind: 3, detail: '() => void', insertText: 'drukAlpha()' },
+  {
+    label: 'drukAlpha',
+    kind: 3,
+    detail: '() => void',
+    insertText: 'drukAlpha()',
+    // The signature/origin pair a modern server draws beside the label; its
+    // documentation is withheld until resolve, as tsserver's is.
+    labelDetails: { detail: '(alpha)', description: 'druk/alpha' },
+  },
   { label: 'drukBeta', kind: 6, detail: 'number' },
   {
     label: 'drukImported',
@@ -84,6 +92,23 @@ const COMPLETIONS: CompletionItem[] = [
   // No additionalTextEdits here: they arrive only via completionItem/resolve,
   // the way typescript-language-server serves auto-imports.
   { label: 'drukLazy', kind: 7, detail: 'resolve-import' },
+]
+
+/**
+ * Answered for a prefix of "long": every user-facing string at a hostile length,
+ * so `test/long-names.test.tsx` can draw the menu at one.
+ */
+const LONG: CompletionItem[] = [
+  {
+    label: `long${'Name'.repeat(30)}`,
+    kind: 3,
+    detail: `(${'argument: SomeVeryLongTypeName, '.repeat(8)}) => void`,
+    labelDetails: {
+      detail: `(${'argument: SomeVeryLongTypeName, '.repeat(8)})`,
+      description: `some/deeply/nested/module/path/${'segment/'.repeat(12)}index`,
+    },
+    documentation: `A description with no break in it: ${'unbreakableword'.repeat(20)}`,
+  },
 ]
 
 /**
@@ -145,23 +170,32 @@ process.stdin.on(
       const reply = (items: CompletionItem[]) =>
         send({ jsonrpc: '2.0', id: message.id, result: { isIncomplete: false, items } })
       if (line[wordAt - 1] === '.') reply(MEMBERS)
+      else if (line.slice(wordAt, position.character).startsWith('long')) reply(LONG)
       // Globals answer slowly, the way a big project's server does — so a test
       // can type past the request and prove the stale reply gets dropped.
       else setTimeout(() => reply(COMPLETIONS), 400)
     } else if (message.method === 'completionItem/resolve') {
       const item = message.params as CompletionItem
       const result =
-        item.label === 'drukLazy'
+        item.label === 'drukAlpha'
           ? {
               ...item,
-              additionalTextEdits: [
-                {
-                  range: { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } },
-                  newText: 'import { drukLazy } from "druk"\n',
-                },
-              ],
+              documentation: {
+                kind: 'markdown',
+                value: 'Alpha **greets** the caller.\n\n```ts\ndrukAlpha()\n```',
+              },
             }
-          : item
+          : item.label === 'drukLazy'
+            ? {
+                ...item,
+                additionalTextEdits: [
+                  {
+                    range: { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } },
+                    newText: 'import { drukLazy } from "druk"\n',
+                  },
+                ],
+              }
+            : item
       send({ jsonrpc: '2.0', id: message.id, result })
     } else if (message.method === 'shutdown') {
       send({ jsonrpc: '2.0', id: message.id, result: null })

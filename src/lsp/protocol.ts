@@ -84,11 +84,24 @@ export interface LocationLink {
   originSelectionRange?: Range
 }
 
+/** Documentation as a server sends it: plain string, or markdown in a wrapper. */
+export interface MarkupContent {
+  kind: 'markdown' | 'plaintext'
+  value: string
+}
+
 export interface CompletionItem {
   label: string
   /** CompletionItemKind, 1–25. Absent renders as plain text. */
   kind?: number
   detail?: string
+  /** The signature and origin a server wants drawn beside the label. */
+  labelDetails?: { detail?: string; description?: string }
+  /** Usually withheld from the list and only filled in by `completionItem/resolve`. */
+  documentation?: string | MarkupContent
+  /** CompletionItemTag; 1 is Deprecated. `deprecated` is the older spelling. */
+  tags?: number[]
+  deprecated?: boolean
   /** 1 plain text, 2 snippet (`${1:x}` placeholders — stripped before insert). */
   insertTextFormat?: number
   insertText?: string

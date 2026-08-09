@@ -291,10 +291,18 @@ export function spawnLspClient(options: LspClientOptions) {
             // editor strips it on insert (see lsp/completion.ts).
             snippetSupport: false,
             insertReplaceSupport: true,
+            // The signature/origin pair the menu draws beside a label, and the
+            // documentation its detail panel shows.
+            labelDetailsSupport: true,
+            documentationFormat: ['markdown', 'plaintext'],
+            deprecatedSupport: true,
+            tagSupport: { valueSet: [1] },
             // Auto-import edits are costly to compute for every candidate, so
             // servers withhold them from the list and only attach them when the
-            // client promises to ask again for the item it actually chose.
-            resolveSupport: { properties: ['additionalTextEdits'] },
+            // client promises to ask again for the item it actually chose. Docs
+            // and the full signature are withheld for the same reason, and the
+            // menu asks for the selected item alone.
+            resolveSupport: { properties: ['documentation', 'detail', 'additionalTextEdits'] },
           },
         },
       },

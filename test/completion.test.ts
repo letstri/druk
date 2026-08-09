@@ -5,12 +5,16 @@ import {
   extendsWord,
   filterCompletions,
   fuzzyMatch,
+  isDeprecated,
+  itemInfo,
   matchRuns,
   normalizeCompletion,
+  plainMarkup,
   stripSnippet,
   wordStart,
 } from '../src/lsp/completion'
 import type { CompletionItem } from '../src/lsp/protocol'
+import { layoutMenu } from '../src/ui/completionLayout'
 
 describe('normalizeCompletion', () => {
   test('accepts a bare array, a list, and rejects junk', () => {
@@ -246,6 +250,90 @@ describe('applyCompletion', () => {
       insertTextFormat: 1,
     })
     expect(got.content).toBe('    a\nb\nc\n')
+  })
+})
+
+describe('plainMarkup', () => {
+  test('flattens the marks a doc comment carries', () => {
+    expect(
+      plainMarkup({
+        kind: 'markdown',
+        value: '# Title\n\nCalls **now** with `arg`.\n\n```ts\nfn()\n```\n\n- one\n- two',
+      }),
+    ).toBe('Title\n\nCalls now with arg.\n\nfn()\n\n• one\n• two')
+    expect(plainMarkup('plain text')).toBe('plain text')
+    expect(plainMarkup(undefined)).toBe('')
+  })
+
+  test('itemInfo collapses a multi-line signature and reads both deprecation spellings', () => {
+    expect(itemInfo({ label: 'a', detail: '(x: number)\n  => void' }).detail).toBe(
+      '(x: number) => void',
+    )
+    // labelDetails is the fallback: the panel wants a signature either way.
+    expect(itemInfo({ label: 'a', labelDetails: { detail: '(x)' } }).detail).toBe('(x)')
+    expect(isDeprecated({ label: 'a', tags: [1] })).toBe(true)
+    expect(isDeprecated({ label: 'a', deprecated: true })).toBe(true)
+    expect(isDeprecated({ label: 'a' })).toBe(false)
+  })
+})
+
+describe('layoutMenu', () => {
+  const many = Array.from({ length: 30 }, (_, at) => ({
+    item: { label: `item${at}`, kind: 3 },
+    score: 0,
+    positions: [],
+  }))
+  const roomy = { width: 120, height: 40 }
+
+  const info = {
+    detail: '(a: number) => void',
+    documentation: 'Does a thing.',
+    deprecated: false,
+  }
+
+  test('caps the list and adds the counter row', () => {
+    const layout = layoutMenu(many, null, roomy, false)
+    expect(layout.rows).toBe(12)
+    // border pair + rows + counter
+    expect(layout.height).toBe(15)
+    expect(layout.documentation).toEqual([])
+  })
+
+  test('the panel holds the resolved lines, and the box never wraps a signature thin', () => {
+    const layout = layoutMenu(many, info, roomy, true)
+    expect(layout.signature).toEqual(['(a: number) => void'])
+    expect(layout.documentation).toEqual(['Does a thing.'])
+    expect(layout.width).toBeGreaterThanOrEqual(56)
+  })
+
+  test('the box is the same size whatever the selected item resolved to', () => {
+    // The size may not follow the selection: walking the list would resize the
+    // popup under the cursor on every keystroke.
+    const empty = layoutMenu(many, null, roomy, true)
+    const filled = layoutMenu(many, info, roomy, true)
+    const wordy = layoutMenu(
+      many,
+      { detail: 'x '.repeat(200), documentation: 'y '.repeat(400), deprecated: false },
+      roomy,
+      true,
+    )
+    expect(empty.height).toBe(filled.height)
+    expect(empty.width).toBe(filled.width)
+    expect(wordy.height).toBe(filled.height)
+    expect(wordy.width).toBe(filled.width)
+    expect(empty.panelRows).toBeGreaterThan(0)
+  })
+
+  test('a short pane drops the panel before it drops the list', () => {
+    const layout = layoutMenu(many, info, { width: 120, height: 6 }, true)
+    expect(layout.panelRows).toBe(0)
+    expect(layout.signature).toEqual([])
+    expect(layout.rows).toBe(3)
+    expect(layout.height).toBeLessThanOrEqual(6)
+  })
+
+  test('an empty list is the notice row alone', () => {
+    expect(layoutMenu([], null, roomy, true)).toMatchObject({ rows: 0, height: 3 })
   })
 })
 

@@ -42,14 +42,16 @@ import {
   extendsWord,
   filterCompletions,
   isWordChar,
+  itemInfo,
   TRIGGER_CHARS,
   wordStart,
 } from '../lsp/completion'
-import type { CompletionReply } from '../lsp/completion'
+import type { CompletionReply, ItemInfo } from '../lsp/completion'
 import { headline } from '../lsp/protocol'
 import type { CompletionItem, ProblemSeverity } from '../lsp/protocol'
 import { paintedTheme, ui } from '../themes'
-import { CompletionMenu, MENU_ROWS, menuWidth } from './CompletionMenu'
+import { layoutMenu } from './completionLayout'
+import { CompletionMenu } from './CompletionMenu'
 import { chordFor } from './keys'
 import { SEVERITY_COLOR } from './severity'
 import { cut, wrapText } from './text'
@@ -176,6 +178,12 @@ const COMPLETION_DEBOUNCE_MS = 90
  * too slow to name its import forfeits it rather than freezing the caret.
  */
 const RESOLVE_TIMEOUT_MS = 300
+/**
+ * How long the selection rests on an item before its documentation is asked
+ * for. Holding ↓ walks a hundred rows; resolving each of them is a request per
+ * keystroke for a panel nobody reads on the way past.
+ */
+const INFO_DEBOUNCE_MS = 120
 
 const SIGN_GLYPH: Record<LineChange, string> = { added: '▎', modified: '▎', deleted: '▁' }
 
@@ -866,6 +874,13 @@ export function EditorPane(props: EditorPaneProps) {
   /** Printable char just typed, consumed by the cursor-sync tick that follows. */
   let typedChar: string | null = null
 
+  /** Signature and documentation for the selected item; null until they arrive. */
+  const [menuInfo, setMenuInfo] = createSignal<ItemInfo | null>(null)
+  /** Items already resolved, so walking back up the list costs no round trip. */
+  const resolvedItems = new WeakMap<CompletionItem, CompletionItem>()
+  let infoTimer: ReturnType<typeof setTimeout> | null = null
+  let infoGen = 0
+
   const setMenuOpen = (open: boolean) => {
     if (menuOpen() === open) return
     setMenuOpenRaw(open)
@@ -876,10 +891,53 @@ export function EditorPane(props: EditorPaneProps) {
     completionGen++
     if (completionTimer) clearTimeout(completionTimer)
     completionTimer = null
+    if (infoTimer) clearTimeout(infoTimer)
+    infoTimer = null
+    infoGen++
+    setMenuInfo(null)
     setMenuOpen(false)
   }
 
   const matches = createMemo(() => filterCompletions(menuItems(), menuPrefix()))
+
+  const askForInfo = async (item: CompletionItem, gen: number) => {
+    const reply = await props.resolveCompletion?.(item)
+    // A null reply is cached as the item itself: the server has answered, and
+    // asking again every time the selection returns is pure traffic.
+    const merged = reply ? { ...item, ...reply } : item
+    resolvedItems.set(item, merged)
+    if (gen === infoGen && menuOpen()) setMenuInfo(itemInfo(merged))
+  }
+
+  /**
+   * Fill the detail panel for whatever is selected. Servers withhold docs from
+   * the list — they are expensive per candidate — so the item under the
+   * selection is resolved on its own, and what came with the list is shown
+   * meanwhile rather than leaving the panel blank until the reply lands.
+   */
+  createEffect(
+    on([menuOpen, menuSelected, matches], () => {
+      if (infoTimer) clearTimeout(infoTimer)
+      infoTimer = null
+      const item = menuOpen() ? matches()[menuSelected()]?.item : undefined
+      if (!item) {
+        setMenuInfo(null)
+        return
+      }
+      const known = resolvedItems.get(item)
+      setMenuInfo(itemInfo(known ?? item))
+      if (known || !props.resolveCompletion) return
+      const gen = ++infoGen
+      infoTimer = setTimeout(() => {
+        infoTimer = null
+        void askForInfo(item, gen)
+      }, INFO_DEBOUNCE_MS)
+    }),
+  )
+
+  onCleanup(() => {
+    if (infoTimer) clearTimeout(infoTimer)
+  })
 
   /** Text of logical line `row`, straight from the buffer. */
   const lineTextAt = (row: number): string => {
@@ -942,9 +1000,19 @@ export function EditorPane(props: EditorPaneProps) {
 
   const scheduleAutoCompletion = () => {
     if (completionTimer) clearTimeout(completionTimer)
+    // The reply guard, applied before the ask as well: a `'` or `)` typed inside
+    // the debounce carries the cursor out of the scope the trigger character
+    // named, and the request would go out at the new one — the closing quote of
+    // `from '@opentui/'` asked one column late answers with every identifier in
+    // file scope instead of the paths under the slash.
+    const from = editor?.logicalCursor
+    const at = from ? { row: from.row, col: from.col } : null
     completionTimer = setTimeout(() => {
       completionTimer = null
-      if (editor && props.focused && !props.blocked) void requestCompletions(false)
+      if (!editor || !props.focused || props.blocked) return
+      const now = editor.logicalCursor
+      if (at && (now.row !== at.row || !extendsWord(lineTextAt(now.row), at.col, now.col))) return
+      void requestCompletions(false)
     }, COMPLETION_DEBOUNCE_MS)
   }
 
@@ -984,24 +1052,29 @@ export function EditorPane(props: EditorPaneProps) {
     if (TRIGGER_CHARS.has(typed) || isWordChar(typed)) scheduleAutoCompletion()
   }
 
-  /** Where the popup goes: under the cursor's row, above when the file ends near
-   * the bottom, clamped into the pane — with the label column sitting exactly
-   * over the word it is completing. */
+  /** Where the popup goes and how big it gets: under the cursor's row, above
+   * when the file ends near the bottom, sized to whichever side has more room —
+   * the detail panel is dropped before the list is — and clamped into the pane,
+   * with the label column sitting exactly over the word it is completing. */
   const menuBox = createMemo(() => {
     if (!menuOpen() || !editor || !host) return null
-    const list = matches()
-    const rowsShown =
-      list.length === 0 ? 1 : Math.min(list.length, MENU_ROWS) + (list.length > MENU_ROWS ? 1 : 0)
-    const height = rowsShown + 2
     const paneHeight = viewHeight() || editor.height
     const screenRow = menuPos().row - viewTop()
     const below = screenRow + 1
-    const top = paneHeight - below >= height || screenRow < height ? below : screenRow - height
-    const width = Math.min(menuWidth(list), Math.max(MENU_ROWS, host.width - 2))
+    const layout = layoutMenu(
+      matches(),
+      menuInfo(),
+      { width: host.width - 2, height: Math.max(3, Math.max(paneHeight - below, screenRow)) },
+      props.resolveCompletion !== null,
+    )
+    const top =
+      paneHeight - below >= layout.height || screenRow < layout.height
+        ? below
+        : screenRow - layout.height
     // Label column = border + selection bar + glyph pair, hence the 4.
     const anchorX = editor.x - host.x + 1 + menuPos().col
-    const left = Math.max(0, Math.min(anchorX - 4, host.width - width))
-    return { top: editor.y - host.y + top, left, width }
+    const left = Math.max(0, Math.min(anchorX - 4, host.width - layout.width))
+    return { top: editor.y - host.y + top, left, layout }
   })
 
   const gutterWidth = () => String(lineCount()).length + 2
@@ -1642,9 +1715,14 @@ export function EditorPane(props: EditorPaneProps) {
     closeMenu()
 
     let item = match.item
+    // The detail panel resolves whatever the selection rests on, so the item
+    // being accepted has usually been asked about already — and that answer
+    // carries the auto-import edits the wait below is for.
+    const cached = resolvedItems.get(item)
+    if (cached) item = cached
     // Most servers withhold auto-import edits from the list and compute them
     // only for the item actually chosen — ask, briefly, before inserting.
-    if (item.additionalTextEdits === undefined && props.resolveCompletion) {
+    else if (item.additionalTextEdits === undefined && props.resolveCompletion) {
       const resolved = await Promise.race([
         props.resolveCompletion(item),
         new Promise<null>(done => setTimeout(() => done(null), RESOLVE_TIMEOUT_MS)),
@@ -2463,13 +2541,13 @@ export function EditorPane(props: EditorPaneProps) {
             )}
           </For>
           <Show when={menuBox()}>
-            {(at: () => { top: number; left: number; width: number }) => (
+            {(at: () => NonNullable<ReturnType<typeof menuBox>>) => (
               <CompletionMenu
                 matches={matches()}
                 selected={menuSelected()}
+                layout={at().layout}
                 top={at().top}
                 left={at().left}
-                width={at().width}
               />
             )}
           </Show>

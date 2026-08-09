@@ -8,6 +8,7 @@ import {
   press,
   pressEscape,
   runCommand,
+  settle,
   untilFrame,
   untilGone,
 } from './helpers'
@@ -54,6 +55,29 @@ test('typing opens the menu, Enter inserts the best match', async () => {
   // drukAlpha's insertText carries the call parens; the prefix is replaced.
   await untilFrame(t, 'drukAlpha()oops', LSP_WAIT)
   await untilGone(t, 'drukBeta')
+}, 30_000)
+
+test('the menu draws the origin, the kind and the resolved documentation', async () => {
+  const t = await readyEditor()
+
+  await press(t, input => void input.typeText('druk'))
+  await untilFrame(t, 'drukAlpha', LSP_WAIT)
+  // labelDetails: the signature beside the label, the origin at the right edge.
+  expect(t.captureCharFrame()).toContain('(alpha)')
+  expect(t.captureCharFrame()).toContain('druk/alpha')
+  // The counter row names what the selection is, not just where it is — and the
+  // key that takes it, which nothing else on screen says while the menu is up.
+  expect(t.captureCharFrame()).toContain('function · Tab accepts')
+  expect(t.captureCharFrame()).toContain('1/4')
+  // The panel shows the detail that came with the list, then the documentation
+  // the server withholds until `completionItem/resolve` — markdown flattened.
+  expect(t.captureCharFrame()).toContain('() => void')
+  await untilFrame(t, 'Alpha greets the caller.', LSP_WAIT)
+
+  // A row with no docs of its own leaves the panel with only its detail.
+  await press(t, input => input.pressArrow('down'))
+  await untilGone(t, 'Alpha greets the caller.', LSP_WAIT)
+  expect(t.captureCharFrame()).toContain('variable')
 }, 30_000)
 
 test('typing more filters the list; Escape dismisses it', async () => {
@@ -119,6 +143,50 @@ test('a dot typed over the open menu asks again at the member position', async (
   await untilFrame(t, 'memTable', LSP_WAIT)
   await untilGone(t, 'drukAlpha')
   expect(t.captureCharFrame()).toContain('memOther')
+}, 30_000)
+
+test('a trigger retyped after a backspace is asked at the member position', async () => {
+  const t = await readyEditor()
+
+  await press(t, input => void input.typeText('druk'))
+  await untilFrame(t, 'drukAlpha', LSP_WAIT)
+
+  // Backspacing over the dot puts the buffer back to the text the server was
+  // last sent — which used to leave the edit queued for the backspace itself
+  // standing, so the next ask flushed a document one keystroke behind the
+  // column it was about and the server answered for the scope before the dot.
+  for (let round = 0; round < 3; round++) {
+    await press(t, input => void input.typeText('.'))
+    await untilFrame(t, 'memTable', LSP_WAIT)
+    // Back-to-back, inside the didChange debounce: that is the window where the
+    // queued edit and the buffer disagree.
+    await press(t, input => input.pressBackspace())
+    await press(t, input => void input.typeText('.'))
+    await untilFrame(t, 'memTable', LSP_WAIT)
+    // The global list is what a stale document answers with, 400ms later.
+    await settle(t, 600)
+    expect(t.captureCharFrame()).not.toContain('drukAlpha')
+    await press(t, input => input.pressBackspace())
+    await untilGone(t, 'memTable', LSP_WAIT)
+  }
+}, 30_000)
+
+test('a keystroke that leaves the scope cancels the ask the trigger scheduled', async () => {
+  const t = await readyEditor()
+
+  // The dot schedules the member ask; the `)` lands before the debounce is up
+  // and carries the cursor out of the scope the dot named. Asking there is what
+  // put file-scope globals under a `from '@opentui/'` whose closing quote was
+  // typed a moment after the slash.
+  await press(t, input => void input.typeText('druk'))
+  await untilFrame(t, 'drukAlpha', LSP_WAIT)
+  await press(t, input => void input.typeText('.'))
+  await press(t, input => void input.typeText(')'))
+  // Longer than the fake's 400ms delay on the global list: the menu must stay
+  // shut rather than open on an answer for the wrong position.
+  await settle(t, 800)
+  expect(t.captureCharFrame()).not.toContain('memTable')
+  expect(t.captureCharFrame()).not.toContain('drukAlpha')
 }, 30_000)
 
 test('a reply overtaken by a scope-changing keystroke is dropped', async () => {

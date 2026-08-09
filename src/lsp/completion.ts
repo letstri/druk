@@ -4,7 +4,7 @@
  * item into a new document. No Solid, no OpenTUI — `test/completion.test.ts`
  * exercises this file directly.
  */
-import type { CompletionItem, CompletionList, Position } from './protocol'
+import type { CompletionItem, CompletionList, MarkupContent, Position } from './protocol'
 
 export interface CompletionReply {
   items: CompletionItem[]
@@ -328,6 +328,94 @@ const KIND_GROUPS: Record<number, { glyph: string; group: KindGroup }> = {
 
 export function kindInfo(kind: number | undefined): { glyph: string; group: KindGroup } {
   return KIND_GROUPS[kind ?? 1] ?? { glyph: '·', group: 'text' }
+}
+
+const KIND_NAMES: Record<number, string> = {
+  1: 'text',
+  2: 'method',
+  3: 'function',
+  4: 'constructor',
+  5: 'field',
+  6: 'variable',
+  7: 'class',
+  8: 'interface',
+  9: 'module',
+  10: 'property',
+  11: 'unit',
+  12: 'value',
+  13: 'enum',
+  14: 'keyword',
+  15: 'snippet',
+  16: 'color',
+  17: 'file',
+  18: 'reference',
+  19: 'folder',
+  20: 'enum member',
+  21: 'constant',
+  22: 'struct',
+  23: 'event',
+  24: 'operator',
+  25: 'type parameter',
+}
+
+/** What the footer calls the selected item's kind. */
+export function kindName(kind: number | undefined): string {
+  return KIND_NAMES[kind ?? 0] ?? 'text'
+}
+
+export function isDeprecated(item: CompletionItem): boolean {
+  return item.deprecated === true || item.tags?.includes(1) === true
+}
+
+/**
+ * Markdown flattened for a terminal panel. Only the inline marks a doc comment
+ * actually carries are undone — fences, code spans, emphasis, headings, list
+ * bullets — because the panel draws one colour and anything left is read as
+ * literal text by the user. Line structure survives: the wrapper needs the
+ * paragraph breaks the server wrote.
+ */
+export function plainMarkup(doc: string | MarkupContent | undefined): string {
+  const raw = typeof doc === 'string' ? doc : doc?.value
+  if (!raw) return ''
+  return (
+    raw
+      // Anchored on spaces and tabs rather than `\s`: that class matches
+      // newlines too, and a bullet pattern allowed to eat them takes the blank
+      // line above the list with the marker.
+      .replaceAll(/^[ \t]*```[^\n]*$/gm, '')
+      .replaceAll(/^[ \t]{0,3}#{1,6}[ \t]*/gm, '')
+      .replaceAll(/^[ \t]*[-*+][ \t]+/gm, '• ')
+      .replaceAll(/`([^`]+)`/g, '$1')
+      .replaceAll(/\*\*([^*]+)\*\*/g, '$1')
+      .replaceAll(/(?<![*\w])\*([^*\n]+)\*/g, '$1')
+      .replaceAll(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+      // A fence stripped from between two paragraphs leaves three newlines behind.
+      .replaceAll(/\n{3,}/g, '\n\n')
+      .trim()
+  )
+}
+
+/** The signature and documentation the menu's detail panel shows for one item. */
+export interface ItemInfo {
+  detail: string
+  documentation: string
+  deprecated: boolean
+}
+
+export function itemInfo(item: CompletionItem): ItemInfo {
+  const detail = item.detail ?? item.labelDetails?.detail ?? ''
+  return {
+    // Servers send the signature with the newlines they format it over; the
+    // panel wraps it itself, so they are only extra blank rows here.
+    detail: detail.replaceAll(/\s+/g, ' ').trim(),
+    documentation: plainMarkup(item.documentation),
+    deprecated: isDeprecated(item),
+  }
+}
+
+/** Nothing to show yet — the panel stays out of the way rather than drawing empty. */
+export function hasInfo(info: ItemInfo | null): info is ItemInfo {
+  return info !== null && (info.detail.length > 0 || info.documentation.length > 0)
 }
 
 /** `label` cut into runs for the menu: matched runs draw in the accent color. */

@@ -121,6 +121,31 @@ test('the problems list gives a long diagnostic one row', async () => {
   expect(rowsWith(t, 'really-long-name')).toBe(1)
 }, 40000)
 
+test('the completion menu keeps a huge label, signature and doc inside its box', async () => {
+  const dir = fixture({ 'a.ts': '' })
+  const t = await launch(
+    dir,
+    {
+      lsp: true,
+      lspServers: {
+        typescript: [process.execPath, join(import.meta.dir, 'fixtures', 'fake-lsp.ts')],
+      },
+    },
+    { width: 90, height: 30 },
+    { openFile: join(dir, 'a.ts') },
+  )
+  await press(t, input => void input.typeText('long'))
+  await untilFrame(t, 'longName', 15_000)
+
+  // One row for the item, whatever its label, signature and origin add up to.
+  expect(rowsWith(t, 'longName')).toBe(1)
+  // The documentation is one unbreakable word: it has to be cut per row rather
+  // than widen the popup past the pane it floats in.
+  const frame = t.captureCharFrame()
+  expect(frame.split('\n').every(row => row.length <= 90)).toBe(true)
+  expect(frame).toContain('unbreakableword')
+}, 40_000)
+
 test('the comparison header keeps its rows beside a long branch', async () => {
   const dir = repo()
   execFileSync('git', ['switch', '-q', '-c', BRANCH], { cwd: dir })
