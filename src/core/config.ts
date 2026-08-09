@@ -98,6 +98,14 @@ export interface Config {
    * terminal whether its font has the glyphs a set needs.
    */
   iconTheme: string
+  /**
+   * Draw the file's icon in its tab as well as in the tree. Off by default: the
+   * strip is the one row the editor never scrolls, and a column per tab is a
+   * tab fewer on a narrow terminal. A tab carrying a diagnostic mark spends the
+   * same column on that instead, and one showing a diff or rendered markdown on
+   * the glyph that says so.
+   */
+  tabIcons: boolean
   /** Modal editing (normal / insert / visual). */
   vim: boolean
   /**
@@ -235,6 +243,7 @@ export const DEFAULTS: Config = {
   themeDark: 'dark',
   transparent: false,
   iconTheme: NO_ICONS,
+  tabIcons: false,
   vim: false,
   // OpenTUI's own default, so an unset key keeps the caret druk has always drawn.
   cursorStyle: 'block',
@@ -318,6 +327,7 @@ const VALIDATORS: { [K in keyof Config]: Validator<K> } = {
   // A registry check, like the theme above it: an icon theme an extension has since
   // been uninstalled with falls back to the default rather than drawing nothing.
   iconTheme: raw => (isIconThemeName(raw) ? raw : undefined),
+  tabIcons: bool,
   vim: bool,
   cursorStyle: among(...CURSOR_STYLES),
   wrap: bool,

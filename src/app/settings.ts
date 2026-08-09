@@ -217,6 +217,11 @@ export function createSettings(deps: {
     status.say(`Transparent background ${onOff(config.transparent)}`)
   }
 
+  const toggleTabIcons = () => {
+    patchConfig({ tabIcons: !view().tabIcons })
+    status.say(`File icons in tabs ${onOff(config.tabIcons)}`)
+  }
+
   const toggleWrap = () => {
     patchConfig({ wrap: !view().wrap })
     status.say(`Word wrap ${onOff(config.wrap)}`)
@@ -699,6 +704,13 @@ export function createSettings(deps: {
       },
     },
     {
+      section: 'Appearance',
+      key: 'tabIcons',
+      label: 'File icons in tabs',
+      value: onOff(view().tabIcons),
+      cycle: toggleTabIcons,
+    },
+    {
       section: 'Editor',
       key: 'vim',
       label: 'Vim mode',
@@ -1046,6 +1058,7 @@ export function createSettings(deps: {
     restoreTheme,
     toggleThemeSync,
     toggleTransparent,
+    toggleTabIcons,
     toggleWrap,
     applyTabSize,
     applyVim,

@@ -4,6 +4,10 @@ import { useTerminalDimensions } from '@opentui/solid'
 import { createMemo, For, Show } from 'solid-js'
 
 import { ui } from '../themes'
+import { SEVERITY_COLOR, SEVERITY_GLYPH } from './severity'
+
+/** Worst diagnostic a tab's file carries. Info and hints are not a tab's business. */
+export type TabSeverity = 'error' | 'warning'
 
 export interface TabInfo {
   /** What the callbacks name this tab by: a file path, or the diff tab's own id —
@@ -12,6 +16,10 @@ export interface TabInfo {
   name: string
   dirty: boolean
   preview: boolean
+  /** Worst diagnostic of the file, or null when it has none. */
+  severity: TabSeverity | null
+  /** The file's icon, or null when `tabIcons` is off or the theme draws nothing. */
+  icon: { glyph: string; color?: string } | null
 }
 
 export interface TabsProps {
@@ -39,6 +47,8 @@ export interface TabsProps {
 const MAX_LABEL = 18
 /** Padding, the dirty/close glyph and the separator around a label. */
 const CHROME = 5
+/** The glyph slot before a label, and the space after it. */
+const SLOT = 2
 /** Columns the history arrows take off the row: two boxes and their padding. */
 const NAV = 5
 const PREVIEW_LABEL = '¶ preview'
@@ -49,6 +59,17 @@ const PREVIEW_WIDTH = PREVIEW_LABEL.length + 2
 
 const shorten = (name: string) =>
   name.length <= MAX_LABEL ? name : `${name.slice(0, MAX_LABEL - 1)}…`
+
+/**
+ * One glyph before the label, or null for none: a diagnostic outranks the file
+ * icon rather than sitting beside it. Both are one cell, so a file that starts
+ * erroring while icons are on moves nothing — and where icons are off, which is
+ * the default, the mark is the only thing the slot is ever spent on.
+ */
+const glyphOf = (tab: TabInfo): { glyph: string; color?: string } | null =>
+  tab.severity
+    ? { glyph: SEVERITY_GLYPH[tab.severity], color: SEVERITY_COLOR[tab.severity]() }
+    : tab.icon
 
 export function Tabs(props: TabsProps) {
   const dimensions = useTerminalDimensions()
@@ -63,7 +84,8 @@ export function Tabs(props: TabsProps) {
     // arrows are drawn whether or not they are live, so their columns are gone
     // from the budget either way.
     const budget = dimensions().width - NAV - (props.markdown ? PREVIEW_WIDTH : 0)
-    const width = (tab: TabInfo) => shorten(tab.name).length + CHROME
+    const width = (tab: TabInfo) =>
+      shorten(tab.name).length + CHROME + (tab.severity || tab.icon ? SLOT : 0)
 
     const active = Math.max(
       0,
@@ -138,8 +160,24 @@ export function Tabs(props: TabsProps) {
                       tabs, not the glyph hidden by painting it in the background:
                       with `transparent` on there is no background to hide it in. */}
                   <text fg={ui.accent} bg={bg()} flexShrink={0} content={active() ? '▎' : ' '} />
+                  <Show when={glyphOf(tab)}>
+                    {(mark: () => { glyph: string; color?: string }) => (
+                      <text
+                        fg={mark().color ?? (active() ? ui.dim : ui.faint)}
+                        bg={bg()}
+                        flexShrink={0}
+                        content={`${mark().glyph} `}
+                      />
+                    )}
+                  </Show>
                   <text
-                    fg={active() ? ui.activeTabFg : ui.inactiveTabFg}
+                    fg={
+                      tab.severity
+                        ? SEVERITY_COLOR[tab.severity]()
+                        : active()
+                          ? ui.activeTabFg
+                          : ui.inactiveTabFg
+                    }
                     bg={bg()}
                     content={shorten(tab.name)}
                     attributes={

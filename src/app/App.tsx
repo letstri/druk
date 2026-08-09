@@ -14,6 +14,7 @@ import { isPdfPath } from '../core/pdf'
 import { watchNotes } from '../core/review'
 import { checkForUpdate, currentVersion } from '../core/update'
 import { extensionProblems } from '../extensions'
+import { iconFor } from '../icons'
 import { languageLabel } from '../languages'
 import { filetypeForPath } from '../languages/highlight'
 import { SEVERITY_RANK } from '../lsp/protocol'
@@ -346,6 +347,20 @@ export function App(props: {
     return (path ? lsp.problems[path] : undefined) ?? []
   })
 
+  /**
+   * The mark one tab wears: its file's worst diagnostic. Info and hints are left
+   * out for the same reason the status bar counts neither — a tab says whether
+   * the file needs looking at, and neither of those does.
+   */
+  const tabSeverity = (path: string): 'error' | 'warning' | null => {
+    let worst: 'warning' | null = null
+    for (const problem of lsp.problems[path] ?? []) {
+      if (problem.severity === 'error') return 'error'
+      if (problem.severity === 'warning') worst = 'warning'
+    }
+    return worst
+  }
+
   const problemCounts = createMemo(() => {
     const path = workspace.activePath()
     let errors = 0
@@ -567,6 +582,16 @@ export function App(props: {
               : basename(id),
           dirty: workspace.buffers[id]?.dirty ?? false,
           preview: id === workspace.previewPath(),
+          // The diff tab's id is `diff:<path>`, so its diagnostics are the file's
+          // — but the diff is not what they are marks in, and the tab already
+          // carries a glyph of its own.
+          severity: workspace.isDiffView(id) ? null : tabSeverity(id),
+          // A diff or rendered-markdown tab spends the glyph slot on the mark
+          // that says which it is; only a plain file tab has it to spare.
+          icon:
+            config.tabIcons && !workspace.isDiffView(id) && id !== workspace.renderedPath()
+              ? iconFor(settings.activeIconTheme(), { name: basename(id), isDir: false })
+              : null,
         }))}
         activeId={workspace.activeView()}
         canBack={navigation.canBack()}
