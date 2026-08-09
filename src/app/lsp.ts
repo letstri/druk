@@ -632,6 +632,14 @@ export function wireLspEffects(deps: { lsp: Lsp; settings: Settings; workspace: 
       if (text !== known.text) {
         pendingEdits.set(path, { entry: known, text })
         if (!flushTimer) flushTimer = setTimeout(flushAll, CHANGE_DEBOUNCE_MS)
+      } else {
+        // `known.text` is what the server was last *sent*, so an edit that puts
+        // the buffer back to it — a backspace over the character just typed — is
+        // not "nothing to do": the edit queued for that backspace describes a
+        // text the editor no longer has, and flushing it would hand the server a
+        // document one keystroke behind the position druk is about to ask about.
+        // That is a completion answered for the wrong column.
+        pendingEdits.delete(path)
       }
       if (known.dirty && !dirty) {
         // dirty fell: this run is a save. The pending edit goes first so the
