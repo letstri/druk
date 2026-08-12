@@ -42,8 +42,8 @@ const cursorRow = (t: Harness) =>
 
 const savedStyle = () => JSON.parse(readFileSync(CONFIG_FILE, 'utf8')).cursorStyle
 
-/** Theme, Follow OS, Light, Dark, Transparent, File icons, Vim → Cursor. */
-const CURSOR_ROW = 7
+/** Theme, Follow OS, Light, Dark, Transparent, File icons, File icons in tabs, Vim → Cursor. */
+const CURSOR_ROW = 8
 
 test('the cursor row starts on the block druk has always drawn', async () => {
   const t = await launch(fixture(PROJECT))
@@ -94,7 +94,7 @@ test('vim takes the caret over, and gives it back in the shape the setting names
   expect(caretStyle(t)).toBe('block')
 
   await runCommand(t, 'Settings')
-  await down(t, 6) // Vim mode
+  await down(t, CURSOR_ROW - 1) // Vim mode
   await press(t, i => i.pressEnter())
   await pressEscape(t)
   expect(caretStyle(t)).toBe('line')
