@@ -29,7 +29,7 @@ bun add -g druk
 
 On Debian or Ubuntu, take the `.deb` from the
 [releases page](https://github.com/letstri/druk/releases) (`sudo dpkg -i druk_*.deb`);
-on Fedora or openSUSE the `.rpm` (`sudo rpm -i druk-*.rpm`).
+on Fedora or openSUSE the `.rpm` (`sudo rpm -U druk-*.rpm`).
 
 macOS (arm64, x64), Linux (arm64, x64) and Windows (x64). Binaries are also on the
 releases page.
