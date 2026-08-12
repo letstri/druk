@@ -41,6 +41,7 @@ export const BINDABLE: Bindable[] = [
   { id: 'open', label: 'Open file…', defaults: ['Ctrl+P', 'Ctrl+O'] },
   { id: 'save', label: 'Save file', defaults: ['Ctrl+S'] },
   { id: 'file.saveAll', label: 'Save all', defaults: [] },
+  { id: 'file.saveWithoutFormatting', label: 'Save without formatting', defaults: [] },
   { id: 'goto', label: 'Go to line…', defaults: ['Ctrl+G'] },
   { id: 'goto.definition', label: 'Go to definition', defaults: ['F12'] },
   { id: 'goto.file', label: 'Open file under cursor', defaults: [`Ctrl+${ALT}+O`] },
@@ -84,6 +85,11 @@ export const BINDABLE: Bindable[] = [
   // D for delete, since Ctrl+Shift+K — every GUI editor's chord for this — is a
   // shifted Ctrl chord no terminal can deliver.
   { id: 'editor.deleteLine', label: 'Delete line', defaults: [`Ctrl+${ALT}+D`] },
+  // Shift+Alt+F is VS Code's Format Document, but Shift and Opt collapse to one
+  // modifier here (keybindings.ts), and Ctrl+Opt+F is already Find in project.
+  // L matches IntelliJ's Reformat and is otherwise free.
+  { id: 'editor.format', label: 'Format document', defaults: [`Ctrl+${ALT}+L`] },
+  { id: 'editor.formatOpen', label: 'Format open files', defaults: [] },
   { id: 'editor.fold', label: 'Fold block at cursor', defaults: [`Ctrl+${ALT}+S`] },
   { id: 'editor.unfold', label: 'Unfold block at cursor', defaults: [`Ctrl+${ALT}+E`] },
   { id: 'editor.foldAll', label: 'Fold everything', defaults: [] },

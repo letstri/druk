@@ -23,6 +23,9 @@ export type { Command } from '../ui/CommandPalette'
 export interface CommandActions {
   save: () => void
   saveAll: () => void
+  saveWithoutFormatting: () => void
+  formatDocument: () => void
+  formatOpenFiles: () => void
   openFile: () => void
   switchTab: () => void
   closeOthers: () => void
@@ -172,6 +175,11 @@ export function buildCommands(actions: CommandActions, ctx: CommandContext): Com
       label: 'File',
       children: [
         { id: 'file.saveAll', label: 'Save all', run: actions.saveAll },
+        {
+          id: 'file.saveWithoutFormatting',
+          label: 'Save without formatting',
+          run: actions.saveWithoutFormatting,
+        },
         { id: 'file.new', label: 'New file', hint: 'Ctrl+N', run: actions.newFile },
         { id: 'file.newDir', label: 'New folder', hint: `Ctrl+${ALT}+N`, run: actions.newFolder },
         { id: 'file.rename', label: 'Rename…', hint: 'r', run: actions.rename },
@@ -479,6 +487,17 @@ export function buildCommands(actions: CommandActions, ctx: CommandContext): Com
           label: 'Delete line',
           hint: `Ctrl+${ALT}+D`,
           run: () => actions.lineOp('delete'),
+        },
+        {
+          id: 'editor.format',
+          label: 'Format document',
+          hint: `Ctrl+${ALT}+L`,
+          run: actions.formatDocument,
+        },
+        {
+          id: 'editor.formatOpen',
+          label: 'Format open files',
+          run: actions.formatOpenFiles,
         },
         {
           id: 'editor.complete',

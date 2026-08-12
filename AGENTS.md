@@ -287,7 +287,11 @@ eslint --fix, oxfmt, gofmt — with the saved file's path appended, or put where
 `{}` token sits, the project's own `node_modules/.bin` copy preferred over
 anything global as it is for the language servers, and edited on the settings
 page's Formatters row — file types and command as two fields, Tab between them —
-as much as in the config file), custom shortcuts (`keybindings` maps a
+as much as in the config file; Format document runs the same command on demand
+(`Ctrl+Opt+L`, palette → Editor — Shift+Alt+F is not a distinct terminal chord
+here, and Ctrl+Opt+F is already Find in project), Format open files does every
+open text tab that has a formatter, and Save without formatting writes the
+buffer without running one even when format-on-save is on), custom shortcuts (`keybindings` maps a
 command id to one chord, replacing whatever it had — the settings page's Shortcuts
 row lists every bindable command with the key it answers to, refuses a chord another
 custom binding holds and names whatever default a rebind takes the key from, while a

@@ -393,6 +393,9 @@ export function createCommands(ctx: AppContext) {
   const actions = {
     save: workspace.saveActive,
     saveAll: workspace.saveAll,
+    saveWithoutFormatting: workspace.saveWithoutFormatting,
+    formatDocument: workspace.formatActive,
+    formatOpenFiles: workspace.formatOpen,
     openFile: () => ctx.overlays.setPicker('files'),
     switchTab: () => ctx.overlays.setPicker('tabs'),
     closeOthers: () => {

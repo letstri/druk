@@ -75,12 +75,15 @@ export async function runFormatter(
   command: string[],
   path: string,
   cwd: string,
+  signal?: AbortSignal,
 ): Promise<string | null> {
   const [bin] = command
   const result = await run(resolveBin(bin!, cwd), formatArgs(command, path), {
     cwd,
     timeout: FORMAT_TIMEOUT,
+    signal,
   })
+  if (signal?.aborted) return null
   if (result.error) {
     return notInstalled(result) ? `${bin} is not installed, or not on PATH` : result.error.message
   }

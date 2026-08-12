@@ -31,6 +31,8 @@ export interface RunOptions {
   timeout: number
   /** Bytes of combined output past which the process is killed. */
   maxOutput?: number
+  /** When aborted, the child is killed the same way a timeout is. */
+  signal?: AbortSignal
 }
 
 export function run(bin: string, args: string[], options: RunOptions): Promise<ProcessResult> {
@@ -50,10 +52,13 @@ export function run(bin: string, args: string[], options: RunOptions): Promise<P
     // of the ways the process ends, so the two have to close over each other.
     let timer: ReturnType<typeof setTimeout>
 
+    const onAbort = () => child.kill('SIGKILL')
+
     const finish = (status: number | null, error: NodeJS.ErrnoException | null = null) => {
       if (settled) return
       settled = true
       clearTimeout(timer)
+      options.signal?.removeEventListener('abort', onAbort)
       resolve({
         status,
         stdout: Buffer.concat(stdout).toString('utf8'),
@@ -80,6 +85,11 @@ export function run(bin: string, args: string[], options: RunOptions): Promise<P
       timedOut = true
       child.kill('SIGKILL')
     }, options.timeout)
+
+    if (options.signal) {
+      if (options.signal.aborted) onAbort()
+      else options.signal.addEventListener('abort', onAbort)
+    }
 
     child.stdout.on('data', (chunk: Buffer) => collect(stdout, chunk))
     child.stderr.on('data', (chunk: Buffer) => collect(stderr, chunk))
