@@ -52,6 +52,8 @@ export function run(bin: string, args: string[], options: RunOptions): Promise<P
     // of the ways the process ends, so the two have to close over each other.
     let timer: ReturnType<typeof setTimeout>
 
+    const onAbort = () => child.kill('SIGKILL')
+
     const finish = (status: number | null, error: NodeJS.ErrnoException | null = null) => {
       if (settled) return
       settled = true
@@ -78,8 +80,6 @@ export function run(bin: string, args: string[], options: RunOptions): Promise<P
       }
       target.push(chunk)
     }
-
-    const onAbort = () => child.kill('SIGKILL')
 
     timer = setTimeout(() => {
       timedOut = true

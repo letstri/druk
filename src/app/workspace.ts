@@ -178,6 +178,25 @@ export function createWorkspace(deps: {
 
   const dirtyPaths = () => Object.keys(unwrap(buffers)).filter(path => buffers[path]?.dirty)
 
+  /**
+   * In-flight formatters for a path. Bumped when a newer format starts or when a
+   * write deliberately skips formatting; the AbortController kills the child so
+   * Save without formatting cannot lose to a formatter that finishes afterward
+   * and the watcher pulls formatted text back in.
+   */
+  const formatEpoch: Record<string, number> = {}
+  const formatAbort: Record<string, AbortController> = {}
+  /** Settles when the latest format task for a path ends (success, fail, or abort). */
+  const formatWait: Record<string, Promise<void>> = {}
+  /**
+   * Content we insist stays on disk/buffer after aborting a formatter. The watcher
+   * must not pull a late flush into a clean tab before reassert rewrites the file.
+   * Cleared by hold id — content equality would drop a newer hold that happens to
+   * carry the same bytes (Save without formatting after Ctrl+S).
+   */
+  const holdDisk: Record<string, { content: string; id: number }> = {}
+  let holdSeq = 0
+
   const discardBuffer = (path: string) => {
     // Abort the child but leave epoch, holdDisk and formatWait: a pending
     // reassertAfterFormat must still rewrite disk after SIGKILL. Closing the
@@ -379,25 +398,6 @@ export function createWorkspace(deps: {
     }
     return overlay
   }
-
-  /**
-   * In-flight formatters for a path. Bumped when a newer format starts or when a
-   * write deliberately skips formatting; the AbortController kills the child so
-   * Save without formatting cannot lose to a formatter that finishes afterward
-   * and the watcher pulls formatted text back in.
-   */
-  const formatEpoch: Record<string, number> = {}
-  const formatAbort: Record<string, AbortController> = {}
-  /** Settles when the latest format task for a path ends (success, fail, or abort). */
-  const formatWait: Record<string, Promise<void>> = {}
-  /**
-   * Content we insist stays on disk/buffer after aborting a formatter. The watcher
-   * must not pull a late flush into a clean tab before reassert rewrites the file.
-   * Cleared by hold id — content equality would drop a newer hold that happens to
-   * carry the same bytes (Save without formatting after Ctrl+S).
-   */
-  const holdDisk: Record<string, { content: string; id: number }> = {}
-  let holdSeq = 0
 
   const setHold = (path: string, content: string): number => {
     const id = ++holdSeq
