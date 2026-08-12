@@ -178,7 +178,15 @@ export function createWorkspace(deps: {
 
   const dirtyPaths = () => Object.keys(unwrap(buffers)).filter(path => buffers[path]?.dirty)
 
-  const discardBuffer = (path: string) => setBuffers(produce(draft => void delete draft[path]))
+  const discardBuffer = (path: string) => {
+    // Abort the child but leave epoch, holdDisk and formatWait: a pending
+    // reassertAfterFormat must still rewrite disk after SIGKILL. Closing the
+    // tab is not a newer write — bumping the epoch here would skip that
+    // rewrite and leave a late formatter flush on disk.
+    formatAbort[path]?.abort()
+    delete formatAbort[path]
+    setBuffers(produce(draft => void delete draft[path]))
+  }
 
   const openFile = (path: string, preview = false) => {
     setNotice(null)
@@ -373,6 +381,157 @@ export function createWorkspace(deps: {
   }
 
   /**
+   * In-flight formatters for a path. Bumped when a newer format starts or when a
+   * write deliberately skips formatting; the AbortController kills the child so
+   * Save without formatting cannot lose to a formatter that finishes afterward
+   * and the watcher pulls formatted text back in.
+   */
+  const formatEpoch: Record<string, number> = {}
+  const formatAbort: Record<string, AbortController> = {}
+  /** Settles when the latest format task for a path ends (success, fail, or abort). */
+  const formatWait: Record<string, Promise<void>> = {}
+  /**
+   * Content we insist stays on disk/buffer after aborting a formatter. The watcher
+   * must not pull a late flush into a clean tab before reassert rewrites the file.
+   * Cleared by hold id — content equality would drop a newer hold that happens to
+   * carry the same bytes (Save without formatting after Ctrl+S).
+   */
+  const holdDisk: Record<string, { content: string; id: number }> = {}
+  let holdSeq = 0
+
+  const setHold = (path: string, content: string): number => {
+    const id = ++holdSeq
+    holdDisk[path] = { content, id }
+    return id
+  }
+
+  const clearHold = (path: string, id: number) => {
+    if (holdDisk[path]?.id === id) delete holdDisk[path]
+  }
+
+  const beginFormat = (
+    path: string,
+  ): { epoch: number; signal: AbortSignal; prior: Promise<void> | undefined } => {
+    formatAbort[path]?.abort()
+    const prior = formatWait[path]
+    const ac = new AbortController()
+    formatAbort[path] = ac
+    const epoch = (formatEpoch[path] ?? 0) + 1
+    formatEpoch[path] = epoch
+    return { epoch, signal: ac.signal, prior }
+  }
+
+  const invalidateFormat = (path: string): number => {
+    formatAbort[path]?.abort()
+    delete formatAbort[path]
+    const epoch = (formatEpoch[path] ?? 0) + 1
+    formatEpoch[path] = epoch
+    return epoch
+  }
+
+  const clearFormatState = (path: string) => {
+    invalidateFormat(path)
+    delete holdDisk[path]
+    delete formatWait[path]
+  }
+
+  /**
+   * After killing an in-flight formatter, put `content` back on disk once the
+   * child has exited — SIGKILL is async, and a late flush would otherwise let
+   * the watcher pull formatted text into a clean buffer. `epoch`/`hold` cancel
+   * the rewrite when a newer write or format supersedes this one.
+   */
+  const reassertAfterFormat = (
+    path: string,
+    content: string,
+    encoding: TextEncoding,
+    epoch: number,
+    hold: number,
+  ) => {
+    const pending = formatWait[path]
+    if (!pending) {
+      clearHold(path, hold)
+      return
+    }
+    void pending.then(() => {
+      if (formatEpoch[path] !== epoch) {
+        clearHold(path, hold)
+        return
+      }
+      // A move remapped this buffer and the file is gone from `path`. Writing
+      // would recreate it next to the destination.
+      if (!buffers[path] && !exists(path)) {
+        clearHold(path, hold)
+        return
+      }
+      writeFile(path, content, encoding)
+      const buffer = buffers[path]
+      if (buffer) {
+        if (buffer.dirty) {
+          // Typed after the save — keep those edits; only heal disk for the hold.
+          setBuffers(path, 'mtime', mtimeOf(path))
+        } else {
+          setBuffers(path, {
+            content,
+            dirty: false,
+            mtime: mtimeOf(path),
+            encoding,
+          })
+          if (path === activePath()) editor.pushEdit(content)
+        }
+      }
+      clearHold(path, hold)
+    })
+  }
+
+  /**
+   * Run the in-place formatter and pull the result into the buffer when nothing
+   * was typed over it. Callers announce — format-on-save names the file, a batch
+   * of open tabs counts them instead. `epoch`/`signal` are from `beginFormat`.
+   */
+  const applyFormat = async (
+    path: string,
+    saved: string,
+    command: string[],
+    epoch: number,
+    signal: AbortSignal,
+    announce = true,
+  ): Promise<'formatted' | 'noop' | 'busy' | 'superseded' | { failed: string }> => {
+    const error = await runFormatter(command, path, rootDir, signal)
+    if (formatEpoch[path] !== epoch || signal.aborted) return 'superseded'
+    if (error) {
+      if (announce) say(`Format failed: ${error}`, 'error')
+      return { failed: error }
+    }
+    if (!buffers[path]) return 'noop' // closed while the formatter ran
+    let written: FileBuffer
+    try {
+      // The formatter's own spelling wins: prettier writes LF by default, and a
+      // buffer still claiming CRLF would convert its work back on the next save.
+      written = loadBuffer(path)
+    } catch {
+      return 'noop' // unreadable now — the watcher's sync will report it
+    }
+    const disk = written.content
+    const buffer = buffers[path]!
+    // A keystroke while the tool ran wins; the next save reformats anyway.
+    if (buffer.dirty) {
+      setBuffers(path, 'mtime', mtimeOf(path))
+      return 'busy'
+    }
+    if (disk === buffer.content) {
+      // Nothing to pull in: the formatter changed nothing, or the watcher's
+      // sync raced this callback and already applied its write.
+      setBuffers(path, { mtime: written.mtime, encoding: written.encoding })
+      return disk !== saved ? 'formatted' : 'noop'
+    }
+    setBuffers(path, written)
+    if (path === activePath()) editor.pushEdit(disk)
+    git.bump()
+    return 'formatted'
+  }
+
+  /**
    * Save-then-format: the formatter rewrites the file in place, and the result
    * comes back into the buffer only if nothing typed over it while the tool ran
    * — a keystroke during the run wins, and the next save reformats anyway. The
@@ -380,37 +539,47 @@ export function createWorkspace(deps: {
    * mistaken for an outside edit by the next save's conflict check.
    */
   const formatAfterSave = (path: string, saved: string, command: string[]) => {
-    void runFormatter(command, path, rootDir).then(error => {
-      if (error) return say(`Format failed: ${error}`, 'error')
-      if (!buffers[path]) return // closed while the formatter ran
-      let written: FileBuffer
-      try {
-        // The formatter's own spelling wins: prettier writes LF by default, and a
-        // buffer still claiming CRLF would convert its work back on the next save.
-        written = loadBuffer(path)
-      } catch {
-        return // unreadable now — the watcher's sync will report it
-      }
-      const disk = written.content
-      const buffer = buffers[path]!
-      // A keystroke while the tool ran wins; the next save reformats anyway.
-      if (buffer.dirty) return setBuffers(path, 'mtime', mtimeOf(path))
-      if (disk === buffer.content) {
-        // Nothing to pull in: the formatter changed nothing, or the watcher's
-        // sync raced this callback and already applied its write.
-        setBuffers(path, { mtime: written.mtime, encoding: written.encoding })
-        if (disk !== saved) say(`Formatted ${basename(path)}`)
+    const { epoch, signal, prior } = beginFormat(path)
+    // Same shield Save without formatting uses: a late flush from `prior` must
+    // not reach the buffer via the watcher before we rewrite `saved` onto disk.
+    const hold = setHold(path, saved)
+    const task = (async () => {
+      // Wait out the killed child, then put `saved` back on disk — a late flush
+      // after SIGKILL would otherwise leave formatted bytes for the watcher.
+      if (prior) await prior
+      if (formatEpoch[path] !== epoch) {
+        clearHold(path, hold)
         return
       }
-      setBuffers(path, written)
-      if (path === activePath()) editor.pushEdit(disk)
-      git.bump()
-      say(`Formatted ${basename(path)}`)
-    })
+      const buffer = buffers[path]
+      if (buffer && !buffer.dirty && buffer.content === saved) {
+        writeFile(path, saved, buffer.encoding)
+        setBuffers(path, 'mtime', mtimeOf(path))
+      }
+      if (formatEpoch[path] !== epoch) {
+        clearHold(path, hold)
+        return
+      }
+      const result = await applyFormat(path, saved, command, epoch, signal)
+      if (formatEpoch[path] !== epoch) {
+        clearHold(path, hold)
+        return
+      }
+      if (result === 'formatted') say(`Formatted ${basename(path)}`)
+      clearHold(path, hold)
+    })()
+    formatWait[path] = task.then(
+      () => undefined,
+      () => undefined,
+    )
   }
 
   /** Write the buffer to disk unconditionally and re-sync its mtime. */
-  const writeBuffer = (path: string, content: string): boolean => {
+  const writeBuffer = (
+    path: string,
+    content: string,
+    opts?: { runFormat?: boolean; quiet?: boolean },
+  ): boolean => {
     const final = config.trimOnSave ? trimTrailing(content) : content
     // The file goes back spelled the way it was read: a CRLF working tree or a
     // BOM the user never touched must not turn into a whole-file diff.
@@ -421,45 +590,224 @@ export function createWorkspace(deps: {
       return false
     }
     setBuffers(path, { content: final, dirty: false, mtime: mtimeOf(path) })
+    const runFormat = opts?.runFormat ?? config.formatOnSave
     // Spawned before anything else this save does: the formatter is the longest
     // thing on the path between Ctrl+S and the reformatted text, and every line
     // below it — the editor push, the git refresh — is work that can happen while
     // the child runs. Started after them, it waits for all of it first.
-    if (config.formatOnSave) {
+    // Manual format writes with runFormat: false so it is not started twice.
+    if (runFormat) {
       const command = formatterFor(path, config.formatters)
       if (command) formatAfterSave(path, final, command)
+      else {
+        // Format-on-save is on but nothing matches — still abort any in-flight
+        // format (manual Format document, etc.) the same way a plain save does.
+        const epoch = invalidateFormat(path)
+        const hold = setHold(path, final)
+        reassertAfterFormat(path, final, encoding, epoch, hold)
+      }
+    } else {
+      // Drop any in-flight format for this path — a plain save or Save without
+      // formatting must not lose to a formatter that flushes after the write.
+      const epoch = invalidateFormat(path)
+      const hold = setHold(path, final)
+      reassertAfterFormat(path, final, encoding, epoch, hold)
     }
     // The trim changed the text on disk; the editor has to show the same thing —
     // and as an undoable step, not a history-wiping reload.
     if (final !== content && path === activePath()) editor.pushEdit(final)
     git.bump()
-    say(`Saved ${basename(path)}`)
+    // Format flushes a dirty buffer only so the in-place tool sees it — that is
+    // not a save the user asked for, so quiet skips the status line.
+    if (!opts?.quiet) say(`Saved ${basename(path)}`)
     return true
+  }
+
+  /**
+   * True when disk no longer matches the buffer. mtime alone is not enough: a
+   * touch or a reload that already reconciled identical text leaves the stamp
+   * stale without a real clash, and Format open must not skip those tabs.
+   * While holdDisk is asserting the buffer's own save, a late formatter flush is
+   * not a clash — reassertAfterFormat will put the held text back.
+   */
+  const clashes = (path: string, buffer: FileBuffer): boolean => {
+    if (mtimeOf(path) === buffer.mtime) return false
+    const hold = holdDisk[path]
+    if (hold && buffer.content === hold.content) return false
+    if (!exists(path)) return true
+    try {
+      return readTextFile(path).text !== buffer.content
+    } catch {
+      return true
+    }
+  }
+
+  /** True when the buffer may be written; opens the conflict modal when not. */
+  const prepareSave = (path: string, buffer: FileBuffer): boolean => {
+    // Someone else touched the file since we loaded it — ask before clobbering.
+    if (mtimeOf(path) === buffer.mtime) return true
+    const hold = holdDisk[path]
+    if (hold && buffer.content === hold.content) return true
+    if (!exists(path)) {
+      setConflict({ path, disk: '', encoding: buffer.encoding, deleted: true })
+      return false
+    }
+    let disk = ''
+    let encoding = buffer.encoding
+    try {
+      ;({ text: disk, encoding } = readTextFile(path))
+    } catch {
+      // unreadable (binary now) — treat as empty
+    }
+    if (disk === buffer.content) return true
+    setConflict({ path, disk, encoding, deleted: false })
+    return false
   }
 
   const saveActive = () => {
     const path = activePath()
     const buffer = activeBuffer()
     if (!path || !buffer) return
-    // Someone else touched the file since we loaded it — ask before clobbering.
-    if (mtimeOf(path) !== buffer.mtime) {
-      if (!exists(path)) {
-        setConflict({ path, disk: '', encoding: buffer.encoding, deleted: true })
-        return
-      }
-      let disk = ''
-      let encoding = buffer.encoding
-      try {
-        ;({ text: disk, encoding } = readTextFile(path))
-      } catch {
-        // unreadable (binary now) — treat as empty
-      }
-      if (disk !== buffer.content) {
-        setConflict({ path, disk, encoding, deleted: false })
-        return
-      }
-    }
+    if (!prepareSave(path, buffer)) return
     writeBuffer(path, buffer.content)
+  }
+
+  /** Write the active buffer without running the formatter, even when format-on-save is on. */
+  const saveWithoutFormatting = () => {
+    const path = activePath()
+    const buffer = activeBuffer()
+    if (!path || !buffer) return
+    if (!prepareSave(path, buffer)) return
+    writeBuffer(path, buffer.content, { runFormat: false })
+  }
+
+  /**
+   * Flush a dirty buffer to disk (no format-on-save), then run its formatter.
+   * Returns false when there is nothing to do for this path.
+   */
+  const formatPath = (path: string): boolean => {
+    const buffer = buffers[path]
+    if (!buffer) return false
+    const command = formatterFor(path, config.formatters)
+    if (!command) return false
+    // Clean tabs too: an in-place formatter reads disk, and without this check a
+    // clash would silently reformat the outside edit into the buffer.
+    if (!prepareSave(path, buffer)) return false
+    if (buffer.dirty) {
+      if (!writeBuffer(path, buffer.content, { runFormat: false, quiet: true })) return false
+    }
+    formatAfterSave(path, buffers[path]!.content, command)
+    return true
+  }
+
+  const formatActive = () => {
+    const path = activePath()
+    const buffer = activeBuffer()
+    if (!path || !buffer) return say('No file open', 'warn')
+    if (!formatterFor(path, config.formatters)) {
+      return say('No formatter for this file — add one in Settings → Formatters', 'warn')
+    }
+    formatPath(path)
+  }
+
+  /** Format every open text tab that has a matching formatter. */
+  const formatOpen = () => {
+    const paths = tabs().filter(path => buffers[path] && formatterFor(path, config.formatters))
+    if (paths.length === 0) return say('Nothing to format')
+
+    void (async () => {
+      const done: string[] = []
+      let unchanged = 0
+      let failed = 0
+      let skipped = 0
+      let interrupted = 0
+      const failNotes: string[] = []
+      // One formatter at a time: they share the status bar, and a parallel run
+      // would race both the announces and any overlapping writes.
+      for (const path of paths) {
+        const buffer = buffers[path]
+        if (!buffer) continue
+        const command = formatterFor(path, config.formatters)
+        if (!command) continue
+        // A clash mid-batch skips rather than opening the conflict modal — the
+        // user is not answering N prompts for one palette command. Matches
+        // prepareSave: content must disagree, not just mtime.
+        if (clashes(path, buffer)) {
+          skipped++
+          continue
+        }
+        if (buffer.dirty) {
+          if (!writeBuffer(path, buffer.content, { runFormat: false, quiet: true })) {
+            failed++
+            continue
+          }
+        }
+        // eslint-disable-next-line no-await-in-loop -- sequential on purpose, see above
+        const { epoch, signal, prior } = beginFormat(path)
+        const saved = buffers[path]!.content
+        const hold = setHold(path, saved)
+        const task = (async () => {
+          if (prior) await prior
+          if (formatEpoch[path] !== epoch) {
+            clearHold(path, hold)
+            return 'superseded' as const
+          }
+          const current = buffers[path]
+          if (current && !current.dirty && current.content === saved) {
+            writeFile(path, saved, current.encoding)
+            setBuffers(path, 'mtime', mtimeOf(path))
+          }
+          if (formatEpoch[path] !== epoch) {
+            clearHold(path, hold)
+            return 'superseded' as const
+          }
+          const result = await applyFormat(path, saved, command, epoch, signal, false)
+          clearHold(path, hold)
+          return result
+        })()
+        formatWait[path] = task.then(
+          () => undefined,
+          () => undefined,
+        )
+        const result = await task
+        if (result === 'formatted') done.push(path)
+        else if (typeof result === 'object') {
+          failed++
+          failNotes.push(`${basename(path)}: ${result.failed}`)
+        } else if (formatEpoch[path] !== epoch || result === 'superseded' || result === 'busy') {
+          clearHold(path, hold)
+          interrupted++
+        } else if (result === 'noop') unchanged++
+        else {
+          clearHold(path, hold)
+          interrupted++
+        }
+      }
+      // One status line for the whole batch: lead with the main outcome, then
+      // footnotes for everything else that happened in the same run.
+      const bits: string[] = []
+      if (done.length === 1) bits.push(`Formatted ${basename(done[0]!)}`)
+      else if (done.length > 1) bits.push(`Formatted ${done.length} files`)
+      else if (unchanged > 0) bits.push('No formatting changes')
+      if (interrupted > 0) {
+        bits.push(bits.length === 0 ? 'Formatting interrupted' : `${interrupted} interrupted`)
+      }
+      if (skipped > 0) {
+        bits.push(
+          bits.length === 0
+            ? 'Skipped files changed on disk'
+            : `${skipped} skipped — changed on disk`,
+        )
+      }
+      if (failed > 0) {
+        bits.push(failNotes.length === 1 ? failNotes[0]! : `${failed} failed`)
+      }
+      if (bits.length === 0) say('Nothing to format')
+      else {
+        const tone = failed > 0 ? 'error' : skipped > 0 || interrupted > 0 ? 'warn' : 'info'
+        say(bits.join('; '), tone)
+      }
+    })()
   }
 
   /**
@@ -512,6 +860,7 @@ export function createWorkspace(deps: {
     if (choice === 'overwrite' && buffers[c.path]) {
       writeBuffer(c.path, buffers[c.path]!.content)
     } else if (choice === 'reload') {
+      clearFormatState(c.path)
       setBuffers(c.path, {
         content: c.disk,
         dirty: false,
@@ -559,6 +908,14 @@ export function createWorkspace(deps: {
           fresh.encoding.bom !== buffer.encoding.bom
         )
           setBuffers(path, 'encoding', fresh.encoding)
+        // Do not clear holdDisk here: only the hold id's owner may drop it.
+        continue
+      }
+      // An aborted formatter may still flush; keep the unformatted save until
+      // reassertAfterFormat rewrites disk, rather than letting the watcher win.
+      // Dirty tabs still surface a clash warning — the hold only blocks clean pulls.
+      if (holdDisk[path] !== undefined) {
+        if (buffer.dirty) changed.push(basename(path))
         continue
       }
       // Unsaved edits stay untouched; the user is warned and asked on save.
@@ -590,6 +947,7 @@ export function createWorkspace(deps: {
    * loss. Reloading through the bridge also drops the editor's undo/redo history.
    */
   const followDisk = (path: string) => {
+    clearFormatState(path)
     if (conflict()?.path === path) setConflict(null)
     if (!exists(path)) {
       if (tabs().includes(path)) closeTab(path, true)
@@ -698,6 +1056,9 @@ export function createWorkspace(deps: {
       const next = remap(path)
       if (next === path) continue
       setBuffers(next, { ...buffers[path]! })
+      // discardBuffer keeps a pending reassertAfterFormat so a closed tab still
+      // heals disk; that write would recreate the file at the pre-move path.
+      clearFormatState(path)
       discardBuffer(path)
     }
     const active = activePath()
@@ -776,7 +1137,10 @@ export function createWorkspace(deps: {
     applyProjectReplace,
     writeBuffer,
     saveActive,
+    saveWithoutFormatting,
     saveAll,
+    formatActive,
+    formatOpen,
     saveDirtyOnBlur,
     resolveConflict,
     syncFromDisk,

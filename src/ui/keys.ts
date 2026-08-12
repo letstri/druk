@@ -111,6 +111,13 @@ export const KEYS: KeyInfo[] = [
     where: 'editor',
     ids: ['editor.deleteLine'],
   },
+  {
+    key: `Ctrl+${ALT}+L`,
+    label: 'Format document',
+    section: 'Editing',
+    where: 'editor',
+    ids: ['editor.format'],
+  },
   { key: 'Shift+Tab', label: 'Outdent', section: 'Editing', where: 'editor' },
   { key: 'Ctrl+Space', label: 'Autocomplete (Tab accepts)', section: 'Editing', where: 'editor' },
   {
