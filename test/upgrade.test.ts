@@ -83,3 +83,37 @@ describe('the help', () => {
     expect(HELP).toContain('upgrade druk itself')
   })
 })
+
+describe('a system package install', () => {
+  test('the packaged path is its own kind, ahead of the npm fallback', () => {
+    expect(detect('/usr/bin/druk')).toEqual({ kind: 'system' })
+    // A shim at that path runs under node, whose execPath is not the binary.
+    expect(detect('/usr/bin/node', '/usr/lib/node_modules/druk/bin/druk.js')).toMatchObject({
+      manager: 'npm',
+    })
+  })
+
+  test('its command is the releases page, since nothing is safe to run', () => {
+    expect(upgradeCommand({ kind: 'system' })).toContain('releases/latest')
+  })
+
+  test('update points at this architecture and spawns nothing', async () => {
+    const written: string[] = []
+    const code = await runUpgrade(text => written.push(text), {
+      execPath: '/usr/bin/druk',
+      arch: 'x64',
+    })
+    const out = written.join('')
+    expect(code).toBe(0)
+    expect(out).toContain('system package manager')
+    expect(out).toContain('amd64 .deb or x86_64 .rpm')
+    expect(out).toContain('releases/latest')
+    expect(out).not.toContain('$ ') // no command was printed, none was run
+  })
+
+  test('arm64 names its own pair', async () => {
+    const written: string[] = []
+    await runUpgrade(text => written.push(text), { execPath: '/usr/bin/druk', arch: 'arm64' })
+    expect(written.join('')).toContain('arm64 .deb or aarch64 .rpm')
+  })
+})

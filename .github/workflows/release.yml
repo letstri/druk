@@ -102,6 +102,24 @@ jobs:
       # at it, and a release missing them sends every `brew install` back to a source
       # build — which is what fails on a machine whose Xcode trails its macOS (issue #40).
       - run: bun run formula
+      # nfpm turns the linux binaries into .deb/.rpm files in dist/release/, which
+      # the upload below carries like everything else there. Pinned by version and
+      # by the tarball's SHA-256 as a literal here — a checksum fetched from the
+      # same origin as the artifact would verify nothing. The fetch is a hard
+      # dependency of the release on purpose: `druk update` points system installs
+      # at these assets, so a release shipped without them is the same
+      # published-pointer-to-nothing failure the npm and upload steps refuse to
+      # allow each other. Re-running a shipped version stays safe, and a yanked
+      # tarball is a one-line pin bump.
+      - name: Package for deb and rpm
+        run: |
+          curl -fsSL -o nfpm.tar.gz \
+            https://github.com/goreleaser/nfpm/releases/download/v2.47.0/nfpm_2.47.0_Linux_x86_64.tar.gz
+          echo "0660ca602b2d2d2ae4781a06c692b3eeb9d437ffea05b831d76e41f4a3188783  nfpm.tar.gz" | sha256sum -c -
+          tar -xzf nfpm.tar.gz nfpm
+          sudo mv nfpm /usr/local/bin/nfpm
+          rm nfpm.tar.gz
+          bun run packages
       # git, not `gh release create --target`: GITHUB_TOKEN may create a release for a
       # tag that already exists, but creating one that has to create the tag too comes
       # back `403 Resource not accessible by integration`. Pushing the tag over the
