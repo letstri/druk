@@ -557,6 +557,12 @@ Key handlers subscribe through `useKeys` (`src/ui/useKeys.ts`), never OpenTUI's
 `useKeyboard` directly: it renames a Ctrl chord to the US key the character sits on, so
 a shortcut still fires with a Cyrillic layout up (`src/core/keylayout.ts`).
 
+Anything clickable tints under the pointer: `useHover` (`src/ui/hover.ts`) wired to
+`onMouseOver`/`onMouseOut` on the element's box — the events bubble, so one pair on a
+row covers its texts — painting `ui.hoverBg`, a derived colour like `border`. Selection
+outranks hover (`rowBg` in `src/ui/list.ts` encodes that for the sidebar panels), and
+whole-pane focus clicks are not buttons, so they get no tint.
+
 `src/app/commands.ts` is the feature index — read it to learn what the editor can do.
 
 `ui/` and the feature folders (`core/`, `languages/`, `themes/`, `editor/`, `lsp/`) must never

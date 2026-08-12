@@ -7,6 +7,7 @@ import { createEffect, createMemo, createSignal, For, Show } from 'solid-js'
 import type { ConfigScope } from '../core/config'
 import { fuzzyScore } from '../core/search'
 import { ui } from '../themes'
+import { useHover } from './hover'
 import { SettingEditor } from './SettingEditor'
 import type { SettingEdit } from './SettingEditor'
 import { SettingPicker } from './SettingPicker'
@@ -287,7 +288,9 @@ export function SettingsView(props: SettingsViewProps) {
         {(row, at) => {
           const i = () => visible().start + at()
           const active = () => i() === selected()
-          const bg = () => (active() ? ui.treeSelectedBg : ui.solidBg)
+          const hover = useHover()
+          const bg = () =>
+            active() ? ui.treeSelectedBg : hover.hovered() ? ui.hoverBg : ui.solidBg
           const showHeading = () => heading(i())
           return (
             <>
@@ -305,6 +308,8 @@ export function SettingsView(props: SettingsViewProps) {
                   if (active()) activate(row)
                   else setIndex(i())
                 }}
+                onMouseOver={hover.enter}
+                onMouseOut={hover.leave}
               >
                 <text fg={ui.accent} bg={bg()} flexShrink={0} content={active() ? '▌ ' : '  '} />
                 <text

@@ -110,6 +110,7 @@ function colorsFor(name: ThemeName, transparent: boolean): UiColors {
     // a hairline is the same idea in all of them — the bar colour pushed a little
     // further from the background it sits on.
     border: mix(theme.barBg, theme.dim, 0.35),
+    hoverBg: mix(theme.panelBg, theme.text, 0.07),
     ...(transparent ? { bg: 'transparent', barBg: 'transparent' } : null),
   }
 }

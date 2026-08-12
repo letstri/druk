@@ -4,6 +4,7 @@ import { createEffect, createMemo, For, on, Show } from 'solid-js'
 import type { BranchComparison, ComparisonCommit, ComparisonFile } from '../core/git'
 import { ui } from '../themes'
 import { diffMark, diffStatusColor } from './DiffView'
+import { useHover } from './hover'
 import { createScrollList, rowBg, scrollbarOptions } from './list'
 import { cut } from './text'
 
@@ -116,13 +117,16 @@ export function ComparePanel(props: ComparePanelProps) {
               <For each={visibleCommits()}>
                 {(commit, row) => {
                   const index = () => list.window().start + row()
-                  const bg = () => rowBg(index() === cursor(), props.focused)
+                  const hover = useHover()
+                  const bg = () => rowBg(index() === cursor(), props.focused, hover.hovered())
                   return (
                     <box
                       height={1}
                       flexDirection="row"
                       backgroundColor={bg()}
                       onMouseDown={() => props.onActivate(index())}
+                      onMouseOver={hover.enter}
+                      onMouseOut={hover.leave}
                     >
                       <text
                         wrapMode="none"
@@ -148,7 +152,8 @@ export function ComparePanel(props: ComparePanelProps) {
             <For each={visibleFiles()}>
               {(file, row) => {
                 const index = () => list.window().start + row()
-                const bg = () => rowBg(index() === cursor(), props.focused)
+                const hover = useHover()
+                const bg = () => rowBg(index() === cursor(), props.focused, hover.hovered())
                 const totals = () =>
                   file.binary ? 'binary' : `+${file.additions} −${file.deletions}`
                 return (
@@ -157,6 +162,8 @@ export function ComparePanel(props: ComparePanelProps) {
                     flexDirection="row"
                     backgroundColor={bg()}
                     onMouseDown={() => props.onActivate(index())}
+                    onMouseOver={hover.enter}
+                    onMouseOut={hover.leave}
                   >
                     <text
                       wrapMode="none"

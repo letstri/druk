@@ -4,6 +4,7 @@ import { createEffect, createMemo, createSignal, For, on, Show } from 'solid-js'
 
 import type { ServerState, ServerView } from '../lsp/status'
 import { ui } from '../themes'
+import { useHover } from './hover'
 import { useKeys } from './useKeys'
 
 export interface LspStatusViewProps {
@@ -123,34 +124,41 @@ export function LspStatusView(props: LspStatusViewProps) {
       >
         <box flexDirection="column" flexShrink={0} paddingTop={1} paddingBottom={1}>
           <For each={props.servers}>
-            {(server, index) => (
-              <box
-                flexDirection="row"
-                backgroundColor={index() === at() ? ui.treeSelectedBg : undefined}
-                onMouseDown={() => {
-                  props.onFocus()
-                  setCursor(index())
-                }}
-              >
-                <text
-                  fg={stateColor(server.state)}
-                  flexShrink={0}
-                  content={` ${index() === at() ? '▸' : ' '} ${STATE_GLYPH[server.state]} `}
-                />
-                <text
-                  fg={ui.text}
-                  flexShrink={0}
-                  content={`${server.id} · ${stateLabel(server)}`}
-                />
-                {/* A row each: a server command is a path somebody configured,
+            {(server, index) => {
+              const hover = useHover()
+              return (
+                <box
+                  flexDirection="row"
+                  backgroundColor={
+                    index() === at() ? ui.treeSelectedBg : hover.hovered() ? ui.hoverBg : undefined
+                  }
+                  onMouseDown={() => {
+                    props.onFocus()
+                    setCursor(index())
+                  }}
+                  onMouseOver={hover.enter}
+                  onMouseOut={hover.leave}
+                >
+                  <text
+                    fg={stateColor(server.state)}
+                    flexShrink={0}
+                    content={` ${index() === at() ? '▸' : ' '} ${STATE_GLYPH[server.state]} `}
+                  />
+                  <text
+                    fg={ui.text}
+                    flexShrink={0}
+                    content={`${server.id} · ${stateLabel(server)}`}
+                  />
+                  {/* A row each: a server command is a path somebody configured,
                     and wrapping one pushes the log below it down the page. */}
-                <text
-                  wrapMode="none"
-                  fg={ui.dim}
-                  content={` · ${server.docs.length} open · ${server.command.join(' ')}`}
-                />
-              </box>
-            )}
+                  <text
+                    wrapMode="none"
+                    fg={ui.dim}
+                    content={` · ${server.docs.length} open · ${server.command.join(' ')}`}
+                  />
+                </box>
+              )
+            }}
           </For>
         </box>
         <scrollbox

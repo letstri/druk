@@ -6,6 +6,7 @@ import { rowArea } from '../core/changeTree'
 import { iconFor } from '../icons'
 import { ui } from '../themes'
 import { MARKS, statusColor } from './FileTree'
+import { useHover } from './hover'
 import { createScrollList, rowBg, scrollbarOptions } from './list'
 
 /** `Show`'s `when` takes a value, not a predicate: these hand it the narrowed row
@@ -75,6 +76,7 @@ export function GitPanel(props: GitPanelProps) {
 
   const list = createScrollList(() => props.rows.length)
   const visible = createMemo(() => props.rows.slice(list.window().start, list.window().end))
+  const collapse = useHover()
 
   /**
    * Change lists are usually shorter than the panel, but `git status` after a big
@@ -123,8 +125,18 @@ export function GitPanel(props: GitPanelProps) {
         {/* Only tree view has folders to fold, and only while one is open: the
             flat list draws no folder rows at all. */}
         <Show when={props.rows.some(row => row.kind === 'dir' && !row.collapsed)}>
-          <box flexShrink={0} backgroundColor={ui.sidebarBg} onMouseDown={props.onCollapseAll}>
-            <text fg={ui.dim} bg={ui.sidebarBg} content="▴ " />
+          <box
+            flexShrink={0}
+            backgroundColor={collapse.hovered() ? ui.hoverBg : ui.sidebarBg}
+            onMouseDown={props.onCollapseAll}
+            onMouseOver={collapse.enter}
+            onMouseOut={collapse.leave}
+          >
+            <text
+              fg={collapse.hovered() ? ui.text : ui.dim}
+              bg={collapse.hovered() ? ui.hoverBg : ui.sidebarBg}
+              content="▴ "
+            />
           </box>
         </Show>
         {/* The base has to be said somewhere: against another branch every file
@@ -162,7 +174,8 @@ export function GitPanel(props: GitPanelProps) {
           <For each={visible()}>
             {(row, at) => {
               const index = () => list.window().start + at()
-              const bg = () => rowBg(index() === cursor(), props.focused)
+              const hover = useHover()
+              const bg = () => rowBg(index() === cursor(), props.focused, hover.hovered())
               /**
                * The icon takes the folder arrow's column, as it does in the tree:
                * the open and shut forms are what keep a folded row readable, and a
@@ -191,6 +204,8 @@ export function GitPanel(props: GitPanelProps) {
                   // this one and focuses it, which is where the keyboard belongs —
                   // the arrows page the diff from here.
                   onMouseDown={() => props.onActivate(index())}
+                  onMouseOver={hover.enter}
+                  onMouseOut={hover.leave}
                 >
                   {/* Indent and glyph never give, as in the tree: shrinking them
                       slid every row's marks a column left. The name is the only

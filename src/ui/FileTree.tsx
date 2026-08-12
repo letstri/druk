@@ -5,6 +5,7 @@ import type { TreeNode } from '../core/fs'
 import type { FileStatus } from '../core/git'
 import { iconFor } from '../icons'
 import { ui } from '../themes'
+import { useHover } from './hover'
 import { createScrollList, scrollbarOptions } from './list'
 
 export interface FileTreeProps {
@@ -61,6 +62,7 @@ export function FileTree(props: FileTreeProps) {
 
   const list = createScrollList(() => props.nodes.length)
   const visible = createMemo(() => props.nodes.slice(list.window().start, list.window().end))
+  const collapse = useHover()
 
   /**
    * The selection moves for reasons the tree cannot see — arrow keys, but also a tab
@@ -139,8 +141,18 @@ export function FileTree(props: FileTreeProps) {
         {/* The same arrowhead a row's own folder wears, pointing the way it
             folds — and gone when there is nothing open to fold. */}
         <Show when={props.expanded.size > 0}>
-          <box flexShrink={0} backgroundColor={ui.sidebarBg} onMouseDown={props.onCollapseAll}>
-            <text fg={ui.dim} bg={ui.sidebarBg} content="▴ " />
+          <box
+            flexShrink={0}
+            backgroundColor={collapse.hovered() ? ui.hoverBg : ui.sidebarBg}
+            onMouseDown={props.onCollapseAll}
+            onMouseOver={collapse.enter}
+            onMouseOut={collapse.leave}
+          >
+            <text
+              fg={collapse.hovered() ? ui.text : ui.dim}
+              bg={collapse.hovered() ? ui.hoverBg : ui.sidebarBg}
+              content="▴ "
+            />
           </box>
         </Show>
         <text fg={ui.faint} bg={ui.sidebarBg} flexShrink={0} content="explorer" />
@@ -157,8 +169,15 @@ export function FileTree(props: FileTreeProps) {
           {node => {
             const selected = () =>
               node.path === props.selectedPath || props.markedPaths.includes(node.path)
+            const hover = useHover()
             const bg = () =>
-              selected() ? (props.focused ? ui.treeSelectedBg : ui.treeFocusBg) : ui.sidebarBg
+              selected()
+                ? props.focused
+                  ? ui.treeSelectedBg
+                  : ui.treeFocusBg
+                : hover.hovered()
+                  ? ui.hoverBg
+                  : ui.sidebarBg
             /** Taken with `x` and waiting for a destination: drawn as already gone. */
             const leaving = () => props.cutPaths.includes(node.path)
             const open = () => props.expanded.has(node.path)
@@ -193,6 +212,8 @@ export function FileTree(props: FileTreeProps) {
                 flexDirection="row"
                 backgroundColor={bg()}
                 onMouseDown={() => click(node)}
+                onMouseOver={hover.enter}
+                onMouseOut={hover.leave}
               >
                 {/* Everything but the name is flexShrink={0}. Flex shrinks every
                     item by default, so one long filename squeezed the indent and

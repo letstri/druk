@@ -4,6 +4,7 @@ import { useTerminalDimensions } from '@opentui/solid'
 import { createMemo, For, Show } from 'solid-js'
 
 import { ui } from '../themes'
+import { useHover } from './hover'
 import { SEVERITY_COLOR, SEVERITY_GLYPH } from './severity'
 
 /** Worst diagnostic a tab's file carries. Info and hints are not a tab's business. */
@@ -60,6 +61,9 @@ const PREVIEW_WIDTH = PREVIEW_LABEL.length + 2
 const shorten = (name: string) =>
   name.length <= MAX_LABEL ? name : `${name.slice(0, MAX_LABEL - 1)}…`
 
+/** The strip's background, tinted while the pointer is on one of its buttons. */
+const barBg = (hovered: boolean) => (hovered ? ui.hoverBg : ui.barBg)
+
 /**
  * One glyph before the label, or null for none: a diagnostic outranks the file
  * icon rather than sitting beside it. Both are one cell, so a file that starts
@@ -73,6 +77,11 @@ const glyphOf = (tab: TabInfo): { glyph: string; color?: string } | null =>
 
 export function Tabs(props: TabsProps) {
   const dimensions = useTerminalDimensions()
+  const back = useHover()
+  const forward = useHover()
+  const before = useHover()
+  const after = useHover()
+  const preview = useHover()
 
   /**
    * Only the tabs that fit are rendered, scrolled to keep the active one in
@@ -121,30 +130,50 @@ export function Tabs(props: TabsProps) {
         {/* The way back through the tabs the editor has landed on. Always drawn,
             dimmed to `faint` when that way is empty: an arrow that comes and goes
             shifts every tab beside it, and the row would jump on each jump. */}
-        <box paddingLeft={1} backgroundColor={ui.barBg} onMouseDown={() => props.onBack()}>
-          <text fg={props.canBack ? ui.dim : ui.faint} bg={ui.barBg} content="←" />
+        <box
+          paddingLeft={1}
+          backgroundColor={barBg(back.hovered())}
+          onMouseDown={() => props.onBack()}
+          onMouseOver={back.enter}
+          onMouseOut={back.leave}
+        >
+          <text fg={props.canBack ? ui.dim : ui.faint} bg={barBg(back.hovered())} content="←" />
         </box>
         <box
           paddingLeft={1}
           paddingRight={1}
-          backgroundColor={ui.barBg}
+          backgroundColor={barBg(forward.hovered())}
           onMouseDown={() => props.onForward()}
+          onMouseOver={forward.enter}
+          onMouseOut={forward.leave}
         >
-          <text fg={props.canForward ? ui.dim : ui.faint} bg={ui.barBg} content="→" />
+          <text
+            fg={props.canForward ? ui.dim : ui.faint}
+            bg={barBg(forward.hovered())}
+            content="→"
+          />
         </box>
         <Show
           when={props.tabs.length > 0}
           fallback={<text fg={ui.faint} bg={ui.barBg} content="  no open files" />}
         >
           <Show when={visible().before > 0}>
-            <box paddingLeft={1} backgroundColor={ui.barBg} onMouseDown={() => props.onOverflow()}>
-              <text fg={ui.dim} bg={ui.barBg} content={`‹${visible().before}`} />
+            <box
+              paddingLeft={1}
+              backgroundColor={barBg(before.hovered())}
+              onMouseDown={() => props.onOverflow()}
+              onMouseOver={before.enter}
+              onMouseOut={before.leave}
+            >
+              <text fg={ui.dim} bg={barBg(before.hovered())} content={`‹${visible().before}`} />
             </box>
           </Show>
           <For each={visible().tabs}>
             {tab => {
               const active = () => tab.id === props.activeId
-              const bg = () => (active() ? ui.bg : ui.barBg)
+              const row = useHover()
+              const close = useHover()
+              const bg = () => (active() ? ui.bg : row.hovered() ? ui.hoverBg : ui.barBg)
               return (
                 <box
                   flexDirection="row"
@@ -152,6 +181,8 @@ export function Tabs(props: TabsProps) {
                   backgroundColor={bg()}
                   paddingRight={1}
                   onMouseDown={() => props.onSelect(tab.id)}
+                  onMouseOver={row.enter}
+                  onMouseOut={row.leave}
                 >
                   {/* The accent edge is what says "this one" at a glance — a bold
                       label and a background a shade apart do not survive a
@@ -194,9 +225,22 @@ export function Tabs(props: TabsProps) {
                       e.stopPropagation()
                       props.onClose(tab.id)
                     }}
+                    onMouseOver={close.enter}
+                    onMouseOut={close.leave}
                   >
+                    {/* The × is painted in the tab's own background on an
+                        untouched inactive tab — hovering the tab is what
+                        reveals it, and hovering the × itself sharpens it. */}
                     <text
-                      fg={tab.dirty ? ui.dirty : active() ? ui.dim : ui.barBg}
+                      fg={
+                        tab.dirty
+                          ? ui.dirty
+                          : close.hovered()
+                            ? ui.text
+                            : active() || row.hovered()
+                              ? ui.dim
+                              : bg()
+                      }
                       bg={bg()}
                       content={tab.dirty ? '●' : '×'}
                     />
@@ -209,10 +253,12 @@ export function Tabs(props: TabsProps) {
             <box
               paddingLeft={1}
               paddingRight={1}
-              backgroundColor={ui.barBg}
+              backgroundColor={barBg(after.hovered())}
               onMouseDown={() => props.onOverflow()}
+              onMouseOver={after.enter}
+              onMouseOut={after.leave}
             >
-              <text fg={ui.dim} bg={ui.barBg} content={`${visible().after}›`} />
+              <text fg={ui.dim} bg={barBg(after.hovered())} content={`${visible().after}›`} />
             </box>
           </Show>
         </Show>
@@ -224,12 +270,14 @@ export function Tabs(props: TabsProps) {
               flexShrink={0}
               paddingLeft={1}
               paddingRight={1}
-              backgroundColor={ui.barBg}
+              backgroundColor={barBg(preview.hovered())}
               onMouseDown={() => props.onToggleMarkdown()}
+              onMouseOver={preview.enter}
+              onMouseOut={preview.leave}
             >
               <text
                 fg={markdown().rendered ? ui.accent : ui.dim}
-                bg={ui.barBg}
+                bg={barBg(preview.hovered())}
                 content={markdown().rendered ? SOURCE_LABEL : PREVIEW_LABEL}
               />
             </box>

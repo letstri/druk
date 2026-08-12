@@ -4,6 +4,7 @@ import { createEffect, createMemo, For, on, Show } from 'solid-js'
 import type { ForgeComment } from '../core/forge'
 import type { ReviewNote } from '../core/review'
 import { ui } from '../themes'
+import { useHover } from './hover'
 import { createScrollList, rowBg, scrollbarOptions } from './list'
 import { cut } from './text'
 
@@ -61,6 +62,7 @@ export function ReviewPanel(props: ReviewPanelProps) {
 
   const list = createScrollList(() => props.rows.length)
   const visible = createMemo(() => props.rows.slice(list.window().start, list.window().end))
+  const collapse = useHover()
 
   createEffect(on(cursor, row => list.reveal(row)))
 
@@ -104,12 +106,14 @@ export function ReviewPanel(props: ReviewPanelProps) {
         <box flexGrow={1} backgroundColor={ui.sidebarBg} />
         <Show when={props.rows.some(row => row.kind === 'file' && !row.collapsed)}>
           <text
-            fg={ui.dim}
-            bg={ui.sidebarBg}
+            fg={collapse.hovered() ? ui.text : ui.dim}
+            bg={collapse.hovered() ? ui.hoverBg : ui.sidebarBg}
             flexShrink={0}
             wrapMode="none"
             content="▴"
             onMouseDown={() => props.onCollapseAll()}
+            onMouseOver={collapse.enter}
+            onMouseOut={collapse.leave}
           />
         </Show>
         <text fg={ui.faint} bg={ui.sidebarBg} flexShrink={0} wrapMode="none" content=" review" />
@@ -126,7 +130,8 @@ export function ReviewPanel(props: ReviewPanelProps) {
         <For each={visible()}>
           {(row, at) => {
             const index = () => list.window().start + at()
-            const bg = () => rowBg(index() === cursor(), props.focused)
+            const hover = useHover()
+            const bg = () => rowBg(index() === cursor(), props.focused, hover.hovered())
             const label = () => labelOf(row)
             // The remark takes what the label leaves: 3 for the indent, 1 for the
             // gap, 1 for the trailing pad.
@@ -137,6 +142,8 @@ export function ReviewPanel(props: ReviewPanelProps) {
                 flexDirection="row"
                 backgroundColor={bg()}
                 onMouseDown={() => props.onActivate(index())}
+                onMouseOver={hover.enter}
+                onMouseOut={hover.leave}
               >
                 <Show when={fileRow(row)}>
                   {(file: () => ReviewRow & { kind: 'file' }) => (

@@ -3,6 +3,7 @@ import { createEffect, createMemo, For, on, Show } from 'solid-js'
 
 import type { ExtensionCategory } from '../extensions'
 import { ui } from '../themes'
+import { useHover } from './hover'
 import { createScrollList, rowBg, scrollbarOptions } from './list'
 import { TextInput } from './TextInput'
 
@@ -68,6 +69,7 @@ export function ExtensionsPanel(props: ExtensionsPanelProps) {
 
   const list = createScrollList(() => props.rows.length)
   const visible = createMemo(() => props.rows.slice(list.window().start, list.window().end))
+  const search = useHover()
 
   createEffect(on(cursor, row => list.reveal(row)))
 
@@ -135,15 +137,28 @@ export function ExtensionsPanel(props: ExtensionsPanelProps) {
       <box
         height={1}
         flexDirection="row"
-        backgroundColor={ui.sidebarBg}
+        backgroundColor={search.hovered() ? ui.hoverBg : ui.sidebarBg}
         paddingLeft={1}
         onMouseDown={() => props.onOpenSearch()}
+        onMouseOver={search.enter}
+        onMouseOut={search.leave}
       >
-        <text fg={ui.faint} bg={ui.sidebarBg} flexShrink={0} content="/ " />
+        <text
+          fg={ui.faint}
+          bg={search.hovered() ? ui.hoverBg : ui.sidebarBg}
+          flexShrink={0}
+          content="/ "
+        />
         <box flexGrow={1}>
           <Show
             when={props.query !== null}
-            fallback={<text fg={ui.faint} bg={ui.sidebarBg} content="name, theme, lsp, go…" />}
+            fallback={
+              <text
+                fg={ui.faint}
+                bg={search.hovered() ? ui.hoverBg : ui.sidebarBg}
+                content="name, theme, lsp, go…"
+              />
+            }
           >
             <TextInput
               value={props.query ?? ''}
@@ -173,7 +188,8 @@ export function ExtensionsPanel(props: ExtensionsPanelProps) {
           <For each={visible()}>
             {(row, at) => {
               const index = () => list.window().start + at()
-              const bg = () => rowBg(index() === cursor(), props.focused)
+              const hover = useHover()
+              const bg = () => rowBg(index() === cursor(), props.focused, hover.hovered())
               return (
                 <box
                   height={1}
@@ -182,6 +198,8 @@ export function ExtensionsPanel(props: ExtensionsPanelProps) {
                   // Deliberately not stopped: the panel's own handler runs after
                   // this one and focuses it, which is where the keyboard belongs.
                   onMouseDown={() => props.onActivate(index())}
+                  onMouseOver={hover.enter}
+                  onMouseOut={hover.leave}
                 >
                   <Show when={sectionRow(row)}>
                     {(section: () => ExtensionRow & { kind: 'section' }) => (

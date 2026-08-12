@@ -28,6 +28,7 @@ import { EditorPane } from '../ui/EditorPane'
 import { ExtensionsPanel } from '../ui/ExtensionsPanel'
 import { FileTree } from '../ui/FileTree'
 import { GitPanel } from '../ui/GitPanel'
+import { useHover } from '../ui/hover'
 import { ImageView } from '../ui/ImageView'
 import { LspStatusView } from '../ui/LspStatusView'
 import { MarkdownView } from '../ui/MarkdownView'
@@ -305,6 +306,7 @@ export function App(props: {
 
   /** True between grabbing the sidebar divider and letting go. */
   const [resizing, setResizing] = createSignal(false)
+  const grip = useHover()
 
   /**
    * Rows of the drawn grip — a fifth of the pane, so it stays a hint on a tall
@@ -753,6 +755,8 @@ export function App(props: {
             justifyContent="center"
             backgroundColor={ui.bg}
             onMouseDown={startResize}
+            onMouseOver={grip.enter}
+            onMouseOut={grip.leave}
           >
             <box
               width={1}
@@ -760,7 +764,7 @@ export function App(props: {
               flexShrink={0}
               backgroundColor={ui.bg}
               border={BORDER_LEFT}
-              borderColor={resizing() ? ui.accent : ui.border}
+              borderColor={resizing() ? ui.accent : grip.hovered() ? ui.dim : ui.border}
               onMouseDown={startResize}
             />
           </box>

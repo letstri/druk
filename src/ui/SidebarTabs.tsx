@@ -2,6 +2,7 @@ import { TextAttributes } from '@opentui/core'
 import { For } from 'solid-js'
 
 import { ui } from '../themes'
+import { useHover } from './hover'
 
 export type SidebarView = 'files' | 'git' | 'review' | 'extensions'
 
@@ -61,10 +62,17 @@ export function SidebarTabs(props: SidebarTabsProps) {
       <For each={TABS}>
         {tab => {
           const active = () => props.view === tab.id
+          const hover = useHover()
           // Unfocused keeps the fill but drops to the tree's own selection colour:
           // which view is up is not the same fact as who has the keyboard.
           const bg = () =>
-            active() ? (props.focused ? ui.statusBg : ui.treeSelectedBg) : ui.sidebarBg
+            active()
+              ? props.focused
+                ? ui.statusBg
+                : ui.treeSelectedBg
+              : hover.hovered()
+                ? ui.hoverBg
+                : ui.sidebarBg
           const fg = () => (active() ? (props.focused ? ui.statusFg : ui.text) : ui.inactiveTabFg)
           return (
             <>
@@ -75,6 +83,8 @@ export function SidebarTabs(props: SidebarTabsProps) {
                 paddingLeft={pad()}
                 paddingRight={pad()}
                 onMouseDown={() => props.onSelect(tab.id)}
+                onMouseOver={hover.enter}
+                onMouseOut={hover.leave}
               >
                 <text
                   fg={fg()}

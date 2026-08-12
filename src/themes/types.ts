@@ -56,6 +56,13 @@ export interface UiColors extends ThemeUi {
    * colour anyone would pick.
    */
   border: string
+  /**
+   * The fill under the pointer on anything clickable — rows, tabs, the small
+   * buttons. Derived like `border`: it is the panel background nudged toward the
+   * text, so it stays a hint under every palette, and it stays painted under
+   * `transparent` — feedback is the point of it.
+   */
+  hoverBg: string
 }
 
 /**

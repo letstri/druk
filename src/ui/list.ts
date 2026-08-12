@@ -175,7 +175,8 @@ export function useListKeys(handlers: {
 
 /**
  * A sidebar row's background: the selection reads differently depending on
- * whether the panel holding it has the keyboard.
+ * whether the panel holding it has the keyboard. Hover never outranks the
+ * selection — the cursor's row keeps its colour under the pointer.
  */
-export const rowBg = (selected: boolean, focused: boolean): string =>
-  selected ? (focused ? ui.treeSelectedBg : ui.treeFocusBg) : ui.sidebarBg
+export const rowBg = (selected: boolean, focused: boolean, hovered = false): string =>
+  selected ? (focused ? ui.treeSelectedBg : ui.treeFocusBg) : hovered ? ui.hoverBg : ui.sidebarBg
