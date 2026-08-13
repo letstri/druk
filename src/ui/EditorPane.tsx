@@ -80,6 +80,8 @@ export interface EditorPaneProps {
   edit: { content: string; key: number } | null
   /** A line edit asked for from the palette; bumped `key` re-applies. */
   lineOp: { op: 'comment' | 'up' | 'down' | 'duplicate' | 'delete'; key: number } | null
+  /** Caret to column 0 of the current line; bumped `key` re-applies. */
+  lineHome: { key: number } | null
   /** A fold asked for from the palette or a chord; bumped `key` re-applies. */
   foldOp: { op: FoldOp; key: number } | null
   vim: boolean
@@ -1976,6 +1978,19 @@ export function EditorPane(props: EditorPaneProps) {
           case 'delete':
             return deleteSelectedLines()
         }
+      },
+      { defer: true },
+    ),
+  )
+
+  createEffect(
+    on(
+      () => props.lineHome?.key,
+      () => {
+        if (!props.lineHome || !editor || props.blocked) return
+        editor.gotoLineHome()
+        applyWindow(true)
+        scheduleCursorSync()
       },
       { defer: true },
     ),

@@ -77,6 +77,9 @@ shifted Ctrl chord no terminal can deliver. It exists because a *selection* that
 reaches the end of a line quietly covers the newline as well and the renderer
 paints nothing there, so deleting one that looked like exactly one line pulled the
 line below up onto the line above — [#75](https://github.com/letstri/druk/issues/75)),
+going to the start of the current line (`Ctrl+Opt+B`, palette → Editor → Go to
+beginning of line — Ctrl+E is the textarea's end of line, and Ctrl+A is select-all,
+so the readline pair has no beginning half left; Ctrl+Opt+E already unfolds),
 code folding (`Ctrl+Opt+S` / `Ctrl+Opt+E`, palette → Editor → Fold / Unfold block at
 cursor, and fold/unfold everything: blocks come from indentation rather than from the
 grammar, so they work for the languages druk paints with `patterns` and no tree at
