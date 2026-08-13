@@ -251,7 +251,7 @@ instead of breaking startup.
 
 | Setting | Default | |
 | --- | --- | --- |
-| `theme` | `"dark"` | `dark` and `light` ship with druk; ayu, catppuccin, dracula, everforest, gruvbox, kanagawa, nord, one-dark, rosé pine, solarized, tokyo night and vesper are one install away in the [extension market](#extensions) |
+| `theme` | `"dark"` | `dark` and `light` ship with druk; ayu, catppuccin, dracula, everforest, flexoki, gruvbox, kanagawa, nord, one-dark, rosé pine, solarized, tokyo night and vesper are one install away in the [extension market](#extensions) |
 | `transparent` | `false` | set `true` to leave the editor, tab strip and sidebar unpainted, so a translucent terminal shows through |
 | `iconTheme` | `"none"` | file icons in the tree: `unicode` (shapes any font has), or a set from the market — `nerd-icons` needs a patched font |
 | `tabSize` | `2` | 1–16 |

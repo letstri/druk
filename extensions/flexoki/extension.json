@@ -1,0 +1,270 @@
+{
+  "id": "flexoki",
+  "name": "Flexoki",
+  "version": "1.0.0",
+  "description": "Flexoki Dark and Light. Palette from https://stephango.com/flexoki; the capture groups follow that page’s syntax highlighting table and the official Helix port.",
+  "themes": [
+    {
+      "id": "flexoki-dark",
+      "name": "Flexoki Dark",
+      "ui": {
+        "bg": "#100f0f",
+        "panelBg": "#1c1b1a",
+        "barBg": "#1c1b1a",
+        "statusBg": "#3aa99f",
+        "statusFg": "#100f0f",
+        "text": "#cecdc3",
+        "dim": "#878580",
+        "faint": "#575653",
+        "accent": "#3aa99f",
+        "activeTabFg": "#cecdc3",
+        "inactiveTabFg": "#878580",
+        "treeSelectedBg": "#403e3c",
+        "treeFocusBg": "#282726",
+        "dirty": "#d0a215",
+        "error": "#d14d41",
+        "folder": "#cecdc3",
+        "cursor": "#cecdc3",
+        "scrollbar": "#403e3c",
+        "gutter": "#575653",
+        "currentLine": "#1c1b1a",
+        "indentGuide": "#181716",
+        "gitAdded": "#879a39",
+        "gitModified": "#d0a215",
+        "gitDeleted": "#d14d41"
+      },
+      "syntax": {
+        "comment": {
+          "fg": "#575653",
+          "italic": true
+        },
+        "keyword": {
+          "fg": "#879a39"
+        },
+        "string": {
+          "fg": "#3aa99f"
+        },
+        "number": {
+          "fg": "#8b7ec8"
+        },
+        "boolean": {
+          "fg": "#ce5d97"
+        },
+        "constant": {
+          "fg": "#d0a215"
+        },
+        "function": {
+          "fg": "#da702c"
+        },
+        "constructor": {
+          "fg": "#4385be"
+        },
+        "type": {
+          "fg": "#d0a215"
+        },
+        "namespace": {
+          "fg": "#d0a215"
+        },
+        "variable": {
+          "fg": "#cecdc3"
+        },
+        "variable.builtin": {
+          "fg": "#d14d41"
+        },
+        "variable.member": {
+          "fg": "#4385be"
+        },
+        "property": {
+          "fg": "#4385be"
+        },
+        "attribute": {
+          "fg": "#4385be"
+        },
+        "tag": {
+          "fg": "#4385be"
+        },
+        "operator": {
+          "fg": "#878580"
+        },
+        "punctuation": {
+          "fg": "#878580"
+        },
+        "punctuation.special": {
+          "fg": "#3aa99f"
+        },
+        "label": {
+          "fg": "#4385be"
+        },
+        "escape": {
+          "fg": "#ce5d97"
+        },
+        "embedded": {
+          "fg": "#cecdc3"
+        },
+        "error": {
+          "fg": "#d14d41"
+        },
+        "markup.heading": {
+          "fg": "#d14d41",
+          "bold": true
+        },
+        "markup.strong": {
+          "fg": "#d14d41",
+          "bold": true
+        },
+        "markup.italic": {
+          "fg": "#d14d41",
+          "italic": true
+        },
+        "markup.raw": {
+          "fg": "#879a39"
+        },
+        "markup.link": {
+          "fg": "#8b7ec8"
+        },
+        "markup.link.url": {
+          "fg": "#4385be",
+          "underline": true
+        },
+        "markup.list": {
+          "fg": "#3aa99f"
+        },
+        "markup.quote": {
+          "fg": "#ce5d97",
+          "italic": true
+        }
+      }
+    },
+    {
+      "id": "flexoki-light",
+      "name": "Flexoki Light",
+      "ui": {
+        "bg": "#fffcf0",
+        "panelBg": "#f2f0e5",
+        "barBg": "#f2f0e5",
+        "statusBg": "#24837b",
+        "statusFg": "#fffcf0",
+        "text": "#100f0f",
+        "dim": "#6f6e69",
+        "faint": "#b7b5ac",
+        "accent": "#24837b",
+        "activeTabFg": "#100f0f",
+        "inactiveTabFg": "#6f6e69",
+        "treeSelectedBg": "#cecdc3",
+        "treeFocusBg": "#e6e4d9",
+        "dirty": "#ad8301",
+        "error": "#af3029",
+        "folder": "#100f0f",
+        "cursor": "#100f0f",
+        "scrollbar": "#cecdc3",
+        "gutter": "#b7b5ac",
+        "currentLine": "#f2f0e5",
+        "indentGuide": "#f7f4e8",
+        "gitAdded": "#66800b",
+        "gitModified": "#ad8301",
+        "gitDeleted": "#af3029"
+      },
+      "syntax": {
+        "comment": {
+          "fg": "#b7b5ac",
+          "italic": true
+        },
+        "keyword": {
+          "fg": "#66800b"
+        },
+        "string": {
+          "fg": "#24837b"
+        },
+        "number": {
+          "fg": "#5e409d"
+        },
+        "boolean": {
+          "fg": "#a02f6f"
+        },
+        "constant": {
+          "fg": "#ad8301"
+        },
+        "function": {
+          "fg": "#bc5215"
+        },
+        "constructor": {
+          "fg": "#205ea6"
+        },
+        "type": {
+          "fg": "#ad8301"
+        },
+        "namespace": {
+          "fg": "#ad8301"
+        },
+        "variable": {
+          "fg": "#100f0f"
+        },
+        "variable.builtin": {
+          "fg": "#af3029"
+        },
+        "variable.member": {
+          "fg": "#205ea6"
+        },
+        "property": {
+          "fg": "#205ea6"
+        },
+        "attribute": {
+          "fg": "#205ea6"
+        },
+        "tag": {
+          "fg": "#205ea6"
+        },
+        "operator": {
+          "fg": "#6f6e69"
+        },
+        "punctuation": {
+          "fg": "#6f6e69"
+        },
+        "punctuation.special": {
+          "fg": "#24837b"
+        },
+        "label": {
+          "fg": "#205ea6"
+        },
+        "escape": {
+          "fg": "#a02f6f"
+        },
+        "embedded": {
+          "fg": "#100f0f"
+        },
+        "error": {
+          "fg": "#af3029"
+        },
+        "markup.heading": {
+          "fg": "#af3029",
+          "bold": true
+        },
+        "markup.strong": {
+          "fg": "#af3029",
+          "bold": true
+        },
+        "markup.italic": {
+          "fg": "#af3029",
+          "italic": true
+        },
+        "markup.raw": {
+          "fg": "#66800b"
+        },
+        "markup.link": {
+          "fg": "#5e409d"
+        },
+        "markup.link.url": {
+          "fg": "#205ea6",
+          "underline": true
+        },
+        "markup.list": {
+          "fg": "#24837b"
+        },
+        "markup.quote": {
+          "fg": "#a02f6f",
+          "italic": true
+        }
+      }
+    }
+  ]
+}

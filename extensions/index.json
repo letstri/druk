@@ -228,6 +228,23 @@
       ]
     },
     {
+      "id": "flexoki",
+      "name": "Flexoki",
+      "version": "1.0.0",
+      "description": "Flexoki Dark and Light. Palette from https://stephango.com/flexoki; the capture groups follow that page’s syntax highlighting table and the official Helix port.",
+      "provides": {
+        "themes": [
+          "flexoki-dark",
+          "flexoki-light"
+        ],
+        "icons": [],
+        "filetypes": []
+      },
+      "categories": [
+        "theme"
+      ]
+    },
+    {
       "id": "go",
       "name": "Go",
       "version": "1.0.0",
