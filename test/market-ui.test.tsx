@@ -145,13 +145,17 @@ test('declining is remembered, and asks again for no other file of that language
   expect(t.captureCharFrame()).not.toContain('No language server')
 })
 
-test('an installed extension with a newer version in the market is reported at startup', async () => {
+test('an installed extension with a newer version in the market updates itself at startup', async () => {
   install({ ...GO_EXTENSION, version: '1.0.0' })
   const dir = fixture({ 'a.ts': 'const a = 1\n' })
   loadExtensions(dir)
   const t = await launch(dir, { extensionUpdates: true }, {}, { checkUpdates: true })
 
-  await untilFrame(t, 'Go 1.1.0 is out')
+  await untilFrame(t, 'Updated Go to 1.1.0')
+  // Applied, not only announced: the disk copy is the market's newer manifest.
+  expect(JSON.parse(readFileSync(join(EXTENSIONS_DIR, 'go', 'extension.json'), 'utf8'))).toEqual(
+    GO_EXTENSION,
+  )
 })
 
 test('a built-in is never an update, however new the market copy', async () => {

@@ -726,7 +726,10 @@ is just a diff against the empty tree.
 - **Network.** druk makes two kinds of request, both at startup and both
   best-effort (2.5s timeout, failures ignored): one npm registry lookup for a newer
   druk, disabled by `checkUpdates: false`, and the extension market's `index.json`,
-  disabled by `extensionUpdates: false` and cached for six hours in between. Everything
+  disabled by `extensionUpdates: false` and cached for six hours in between. When that
+  catalog names a newer version of an installed market extension, its manifest is
+  fetched and applied in the same pass — an update is not a new install, so it is not
+  asked about. Everything
   after that is a fetch someone asked for — a manifest, because an extension is being
   installed. druk runs no git command that talks to a
   remote, which is also what

@@ -158,7 +158,9 @@ up under the plain name too, so `github` covers `.github`, `_github` and
 
 To change an extension, edit its manifest and **bump `version`** — that is the only
 thing that makes installed copies notice. druk compares semver, so `1.0.1` is an
-update and `1.0.0` re-published is not.
+update and `1.0.0` re-published is not. An installed copy applies the update by
+itself the next time its startup check sees the new catalog — nobody is asked, so
+a bumped version reaches users on their next launch.
 
 ## Preinstalled extensions
 
