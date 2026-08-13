@@ -99,12 +99,15 @@ headings, `Staged Changes` and `Changes` — and, mid-merge, `Merge Changes` abo
 where every unmerged path sits as one row whatever porcelain's two columns say, Space
 (git add) marks it resolved into Staged Changes, and Enter opens the file at its first
 `<<<<<<<` marker — and Space is what moves a row between them —
-`+`/`−` drawn on the cursor's row alone, a terminal having no hover to hide a button
-behind. A path staged and then edited again is a row under *each* heading, which is
+`+`/`−` drawn on the cursor's row alone for a file or folder, a terminal having no
+hover to hide a button behind, and always on the `Staged Changes` / `Changes` /
+`Merge Changes` heading (that is VS Code's `+` on a group header, so every file
+under it is staged or unstaged at once without walking onto the heading first). A
+path staged and then edited again is a row under *each* heading, which is
 what git reports and what makes staging the rest of it a thing to do, and the two
 rows diff different things: staged is HEAD against the index, unstaged the index
 against the working tree. Space on a heading or a folder carries everything under it,
-folded or not — VS Code's `+` on a group header. A commit box sits under the panel's
+folded or not. A commit box sits under the panel's
 header, VS Code's message field: `c` (or a click) puts the keyboard in it, Enter
 commits the index with its words — or, with nothing staged, offers to commit every
 change behind a confirm naming the count — Esc leaves the rows with the message kept,
@@ -588,6 +591,7 @@ dependency rule, and recipes for the extension points:
 | command | `src/app/commands.ts` + bind it in `src/app/actions.ts`; the implementation goes in the controller that owns the state (`workspace.ts`, `fileOps.ts`, `git.ts`, …) |
 | keybinding | a row in `BINDABLE` (`src/app/keymap.ts`) plus a handler under the same id in `src/app/keyboard.ts` — or, for an editor-only key, `src/ui/EditorPane.tsx` — advertised in `src/ui/keys.ts` (feeds the footer hints, help overlay, Ctrl+K peek and the welcome screen), with the row's `ids` naming the commands it spells out |
 | git error message | a row in `KNOWN` in `src/core/git.ts`, with the git output it matches pinned in `test/git.test.tsx` |
+| terminal progress | the one status slot (`src/app/status.ts`) — a git mutation, bulk file op or install occupies it. A background operation takes it with `claimBusy`, which hands back the release and refuses to hand back anything else: an install that finds the slot taken runs without it rather than clearing a bulk delete's counter, since that would idle the bar mid-rewrite *and* reopen `whileFree` for a second op. `setBusy` is for updating a count already claimed. `reportProgress` (`src/core/progress.ts`) writes OSC 9;4 so Ghostty, WezTerm, iTerm2, kitty, Windows Terminal and recent VTE draw their own loader; an unsupported terminal is a no-op, and an exit hook puts the indicator out where `onCleanup` never runs |
 | market extension | a folder under `extensions/` holding `extension.json`, then `bun run extensions` to regenerate `extensions/index.json` — `test/extensions-repo.test.ts` fails when the committed index is stale, and bumping the manifest `version` is what makes installed copies see an update |
 | row in the extensions panel | `src/app/extensionsPanel.ts` (the cursor, the fold state and what Enter does); `src/ui/ExtensionsPanel.tsx` owns the `ExtensionRow` type, draws whatever `rows()` returns and reports clicks, and the keys live in `src/app/keyboard.ts` beside the tree's and the git panel's. Row/view-model types live in the ui component and the controller imports them — the `SettingRow` arrangement, enforced by `test/boundaries.test.ts` |
 | sidebar view | `SidebarView` in `src/ui/SidebarTabs.tsx` (add a `short` initial — the strip falls back to those in a narrow sidebar), a branch in `App.tsx`'s sidebar, one in `keyboard.ts`'s pane switch, a `KeyScope` in `src/ui/keys.ts` with a `SCOPE_LABELS` entry in `KeyPeek.tsx`, a `toggle…View` on `src/app/panes.ts`, and its place in the Shift+Tab cycle, which is spelt out as one `showView` per pane block in `keyboard.ts` rather than held as a list |

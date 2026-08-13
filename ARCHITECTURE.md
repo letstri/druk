@@ -71,6 +71,7 @@ scripts/
     imports.ts       the path token under the cursor, and where it resolves —
                      relative, project-root, or through tsconfig/jsconfig aliases
     bulk.ts          delete/copy/move in the background, reporting progress
+    progress.ts      OSC 9;4 — the terminal's own tab/title-bar loader
     process.ts       one async subprocess wrapper: timeout, bounded output, one settle
     clipboard.ts     pbcopy/wl-copy/xclip/xsel wrappers
     session.ts       per-project open tabs + expanded folders, keyed by path

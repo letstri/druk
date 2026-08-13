@@ -308,22 +308,28 @@ export function createGitOp(deps: { git: Git; status: Status; workspace: Workspa
     const repo = options.repo ?? git.activeRepo()
     if (repo === null) return status.say(noRepository(git), 'warn')
     if (git.gitBusy()) return status.say('A git command is already running — let it finish', 'warn')
-    git.setGitBusy(true)
-    status.say(`${verb}…`)
-    void run(repo).then(result => {
-      git.setGitBusy(false)
-      git.bump()
-      if (!result.ok) {
-        if (options.handleFailure?.(result)) return
-        return status.say(result.detail || `${verb} failed`, 'error')
-      }
-      if (options.touchesTree?.kind === 'sync') {
-        const warning = workspace.clashWarning(workspace.syncFromDisk())
-        if (warning) return status.say(warning, 'warn')
-      } else if (options.touchesTree?.kind === 'followDisk') {
-        for (const path of options.touchesTree.paths) workspace.followDisk(path)
-      }
-      status.say(options.done ? options.done(result) : result.detail || `${verb} done`)
+    status.whileFree(() => {
+      git.setGitBusy(true)
+      const release = status.claimBusy({ label: verb })
+      void run(repo)
+        .then(result => {
+          git.bump()
+          if (!result.ok) {
+            if (options.handleFailure?.(result)) return
+            return status.say(result.detail || `${verb} failed`, 'error')
+          }
+          if (options.touchesTree?.kind === 'sync') {
+            const warning = workspace.clashWarning(workspace.syncFromDisk())
+            if (warning) return status.say(warning, 'warn')
+          } else if (options.touchesTree?.kind === 'followDisk') {
+            for (const path of options.touchesTree.paths) workspace.followDisk(path)
+          }
+          return status.say(options.done ? options.done(result) : result.detail || `${verb} done`)
+        })
+        .finally(() => {
+          git.setGitBusy(false)
+          release()
+        })
     })
   }
 }

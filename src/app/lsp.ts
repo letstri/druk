@@ -320,21 +320,25 @@ export function createLsp(deps: {
     manager?: PackageManager,
   ) => {
     const tool = spec.kind === 'download' ? 'download' : (manager ?? 'npm')
-    status.say(`Installing ${name} with ${tool}…`)
-    const error =
-      spec.kind === 'download'
-        ? await downloadServer(spec.url, name)
-        : await installServer(spec.packages, SERVER_ROOT, manager)
-    if (error) return status.say(`Could not install ${name}: ${error}`, 'error')
-    // npm can exit 0 having produced no binary — a package whose bin moved, or
-    // one installed for another platform. Saying "installed" then would send
-    // the user round the same prompt on every launch with nothing to show why.
-    if (!installedCommand([name])) {
-      return status.say(`Installed ${name}, but no ${name} appeared in ${SERVER_ROOT}`, 'error')
+    const release = status.claimBusy({ label: `Installing ${name} with ${tool}` })
+    try {
+      const error =
+        spec.kind === 'download'
+          ? await downloadServer(spec.url, name)
+          : await installServer(spec.packages, SERVER_ROOT, manager)
+      if (error) return status.say(`Could not install ${name}: ${error}`, 'error')
+      // npm can exit 0 having produced no binary — a package whose bin moved, or
+      // one installed for another platform. Saying "installed" then would send
+      // the user round the same prompt on every launch with nothing to show why.
+      if (!installedCommand([name])) {
+        return status.say(`Installed ${name}, but no ${name} appeared in ${SERVER_ROOT}`, 'error')
+      }
+      clients.delete(id)
+      setGeneration(generation() + 1)
+      status.say(`Installed ${name}`)
+    } finally {
+      release()
     }
-    clients.delete(id)
-    setGeneration(generation() + 1)
-    status.say(`Installed ${name}`)
   }
 
   /**
@@ -362,14 +366,18 @@ export function createLsp(deps: {
     clients.get(id)?.dispose()
     clients.delete(id)
     setServers(id, { state: 'stopped', error: null, docs: [] })
-    status.say(`Removing ${name}…`)
-    const error = await removeServer(spec.install, name)
-    if (error) return void status.say(`Could not remove ${name}: ${error}`, 'error')
-    // The documents it held are open in the other servers still; this only makes
-    // the next matching file try to spawn it again — and be offered the install.
-    setGeneration(generation() + 1)
-    offered.delete(id)
-    status.say(`Removed ${name} from ${SERVER_ROOT}`)
+    const release = status.claimBusy({ label: `Removing ${name}` })
+    try {
+      const error = await removeServer(spec.install, name)
+      if (error) return void status.say(`Could not remove ${name}: ${error}`, 'error')
+      // The documents it held are open in the other servers still; this only makes
+      // the next matching file try to spawn it again — and be offered the install.
+      setGeneration(generation() + 1)
+      offered.delete(id)
+      status.say(`Removed ${name} from ${SERVER_ROOT}`)
+    } finally {
+      release()
+    }
   }
 
   /**

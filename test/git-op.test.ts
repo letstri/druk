@@ -6,6 +6,33 @@ import { createGit, createGitOp } from '../src/app/git'
 import { createStatus } from '../src/app/status'
 import type { Workspace } from '../src/app/workspace'
 
+test('a running command occupies the busy slot until it settles', async () => {
+  const root = createRoot(dispose => {
+    const git = createGit('/repo', () => 'list')
+    git.setRepos(['/repo'])
+    const status = createStatus()
+    const workspace = {} as Workspace
+    return { git, status, gitOp: createGitOp({ git, status, workspace }), dispose }
+  })
+  let finish!: (result: { ok: true; detail: string }) => void
+  const pending = new Promise<{ ok: true; detail: string }>(resolve => {
+    finish = resolve
+  })
+
+  root.gitOp('Committing', () => pending)
+
+  expect(root.git.gitBusy()).toBe(true)
+  expect(root.status.busy()).toEqual({ label: 'Committing' })
+
+  finish({ ok: true, detail: 'ok' })
+  await Bun.sleep(0)
+
+  expect(root.git.gitBusy()).toBe(false)
+  expect(root.status.busy()).toBeNull()
+  expect(root.status.status()).toEqual({ msg: 'ok', tone: 'info' })
+  root.dispose()
+})
+
 test('git operations refuse concurrent commands before invoking them', () => {
   const root = createRoot(dispose => {
     const git = createGit('/repo', () => 'list')

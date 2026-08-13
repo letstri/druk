@@ -65,8 +65,8 @@ export interface GitPanelProps {
   onActivate: (index: number) => void
   /** The header's ▴: fold every folder at once. */
   onCollapseAll: () => void
-  /** A row's `+`/`−`: stage or unstage whatever the cursor is on. */
-  onToggleStage: () => void
+  /** A row's `+`/`−`: stage or unstage whatever that row stands for. */
+  onToggleStage: (index: number) => void
   /** The message row clicked: put the keyboard in the box. */
   onMessageFocus: () => void
   onMessageInput: (value: string) => void
@@ -387,17 +387,26 @@ export function GitPanel(props: GitPanelProps) {
                       />
                     )}
                   </Show>
-                  {/* The stage control, on every row: a terminal has no hover to
-                      hide it behind, and it is drawn on the cursor's row alone so
-                      the list is not a column of `+`. Its own handler, and it runs
-                      before the row's — pressing `+` is not pressing the row. */}
-                  <Show when={props.staging && index() === cursor() && !isCommitRow(row)}>
+                  {/* The stage control. A heading always wears one — that is how
+                      every file under it is staged or unstaged at once, and a
+                      list of headings is not a column of `+`. A file or folder
+                      still only has it on the cursor's row: a terminal has no
+                      hover to hide a button behind. Its own handler, and it
+                      runs before the row's — pressing `+` is not pressing the
+                      row, which would fold a heading. */}
+                  <Show
+                    when={
+                      props.staging &&
+                      !isCommitRow(row) &&
+                      (row.kind === 'section' || index() === cursor())
+                    }
+                  >
                     <box
                       flexShrink={0}
                       backgroundColor={stageHover.hovered(index()) ? ui.hoverBg : bg()}
                       onMouseDown={event => {
                         event.stopPropagation()
-                        props.onToggleStage()
+                        props.onToggleStage(index())
                       }}
                       onMouseOver={() => stageHover.enter(index())}
                       onMouseOut={() => stageHover.leave(index())}

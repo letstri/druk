@@ -32,8 +32,8 @@ export interface StatusBarProps {
   /** LSP diagnostics in the active file; hidden while both counts are zero. */
   problems?: { errors: number; warnings: number }
   focus: 'tree' | 'editor'
-  /** A long file operation in flight; replaces the message while it runs. */
-  busy: { label: string; done: number; total: number } | null
+  /** A long operation in flight; replaces the message while it runs. */
+  busy: { label: string; done?: number; total?: number } | null
   /** What each group does when it is clicked — VS Code's status bar, where the
    * branch is the branch switcher and the counts are the commands behind them. */
   onBranch: () => void
@@ -115,7 +115,12 @@ export function StatusBar(props: StatusBarProps) {
   const busyText = () => {
     const busy = props.busy
     if (!busy) return ''
-    const count = busy.total > 0 ? ` ${busy.done}/${busy.total}` : ` ${busy.done}`
+    const count =
+      busy.total != null && busy.total > 0
+        ? ` ${busy.done ?? 0}/${busy.total}`
+        : busy.done != null
+          ? ` ${busy.done}`
+          : ''
     return `${SPINNER[frame()]} ${busy.label}${count}`
   }
 

@@ -92,7 +92,7 @@ export interface CommandActions {
   gitActivateRow: (row: number) => void
   gitOpenRow: (row: number) => void
   gitDiscard: () => void
-  gitToggleStage: () => void
+  gitToggleStage: (at?: number) => void
   /** Not a command: `App` runs it when the source-control panel opens. */
   gitLandOnFile: () => void
   /** Not a command: `App` runs it when git or a buffer moves under an open diff. */

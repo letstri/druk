@@ -193,20 +193,27 @@ export function createMarket(deps: {
     const result = fetched.get(id)
     fetched.delete(id)
     if (!result) return
-    if (result.extension.assets.length > 0) status.say(`Installing ${result.extension.name}…`)
+    // Claimed whether or not there are assets to fetch: an assetless install is
+    // over in a frame, and a slot taken only sometimes is a slot released when
+    // it was never held — which would clear whatever else was counting in it.
+    const release = status.claimBusy({ label: `Installing ${result.extension.name}` })
     void (async () => {
-      const error = await writeExtension(id, result, EXTENSIONS_DIR, {
-        registry: registry(),
-        fetcher,
-      })
-      if (error) return void status.say(`Could not install ${id}: ${error}`, 'error')
-      const load = settings.reloadExtensions()
-      const installed = load.extensions.find(extension => extension.id === id)
-      status.say(`Installed ${installed?.name ?? id} ${installed?.version ?? ''}`.trim())
-      // After the confirmation, not before: the restart re-syncs the open
-      // documents, and what the new server has to say about them would
-      // otherwise overwrite the line saying the install worked.
-      if (result.extension.servers.length > 0) onServersReload?.()
+      try {
+        const error = await writeExtension(id, result, EXTENSIONS_DIR, {
+          registry: registry(),
+          fetcher,
+        })
+        if (error) return void status.say(`Could not install ${id}: ${error}`, 'error')
+        const load = settings.reloadExtensions()
+        const installed = load.extensions.find(extension => extension.id === id)
+        status.say(`Installed ${installed?.name ?? id} ${installed?.version ?? ''}`.trim())
+        // After the confirmation, not before: the restart re-syncs the open
+        // documents, and what the new server has to say about them would
+        // otherwise overwrite the line saying the install worked.
+        if (result.extension.servers.length > 0) onServersReload?.()
+      } finally {
+        release()
+      }
     })()
   }
 

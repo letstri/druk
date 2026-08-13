@@ -18,6 +18,13 @@ import { join } from 'node:path'
 process.env.XDG_CONFIG_HOME = mkdtempSync(join(tmpdir(), 'druk-test-config-'))
 
 /**
+ * OSC 9;4 would light the developer's terminal tab for every busy operation the
+ * suite drives. `src/core/progress.ts` honours this the way appearance honours
+ * `DRUK_OS_APPEARANCE`.
+ */
+process.env.DRUK_PROGRESS = '0'
+
+/**
  * Same idea for the data home, which is where `src/lsp/install.ts` puts servers
  * druk installed. Without it a developer who once accepted an install would have
  * `installedCommand` answer for a real binary, and the suite would spawn it.

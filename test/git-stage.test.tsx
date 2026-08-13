@@ -77,6 +77,71 @@ test('Space on a heading stages everything under it, untracked files included', 
   expect(porcelain(dir)).toContain('M  a.ts')
 })
 
+/** Auto sidebar on the harness's 80-column terminal. The heading's `+`/`−` sits in it. */
+const SIDEBAR = 30
+
+/** The heading row (`▾ Changes`, not `▾ Staged Changes`) and the column of its button. */
+const headingButton = (t: Harness, label: 'Changes' | 'Staged Changes' | 'Merge Changes') => {
+  const lines = frame(t).split('\n')
+  const y = lines.findIndex(line => line.slice(0, SIDEBAR).includes(`▾ ${label}`))
+  const slice = y >= 0 ? lines[y]!.slice(0, SIDEBAR) : ''
+  const glyph = label === 'Staged Changes' ? '−' : '+'
+  return { y, x: slice.lastIndexOf(glyph), slice }
+}
+
+test('a heading always wears its +/−, even when the cursor is on a file', async () => {
+  const dir = repo()
+  git(dir, 'add', 'a.ts')
+  const t = await launch(dir)
+  await openPanel(t)
+  await untilFrame(t, 'Staged Changes')
+
+  // The panel lands on the first file, not the heading. Both headings still
+  // carry the control — that is how every file under one is staged at once
+  // without walking onto the heading first.
+  const staged = headingButton(t, 'Staged Changes')
+  const changes = headingButton(t, 'Changes')
+  expect(staged.slice).toContain('−')
+  expect(changes.slice).toContain('+')
+
+  await press(t, i => i.pressArrow('down'))
+  await press(t, i => i.pressArrow('down'))
+  await untilFrame(t, 'c.ts')
+  expect(headingButton(t, 'Staged Changes').slice).toContain('−')
+  expect(headingButton(t, 'Changes').slice).toContain('+')
+})
+
+test('clicking + on the Changes heading stages every file under it', async () => {
+  const dir = repo()
+  const t = await launch(dir)
+  await openPanel(t)
+  await untilFrame(t, 'c.ts')
+
+  const { x, y } = headingButton(t, 'Changes')
+  expect(x).toBeGreaterThan(0)
+  await t.mockMouse.click(x, y)
+  await until(t, () => porcelain(dir).includes('A  c.ts'))
+  expect(porcelain(dir)).toContain('M  a.ts')
+  // The click is the button, not the heading: folding would hide the files.
+  expect(frame(t)).toContain('a.ts')
+  expect(frame(t)).toContain('c.ts')
+})
+
+test('clicking − on the Staged Changes heading takes every file back out', async () => {
+  const dir = repo()
+  git(dir, 'add', 'a.ts', 'c.ts')
+  const t = await launch(dir)
+  await openPanel(t)
+  await untilFrame(t, 'Staged Changes')
+
+  const { x, y } = headingButton(t, 'Staged Changes')
+  expect(x).toBeGreaterThan(0)
+  await t.mockMouse.click(x, y)
+  await until(t, () => porcelain(dir).includes(' M a.ts'))
+  expect(porcelain(dir)).toContain('?? c.ts')
+  expect(porcelain(dir)).not.toContain('M  a.ts')
+})
+
 test('with something staged, c commits exactly that and skips the file picker', async () => {
   const dir = repo()
   git(dir, 'add', 'a.ts')

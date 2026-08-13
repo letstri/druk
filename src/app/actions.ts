@@ -226,15 +226,17 @@ export function createCommands(ctx: AppContext) {
   }
 
   /**
-   * Space: stage the row, or take it back out of the index. A heading or a folder
-   * carries everything under it, folded or not — which is VS Code's `+` on a
-   * group header, and the only way to stage a subtree without walking it.
+   * Space, or a click on a row's `+`/`−`: stage the row, or take it back out of
+   * the index. A heading or a folder carries everything under it, folded or not
+   * — which is VS Code's `+` on a group header, and the only way to stage a
+   * subtree without walking it. `at` is the row the mouse pressed; the key
+   * leaves it unset and the cursor is the row.
    */
-  const gitToggleStage = () => {
+  const gitToggleStage = (at?: number) => {
     if (comparison.active()) return say('Staging is unavailable while comparing branches', 'warn')
     if (!git.staging())
       return say('Staging compares against HEAD — reset the comparison base', 'warn')
-    const row = git.rows()[git.gitCursor()]
+    const row = git.rows()[at ?? git.gitCursor()]
     if (!row) return say('Nothing to stage', 'warn')
     const area = rowArea(row)
     const targets = changesFor(git.changes(), row)

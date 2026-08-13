@@ -11,6 +11,7 @@ import { watchGitRefs, watchTree } from '../core/fs'
 import { isImagePath } from '../core/image'
 import { isMarkdownPath } from '../core/markdown'
 import { isPdfPath } from '../core/pdf'
+import { reportProgress } from '../core/progress'
 import { watchNotes } from '../core/review'
 import { checkForUpdate, currentVersion } from '../core/update'
 import { extensionProblems } from '../extensions'
@@ -151,6 +152,8 @@ export function App(props: {
   // Also on the quit path: the renderer tears the root down before exiting, and
   // a leaked server would outlive the editor (tests leak them per launch).
   onCleanup(lsp.dispose)
+  // Leave the terminal's progress indicator off if we die mid-operation.
+  onCleanup(() => reportProgress({ kind: 'off' }))
   const workspace = createWorkspace({
     rootDir,
     single,
