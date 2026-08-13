@@ -11,6 +11,7 @@ import {
   indexText,
   lastCommitSubject,
   pull,
+  pullAndPush,
   push,
   PUSH_REJECTED,
   refText,
@@ -21,14 +22,16 @@ import {
   statusMap,
   unstagePaths,
 } from '../core/git'
-import type { FileStatus, StageArea } from '../core/git'
+import type { ChangeArea, FileStatus } from '../core/git'
 import { pathTokenAt, resolveImportPath } from '../core/imports'
+import { NOTE_LABELS } from '../core/review'
 import type { NoteKind } from '../core/review'
 import type { DiffFile } from '../ui/DiffView'
 import { buildCommands } from './commands'
 import type { Command } from './commands'
 import type { AppContext } from './context'
-import { noRepository } from './git'
+import { noRepository, runCommit } from './git'
+import type { CommitVariant } from './git'
 import { problemFrom, problemsOn } from './lsp'
 
 /** Wire the palette's command tree to the controllers that carry the actions out. */
@@ -85,7 +88,7 @@ export function createCommands(ctx: AppContext) {
     base: string | null
     buffer: string | undefined
     status: FileStatus
-    area: StageArea
+    area: ChangeArea
     file: DiffFile | null
   }
   const diffFileCache = new Map<string, DiffFileSlot>()
@@ -105,7 +108,7 @@ export function createCommands(ctx: AppContext) {
   const diffFileFor = (
     path: string,
     fileStatus: FileStatus,
-    area: StageArea = 'unstaged',
+    area: ChangeArea = 'unstaged',
   ): DiffFile | null => {
     const revision = git.revision()
     const reloadKey = editor.reloadKey()
@@ -174,7 +177,7 @@ export function createCommands(ctx: AppContext) {
    * a diff moves that cursor first and calls this second — a page the arrows
    * cannot move from is a dead end.
    */
-  const showDiff = (path: string, area: StageArea = 'unstaged') => {
+  const showDiff = (path: string, area: ChangeArea = 'unstaged') => {
     // The panel only lists changed files, but its list is a frame behind a fresh
     // edit — 'modified' is the fallback for a path git has not caught up with,
     // and diffing it against the base is right either way.
@@ -283,18 +286,62 @@ export function createCommands(ctx: AppContext) {
     ctx.prompts.setPrompt({ kind: 'discardChange', target })
   }
 
+  /** The commit's push half was refused; offer VS Code's pull-then-push. */
+  const pullPushOffer = (branch: string, hasUpstream: boolean) =>
+    ctx.prompts.setPrompt({ kind: 'pullPush', branch, hasUpstream })
+
+  /**
+   * The palette's way into a commit, `variant` saying what follows it. A
+   * hand-built index is a selection already made — and now that Space builds one
+   * from the panel itself, it is *the* selection: the message prompt goes
+   * straight up and the picker never appears. VS Code's rule, and the reason
+   * staging is worth doing at all.
+   */
+  const startCommit = (variant: CommitVariant) => {
+    const repo = git.activeRepo()
+    if (repo === null) return say(noRepository(git), 'warn')
+    const staged = stagedPaths(repo)
+    if (staged.size > 0) return ctx.prompts.setPrompt({ kind: 'commit', paths: null, variant })
+    // One repository's changes: a commit is one repository's, and offering
+    // another's files would stage nothing and fail on the path.
+    //
+    // Deliberately not `git.diffBase()`: the index is built against HEAD no
+    // matter which branch is being reviewed, so offering the files that differ
+    // from some other branch would stage work that is already committed.
+    const changes = [...statusMap(repo)]
+      .map(([path, fileStatus]) => ({
+        path,
+        rel: relative(rootDir, path),
+        status: fileStatus,
+        checked: true,
+      }))
+      .toSorted((a, b) => a.rel.localeCompare(b.rel))
+    if (changes.length === 0) return say('Nothing to commit — working tree clean')
+    git.setCommitVariant(variant)
+    git.setCommitPick(changes)
+  }
+
   /** A click: a file diffs, a folder or heading folds. */
+  /** A sync row names a commit; put its detail page over the editor slot. */
+  const openCommitRow = (oid: string) => {
+    const repo = git.activeRepo()
+    if (repo === null) return say(noRepository(git), 'warn')
+    ctx.commitView.open(repo, oid)
+  }
+
   const gitActivateRow = (row: number) => {
     gitMoveTo(row)
     const target = git.rows()[git.gitCursor()]
-    if (target && target.kind !== 'file') git.toggleCollapsed(rowArea(target), rowRel(target))
+    if (!target) return
+    if (target.kind === 'commit') return openCommitRow(target.oid)
+    if (target.kind !== 'file') git.toggleCollapsed(rowArea(target), rowRel(target))
   }
 
   /**
-   * Enter: a folder or heading folds, a file opens for editing. The diff is
-   * already on screen — moving the cursor put it there — so Enter is the way past
-   * it into the file itself, and a deleted one keeps the diff, which is all that
-   * is left of it.
+   * Enter: a folder or heading folds, a file opens for editing, a sync commit
+   * opens its page. The diff is already on screen — moving the cursor put it
+   * there — so Enter is the way past it into the file itself, and a deleted one
+   * keeps the diff, which is all that is left of it.
    */
   const gitOpenRow = (row: number) => {
     const rows = git.rows()
@@ -302,9 +349,20 @@ export function createCommands(ctx: AppContext) {
     const target = rows[at]
     if (!target) return
     git.setGitCursor(at)
+    if (target.kind === 'commit') return openCommitRow(target.oid)
     if (target.kind !== 'file') return git.toggleCollapsed(rowArea(target), rowRel(target))
     if (target.change.status === 'deleted') return say('File was deleted', 'warn')
     workspace.openFile(target.change.path)
+    // A conflicted file opens on its first conflict, which is what it is open
+    // to resolve — the markers are what the merge left to find.
+    if (target.change.area === 'merge') {
+      const content = workspace.buffers[target.change.path]?.content
+      const line = content?.split('\n').findIndex(text => text.startsWith('<<<<<<<')) ?? -1
+      if (line >= 0) {
+        editor.requestGoto(line, 0)
+        panes.setFocus('editor')
+      }
+    }
   }
 
   /**
@@ -640,31 +698,61 @@ export function createCommands(ctx: AppContext) {
       git.setDiffBase(null)
       say('Comparing against HEAD')
     },
-    gitCommit: () => {
+    gitCommit: () => startCommit('commit'),
+    gitCommitAndPush: () => startCommit('commitPush'),
+    gitCommitAndSync: () => startCommit('commitSync'),
+    gitCommitAmend: () => {
       const repo = git.activeRepo()
       if (repo === null) return say(noRepository(git), 'warn')
-      // A hand-built index is a selection already made — and now that Space
-      // builds one from the panel itself, it is *the* selection: the message
-      // prompt goes straight up and the picker never appears. VS Code's rule,
-      // and the reason staging is worth doing at all.
+      const subject = lastCommitSubject(repo)
+      if (!subject) return say('No commit to amend', 'warn')
+      ctx.prompts.setPrompt({ kind: 'commitAmend', subject, repo })
+    },
+    /**
+     * The panel's commit box: `c` (or a click) puts the keyboard in it, Enter
+     * hands its message to the same commit path the prompt uses. The box is only
+     * offered while the index is in play — against a comparison base there is
+     * nothing a commit could be about.
+     */
+    gitFocusMessage: () => {
+      if (!git.inRepo()) return say('Not a git repository', 'warn')
+      if (!git.staging()) return say('Comparing against a branch — nothing to commit here', 'warn')
+      panes.showView('git')
+      git.setMessageEditing(true)
+    },
+    gitCommitBox: () => {
+      const repo = git.activeRepo()
+      if (repo === null) return say(noRepository(git), 'warn')
+      const message = git.commitMessage().trim()
+      if (!message) return say('Enter a commit message', 'warn')
+      git.setMessageEditing(false)
       const staged = stagedPaths(repo)
-      if (staged.size > 0) return ctx.prompts.setPrompt({ kind: 'commit', paths: null })
-      // One repository's changes: a commit is one repository's, and offering
-      // another's files would stage nothing and fail on the path.
-      //
-      // Deliberately not `git.diffBase()`: the index is built against HEAD no
-      // matter which branch is being reviewed, so offering the files that differ
-      // from some other branch would stage work that is already committed.
-      const changes = [...statusMap(repo)]
-        .map(([path, fileStatus]) => ({
-          path,
-          rel: relative(rootDir, path),
-          status: fileStatus,
-          checked: true,
-        }))
-        .toSorted((a, b) => a.rel.localeCompare(b.rel))
-      if (changes.length === 0) return say('Nothing to commit — working tree clean')
-      git.setCommitPick(changes)
+      if (staged.size > 0) {
+        return runCommit(gitOp, git, {
+          repo,
+          message,
+          paths: null,
+          variant: 'commit',
+          onPushRejected: pullPushOffer,
+        })
+      }
+      const count = statusMap(repo).size
+      if (count === 0) return say('Nothing to commit — working tree clean')
+      ctx.prompts.setPrompt({ kind: 'commitAll', message, variant: 'commit', repo, count })
+    },
+    gitSync: () => {
+      const repo = git.activeRepo()
+      if (repo === null) return say(noRepository(git), 'warn')
+      const name = git.branch()
+      if (!name) return say('No branch to sync', 'warn')
+      const hasUpstream = git.upstream()?.name != null
+      // Sync on a branch origin has never seen is a publish, VS Code's own turn.
+      gitOp('Syncing', r => (hasUpstream ? pullAndPush(r, name, true) : push(r, name, false)), {
+        repo,
+        touchesTree: { kind: 'sync' },
+        done: () =>
+          hasUpstream ? `Synced ${name}` : `Published ${name} — upstream set to origin/${name}`,
+      })
     },
     gitUndoCommit: () => {
       const repo = git.activeRepo()

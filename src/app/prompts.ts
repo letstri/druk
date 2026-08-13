@@ -4,8 +4,7 @@ import { createMemo, createSignal } from 'solid-js'
 
 import { createDir, createFile, isDirectory } from '../core/fs'
 import {
-  commitPaths,
-  commitStaged,
+  commitAmend,
   discardChange,
   pullAndPush,
   PUSH_REJECTED,
@@ -15,9 +14,11 @@ import { NOTE_KINDS, NOTE_LABELS } from '../core/review'
 import { SERVER_ROOT } from '../lsp/install'
 import { installHint } from '../lsp/servers'
 import type { Branches } from './branches'
+import type { CommitView } from './commitView'
 import type { EditorBridge } from './editor'
 import type { FileOps } from './fileOps'
-import type { GitOp } from './git'
+import { noRepository, runCommit } from './git'
+import type { Git, GitOp } from './git'
 import type { Lsp } from './lsp'
 import type { Market } from './market'
 import type { Panes } from './panes'
@@ -38,6 +39,7 @@ const PROMPT_TITLES: Partial<Record<PromptKind, string>> = {
   rename: 'Rename to',
   gotoLine: 'Go to line',
   commit: 'Commit message',
+  commitAmend: 'Amend commit message',
   newBranch: 'New branch name',
   renameBranch: 'Rename branch to',
   reviewNote: 'Review note',
@@ -65,14 +67,16 @@ export function createPromptHandlers(deps: {
   editor: EditorBridge
   workspace: Workspace
   fileOps: FileOps
+  git: Git
   gitOp: GitOp
+  commitView: CommitView
   branches: Branches
   lsp: Lsp
   market: Market
   review: Review
 }) {
   const { renderer, state, status, tree, panes, editor, workspace } = deps
-  const { fileOps, gitOp, branches, lsp, market, review } = deps
+  const { fileOps, git, gitOp, commitView, branches, lsp, market, review } = deps
   const { prompt, setPrompt } = state
   const { say } = status
 
@@ -119,10 +123,21 @@ export function createPromptHandlers(deps: {
       if (err) return say(err, 'error')
       say(`Renamed to ${name}`)
     } else if (p.kind === 'commit') {
-      const paths = p.paths
-      gitOp('Committing', repo =>
-        paths === null ? commitStaged(repo, name) : commitPaths(repo, name, paths),
-      )
+      const repo = git.activeRepo()
+      if (repo === null) return say(noRepository(git), 'warn')
+      runCommit(gitOp, git, {
+        repo,
+        message: name,
+        paths: p.paths,
+        variant: p.variant,
+        onPushRejected: (branch, hasUpstream) =>
+          setPrompt({ kind: 'pullPush', branch, hasUpstream }),
+      })
+    } else if (p.kind === 'commitAmend') {
+      gitOp('Amending', repo => commitAmend(repo, name), {
+        repo: p.repo,
+        done: () => `Amended "${p.subject}"`,
+      })
     } else if (p.kind === 'newBranch') {
       branches.create(name, p.from)
     } else if (p.kind === 'renameBranch') {
@@ -186,6 +201,15 @@ export function createPromptHandlers(deps: {
       case 'undoCommit':
         return gitOp('Undoing commit', repo => undoLastCommit(repo), {
           done: () => `Undid "${p.subject}" — its changes are staged`,
+        })
+      case 'commitAll':
+        return runCommit(gitOp, git, {
+          repo: p.repo,
+          message: p.message,
+          paths: 'all',
+          variant: p.variant,
+          onPushRejected: (branch, hasUpstream) =>
+            setPrompt({ kind: 'pullPush', branch, hasUpstream }),
         })
       case 'discardChange':
         return gitOp('Discarding', () => discardChange(p.target), {
@@ -268,6 +292,8 @@ export function createPromptHandlers(deps: {
     if (p?.kind === 'rename') return basename(p.target)
     // Renaming usually adjusts a name rather than replacing it.
     if (p?.kind === 'renameBranch') return p.from
+    // Amending usually adjusts the message rather than replacing it.
+    if (p?.kind === 'commitAmend') return p.subject
     return ''
   }
 
@@ -332,6 +358,13 @@ export function createPromptHandlers(deps: {
           verb: 'undo it',
           danger: false,
           message: `Undo "${p.subject}"? Its changes come back as staged edits.`,
+        }
+      case 'commitAll':
+        return {
+          title: 'No staged changes',
+          verb: 'commit all',
+          danger: false,
+          message: `Nothing is staged — commit all ${p.count} changed ${p.count === 1 ? 'file' : 'files'} directly?`,
         }
       case 'deleteBranch':
         return {

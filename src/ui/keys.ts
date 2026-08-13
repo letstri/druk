@@ -255,8 +255,8 @@ export const KEYS: KeyInfo[] = [
   // Space folded into the row rather than given one of its own: the help table
   // only just fits a 70-row terminal, and the peek strip cuts what does not fit.
   {
-    key: 'Space c d p b B Esc',
-    label: 'Stage/commit/discard/push/branch/compare/back',
+    key: 'Space c d p s b B Esc',
+    label: 'Stage/commit/discard/push/sync/branch/compare/back',
     section: 'Source control',
     where: 'git',
   },

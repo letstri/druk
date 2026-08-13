@@ -35,8 +35,9 @@ function repo() {
 
 const frame = (t: Harness) => t.captureCharFrame()
 
-/** The panel's first change row: tab strip, view tabs, header, `Changes`. */
-const FIRST_ROW = 4
+/** The panel's first change row: tab strip, view tabs, header, the commit
+ * box's two rows, `Changes`. */
+const FIRST_ROW = 6
 
 test('Esc closes the diff opened from the panel, not the panel under it', async () => {
   const t = await launch(repo())

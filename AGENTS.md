@@ -84,14 +84,28 @@ replace, moving lines — opens the file first),
 git marks in tree/gutter/status bar plus a source-control panel in the sidebar
 (changed files as a folder tree or a flat list — `gitPanelView` — folders folding on
 → / ←, or all of them from the header's `▴`; the files sit under VS Code's two
-headings, `Staged Changes` and `Changes`, and Space is what moves a row between them —
+headings, `Staged Changes` and `Changes` — and, mid-merge, `Merge Changes` above both,
+where every unmerged path sits as one row whatever porcelain's two columns say, Space
+(git add) marks it resolved into Staged Changes, and Enter opens the file at its first
+`<<<<<<<` marker — and Space is what moves a row between them —
 `+`/`−` drawn on the cursor's row alone, a terminal having no hover to hide a button
 behind. A path staged and then edited again is a row under *each* heading, which is
 what git reports and what makes staging the rest of it a thing to do, and the two
 rows diff different things: staged is HEAD against the index, unstaged the index
 against the working tree. Space on a heading or a folder carries everything under it,
-folded or not — VS Code's `+` on a group header — and with something staged `c` skips
-the file picker and commits exactly the index. An empty heading is not drawn, and
+folded or not — VS Code's `+` on a group header. A commit box sits under the panel's
+header, VS Code's message field: `c` (or a click) puts the keyboard in it, Enter
+commits the index with its words — or, with nothing staged, offers to commit every
+change behind a confirm naming the count — Esc leaves the rows with the message kept,
+and under it a `✓ Commit` button beside `⇅ sync` (with the ↑↓ counts; `⇡ publish` on
+a branch origin has never seen — one press pulls what origin has and pushes, `s` the
+same). Under the change list sit VS Code's sync sections — `Incoming` and `Outgoing`,
+the commits the branch is behind and ahead of its upstream by (capped at fifty rows a
+side; the header's counts stay true), each folding like a heading, `↓`/`↑` where a
+file wears its icon, and Enter opening the commit over the editor slot — the branch
+comparison's detail page (`ComparisonView`) reused without a comparison, files paged
+with ←/→ (`createCommitView` in `src/app/commitView.ts`). An empty heading is not
+drawn, and
 none of it exists against a comparison base, where there is no index to speak of),
 for however many repositories the
 opened folder holds: a folder that only *contains* checkouts (`~/code`, a folder of

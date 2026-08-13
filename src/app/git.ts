@@ -2,19 +2,26 @@ import { join, relative } from 'node:path'
 
 import { createEffect, createMemo, createSignal, on, onCleanup } from 'solid-js'
 
-import { ancestorDirs, changeRows, foldKey } from '../core/changeTree'
-import type { Change } from '../core/changeTree'
+import { ancestorDirs, changeRows, commitRows, foldKey } from '../core/changeTree'
+import type { Change, CommitGroup, UpstreamCommit } from '../core/changeTree'
 import type { Config } from '../core/config'
 import {
   combinedStatus,
+  commitPaths,
+  commitStaged,
   currentBranch,
   diffLines,
   ignoredAmong,
   inRepository,
+  pullAndPush,
+  push,
+  PUSH_REJECTED,
   statusEntriesAsync,
+  statusMap,
+  upstreamCommits,
   upstreamOf,
 } from '../core/git'
-import type { GitResult, LineChange, StageArea, StatusEntry, Upstream } from '../core/git'
+import type { ChangeArea, GitResult, LineChange, StatusEntry, Upstream } from '../core/git'
 import { discoverRepos, groupByRepo, repoOf } from '../core/repos'
 import type { CommitFile } from '../ui/CommitModal'
 import type { EditorBridge } from './editor'
@@ -76,6 +83,16 @@ export function createGit(
   const [gitBusy, setGitBusy] = createSignal(false)
   /** Changed files offered to "Commit…", or null when the picker is closed. */
   const [commitPick, setCommitPick] = createSignal<CommitFile[] | null>(null)
+  /** What follows the commit the picker or prompt is building — set when either opens. */
+  const [commitVariant, setCommitVariant] = createSignal<CommitVariant>('commit')
+  /**
+   * The panel's commit box — VS Code's message field over the change list. The
+   * text outlives the editing state on purpose: leaving the box to look at a
+   * diff must not throw a half-written message away.
+   */
+  const [commitMessage, setCommitMessage] = createSignal('')
+  /** Whether the box owns the keyboard — a real input only while it does. */
+  const [messageEditing, setMessageEditing] = createSignal(false)
   /**
    * What every comparison is against: null is HEAD, and a ref name points the
    * whole editor at that branch instead — tree marks, gutter, the panel's list
@@ -95,6 +112,11 @@ export function createGit(
     [...statusEntries()]
       .flatMap(([path, entry]) => {
         const rel = relative(rootDir, path)
+        // An unmerged path is one row under Merge Changes, not one per column:
+        // the merge is the change, and Space (git add) is what resolves it.
+        if (entry.conflicted) {
+          return [{ path, rel, status: entry.unstaged ?? 'modified', area: 'merge' as const }]
+        }
         const both: Change[] = []
         if (entry.staged) both.push({ path, rel, status: entry.staged, area: 'staged' })
         if (entry.unstaged) both.push({ path, rel, status: entry.unstaged, area: 'unstaged' })
@@ -109,12 +131,24 @@ export function createGit(
   /** Folder and heading rows the panel has folded away, keyed by `foldKey`. */
   const [collapsed, setCollapsed] = createSignal<ReadonlySet<string>>(new Set())
 
+  /** The upstream commits the sync sections list, kept by `wireGitEffects`. */
+  const [syncCommits, setSyncCommits] = createSignal<{
+    incoming: UpstreamCommit[]
+    outgoing: UpstreamCommit[]
+  }>({ incoming: [], outgoing: [] })
+
   /**
    * What the panel draws and what the cursor counts, folder and heading rows
    * included. Every caller works in row indices: `changes` is no longer
    * addressable by cursor, because in tree mode most rows are not files.
+   * The sync sections ride under the change list; against a comparison base
+   * they are dropped with the headings — the distance shown would be HEAD's,
+   * not the base's, and nothing on the page would explain whose.
    */
-  const rows = createMemo(() => changeRows(changes(), panelView(), collapsed(), staging()))
+  const rows = createMemo(() => [
+    ...changeRows(changes(), panelView(), collapsed(), staging()),
+    ...(staging() ? commitRows(syncCommits().incoming, syncCommits().outgoing, collapsed()) : []),
+  ])
 
   /** Which repository a path belongs to — the innermost, so a nested one wins. */
   const repoFor = (path: string) => repoOf(path, repos())
@@ -126,8 +160,9 @@ export function createGit(
     const row = rows()[Math.max(0, Math.min(at, rows().length - 1))]
     if (!row) return null
     // A heading is about no path in particular, so it says nothing about which
-    // repository is meant and the open file answers instead.
-    if (row.kind === 'section') return null
+    // repository is meant and the open file answers instead — and a sync row is
+    // the active repository's by construction, which is the same fallback.
+    if (row.kind === 'section' || row.kind === 'commit' || row.kind === 'commitSection') return null
     return repoFor(row.kind === 'file' ? row.change.path : join(rootDir, row.rel))
   })
 
@@ -142,7 +177,7 @@ export function createGit(
 
   const inRepo = () => repos().length > 0
 
-  const toggleCollapsed = (area: StageArea, rel: string) =>
+  const toggleCollapsed = (area: ChangeArea | CommitGroup, rel: string) =>
     setCollapsed(previous => {
       const next = new Set(previous)
       const key = foldKey(area, rel)
@@ -168,7 +203,7 @@ export function createGit(
     )
 
   /** Unfold every folder on the way to `rel`, so its row is on screen to land on. */
-  const revealChange = (area: StageArea, rel: string) =>
+  const revealChange = (area: ChangeArea, rel: string) =>
     setCollapsed(previous => {
       const hiding = [
         foldKey(area, ''),
@@ -208,6 +243,12 @@ export function createGit(
     setGitBusy,
     commitPick,
     setCommitPick,
+    commitVariant,
+    setCommitVariant,
+    commitMessage,
+    setCommitMessage,
+    messageEditing,
+    setMessageEditing,
     diffBase,
     setDiffBase,
     changes,
@@ -216,6 +257,8 @@ export function createGit(
     toggleCollapsed,
     collapseAll,
     revealChange,
+    syncCommits,
+    setSyncCommits,
   }
 }
 
@@ -286,6 +329,84 @@ export function createGitOp(deps: { git: Git; status: Status; workspace: Workspa
 
 export type GitOp = ReturnType<typeof createGitOp>
 
+/** What follows the commit itself — VS Code's Commit & Push / Commit & Sync. */
+export type CommitVariant = 'commit' | 'commitPush' | 'commitSync'
+
+/**
+ * One commit, whichever door it came through — the panel's box, the message
+ * prompt, or the "no staged changes" confirm — so the push half and the
+ * message-clearing cannot drift apart between them.
+ *
+ * `paths` is null for the index as it stands, `'all'` for every change the
+ * repository has *when the operation runs* — the confirm that offers it names a
+ * count, and resolving the list early would commit a stale set after an edit
+ * made while the confirm sat open.
+ */
+export function runCommit(
+  gitOp: GitOp,
+  git: Git,
+  opts: {
+    repo: string
+    message: string
+    paths: string[] | null | 'all'
+    variant: CommitVariant
+    /** Raised when the push half is rejected because origin moved on. */
+    onPushRejected?: (branch: string, hasUpstream: boolean) => void
+  },
+) {
+  const verbs: Record<CommitVariant, string> = {
+    commit: 'Committing',
+    commitPush: 'Committing and pushing',
+    commitSync: 'Committing and syncing',
+  }
+  // Whether the commit itself landed: a rejected push after it must still clear
+  // the message box — those words are in a commit now.
+  let committed = false
+  let pushed: { branch: string; hasUpstream: boolean } | null = null
+  gitOp(
+    verbs[opts.variant],
+    async repo => {
+      const paths = opts.paths === 'all' ? [...statusMap(repo).keys()] : opts.paths
+      if (paths !== null && paths.length === 0) {
+        return { ok: false, detail: 'Nothing to commit — working tree clean' }
+      }
+      const commit =
+        paths === null
+          ? await commitStaged(repo, opts.message)
+          : await commitPaths(repo, opts.message, paths)
+      if (!commit.ok || opts.variant === 'commit') {
+        committed = commit.ok
+        return commit
+      }
+      committed = true
+      // Asked of the repository rather than taken from the signals: the payload
+      // may have sat in a confirm while the active repository changed under it.
+      const branch = currentBranch(repo)
+      if (!branch) return { ok: true, detail: 'Committed — no branch to push' }
+      const hasUpstream = upstreamOf(repo)?.name != null
+      pushed = { branch, hasUpstream }
+      if (opts.variant === 'commitPush') return push(repo, branch, hasUpstream)
+      // Sync on a branch origin has never seen is a publish, VS Code's own turn.
+      return hasUpstream ? pullAndPush(repo, branch, true) : push(repo, branch, false)
+    },
+    {
+      repo: opts.repo,
+      // The pull half of a sync rewrites files under open buffers.
+      touchesTree: opts.variant === 'commitSync' ? { kind: 'sync' } : undefined,
+      done: result => {
+        git.setCommitMessage('')
+        return result.detail || 'Committed'
+      },
+      handleFailure: result => {
+        if (committed) git.setCommitMessage('')
+        if (result.detail !== PUSH_REJECTED || !pushed || !opts.onPushRejected) return false
+        opts.onPushRejected(pushed.branch, pushed.hasUpstream)
+        return true
+      },
+    },
+  )
+}
+
 /** How long a repository scan stands before the next refresh redoes it. */
 const SCAN_INTERVAL = 5000
 
@@ -351,7 +472,17 @@ export function wireGitEffects(deps: {
 
   const refreshUpstream = deferred(() => {
     const repo = git.activeRepo()
-    git.setUpstream(repo ? upstreamOf(repo) : null)
+    const upstream = repo ? upstreamOf(repo) : null
+    git.setUpstream(upstream)
+    // The sync sections measure the same distance, so they move on its cadence.
+    git.setSyncCommits(
+      repo && upstream?.name != null
+        ? {
+            incoming: upstreamCommits(repo, 'incoming'),
+            outgoing: upstreamCommits(repo, 'outgoing'),
+          }
+        : { incoming: [], outgoing: [] },
+    )
   })
 
   // Ahead/behind only moves when history does, so it is deliberately not tied to

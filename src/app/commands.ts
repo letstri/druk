@@ -97,8 +97,16 @@ export interface CommandActions {
   /** Not a command: `App` runs it when git or a buffer moves under an open diff. */
   refreshDiff: () => void
   gitCommit: () => void
+  gitCommitAndPush: () => void
+  gitCommitAndSync: () => void
+  gitCommitAmend: () => void
+  /** Not a command: the panel's commit box — `c` (or a click) opens it. */
+  gitFocusMessage: () => void
+  /** Not a command: Enter in the box, and the ✓ Commit button. */
+  gitCommitBox: () => void
   gitUndoCommit: () => void
   gitPush: () => void
+  gitSync: () => void
   gitFetch: () => void
   gitPull: () => void
   gitStash: () => void
@@ -235,9 +243,16 @@ export function buildCommands(actions: CommandActions, ctx: CommandContext): Com
         },
         { id: 'git.commit', label: 'Commit…', run: actions.gitCommit },
         { id: 'git.undo', label: 'Undo last commit', run: actions.gitUndoCommit },
+        // The filter is first-substring-match in this order, so the plain verbs
+        // stay above the compounds that contain them — `runCommand(t, 'Push')`
+        // in the tests is the same typing a user does.
         { id: 'git.push', label: 'Push', run: actions.gitPush },
         { id: 'git.fetch', label: 'Fetch', run: actions.gitFetch },
         { id: 'git.pull', label: 'Pull (fast-forward only)', run: actions.gitPull },
+        { id: 'git.sync', label: 'Sync (pull & push)', run: actions.gitSync },
+        { id: 'git.commitPush', label: 'Commit & push…', run: actions.gitCommitAndPush },
+        { id: 'git.commitSync', label: 'Commit & sync…', run: actions.gitCommitAndSync },
+        { id: 'git.commitAmend', label: 'Commit (amend)…', run: actions.gitCommitAmend },
         { id: 'git.stash', label: 'Stash changes', run: actions.gitStash },
         { id: 'git.stashPop', label: 'Stash pop', run: actions.gitStashPop },
         {

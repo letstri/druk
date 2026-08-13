@@ -385,7 +385,7 @@ export function OverlayStack(props: { ctx: AppContext; commands: Accessor<Comman
             files={files()}
             onSubmit={paths => {
               git.setCommitPick(null)
-              prompts.setPrompt({ kind: 'commit', paths })
+              prompts.setPrompt({ kind: 'commit', paths, variant: git.commitVariant() })
             }}
             onCancel={() => git.setCommitPick(null)}
           />

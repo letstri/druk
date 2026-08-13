@@ -4,6 +4,7 @@ import type { NoteKind } from '../core/review'
 import type { SearchOptions } from '../core/search'
 import type { PackageManager } from '../lsp/install'
 import type { FetchableInstall } from '../lsp/servers'
+import type { CommitVariant } from './git'
 
 /** Which pane owns the keyboard when no overlay is open. */
 export type Focus = 'tree' | 'editor'
@@ -43,7 +44,15 @@ export type Prompt =
   | { kind: 'closeDirty'; paths: string[]; names: string[] }
   | { kind: 'quitDirty'; names: string[] }
   /** `paths` null commits the index as it stands — what the panel's Space built. */
-  | { kind: 'commit'; paths: string[] | null }
+  | { kind: 'commit'; paths: string[] | null; variant: CommitVariant }
+  /** Rewrite the last commit; `subject` prefills the prompt with its message. */
+  | { kind: 'commitAmend'; subject: string; repo: string }
+  /**
+   * Nothing is staged and the box's message is ready: VS Code's "commit all
+   * changes directly?" offer. The paths are resolved when the commit runs, so
+   * `count` is what the confirm shows, not what it commits.
+   */
+  | { kind: 'commitAll'; message: string; variant: CommitVariant; repo: string; count: number }
   | { kind: 'undoCommit'; subject: string }
   | { kind: 'discardChange'; target: DiscardTarget }
   /** `from` is the branch to start at, or null for HEAD. */

@@ -1,19 +1,24 @@
 import { TextAttributes } from '@opentui/core'
 import { createEffect, createMemo, For, on, Show } from 'solid-js'
 
-import type { ChangeRow, DirRow, FileRow, SectionRow } from '../core/changeTree'
+import type { ChangeRow, CommitSectionRow, DirRow, FileRow, SectionRow } from '../core/changeTree'
 import { rowArea } from '../core/changeTree'
 import { iconFor } from '../icons'
 import { ui } from '../themes'
 import { MARKS, statusColor } from './FileTree'
 import { useHover } from './hover'
 import { createScrollList, rowBg, scrollbarOptions } from './list'
+import { TextInput } from './TextInput'
 
 /** `Show`'s `when` takes a value, not a predicate: these hand it the narrowed row
  * (or nothing) so the block inside needs no cast. */
 const dirRow = (row: ChangeRow) => (row.kind === 'dir' ? row : undefined)
 const fileRow = (row: ChangeRow) => (row.kind === 'file' ? row : undefined)
 const sectionRow = (row: ChangeRow) => (row.kind === 'section' ? row : undefined)
+const commitSectionRow = (row: ChangeRow) => (row.kind === 'commitSection' ? row : undefined)
+
+/** Rows that stand for a commit rather than a change — no icon, no stage control. */
+const isCommitRow = (row: ChangeRow) => row.kind === 'commit' || row.kind === 'commitSection'
 
 /**
  * The name an icon theme is keyed by. A folder row's label is a *joined* chain
@@ -48,6 +53,12 @@ export interface GitPanelProps {
   inRepo: boolean
   /** `iconTheme`: the glyph column, or `'none'` for the tree's plain arrow. */
   iconTheme: string
+  /** The commit box's text — held above the panel so it outlives a re-render. */
+  commitMessage: string
+  /** Whether the box owns the keyboard — a real input only while it does. */
+  messageEditing: boolean
+  /** Whether the branch has an upstream — what makes Sync a sync, not a publish. */
+  hasUpstream: boolean
   onFocus: () => void
   /** A row clicked: move the cursor there, and diff it or fold it. */
   onActivate: (index: number) => void
@@ -55,6 +66,13 @@ export interface GitPanelProps {
   onCollapseAll: () => void
   /** A row's `+`/`−`: stage or unstage whatever the cursor is on. */
   onToggleStage: () => void
+  /** The message row clicked: put the keyboard in the box. */
+  onMessageFocus: () => void
+  onMessageInput: (value: string) => void
+  /** The ✓ Commit button, and Enter in the box. */
+  onCommit: () => void
+  /** The ⇅/⇡ button: pull what origin has then push — or publish the branch. */
+  onSync: () => void
 }
 
 /**
@@ -77,6 +95,9 @@ export function GitPanel(props: GitPanelProps) {
   const list = createScrollList(() => props.rows.length)
   const visible = createMemo(() => props.rows.slice(list.window().start, list.window().end))
   const collapse = useHover()
+  const message = useHover()
+  const commit = useHover()
+  const sync = useHover()
 
   /**
    * Change lists are usually shorter than the panel, but `git status` after a big
@@ -151,6 +172,84 @@ export function GitPanel(props: GitPanelProps) {
           />
         </Show>
       </box>
+      {/* VS Code's commit box: the message field over the change list, with the
+          ✓ Commit button and Sync under it. Only while the index is in play —
+          against a comparison base there is nothing a commit could be about. */}
+      <Show when={props.inRepo && props.staging}>
+        <box
+          height={1}
+          flexDirection="row"
+          backgroundColor={message.hovered() && !props.messageEditing ? ui.hoverBg : ui.sidebarBg}
+          paddingLeft={1}
+          onMouseDown={() => props.onMessageFocus()}
+          onMouseOver={message.enter}
+          onMouseOut={message.leave}
+        >
+          <text
+            fg={ui.faint}
+            bg={message.hovered() && !props.messageEditing ? ui.hoverBg : ui.sidebarBg}
+            flexShrink={0}
+            content="✎ "
+          />
+          <box flexGrow={1}>
+            <Show
+              when={props.messageEditing}
+              fallback={
+                <text
+                  fg={props.commitMessage ? ui.text : ui.faint}
+                  bg={message.hovered() ? ui.hoverBg : ui.sidebarBg}
+                  wrapMode="none"
+                  content={props.commitMessage || 'Message (c to edit)'}
+                />
+              }
+            >
+              <TextInput
+                value={props.commitMessage}
+                placeholder="Commit message"
+                onInput={props.onMessageInput}
+              />
+            </Show>
+          </box>
+        </box>
+        <box height={1} flexDirection="row" backgroundColor={ui.sidebarBg} paddingLeft={1}>
+          <box
+            flexShrink={0}
+            backgroundColor={commit.hovered() ? ui.hoverBg : ui.sidebarBg}
+            onMouseDown={() => props.onCommit()}
+            onMouseOver={commit.enter}
+            onMouseOut={commit.leave}
+          >
+            <text
+              fg={ui.accent}
+              bg={commit.hovered() ? ui.hoverBg : ui.sidebarBg}
+              content="✓ Commit"
+              attributes={TextAttributes.BOLD}
+            />
+          </box>
+          <box flexGrow={1} backgroundColor={ui.sidebarBg} />
+          {/* Sync only means something on a branch; publish is its no-upstream turn. */}
+          <Show when={props.branch}>
+            <box
+              flexShrink={0}
+              backgroundColor={sync.hovered() ? ui.hoverBg : ui.sidebarBg}
+              onMouseDown={() => props.onSync()}
+              onMouseOver={sync.enter}
+              onMouseOut={sync.leave}
+            >
+              <text
+                fg={sync.hovered() ? ui.text : ui.dim}
+                bg={sync.hovered() ? ui.hoverBg : ui.sidebarBg}
+                wrapMode="none"
+                content={
+                  props.hasUpstream
+                    ? `⇅ sync${props.ahead > 0 ? ` ↑${props.ahead}` : ''}${props.behind > 0 ? ` ↓${props.behind}` : ''} `
+                    : '⇡ publish '
+                }
+              />
+            </box>
+          </Show>
+        </box>
+      </Show>
       <Show
         when={props.inRepo && props.rows.length > 0}
         fallback={
@@ -175,6 +274,7 @@ export function GitPanel(props: GitPanelProps) {
             {(row, at) => {
               const index = () => list.window().start + at()
               const hover = useHover()
+              const stage = useHover()
               const bg = () => rowBg(index() === cursor(), props.focused, hover.hovered())
               /**
                * The icon takes the folder arrow's column, as it does in the tree:
@@ -185,15 +285,26 @@ export function GitPanel(props: GitPanelProps) {
               // A heading is not a file, so it takes the arrow itself rather
               // than an icon theme's folder glyph.
               const icon = () =>
-                row.kind === 'section'
+                row.kind === 'section' || isCommitRow(row)
                   ? null
                   : iconFor(props.iconTheme, {
                       name: iconName(row),
                       isDir: row.kind === 'dir',
                       expanded: row.kind === 'dir' && !row.collapsed,
                     })
-              const arrow = () => (row.kind !== 'file' && row.collapsed ? '▸' : '▾')
-              const glyph = () => icon()?.glyph ?? (row.kind === 'file' ? '' : arrow())
+              const arrow = () =>
+                row.kind !== 'file' && row.kind !== 'commit' && row.collapsed ? '▸' : '▾'
+              // A commit row wears its direction — what a pull brings in, what a
+              // push would send — where a file wears its icon.
+              const glyph = () =>
+                icon()?.glyph ??
+                (row.kind === 'file'
+                  ? ''
+                  : row.kind === 'commit'
+                    ? row.group === 'incoming'
+                      ? '↓'
+                      : '↑'
+                    : arrow())
               const glyphColor = () => icon()?.color ?? (row.kind === 'file' ? ui.faint : ui.dim)
               return (
                 <box
@@ -220,10 +331,14 @@ export function GitPanel(props: GitPanelProps) {
                   <box flexGrow={1} flexDirection="row" backgroundColor={bg()}>
                     <text
                       wrapMode="none"
-                      fg={row.kind === 'file' ? ui.text : ui.folder}
+                      fg={row.kind === 'file' || row.kind === 'commit' ? ui.text : ui.folder}
                       bg={bg()}
                       content={row.label}
-                      attributes={row.kind === 'file' ? undefined : TextAttributes.BOLD}
+                      attributes={
+                        row.kind === 'file' || row.kind === 'commit'
+                          ? undefined
+                          : TextAttributes.BOLD
+                      }
                     />
                   </box>
                   {/* A heading always says how many are under it — that count is
@@ -237,6 +352,16 @@ export function GitPanel(props: GitPanelProps) {
                         bg={bg()}
                         flexShrink={0}
                         content={`${section().files} `}
+                      />
+                    )}
+                  </Show>
+                  <Show when={commitSectionRow(row)}>
+                    {(section: () => CommitSectionRow) => (
+                      <text
+                        fg={ui.faint}
+                        bg={bg()}
+                        flexShrink={0}
+                        content={`${section().count} `}
                       />
                     )}
                   </Show>
@@ -264,16 +389,22 @@ export function GitPanel(props: GitPanelProps) {
                       hide it behind, and it is drawn on the cursor's row alone so
                       the list is not a column of `+`. Its own handler, and it runs
                       before the row's — pressing `+` is not pressing the row. */}
-                  <Show when={props.staging && index() === cursor()}>
+                  <Show when={props.staging && index() === cursor() && !isCommitRow(row)}>
                     <box
                       flexShrink={0}
-                      backgroundColor={bg()}
+                      backgroundColor={stage.hovered() ? ui.hoverBg : bg()}
                       onMouseDown={event => {
                         event.stopPropagation()
                         props.onToggleStage()
                       }}
+                      onMouseOver={stage.enter}
+                      onMouseOut={stage.leave}
                     >
-                      <text fg={ui.accent} bg={bg()} content={`${stageGlyph(row)} `} />
+                      <text
+                        fg={ui.accent}
+                        bg={stage.hovered() ? ui.hoverBg : bg()}
+                        content={`${stageGlyph(row)} `}
+                      />
                     </box>
                   </Show>
                 </box>
@@ -295,7 +426,7 @@ export function GitPanel(props: GitPanelProps) {
             wrapMode="none"
             content={
               props.staging
-                ? 'space stage · d discard · c commit · p push · B compare'
+                ? 'space stage · d discard · c commit · p push · s sync · B compare'
                 : '↑↓ diff · →← fold · d discard · c commit · p push · B compare'
             }
           />

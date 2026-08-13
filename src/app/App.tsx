@@ -41,6 +41,7 @@ import { StatusBar } from '../ui/StatusBar'
 import { Tabs } from '../ui/Tabs'
 import { createCommands } from './actions'
 import { createBranches } from './branches'
+import { createCommitView } from './commitView'
 import { createComparison } from './comparison'
 import type { AppContext } from './context'
 import { createEditorBridge } from './editor'
@@ -182,7 +183,9 @@ export function App(props: {
     editor,
     workspace,
     fileOps,
+    git,
     gitOp,
+    commitView,
     branches,
     lsp,
     market,
@@ -220,6 +223,7 @@ export function App(props: {
     workspace.diff() !== null ||
     workspace.page() !== null ||
     comparison.detailOpen() ||
+    commitView.isOpen() ||
     activeImage() !== null ||
     activePdf() !== null ||
     workspace.renderedPath() !== null ||
@@ -241,6 +245,7 @@ export function App(props: {
     extensions: extensionsPanel,
     review,
     branches,
+    commitView,
     comparison,
     workspace,
     navigation,
@@ -261,7 +266,7 @@ export function App(props: {
   wireGitEffects({ rootDir, git, tree, editor, workspace, config: settings.config })
   wireLspEffects({ lsp, settings, workspace })
   const { commands, actions } = createCommands(ctx)
-  installKeyboard(ctx, actions)
+  const keyboard = installKeyboard(ctx, actions)
 
   // `revision` covers saves, git commands and anything the watcher sees in .git;
   // `reloadKey` covers a buffer replaced from disk; `diffBase` covers the branch
@@ -686,10 +691,17 @@ export function App(props: {
                     width={settings.treeWidth()}
                     inRepo={git.inRepo()}
                     iconTheme={settings.activeIconTheme()}
+                    commitMessage={git.commitMessage()}
+                    messageEditing={git.messageEditing()}
+                    hasUpstream={git.upstream()?.name != null}
                     onFocus={() => panes.setFocus('tree')}
                     onActivate={actions.gitActivateRow}
                     onCollapseAll={actions.gitCollapseAll}
                     onToggleStage={actions.gitToggleStage}
+                    onMessageFocus={actions.gitFocusMessage}
+                    onMessageInput={git.setCommitMessage}
+                    onCommit={actions.gitCommitBox}
+                    onSync={actions.gitSync}
                   />
                 }
               >
@@ -940,6 +952,25 @@ export function App(props: {
                 onMoveFile={comparison.moveDetail}
                 onToggleMode={settings.toggleDiffView}
                 onClose={closeComparisonDetail}
+              />
+            </box>
+          </Show>
+          {/* An Incoming/Outgoing commit from the panel — the comparison detail
+              page without a comparison, drawn by the same component. */}
+          <Show when={commitView.isOpen()}>
+            <box position="absolute" top={0} left={0} width="100%" height="100%" zIndex={55}>
+              <ComparisonView
+                file={commitView.file()}
+                content={commitView.content()}
+                commit={commitView.commit()}
+                mode={config.diffView}
+                width={dimensions().width - (panes.sidebar() ? settings.treeWidth() + 1 : 0)}
+                focused={panes.focus() === 'editor'}
+                blocked={overlays.overlay()}
+                onFocus={() => panes.setFocus('editor')}
+                onMoveFile={commitView.moveFile}
+                onToggleMode={settings.toggleDiffView}
+                onClose={commitView.close}
               />
             </box>
           </Show>

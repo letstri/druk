@@ -21,6 +21,7 @@ export function installKeyboard(ctx: AppContext, actions: CommandActions) {
     prompts,
     overlays,
     git,
+    commitView,
     comparison,
     extensions,
     preview,
@@ -68,6 +69,7 @@ export function installKeyboard(ctx: AppContext, actions: CommandActions) {
       // A page is the frontmost "tab": close it before any file tab.
       if (workspace.page()) return workspace.setPage(null)
       if (workspace.diff()) return workspace.setDiff(null)
+      if (commitView.isOpen()) return commitView.close()
       if (comparison.detailOpen()) return comparison.closeDetail()
       if (workspace.activePath()) workspace.closeTab(workspace.activePath()!)
     },
@@ -175,6 +177,7 @@ export function installKeyboard(ctx: AppContext, actions: CommandActions) {
       const pageUp =
         workspace.diff() !== null ||
         workspace.page() !== null ||
+        commitView.isOpen() ||
         comparison.detailOpen() ||
         workspace.renderedPath() !== null
       if (
@@ -193,9 +196,28 @@ export function installKeyboard(ctx: AppContext, actions: CommandActions) {
     // would fire one of them — Ctrl+D on the tree used to open the delete prompt.
     if (key.ctrl || key.meta || key.option) return
 
-    // Ahead of the blanket `preventDefault` below, and the only branch that is:
-    // the extensions panel's search is a real input, so while it is up the
-    // printable keys are its. Claiming them here would swallow the typing.
+    // Ahead of the blanket `preventDefault` below, as the extensions search is:
+    // the panel's commit box is a real input, so while it owns the keyboard the
+    // printable keys are its. Enter hands its message to the commit, Esc puts
+    // the keyboard back on the rows with the message kept.
+    if (panes.view() === 'git' && git.messageEditing()) {
+      switch (k) {
+        case 'return':
+        case 'enter':
+          actions.gitCommitBox()
+          break
+        case 'escape':
+          git.setMessageEditing(false)
+          break
+        default:
+          return // the field's
+      }
+      key.preventDefault()
+      return
+    }
+
+    // The extensions panel's search is the same arrangement: a real input whose
+    // printable keys must not be claimed below.
     if (panes.view() === 'extensions' && extensions.query() !== null) {
       switch (k) {
         case 'up':
@@ -380,15 +402,16 @@ export function installKeyboard(ctx: AppContext, actions: CommandActions) {
         case 'down':
           goTo(at + 1)
           break
-        // Folder rows fold as the tree's do. On a file, ← walks out to the folder
-        // holding it, which is the only way back to a row the arrows have passed.
+        // Folder rows fold as the tree's do. On a file or a sync commit — rows
+        // with nothing to fold — ← walks out to the row holding them, which is
+        // the only way back to a row the arrows have passed.
         case 'right':
-          if (row && row.kind !== 'file' && row.collapsed) {
+          if (row && row.kind !== 'file' && row.kind !== 'commit' && row.collapsed) {
             git.toggleCollapsed(rowArea(row), rowRel(row))
           }
           break
         case 'left':
-          if (row && row.kind !== 'file' && !row.collapsed) {
+          if (row && row.kind !== 'file' && row.kind !== 'commit' && !row.collapsed) {
             git.toggleCollapsed(rowArea(row), rowRel(row))
           } else if (row) goTo(parentRow(rows, at))
           break
@@ -400,14 +423,20 @@ export function installKeyboard(ctx: AppContext, actions: CommandActions) {
         case 'space':
           actions.gitToggleStage()
           break
+        // Into the commit box, as VS Code's focus-the-message-field: the message
+        // is typed there and Enter commits it. The palette's Commit… keeps the
+        // prompt flow for a commit made without the panel.
         case 'c':
-          actions.gitCommit()
+          actions.gitFocusMessage()
           break
         case 'd':
           actions.gitDiscard()
           break
         case 'p':
           actions.gitPush()
+          break
+        case 's':
+          actions.gitSync()
           break
         case 'b':
           actions.gitSwitchBranch()
@@ -418,10 +447,12 @@ export function installKeyboard(ctx: AppContext, actions: CommandActions) {
           panes.showView('review')
           break
         case 'escape':
-          // A diff opened from this panel sits on top of it: Esc dismisses that
+          // A page opened from this panel sits on top of it: Esc dismisses that
           // first, or the panel would close and leave the page it opened behind,
-          // with no key here that closes it.
-          if (workspace.diff()) workspace.setDiff(null)
+          // with no key here that closes it. The commit page draws over the
+          // diff, so it goes first.
+          if (commitView.isOpen()) commitView.close()
+          else if (workspace.diff()) workspace.setDiff(null)
           else panes.toggleGitView()
           break
       }

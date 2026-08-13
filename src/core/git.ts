@@ -15,6 +15,9 @@ export type FileStatus = 'untracked' | 'added' | 'modified' | 'deleted'
 /** Which of git's two columns a change is in — the index, or the working tree. */
 export type StageArea = 'staged' | 'unstaged'
 
+/** The panel's groups: the two index sides, and the paths a merge left in conflict. */
+export type ChangeArea = StageArea | 'merge'
+
 /**
  * One path's change split the way porcelain reports it. Both sides can be set at
  * once: a file edited after being added is staged *and* unstaged, and the panel
@@ -23,6 +26,8 @@ export type StageArea = 'staged' | 'unstaged'
 export interface StatusEntry {
   staged: FileStatus | null
   unstaged: FileStatus | null
+  /** A merge left this path unmerged — the panel's `Merge Changes` group. */
+  conflicted?: boolean
 }
 
 /** The single mark the tree and the gutter want: staged wins when both are set. */
@@ -767,9 +772,18 @@ export function discardTarget(repo: string, path: string): DiscardTarget | null 
  * every accented or spaced name. `-uall`, or a brand-new directory collapses to a
  * single `?? newdir/` entry and every file inside it shows no mark at all.
  */
+/** Porcelain's unmerged states — a `U` in either column, plus both-added/-deleted. */
+const CONFLICT_CODES = new Set(['DD', 'AU', 'UD', 'UA', 'DU', 'AA', 'UU'])
+
 function parsePorcelain(stdout: string, base: string): Map<string, StatusEntry> {
   const statuses = new Map<string, StatusEntry>()
   for (const entry of parsePorcelainEntries(stdout)) {
+    // An unmerged path is neither staged nor unstaged — it is a question the
+    // merge asked, and `git add` (the panel's Space) is what answers it.
+    if (CONFLICT_CODES.has(entry.xy)) {
+      statuses.set(join(base, entry.path), { staged: null, unstaged: 'modified', conflicted: true })
+      continue
+    }
     // `??` is one code across both columns, not an index state: an untracked
     // file is nothing the index has heard of, so it is unstaged and only that.
     const untracked = entry.xy === '??'
@@ -1012,6 +1026,33 @@ export function upstreamOf(cwd: string): Upstream | null {
   const counts = git(cwd, ['rev-list', '--left-right', '--count', '@{u}...HEAD'])
   const [behind, ahead] = counts.status === 0 ? counts.stdout.trim().split(/\s+/).map(Number) : []
   return { name: ref.stdout.trim(), ahead: ahead || 0, behind: behind || 0 }
+}
+
+/** How many commits either sync section lists — the header carries the true counts. */
+const SYNC_LOG_CAP = 50
+
+/**
+ * The commits between the branch and its upstream, one direction at a time —
+ * what the panel's Incoming/Outgoing sections list. Empty with no upstream to
+ * measure against, and capped: a branch hundreds of commits adrift is a wall of
+ * rows the header's counts already summarise.
+ */
+export function upstreamCommits(
+  cwd: string,
+  direction: 'incoming' | 'outgoing',
+): { oid: string; subject: string }[] {
+  const range = direction === 'incoming' ? 'HEAD..@{upstream}' : '@{upstream}..HEAD'
+  const run = git(cwd, ['log', '-n', String(SYNC_LOG_CAP), '--format=%H %s', range], 5000)
+  if (run.status !== 0) return []
+  return run.stdout
+    .split('\n')
+    .filter(line => line.length > 0)
+    .map(line => {
+      const split = line.indexOf(' ')
+      return split < 0
+        ? { oid: line, subject: '' }
+        : { oid: line.slice(0, split), subject: line.slice(split + 1) }
+    })
 }
 
 export function inRepository(cwd: string): boolean {
@@ -1346,6 +1387,16 @@ export async function commitPaths(
   const add = await mutate(cwd, ['add', '-A', '--', ...paths])
   if (!add.ok) return add
   return mutate(cwd, ['commit', '-m', message, '--', ...paths])
+}
+
+/**
+ * Rewrite the last commit with whatever the index holds now. The message is
+ * always given: amending is offered with the old subject prefilled, so an
+ * "unchanged" message is the user handing the same words back, not a case to
+ * special-case with `--no-edit`.
+ */
+export function commitAmend(cwd: string, message: string): Promise<GitResult> {
+  return mutate(cwd, ['commit', '--amend', '-m', message])
 }
 
 /** Soft reset: the commit is gone, its changes stay staged. */

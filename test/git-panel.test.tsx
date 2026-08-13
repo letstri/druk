@@ -83,12 +83,12 @@ test('c commits the change from the panel, p reports on push', async () => {
   const t = await launch(dir)
   await press(t, i => void i.pressKeys([TOGGLE]))
 
-  // Commit: the file picker, then the message prompt, then a clean panel.
+  // Commit: `c` puts the keyboard in the panel's message box, Enter offers
+  // VS Code's commit-all confirm since nothing is staged, then a clean panel.
   await press(t, i => void i.typeText('c'))
-  expect(frame(t)).toContain('Commit — 1 of 1 files')
-  await press(t, i => i.pressEnter())
-  expect(frame(t)).toContain('Commit message')
   await press(t, i => void i.typeText('panel commit'))
+  await press(t, i => i.pressEnter())
+  expect(frame(t)).toContain('commit all')
   await press(t, i => i.pressEnter())
   await settle(t, 200)
 
