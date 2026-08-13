@@ -158,15 +158,19 @@ up under the plain name too, so `github` covers `.github`, `_github` and
 
 To change an extension, edit its manifest and **bump `version`** — that is the only
 thing that makes installed copies notice. druk compares semver, so `1.0.1` is an
-update and `1.0.0` re-published is not.
+update and `1.0.0` re-published is not. An installed copy applies the update by
+itself the next time its startup check sees the new catalog — nobody is asked, so
+a bumped version reaches users on their next launch.
 
 ## Preinstalled extensions
 
 A few of these ship inside the binary, so a fresh druk highlights code with no
 network: typescript, json, markdown, html, css, yaml and toml. The list is
 `src/extensions/builtin.ts`, and a preinstalled extension may carry no assets — it is
-parsed without a folder, so a relative path would resolve to nothing. Installing
-the market's copy of one replaces the built-in, which is how it gets an update.
+parsed without a folder, so a relative path would resolve to nothing. A preinstalled
+extension updates with druk itself: the market never offers it an update, and a copy
+of its id in an extensions folder is skipped and reported rather than loaded. Bumping
+one's `version` therefore only reaches users through a druk release.
 
 ## Testing yours before it is merged
 

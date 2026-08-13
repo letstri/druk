@@ -6,6 +6,7 @@ import { createMemo, For, Show } from 'solid-js'
 import { ui } from '../themes'
 import { useHover } from './hover'
 import { SEVERITY_COLOR, SEVERITY_GLYPH } from './severity'
+import { useTooltip } from './tooltip'
 
 /** Worst diagnostic a tab's file carries. Info and hints are not a tab's business. */
 export type TabSeverity = 'error' | 'warning'
@@ -77,11 +78,11 @@ const glyphOf = (tab: TabInfo): { glyph: string; color?: string } | null =>
 
 export function Tabs(props: TabsProps) {
   const dimensions = useTerminalDimensions()
-  const back = useHover()
-  const forward = useHover()
-  const before = useHover()
-  const after = useHover()
-  const preview = useHover()
+  const back = useTooltip('nav.back')
+  const forward = useTooltip('nav.forward')
+  const before = useTooltip('tabs.switch')
+  const after = useTooltip('tabs.switch')
+  const preview = useTooltip('view.markdown')
 
   /**
    * Only the tabs that fit are rendered, scrolled to keep the active one in
@@ -131,27 +132,25 @@ export function Tabs(props: TabsProps) {
             dimmed to `faint` when that way is empty: an arrow that comes and goes
             shifts every tab beside it, and the row would jump on each jump. */}
         <box
+          ref={back.ref}
           paddingLeft={1}
-          backgroundColor={barBg(back.hovered())}
+          backgroundColor={barBg(back.lit())}
           onMouseDown={() => props.onBack()}
           onMouseOver={back.enter}
           onMouseOut={back.leave}
         >
-          <text fg={props.canBack ? ui.dim : ui.faint} bg={barBg(back.hovered())} content="←" />
+          <text fg={props.canBack ? ui.dim : ui.faint} bg={barBg(back.lit())} content="←" />
         </box>
         <box
+          ref={forward.ref}
           paddingLeft={1}
           paddingRight={1}
-          backgroundColor={barBg(forward.hovered())}
+          backgroundColor={barBg(forward.lit())}
           onMouseDown={() => props.onForward()}
           onMouseOver={forward.enter}
           onMouseOut={forward.leave}
         >
-          <text
-            fg={props.canForward ? ui.dim : ui.faint}
-            bg={barBg(forward.hovered())}
-            content="→"
-          />
+          <text fg={props.canForward ? ui.dim : ui.faint} bg={barBg(forward.lit())} content="→" />
         </box>
         <Show
           when={props.tabs.length > 0}
@@ -159,13 +158,14 @@ export function Tabs(props: TabsProps) {
         >
           <Show when={visible().before > 0}>
             <box
+              ref={before.ref}
               paddingLeft={1}
-              backgroundColor={barBg(before.hovered())}
+              backgroundColor={barBg(before.lit())}
               onMouseDown={() => props.onOverflow()}
               onMouseOver={before.enter}
               onMouseOut={before.leave}
             >
-              <text fg={ui.dim} bg={barBg(before.hovered())} content={`‹${visible().before}`} />
+              <text fg={ui.dim} bg={barBg(before.lit())} content={`‹${visible().before}`} />
             </box>
           </Show>
           <For each={visible().tabs}>
@@ -251,14 +251,15 @@ export function Tabs(props: TabsProps) {
           </For>
           <Show when={visible().after > 0}>
             <box
+              ref={after.ref}
               paddingLeft={1}
               paddingRight={1}
-              backgroundColor={barBg(after.hovered())}
+              backgroundColor={barBg(after.lit())}
               onMouseDown={() => props.onOverflow()}
               onMouseOver={after.enter}
               onMouseOut={after.leave}
             >
-              <text fg={ui.dim} bg={barBg(after.hovered())} content={`${visible().after}›`} />
+              <text fg={ui.dim} bg={barBg(after.lit())} content={`${visible().after}›`} />
             </box>
           </Show>
         </Show>
@@ -266,18 +267,19 @@ export function Tabs(props: TabsProps) {
         <Show when={props.markdown}>
           {(markdown: () => { rendered: boolean }) => (
             <box
+              ref={preview.ref}
               width={PREVIEW_WIDTH}
               flexShrink={0}
               paddingLeft={1}
               paddingRight={1}
-              backgroundColor={barBg(preview.hovered())}
+              backgroundColor={barBg(preview.lit())}
               onMouseDown={() => props.onToggleMarkdown()}
               onMouseOver={preview.enter}
               onMouseOut={preview.leave}
             >
               <text
                 fg={markdown().rendered ? ui.accent : ui.dim}
-                bg={barBg(preview.hovered())}
+                bg={barBg(preview.lit())}
                 content={markdown().rendered ? SOURCE_LABEL : PREVIEW_LABEL}
               />
             </box>

@@ -322,9 +322,11 @@ Five things hold it together:
   means the registry served something other than what was reviewed.
 - **Some of it ships inside the binary.** [`src/extensions/builtin.ts`](src/extensions/builtin.ts)
   imports a handful of the same manifests as JSON, so a first run highlights the
-  languages most projects open with no network at all. A built-in is an ordinary
-  extension otherwise — listed, disableable, and replaced outright by a copy of the
-  same id on disk, which is how the market updates one. The static imports are
+  languages most projects open with no network at all. A built-in is listed and
+  disableable like any other extension, but it is part of the binary and updates
+  with druk itself: the market never offers it an update, and a disk copy of the
+  same id is skipped and reported rather than loaded — a stale copy would otherwise
+  pin the extension through every druk update. The static imports are
   load-bearing: a computed path resolves to nothing in the compiled binary, so the
   preinstalled set is spelled out rather than globbed.
 - **The catalog is cached and best-effort.** `$XDG_CACHE_HOME/druk/market.json`,
@@ -724,7 +726,10 @@ is just a diff against the empty tree.
 - **Network.** druk makes two kinds of request, both at startup and both
   best-effort (2.5s timeout, failures ignored): one npm registry lookup for a newer
   druk, disabled by `checkUpdates: false`, and the extension market's `index.json`,
-  disabled by `extensionUpdates: false` and cached for six hours in between. Everything
+  disabled by `extensionUpdates: false` and cached for six hours in between. When that
+  catalog names a newer version of an installed market extension, its manifest is
+  fetched and applied in the same pass — an update is not a new install, so it is not
+  asked about. Everything
   after that is a fetch someone asked for — a manifest, because an extension is being
   installed. druk runs no git command that talks to a
   remote, which is also what

@@ -166,20 +166,25 @@ test('a manifest that is both a theme pack and a language is refused', () => {
   expect(problems[0]?.reason).toContain('one or the other')
 })
 
-test('an extension on disk replaces the built-in of the same id', () => {
-  // The update path: druk ships a typescript extension, and the market's copy of it
-  // — or a hand-written one — is what takes over.
+test('a built-in wins over an extension on disk of the same id', () => {
+  // A built-in updates with druk itself, so a disk copy — a leftover from when
+  // the market updated built-ins, or a hand-written one — can only be stale.
+  // Loading it would pin the extension at that version through every druk update.
   install({
     id: 'typescript',
     version: '9.0.0',
     languageServers: [{ id: 'typescript', command: ['deno', 'lsp'], filetypes: ['typescript'] }],
   })
   const { extensions: found, problems } = loadExtensions(fixture({}))
-  expect(problems).toEqual([])
-  expect(resolveServer('typescript', {})?.command).toEqual(['deno', 'lsp'])
+  // Named rather than silently skipped: deleting the copy is on whoever owns it.
+  expect(problems[0]?.reason).toContain('ships with druk')
+  expect(resolveServer('typescript', {})?.command).toEqual([
+    'typescript-language-server',
+    '--stdio',
+  ])
   const shipped = found.filter(extension => extension.id === 'typescript')
   expect(shipped).toHaveLength(1)
-  expect(shipped[0]?.builtin).toBe(false)
+  expect(shipped[0]?.builtin).toBe(true)
 })
 
 test('a project carries its own extensions', () => {

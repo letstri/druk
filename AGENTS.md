@@ -381,7 +381,10 @@ an extension market — `extensions/` **in this repository**, one folder per ext
 raw from `main`, so a merged pull request is installable without a druk release;
 the panel's `AVAILABLE` section installs one after a confirm that names the
 commands it would have druk spawn, an installed extension with a newer version in the
-catalog is reported in the status bar at startup, a file whose language no
+catalog is updated automatically by the startup check, the status bar saying so
+(never a preinstalled one, which is part of the binary and updates with druk itself —
+a disk copy of a built-in's id is skipped and reported rather than loaded; the confirm
+is for first installs alone, an update being a question already answered), a file whose language no
 installed extension serves offers the extension that does, and a config naming a theme
 nothing registers is offered its extension back (`extensionUpdates` turns the whole of
 that off, `extensionRegistry` points it at a fork),
@@ -576,6 +579,7 @@ dependency rule, and recipes for the extension points:
 | theme | a `themes` entry in a market manifest — `extensions/<family>/extension.json`, one extension per palette family (catppuccin carries its four flavors), then `bun run extensions`. Only `dark` and `light` are built in, in `src/themes/`, because the defaults name them. Chrome roles that are a *relationship* between two colours (`border`, `sidebarBg`, `solidBg`) are derived in `colorsFor` there and are never listed by a theme. A `syntax` map lists *root* scopes and the sub-scopes it wants to differ: `styleIdForGroup` walks `type.builtin` → `type` by itself, and `FALLBACK_GROUP` (`src/languages/highlight.ts`) is what saves a root the theme never heard of — `attribute` → `property`, `constructor` → `function`, `namespace` → `type`. A group nothing resolves to paints as plain text, which is why that walk decides membership with `getStyle` and not with `getStyleId`: the native style table invents an id for any name it is asked about, so `getStyleId` never answers null |
 | icon theme | an `icons` entry in a market manifest — one codepoint per glyph, since the tree gives it the arrow's single column, and a two-cell glyph is dropped rather than drawn (a Nerd Font one is not two-cell, wherever in the private-use planes it sits). A map's value may name an entry in `definitions`, whose `open` is the expanded form of a folder, so a set of thousands lists each icon once. `unicode` alone is built in (`src/icons/index.ts`), being the set any font already has |
 | extension contribution kind | a list on the manifest (`src/extensions/manifest.ts`) parsed into `Extension` (`src/extensions/types.ts`), registered in `loadExtensions` (`src/extensions/index.ts`), and a `register…`/`clearExtension…` pair on whichever registry owns it — the registry has to be read through a function everywhere, since extensions load after the modules that list its contents are evaluated |
+| tooltip on a chrome button | `useTooltip('<command id>')` on the element (`src/ui/tooltip.ts`), plus `ref` on its box — `TooltipLayer` draws every registered target, so nothing else has to change. A chord in force is what makes a tooltip exist at all: an unbound command draws nothing, the chord being the only thing a tooltip ever says |
 | previewable value | `preview` + `restore` on the palette `Command` (`src/app/commands.ts`) or on a row's `select` (`src/ui/SettingsView.tsx`) — `preview` paints while the selection sits on the value, `restore` runs when the list is torn down, so it must put back what the config says rather than remember what it replaced |
 | setting | `src/core/config.ts` (`Config`, `DEFAULTS`, `VALIDATORS` — one validator per key, since the project file is read key by key) + a row in `src/app/settings.ts` (`specs`, with the `key` it edits) so the settings page shows it — the page windows its rows to the terminal height, so a test that asserts on a late row needs a tall terminal or arrow keys to reach it (the wheel moves that window too, leaving the selection where the keyboard left it — a test wheeling it needs a flush per tick, OpenTUI's scroll acceleration dropping events sent faster than its minimum interval) |
 | command | `src/app/commands.ts` + bind it in `src/app/actions.ts`; the implementation goes in the controller that owns the state (`workspace.ts`, `fileOps.ts`, `git.ts`, …) |
@@ -598,6 +602,49 @@ Anything clickable tints under the pointer: `useHover` (`src/ui/hover.ts`) wired
 row covers its texts — painting `ui.hoverBg`, a derived colour like `border`. Selection
 outranks hover (`rowBg` in `src/ui/list.ts` encodes that for the sidebar panels), and
 whole-pane focus clicks are not buttons, so they get no tint.
+
+A chrome button also carries a tooltip: `useTooltip` (`src/ui/tooltip.ts`) is `useHover`
+plus a `ref` and the id of the command the button runs, and `TooltipLayer` (mounted by
+`App.tsx`, gated on the `tooltips` setting) draws whatever is registered. A tooltip is
+that command's chord and nothing else — hovering gives one button's, holding Ctrl or Cmd
+for half a second lights every registered button's at once. No labels either way: each of
+these buttons is already on screen with its own name or glyph, so a box reading `Files`
+under a button labelled `Files` would be a box saying nothing. The chord comes from
+`chordFor`, so a rebind renames a tooltip and an unbound command has none at all — which
+is the intended shape, not a gap: binding one is what brings its tooltip back. Six things
+are load-bearing:
+
+- **The peek needs the kitty keyboard protocol**, which is why `src/main.tsx` asks for
+  `events` *and* `allKeysAsEscapes`: a modifier is reported as a key of its own only when
+  every key is, and its press and release only with event types on. Neither costs the
+  existing keyboard anything — a release is emitted as `keyrelease`, which nothing but the
+  peek listens to, and a key arriving as `CSI <code> u` parses back to the same name
+  (`test/keylayout.test.tsx` drives the editor through that encoding, Cyrillic included).
+  A terminal with no protocol ignores the request, and the peek is simply not there.
+- **`useTooltip` is the one exception to the `useKeys` rule** above: `useKeys` cannot ask
+  for release events, and a modifier's name needs no layout translation.
+- **Tooltips are siblings of the app's rows, not a layer over them.** A renderable claims
+  the cells it paints in the hit grid whether or not it handles a mouse event, so a
+  full-screen box would swallow every click in the editor.
+- **A tooltip is one row filled `statusBg`/`statusFg`, with no border and no shadow.** A
+  border is drawable and costs two rows and two columns, which a dozen peek chips cannot
+  afford; a shadow is not drawable at all, a cell holding one background, so "dimming what
+  is behind" is painting solid dark cells over the editor. Colour is therefore the only
+  thing separating a tooltip from content, and that pair is the one every palette
+  guarantees legible — `panelBg` is the surface a floating *panel* is built from, which a
+  tooltip is not.
+- **The peek lights the buttons as well as naming their keys** — `useTooltip` returns
+  `lit()` beside `hovered()`, and every call site paints its hover tint from that, so a
+  screenful of chords says which control each one runs. It follows that a peek tooltip
+  may never be drawn *over* a control: `placeTooltips` takes every registered box as an
+  obstacle, which is why `useTooltip` registers a control with no command too. A hover
+  chip is one, so it sits against its button and may cover a neighbour — walking around
+  the explorer header is what used to put Ext's chord on the file list.
+- **Placement is `placeTooltips` (`src/ui/tooltipLayout.ts`)**, pure and tested on its
+  own: away from the nearer edge of the screen (the tab strip is row 0, the status bar the
+  last), never over a control during a peek, stacked onto further rows where two would
+  collide, and dropped where the terminal has run out — half a row of overlapping text
+  says less than nothing. Hover passes no obstacles, so the chip stays on the nearest row.
 
 The status bar's groups are buttons too, VS Code's arrangement: the branch opens the
 branch switcher, the `↑↓` counts sync, `~n` shows the source-control panel, the problem
@@ -659,6 +706,15 @@ When a change alters how someone works with the project — new script, new depe
 new extension point, changed layout, changed workflow, a new rule or convention — update
 `AGENTS.md` (and `ARCHITECTURE.md` when the structure moves) **in the same change**.
 A stale agent file is worse than none.
+
+`IMPROVEMENTS.md` is the roadmap and lives under the same rule, but a different
+trigger: update it when a change makes one of its claims *false* — an item it lists as
+missing that now ships, a module size it quotes, a piece of debt it calls open. Tick the
+item off in the same change rather than leaving the file to be revalidated later; it once
+drifted twelve minor versions behind, and a roadmap nobody trusts is a roadmap nobody
+reads. Not every commit touches it — a change that ships nothing it tracks and
+contradicts nothing it says leaves it alone. Its header carries the commit and version
+it was last checked against, so bump that when you do revalidate it wholesale.
 
 ### Verify behaviour, don't assume it
 

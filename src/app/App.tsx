@@ -39,6 +39,8 @@ import { SettingsView } from '../ui/SettingsView'
 import { SidebarTabs } from '../ui/SidebarTabs'
 import { StatusBar } from '../ui/StatusBar'
 import { Tabs } from '../ui/Tabs'
+import { setTooltipsEnabled, useTooltipPeek } from '../ui/tooltip'
+import { TooltipLayer } from '../ui/TooltipLayer'
 import { createCommands } from './actions'
 import { createBranches } from './branches'
 import { createCommitView } from './commitView'
@@ -268,6 +270,13 @@ export function App(props: {
   const { commands, actions } = createCommands(ctx)
   const keyboard = installKeyboard(ctx, actions)
 
+  // After the keymap, so the peek never sees a chord the keyboard has not
+  // resolved yet. Watching for the hold is unconditional; the setting is pushed
+  // into the same module, since it gates the buttons lighting up as well as the
+  // boxes being drawn.
+  useTooltipPeek()
+  createEffect(() => setTooltipsEnabled(settings.config.tooltips))
+
   // `revision` covers saves, git commands and anything the watcher sees in .git;
   // `reloadKey` covers a buffer replaced from disk; `diffBase` covers the branch
   // being compared against moving under it. `refreshDiff` returns at once when no
@@ -289,12 +298,17 @@ export function App(props: {
   // Landing on the `Changes` heading would show no diff and take a keypress to
   // leave, so opening the panel puts the cursor on the first change instead —
   // wherever it was opened from. Only on the way in: resting on a heading is how
-  // a whole group is staged, so nothing may push the cursor off one later.
+  // a whole group is staged, so nothing may push the cursor off one later. The
+  // one exception is the first file rows arriving *after* the panel opened —
+  // the status answer is asynchronous, so a panel opened right at launch beats
+  // it — where the cursor still sits on row 0 and has never been anywhere else.
   createEffect(
     on(
-      () => panes.view(),
-      view => {
-        if (view === 'git') actions.gitLandOnFile()
+      () => [panes.view(), git.rows().some(row => row.kind === 'file')] as const,
+      ([view, hasFile], previous) => {
+        if (view !== 'git' || !hasFile) return
+        const opened = previous?.[0] !== 'git'
+        if (opened || (!previous?.[1] && git.gitCursor() === 0)) actions.gitLandOnFile()
       },
       { defer: true },
     ),
@@ -1013,6 +1027,9 @@ export function App(props: {
         onGotoLine={() => promptState.setPrompt({ kind: 'gotoLine' })}
         onHint={keyboard.run}
       />
+      {/* Over the chrome, under the modals: a tooltip is an annotation of what
+          is on screen, and a modal replaces what is on screen. */}
+      <TooltipLayer />
       <OverlayStack ctx={ctx} commands={commands} />
     </box>
   )

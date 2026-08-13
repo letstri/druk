@@ -63,7 +63,9 @@ test('comparing against a branch shows work that is already committed', async ()
   await press(t, i => i.pressEnter())
 
   await untilFrame(t, 'vs main')
-  expect(frame(t)).toContain('b.ts')
+  // Polled apart from the header: the base is a signal and paints at once, while
+  // the change list is a `git` subprocess away.
+  await untilFrame(t, 'b.ts')
 
   // And the diff page is against that branch too, not against HEAD.
   await press(t, i => i.pressArrow('up'))

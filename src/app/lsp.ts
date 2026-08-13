@@ -440,13 +440,31 @@ export function createLsp(deps: {
   }
 
   /**
+   * `readyClients`, but waiting out a server that is still initializing — up to
+   * `timeoutMs`, and cut short when every client for the path is dead. F12
+   * lands moments after a file opens, which is exactly when the server is
+   * seconds old; answering "none ready" there reads as "no definition found"
+   * for a symbol the server would have placed a moment later.
+   */
+  const readyClientsEventually = async (path: string, timeoutMs: number): Promise<LspClient[]> => {
+    const deadline = Date.now() + timeoutMs
+    for (;;) {
+      const ready = readyClients(path)
+      if (ready.length > 0) return ready
+      if (clientsFor(path).every(client => client.dead())) return []
+      if (Date.now() >= deadline) return []
+      await new Promise(resolve => setTimeout(resolve, 50))
+    }
+  }
+
+  /**
    * Where the symbol at a buffer position is defined. The pending didChange
    * goes out first, for the reason completion flushes it: a server answering
    * against text 150ms stale would name a line that has since moved.
    */
   const definition = async (path: string, line: number, col: number): Promise<Target | null> => {
     if (!settings.config.lsp) return null
-    const ready = readyClients(path)
+    const ready = await readyClientsEventually(path, 10_000)
     if (ready.length === 0) return null
     flushEdits?.(path)
     for (const client of ready) {

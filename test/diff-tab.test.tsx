@@ -85,10 +85,10 @@ test('the diff tab survives switching the sidebar back to the tree', async () =>
 test('the settings page also gives way to a file being opened', async () => {
   const t = await launch(repo())
   await runCommand(t, 'Settings')
-  expect(t.captureCharFrame()).toContain('Trim trailing whitespace')
+  expect(t.captureCharFrame()).toContain('Follow OS appearance')
 
   await openFile(t, 'b.ts')
   const frame = t.captureCharFrame()
   expect(frame).toContain('BETA')
-  expect(frame).not.toContain('Trim trailing whitespace')
+  expect(frame).not.toContain('Follow OS appearance')
 })

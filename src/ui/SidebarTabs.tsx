@@ -2,7 +2,7 @@ import { TextAttributes } from '@opentui/core'
 import { For } from 'solid-js'
 
 import { ui } from '../themes'
-import { useHover } from './hover'
+import { useTooltip } from './tooltip'
 
 export type SidebarView = 'files' | 'git' | 'review' | 'extensions'
 
@@ -17,11 +17,17 @@ export interface SidebarTabsProps {
   onSelect: (view: SidebarView) => void
 }
 
-const TABS: { id: SidebarView; label: string; short: string }[] = [
+/**
+ * `command` is the chord the button's tooltip advertises, and a button without
+ * one gets no tooltip. Files has none: the view is what the sidebar shows out of
+ * the box, and the chord that reaches it is Shift+Tab through the strip, which
+ * no bindable command holds.
+ */
+const TABS: { id: SidebarView; label: string; short: string; command?: string }[] = [
   { id: 'files', label: 'Files', short: 'F' },
-  { id: 'git', label: 'Git', short: 'G' },
-  { id: 'review', label: 'Review', short: 'R' },
-  { id: 'extensions', label: 'Ext', short: 'E' },
+  { id: 'git', label: 'Git', short: 'G', command: 'view.git' },
+  { id: 'review', label: 'Review', short: 'R', command: 'view.review' },
+  { id: 'extensions', label: 'Ext', short: 'E', command: 'view.extensions' },
 ]
 
 /**
@@ -62,7 +68,7 @@ export function SidebarTabs(props: SidebarTabsProps) {
       <For each={TABS}>
         {tab => {
           const active = () => props.view === tab.id
-          const hover = useHover()
+          const hover = useTooltip(tab.command)
           // Unfocused keeps the fill but drops to the tree's own selection colour:
           // which view is up is not the same fact as who has the keyboard.
           const bg = () =>
@@ -70,13 +76,14 @@ export function SidebarTabs(props: SidebarTabsProps) {
               ? props.focused
                 ? ui.statusBg
                 : ui.treeSelectedBg
-              : hover.hovered()
+              : hover.lit()
                 ? ui.hoverBg
                 : ui.sidebarBg
           const fg = () => (active() ? (props.focused ? ui.statusFg : ui.text) : ui.inactiveTabFg)
           return (
             <>
               <box
+                ref={hover.ref}
                 flexDirection="row"
                 flexShrink={0}
                 backgroundColor={bg()}

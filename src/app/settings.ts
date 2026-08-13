@@ -212,6 +212,11 @@ export function createSettings(deps: {
     status.say(`Transparent background ${onOff(config.transparent)}`)
   }
 
+  const toggleTooltips = () => {
+    patchConfig({ tooltips: !view().tooltips })
+    status.say(`Tooltips ${onOff(config.tooltips)}`)
+  }
+
   const toggleTabIcons = () => {
     patchConfig({ tabIcons: !view().tabIcons })
     status.say(`File icons in tabs ${onOff(config.tabIcons)}`)
@@ -691,6 +696,13 @@ export function createSettings(deps: {
       label: 'File icons in tabs',
       value: onOff(view().tabIcons),
       cycle: toggleTabIcons,
+    },
+    {
+      section: 'Appearance',
+      key: 'tooltips',
+      label: 'Hotkey tooltips (hold Ctrl for all)',
+      value: onOff(view().tooltips),
+      cycle: toggleTooltips,
     },
     {
       section: 'Editor',

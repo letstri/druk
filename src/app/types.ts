@@ -122,9 +122,10 @@ export type Prompt =
   | { kind: 'uninstallServer'; id: string; name: string; packages: string[] }
   /**
    * A market extension is worth installing. `why` is what raised it (a file whose
-   * language has no server, a config naming a theme nothing registers, or an
-   * update), and `runs` names the commands the extension would have druk spawn —
-   * the one thing about a manifest that is not inert.
+   * language has no server, or a config naming a theme nothing registers), and
+   * `runs` names the commands the extension would have druk spawn — the one
+   * thing about a manifest that is not inert. Only ever a first install: an
+   * update of something already installed applies itself without a prompt.
    */
   | {
       kind: 'installExtension'
@@ -133,8 +134,6 @@ export type Prompt =
       summary: string
       why: string
       runs: string[]
-      /** The version installed now, when this is an update rather than a first install. */
-      current?: string
     }
   /**
    * Delete an installed extension. `servers` names the language servers druk

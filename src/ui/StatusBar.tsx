@@ -10,6 +10,7 @@ import type { Hint } from './keys'
 import { hintsFor } from './keys'
 import { SEVERITY_GLYPH } from './severity'
 import { cut } from './text'
+import { useTooltip } from './tooltip'
 
 export type Tone = 'info' | 'warn' | 'error'
 
@@ -70,11 +71,14 @@ function Group(props: {
   padRight?: number
   attributes?: number
   onClick?: () => void
+  /** Command the group runs; left out for the groups that are not buttons. */
+  command?: string
 }) {
-  const hover = useHover()
-  const bg = () => (props.onClick && hover.hovered() ? ui.hoverBg : ui.barBg)
+  const hover = useTooltip(props.command)
+  const bg = () => (props.onClick && hover.lit() ? ui.hoverBg : ui.barBg)
   return (
     <box
+      ref={hover.ref}
       paddingLeft={props.padLeft ?? 0}
       paddingRight={props.padRight ?? 0}
       flexShrink={0}
@@ -237,7 +241,13 @@ export function StatusBar(props: StatusBarProps) {
           <Group text={syncText()} fg={ui.dim} padLeft={1} onClick={props.onSync} />
         </Show>
         <Show when={changedText()}>
-          <Group text={changedText()} fg={ui.dim} padLeft={1} onClick={props.onChanges} />
+          <Group
+            text={changedText()}
+            fg={ui.dim}
+            padLeft={1}
+            onClick={props.onChanges}
+            command="view.git"
+          />
         </Show>
       </Show>
 
@@ -280,13 +290,20 @@ export function StatusBar(props: StatusBarProps) {
           fg={props.problems && props.problems.errors > 0 ? ui.error : ui.dirty}
           padRight={2}
           onClick={props.onProblems}
+          command="problems.list"
         />
       </Show>
       <Show when={props.dirty}>
-        <Group text="● unsaved" fg={ui.dirty} padRight={2} onClick={props.onSave} />
+        <Group text="● unsaved" fg={ui.dirty} padRight={2} onClick={props.onSave} command="save" />
       </Show>
       <Show when={cursorText()}>
-        <Group text={cursorText()} fg={ui.dim} padRight={2} onClick={props.onGotoLine} />
+        <Group
+          text={cursorText()}
+          fg={ui.dim}
+          padRight={2}
+          onClick={props.onGotoLine}
+          command="goto"
+        />
       </Show>
       <Show when={props.filetype}>
         {(filetype: () => string) => <Group text={filetype()} fg={ui.accent} padRight={2} />}

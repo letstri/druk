@@ -66,7 +66,32 @@ export function createTree(
   /** Row the current range grows from; null when there is no range. */
   const [anchor, setAnchor] = createSignal<string | null>(null)
 
-  const nodes = createMemo(() => flattenVisible(rootDir, expanded(), hidden?.() ?? undefined))
+  /**
+   * Rows an unchanged path had last time keep their object identity. The tree's
+   * `<For>` keys rows by object, so handing it a fresh `TreeNode` per path on
+   * every watcher refresh tore down and rebuilt every visible row — hundreds of
+   * renderables per tick on a busy repository, for a list that rarely changed.
+   */
+  let prevNodes = new Map<string, TreeNode>()
+  const nodes = createMemo(() => {
+    const fresh = flattenVisible(rootDir, expanded(), hidden?.() ?? undefined)
+    const next = new Map<string, TreeNode>()
+    for (let i = 0; i < fresh.length; i++) {
+      const node = fresh[i]!
+      const old = prevNodes.get(node.path)
+      if (
+        old &&
+        old.isDir === node.isDir &&
+        old.depth === node.depth &&
+        old.symlink === node.symlink
+      ) {
+        fresh[i] = old
+      }
+      next.set(node.path, fresh[i]!)
+    }
+    prevNodes = next
+    return fresh
+  })
 
   // Bump the Set identity so `nodes` recomputes and re-reads the filesystem.
   const refreshTree = () => setExpanded(prev => new Set(prev))

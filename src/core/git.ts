@@ -63,8 +63,13 @@ function git(cwd: string, args: string[], timeout = 5000, input?: string) {
  * for as long as the subprocess takes, which on a branch's worth of files, or a
  * repository large enough for `status` to take its time, is not a frame's worth.
  */
-function gitAsync(cwd: string, args: string[], timeout = 10_000): Promise<ProcessResult> {
-  return runProcess('git', args, { cwd, timeout, maxOutput: MAX_OUTPUT })
+function gitAsync(
+  cwd: string,
+  args: string[],
+  timeout = 10_000,
+  input?: string,
+): Promise<ProcessResult> {
+  return runProcess('git', args, { cwd, timeout, maxOutput: MAX_OUTPUT, input })
 }
 
 /**
@@ -111,17 +116,19 @@ export async function diffLines(
  * must never reach `git push --set-upstream`.
  */
 export function currentBranch(cwd: string): string | null {
-  return branchName(git(cwd, ['rev-parse', '--abbrev-ref', 'HEAD'], 3000))
+  const run = git(cwd, ['rev-parse', '--abbrev-ref', 'HEAD'], 3000)
+  return parseBranch(run.stdout, run.status)
 }
 
-/** `currentBranch` off the render thread, for the queries that are already async. */
-async function currentBranchAsync(cwd: string): Promise<string | null> {
-  return branchName(await gitAsync(cwd, ['rev-parse', '--abbrev-ref', 'HEAD'], 3000))
+/** `currentBranch` off the event loop, for the status refresh's cadence. */
+export async function currentBranchAsync(cwd: string): Promise<string | null> {
+  const run = await gitAsync(cwd, ['rev-parse', '--abbrev-ref', 'HEAD'], 3000)
+  return parseBranch(run.stdout, run.status)
 }
 
-function branchName(run: { status: number | null; stdout: string }): string | null {
-  if (run.status !== 0) return null
-  const branch = run.stdout.trim()
+function parseBranch(stdout: string, status: number | null): string | null {
+  if (status !== 0) return null
+  const branch = stdout.trim()
   return branch.length > 0 && branch !== 'HEAD' ? branch : null
 }
 
@@ -926,29 +933,58 @@ export async function statusEntriesAsync(
  * call either, which would double the subprocesses this costs per refresh.
  */
 export function ignoredAmong(cwd: string, paths: string[]): Set<string> {
-  const ignored = new Set<string>()
-  if (paths.length === 0) return ignored
+  if (paths.length === 0) return new Set()
+  const split = splitBeyondSymlink(cwd, paths)
+  const run = git(cwd, ['check-ignore', '--stdin', '-z'], 5000, `${split.askable.join('\0')}\0`)
+  return readCheckIgnore(cwd, split, run.stdout, run.status)
+}
 
-  // git aborts the whole batch with 128 at the first path that reaches through a
-  // symlinked directory ("is beyond a symbolic link") — expanding pnpm's
-  // node_modules/@scope/pkg is enough — so those paths are never asked about.
-  // One of them in the list used to blank the answer for every other row.
-  //
-  // The cache lives for this call alone: a directory can be swapped for a symlink
-  // while druk is open, and the tree refresh this rides on is where that shows up.
+/** `ignoredAmong` off the event loop, for the status refresh's cadence. */
+export async function ignoredAmongAsync(cwd: string, paths: string[]): Promise<Set<string>> {
+  if (paths.length === 0) return new Set()
+  const split = splitBeyondSymlink(cwd, paths)
+  const run = await gitAsync(
+    cwd,
+    ['check-ignore', '--stdin', '-z'],
+    5000,
+    `${split.askable.join('\0')}\0`,
+  )
+  return readCheckIgnore(cwd, split, run.stdout, run.status)
+}
+
+/**
+ * git aborts the whole batch with 128 at the first path that reaches through a
+ * symlinked directory ("is beyond a symbolic link") — expanding pnpm's
+ * node_modules/@scope/pkg is enough — so those paths are never asked about.
+ * One of them in the list used to blank the answer for every other row.
+ *
+ * The cache lives for this call alone: a directory can be swapped for a symlink
+ * while druk is open, and the tree refresh this rides on is where that shows up.
+ */
+function splitBeyondSymlink(cwd: string, paths: string[]) {
   const symlinkDirs = new Map<string, boolean>()
   const askable: string[] = []
   const unanswerable: string[] = []
   for (const path of paths) {
     ;(beyondSymlink(cwd, path, symlinkDirs) ? unanswerable : askable).push(path)
   }
+  return { askable, unanswerable }
+}
 
-  // `-z` + `--stdin`: one NUL-terminated path each way. Exit 1 means none of the
-  // paths are ignored, and 128 means there is no repository here — both are an
-  // empty set rather than a failure, so only 0 has output worth reading.
-  const run = git(cwd, ['check-ignore', '--stdin', '-z'], 5000, `${askable.join('\0')}\0`)
-  if (run.status === 0) {
-    for (const path of run.stdout.split('\0')) {
+/**
+ * Exit 1 means none of the paths are ignored, and 128 means there is no
+ * repository here — both are an empty set rather than a failure, so only 0 has
+ * output worth reading. (`-z` + `--stdin`: one NUL-terminated path each way.)
+ */
+function readCheckIgnore(
+  cwd: string,
+  split: { unanswerable: string[] },
+  stdout: string,
+  status: number | null,
+): Set<string> {
+  const ignored = new Set<string>()
+  if (status === 0) {
+    for (const path of stdout.split('\0')) {
       if (path.length > 0) ignored.add(path)
     }
   }
@@ -956,7 +992,7 @@ export function ignoredAmong(cwd: string, paths: string[]): Set<string> {
   // An ignored directory takes everything under it, which is the only answer left
   // for the rows git refused. Applied to those alone: a force-added file under an
   // ignored directory is not ignored, and git is the one who knows which.
-  for (const path of unanswerable) {
+  for (const path of split.unanswerable) {
     if (hasIgnoredAncestor(cwd, path, ignored)) ignored.add(path)
   }
   return ignored

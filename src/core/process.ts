@@ -33,6 +33,8 @@ export interface RunOptions {
   maxOutput?: number
   /** When aborted, the child is killed the same way a timeout is. */
   signal?: AbortSignal
+  /** Written to the child's stdin, which is closed after — otherwise stdin is ignored. */
+  input?: string
 }
 
 export function run(bin: string, args: string[], options: RunOptions): Promise<ProcessResult> {
@@ -40,8 +42,14 @@ export function run(bin: string, args: string[], options: RunOptions): Promise<P
     const child = spawn(bin, args, {
       cwd: options.cwd,
       env: options.env,
-      stdio: ['ignore', 'pipe', 'pipe'],
+      stdio: [options.input === undefined ? 'ignore' : 'pipe', 'pipe', 'pipe'],
     })
+    if (options.input !== undefined) {
+      // EPIPE surfaces here when the child exits without reading; 'close' still
+      // fires with the real exit status, so the write error itself is not news.
+      child.stdin?.on('error', () => {})
+      child.stdin?.end(options.input)
+    }
     const stdout: Buffer[] = []
     const stderr: Buffer[] = []
     let size = 0
@@ -91,8 +99,8 @@ export function run(bin: string, args: string[], options: RunOptions): Promise<P
       else options.signal.addEventListener('abort', onAbort)
     }
 
-    child.stdout.on('data', (chunk: Buffer) => collect(stdout, chunk))
-    child.stderr.on('data', (chunk: Buffer) => collect(stderr, chunk))
+    child.stdout?.on('data', (chunk: Buffer) => collect(stdout, chunk))
+    child.stderr?.on('data', (chunk: Buffer) => collect(stderr, chunk))
     child.on('error', error => finish(null, error))
     // Not `finish` itself: 'close' hands the listener (code, signal), and the
     // signal would land in `error` — a killed process would then report itself
