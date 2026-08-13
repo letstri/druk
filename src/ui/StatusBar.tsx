@@ -5,6 +5,8 @@ import { createEffect, createMemo, createSignal, For, onCleanup, Show } from 'so
 import { MODE_LABELS } from '../editor/vim'
 import type { VimMode } from '../editor/vim'
 import { ui } from '../themes'
+import { useHover } from './hover'
+import type { Hint } from './keys'
 import { hintsFor } from './keys'
 import { SEVERITY_GLYPH } from './severity'
 import { cut } from './text'
@@ -31,6 +33,16 @@ export interface StatusBarProps {
   focus: 'tree' | 'editor'
   /** A long file operation in flight; replaces the message while it runs. */
   busy: { label: string; done: number; total: number } | null
+  /** What each group does when it is clicked — VS Code's status bar, where the
+   * branch is the branch switcher and the counts are the commands behind them. */
+  onBranch: () => void
+  onSync: () => void
+  onChanges: () => void
+  onProblems: () => void
+  onSave: () => void
+  onGotoLine: () => void
+  /** A footer hint clicked: run the command its key advertises. */
+  onHint: (id: string) => void
 }
 
 /** One frame per tick, so a stalled spinner is visibly stalled. */
@@ -44,6 +56,37 @@ const TONE_COLORS: Record<Tone, () => string> = {
 }
 
 const SEPARATOR = '  '
+
+/**
+ * One group of the bar: its text, its padding, and — where it stands for a
+ * command — the click that runs it. The padding belongs to the box so the tint
+ * covers the whole target rather than the glyphs alone, and the widths the
+ * layout below is computed from count it.
+ */
+function Group(props: {
+  text: string
+  fg: string
+  padLeft?: number
+  padRight?: number
+  attributes?: number
+  onClick?: () => void
+}) {
+  const hover = useHover()
+  const bg = () => (props.onClick && hover.hovered() ? ui.hoverBg : ui.barBg)
+  return (
+    <box
+      paddingLeft={props.padLeft ?? 0}
+      paddingRight={props.padRight ?? 0}
+      flexShrink={0}
+      backgroundColor={bg()}
+      onMouseDown={props.onClick}
+      onMouseOver={hover.enter}
+      onMouseOut={hover.leave}
+    >
+      <text fg={props.fg} bg={bg()} content={props.text} attributes={props.attributes} />
+    </box>
+  )
+}
 
 export function StatusBar(props: StatusBarProps) {
   const dimensions = useTerminalDimensions()
@@ -86,13 +129,23 @@ export function StatusBar(props: StatusBarProps) {
     return cut(label, Math.max(12, Math.round(dimensions().width * 0.25)))
   }
 
-  const gitText = () => {
-    if (!props.branch) return ''
-    const parts = [`⎇ ${branchText()}`]
+  const syncText = () => {
+    const parts: string[] = []
     if (props.ahead > 0) parts.push(`↑${props.ahead}`)
     if (props.behind > 0) parts.push(`↓${props.behind}`)
-    if (props.changed > 0) parts.push(`~${props.changed}`)
     return parts.join(' ')
+  }
+
+  const changedText = () => (props.changed > 0 ? `~${props.changed}` : '')
+
+  /**
+   * The git group as one string. It is drawn as three click targets — branch,
+   * sync counts, changed count — whose paddings stand in for the spaces here,
+   * so this stays what the whole group costs the row.
+   */
+  const gitText = () => {
+    if (!props.branch) return ''
+    return [`⎇ ${branchText()}`, syncText(), changedText()].filter(Boolean).join(' ')
   }
 
   const cursorText = () =>
@@ -150,10 +203,10 @@ export function StatusBar(props: StatusBarProps) {
   /** As many hints as fit, in order. None at all on a narrow terminal. */
   const hints = createMemo(() => {
     const room = budget()
-    const shown: Array<readonly [string, string]> = []
+    const shown: Hint[] = []
     let used = 0
     for (const hint of hintsFor(props.focus)) {
-      const width = hint[0].length + 1 + hint[1].length + SEPARATOR.length
+      const width = hint.key.length + 1 + hint.label.length + SEPARATOR.length
       if (used + width > room) break
       shown.push(hint)
       used += width
@@ -178,58 +231,65 @@ export function StatusBar(props: StatusBarProps) {
 
       {/* Left: the repository. Right: the file. The message and the hints share
           what is between them, and the hints give way first. */}
-      <Show when={gitText()}>
-        <box paddingLeft={2} flexShrink={0}>
-          <text fg={ui.dim} bg={ui.barBg} content={gitText()} />
-        </box>
+      <Show when={props.branch}>
+        <Group text={`⎇ ${branchText()}`} fg={ui.dim} padLeft={2} onClick={props.onBranch} />
+        <Show when={syncText()}>
+          <Group text={syncText()} fg={ui.dim} padLeft={1} onClick={props.onSync} />
+        </Show>
+        <Show when={changedText()}>
+          <Group text={changedText()} fg={ui.dim} padLeft={1} onClick={props.onChanges} />
+        </Show>
       </Show>
 
       <Show when={messageText()}>
-        <box paddingLeft={2} flexShrink={0}>
-          <text
-            fg={props.busy ? ui.accent : TONE_COLORS[props.tone]()}
-            bg={ui.barBg}
-            content={messageText()}
-          />
-        </box>
+        <Group
+          text={messageText()}
+          fg={props.busy ? ui.accent : TONE_COLORS[props.tone]()}
+          padLeft={2}
+        />
       </Show>
 
       <box flexGrow={1} flexDirection="row" paddingLeft={2} backgroundColor={ui.barBg}>
         <For each={hints()}>
-          {([key, label]) => (
-            <box flexDirection="row" flexShrink={0} backgroundColor={ui.barBg}>
-              <text fg={ui.dim} bg={ui.barBg} content={key} />
-              <text fg={ui.faint} bg={ui.barBg} content={` ${label}${SEPARATOR}`} />
-            </box>
-          )}
+          {hint => {
+            const hover = useHover()
+            const bg = () => (hint.id && hover.hovered() ? ui.hoverBg : ui.barBg)
+            return (
+              <box
+                flexDirection="row"
+                flexShrink={0}
+                backgroundColor={bg()}
+                onMouseDown={hint.id ? () => props.onHint(hint.id!) : undefined}
+                onMouseOver={hover.enter}
+                onMouseOut={hover.leave}
+              >
+                <text fg={ui.dim} bg={bg()} content={hint.key} />
+                {/* The separator is outside the tint: it is the gap to the next
+                    hint, not part of this one's target. */}
+                <text fg={ui.faint} bg={bg()} content={` ${hint.label}`} />
+                <text fg={ui.faint} bg={ui.barBg} content={SEPARATOR} />
+              </box>
+            )
+          }}
         </For>
       </box>
 
       <Show when={problemsText()}>
-        <box paddingRight={2} flexShrink={0}>
-          <text
-            fg={props.problems && props.problems.errors > 0 ? ui.error : ui.dirty}
-            bg={ui.barBg}
-            content={problemsText()}
-          />
-        </box>
+        <Group
+          text={problemsText()}
+          fg={props.problems && props.problems.errors > 0 ? ui.error : ui.dirty}
+          padRight={2}
+          onClick={props.onProblems}
+        />
       </Show>
       <Show when={props.dirty}>
-        <box paddingRight={2} flexShrink={0}>
-          <text fg={ui.dirty} bg={ui.barBg} content="● unsaved" />
-        </box>
+        <Group text="● unsaved" fg={ui.dirty} padRight={2} onClick={props.onSave} />
       </Show>
       <Show when={cursorText()}>
-        <box paddingRight={2} flexShrink={0}>
-          <text fg={ui.dim} bg={ui.barBg} content={cursorText()} />
-        </box>
+        <Group text={cursorText()} fg={ui.dim} padRight={2} onClick={props.onGotoLine} />
       </Show>
       <Show when={props.filetype}>
-        {(filetype: () => string) => (
-          <box paddingRight={2} flexShrink={0}>
-            <text fg={ui.accent} bg={ui.barBg} content={filetype()} />
-          </box>
-        )}
+        {(filetype: () => string) => <Group text={filetype()} fg={ui.accent} padRight={2} />}
       </Show>
     </box>
   )

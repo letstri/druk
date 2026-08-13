@@ -442,12 +442,23 @@ export const helpSections = (): HelpSection[] => sectionsOf(entries())
 const shortKey = (info: KeyInfo, short: string | undefined): string =>
   info.ids?.some(id => overrides()[id]?.changed) ? info.key : (short ?? info.key)
 
+export interface Hint {
+  key: string
+  label: string
+  /** Command the hint's key runs, so a click on it does what the key does. */
+  id?: string
+}
+
 /** Footer hints for `pane`, most useful first. */
-export function hintsFor(pane: Pane): ReadonlyArray<readonly [string, string]> {
+export function hintsFor(pane: Pane): Hint[] {
   return entries()
     .filter(info => info.hint && (info.hint.pane === pane || info.hint.pane === 'all'))
     .toSorted((a, b) => a.hint!.rank - b.hint!.rank)
-    .map(info => [shortKey(info, info.hint!.key), info.hint!.label] as const)
+    .map(info => ({
+      key: shortKey(info, info.hint!.key),
+      label: info.hint!.label,
+      id: info.ids?.[0],
+    }))
 }
 
 /** Rows for the welcome screen, most useful first. */

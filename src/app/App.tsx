@@ -1005,6 +1005,13 @@ export function App(props: {
         problems={problemCounts()}
         focus={panes.focus()}
         busy={status.busy()}
+        onBranch={actions.gitSwitchBranch}
+        onSync={actions.gitSync}
+        onChanges={() => panes.showView('git')}
+        onProblems={actions.problemsList}
+        onSave={workspace.saveActive}
+        onGotoLine={() => promptState.setPrompt({ kind: 'gotoLine' })}
+        onHint={keyboard.run}
       />
       <OverlayStack ctx={ctx} commands={commands} />
     </box>

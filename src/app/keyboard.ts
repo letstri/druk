@@ -539,4 +539,8 @@ export function installKeyboard(ctx: AppContext, actions: CommandActions) {
       }
     }
   })
+
+  /** Run a bindable command without its key — what a click on something that
+   * advertises that key does, so the two cannot drift apart. */
+  return { run: (id: string) => handlers[id]?.() }
 }

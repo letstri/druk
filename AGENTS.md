@@ -599,6 +599,15 @@ row covers its texts — painting `ui.hoverBg`, a derived colour like `border`. 
 outranks hover (`rowBg` in `src/ui/list.ts` encodes that for the sidebar panels), and
 whole-pane focus clicks are not buttons, so they get no tint.
 
+The status bar's groups are buttons too, VS Code's arrangement: the branch opens the
+branch switcher, the `↑↓` counts sync, `~n` shows the source-control panel, the problem
+counts open the problems list, `● unsaved` saves, `Ln, Col` goes to a line, and a footer
+hint runs the command its key advertises — `hintsFor` (`src/ui/keys.ts`) carries the
+command id for that, and `installKeyboard` returns `run(id)` so a click and its key
+cannot drift apart. Each group is a `Group` in `src/ui/StatusBar.tsx`, whose padding is
+part of the target; the git group is drawn as three of them and `gitText()` stays the
+one string the row's width is computed from.
+
 `src/app/commands.ts` is the feature index — read it to learn what the editor can do.
 
 `ui/` and the feature folders (`core/`, `languages/`, `themes/`, `editor/`, `lsp/`) must never
