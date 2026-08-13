@@ -3,7 +3,7 @@ import { createEffect, createMemo, For, on, Show } from 'solid-js'
 
 import type { ReviewNote } from '../core/review'
 import { ui } from '../themes'
-import { useHover } from './hover'
+import { useHover, useHoverKey } from './hover'
 import { createScrollList, rowBg, scrollbarOptions } from './list'
 import { cut } from './text'
 
@@ -52,6 +52,7 @@ export function ReviewPanel(props: ReviewPanelProps) {
 
   const list = createScrollList(() => props.rows.length)
   const collapse = useHover()
+  const rowHover = useHoverKey<number>()
   const visible = createMemo(() => props.rows.slice(list.window().start, list.window().end))
 
   createEffect(on(cursor, row => list.reveal(row)))
@@ -119,8 +120,7 @@ export function ReviewPanel(props: ReviewPanelProps) {
         <For each={visible()}>
           {(row, at) => {
             const index = () => list.window().start + at()
-            const hover = useHover()
-            const bg = () => rowBg(index() === cursor(), props.focused, hover.hovered())
+            const bg = () => rowBg(index() === cursor(), props.focused, rowHover.hovered(index()))
             // Cut as well as unwrapped: a reply's `@name` is whatever an agent
             // wrote into the notes file, and this column cannot shrink.
             const label = () => cut(labelOf(row), Math.max(0, props.width - indentOf(row) - 2))
@@ -133,8 +133,8 @@ export function ReviewPanel(props: ReviewPanelProps) {
                 flexDirection="row"
                 backgroundColor={bg()}
                 onMouseDown={() => props.onActivate(index())}
-                onMouseOver={hover.enter}
-                onMouseOut={hover.leave}
+                onMouseOver={() => rowHover.enter(index())}
+                onMouseOut={() => rowHover.leave(index())}
               >
                 <Show when={fileRow(row)}>
                   {(file: () => ReviewRow & { kind: 'file' }) => (

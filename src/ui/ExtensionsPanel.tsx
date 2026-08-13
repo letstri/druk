@@ -3,7 +3,7 @@ import { createEffect, createMemo, For, on, Show } from 'solid-js'
 
 import type { ExtensionCategory } from '../extensions'
 import { ui } from '../themes'
-import { useHover } from './hover'
+import { useHover, useHoverKey } from './hover'
 import { createScrollList, rowBg, scrollbarOptions } from './list'
 import { TextInput } from './TextInput'
 
@@ -70,6 +70,7 @@ export function ExtensionsPanel(props: ExtensionsPanelProps) {
   const list = createScrollList(() => props.rows.length)
   const visible = createMemo(() => props.rows.slice(list.window().start, list.window().end))
   const search = useHover()
+  const rowHover = useHoverKey<number>()
 
   createEffect(on(cursor, row => list.reveal(row)))
 
@@ -188,8 +189,7 @@ export function ExtensionsPanel(props: ExtensionsPanelProps) {
           <For each={visible()}>
             {(row, at) => {
               const index = () => list.window().start + at()
-              const hover = useHover()
-              const bg = () => rowBg(index() === cursor(), props.focused, hover.hovered())
+              const bg = () => rowBg(index() === cursor(), props.focused, rowHover.hovered(index()))
               return (
                 <box
                   height={1}
@@ -198,8 +198,8 @@ export function ExtensionsPanel(props: ExtensionsPanelProps) {
                   // Deliberately not stopped: the panel's own handler runs after
                   // this one and focuses it, which is where the keyboard belongs.
                   onMouseDown={() => props.onActivate(index())}
-                  onMouseOver={hover.enter}
-                  onMouseOut={hover.leave}
+                  onMouseOver={() => rowHover.enter(index())}
+                  onMouseOut={() => rowHover.leave(index())}
                 >
                   <Show when={sectionRow(row)}>
                     {(section: () => ExtensionRow & { kind: 'section' }) => (

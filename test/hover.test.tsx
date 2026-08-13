@@ -1,7 +1,9 @@
 import { describe, expect, test } from 'bun:test'
+import { writeFileSync } from 'node:fs'
+import { join } from 'node:path'
 
 import { ui } from '../src/themes'
-import { fixture, launch, openFile, settle } from './helpers'
+import { fixture, launch, openFile, settle, untilFrame } from './helpers'
 import type { Harness } from './helpers'
 
 interface Frame {
@@ -50,6 +52,23 @@ describe('hover on clickable rows', () => {
     await t.mockMouse.moveTo(3, y - 1)
     await settle(t)
     expect(rowBgs(t, y)).not.toContain(ui.hoverBg)
+  })
+
+  test('a hovered row stays tinted across a tree refresh', async () => {
+    const dir = fixture({ 'a.ts': 'const a = 1\n', 'b.ts': 'const b = 2\n' })
+    const t = await launch(dir)
+
+    const y = rowOf(t, 'b.ts')
+    await t.mockMouse.moveTo(3, y)
+    await settle(t)
+    expect(rowBgs(t, y)).toContain(ui.hoverBg)
+
+    // The watcher hands the tree a fresh node list, which rebuilds every row.
+    // The pointer has not moved, so the row must come back tinted — hover held
+    // per row was reborn false here and the highlight blinked on every refresh.
+    writeFileSync(join(dir, 'z.ts'), 'const z = 3\n')
+    await untilFrame(t, 'z.ts')
+    expect(rowBgs(t, y)).toContain(ui.hoverBg)
   })
 
   test('the selected row keeps its selection colour under the pointer', async () => {

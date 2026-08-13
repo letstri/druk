@@ -6,7 +6,7 @@ import { rowArea } from '../core/changeTree'
 import { iconFor } from '../icons'
 import { ui } from '../themes'
 import { MARKS, statusColor } from './FileTree'
-import { useHover } from './hover'
+import { useHover, useHoverKey } from './hover'
 import { createScrollList, rowBg, scrollbarOptions } from './list'
 import { TextInput } from './TextInput'
 
@@ -98,6 +98,8 @@ export function GitPanel(props: GitPanelProps) {
   const message = useHover()
   const commit = useHover()
   const sync = useHover()
+  const rowHover = useHoverKey<number>()
+  const stageHover = useHoverKey<number>()
 
   /**
    * Change lists are usually shorter than the panel, but `git status` after a big
@@ -273,9 +275,7 @@ export function GitPanel(props: GitPanelProps) {
           <For each={visible()}>
             {(row, at) => {
               const index = () => list.window().start + at()
-              const hover = useHover()
-              const stage = useHover()
-              const bg = () => rowBg(index() === cursor(), props.focused, hover.hovered())
+              const bg = () => rowBg(index() === cursor(), props.focused, rowHover.hovered(index()))
               /**
                * The icon takes the folder arrow's column, as it does in the tree:
                * the open and shut forms are what keep a folded row readable, and a
@@ -315,8 +315,8 @@ export function GitPanel(props: GitPanelProps) {
                   // this one and focuses it, which is where the keyboard belongs —
                   // the arrows page the diff from here.
                   onMouseDown={() => props.onActivate(index())}
-                  onMouseOver={hover.enter}
-                  onMouseOut={hover.leave}
+                  onMouseOver={() => rowHover.enter(index())}
+                  onMouseOut={() => rowHover.leave(index())}
                 >
                   {/* Indent and glyph never give, as in the tree: shrinking them
                       slid every row's marks a column left. The name is the only
@@ -392,17 +392,17 @@ export function GitPanel(props: GitPanelProps) {
                   <Show when={props.staging && index() === cursor() && !isCommitRow(row)}>
                     <box
                       flexShrink={0}
-                      backgroundColor={stage.hovered() ? ui.hoverBg : bg()}
+                      backgroundColor={stageHover.hovered(index()) ? ui.hoverBg : bg()}
                       onMouseDown={event => {
                         event.stopPropagation()
                         props.onToggleStage()
                       }}
-                      onMouseOver={stage.enter}
-                      onMouseOut={stage.leave}
+                      onMouseOver={() => stageHover.enter(index())}
+                      onMouseOut={() => stageHover.leave(index())}
                     >
                       <text
                         fg={ui.accent}
-                        bg={stage.hovered() ? ui.hoverBg : bg()}
+                        bg={stageHover.hovered(index()) ? ui.hoverBg : bg()}
                         content={`${stageGlyph(row)} `}
                       />
                     </box>
