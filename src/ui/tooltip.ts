@@ -9,8 +9,12 @@
  * `Files` under a button labelled `Files` is a box saying nothing. Two ways in,
  * showing the same thing:
  *
- * - Hovering one button gives that button's chord.
+ * - Resting the pointer on one button gives that button's chord.
  * - Holding Ctrl (or Cmd) for half a second lights every button's chord at once.
+ *
+ * Both halves are a *pause*: a chip that appeared the instant the pointer
+ * crossed a button would flash chord after chord as the mouse travelled the tab
+ * strip on its way to the editor.
  *
  * It follows that a command with no chord in force has no tooltip at all, and
  * that binding one is what brings it back.
@@ -61,6 +65,70 @@ const [hovered, setHovered] = createSignal<number | null>(null)
 const [held, setHeld] = createSignal(false)
 
 /**
+ * How long the pointer has to rest on a button before its chord is drawn. The
+ * peek's own hold is what this is to hovering: a tooltip is an answer to a
+ * question, and crossing a button on the way somewhere else is not asking one.
+ */
+const DWELL_MS = 400
+
+/**
+ * The last target whose dwell counted out. Paired with `hovered` rather than
+ * read alone — see `resting`.
+ */
+const [dwelled, setDwelled] = createSignal<number | null>(null)
+let dwell: ReturnType<typeof setTimeout> | null = null
+
+const clearDwell = () => {
+  if (dwell) clearTimeout(dwell)
+  dwell = null
+}
+
+/**
+ * The target to annotate: the pointer is on it *and* it has counted out there.
+ * Two signals rather than one because leaving has to hide the chip at once while
+ * the count it earned outlives the turn — see `leave`.
+ */
+const resting = () => {
+  const at = hovered()
+  return at !== null && at === dwelled() ? at : null
+}
+
+function enter(id: number) {
+  if (hovered() === id) return
+  clearDwell()
+  setHovered(id)
+  // The pointer that never really left this button (below) keeps the chord it
+  // already earned rather than counting a second time under a reader's eyes.
+  if (dwelled() === id) return
+  setDwelled(null)
+  dwell = setTimeout(() => {
+    dwell = null
+    setDwelled(id)
+  }, DWELL_MS)
+}
+
+/**
+ * Conditional: crossing onto the next control can deliver its `over` before this
+ * one's `out`, and clearing unconditionally would erase the new state — the
+ * pending dwell along with it.
+ *
+ * The count is forgotten a turn later rather than here. Moving the pointer
+ * between two texts inside one button delivers the row an `out` and the next
+ * `over` in the same turn, and forgetting synchronously would blink the chip
+ * away and start it counting again mid-button; a microtask lands after both, so
+ * only a pointer that is still off every target forgets. It is not a delay —
+ * `resting` already went null with `hovered`, so the chip is gone this frame.
+ */
+function leave(id: number) {
+  if (hovered() !== id) return
+  clearDwell()
+  setHovered(null)
+  queueMicrotask(() => {
+    if (hovered() === null) setDwelled(null)
+  })
+}
+
+/**
  * The `tooltips` setting, pushed in by `App`. It lives here rather than staying
  * a prop on the layer because the peek is more than the boxes: the buttons light
  * up with it, and a component asking "am I lit?" must get `false` from the same
@@ -95,10 +163,7 @@ export function useTooltip(command: string | (() => string) | undefined) {
 
   onCleanup(() => {
     targets.delete(id)
-    // Not `setHovered(null)`: the pointer has usually already arrived somewhere
-    // else by the time a row is torn down, and clearing unconditionally would
-    // erase the new state.
-    setHovered(cur => (cur === id ? null : cur))
+    leave(id)
     bump(at => at + 1)
   })
 
@@ -109,10 +174,14 @@ export function useTooltip(command: string | (() => string) | undefined) {
      * peek. Lighting the buttons is what ties a peek's chords to the things they
      * run — the boxes sit on the rows above or below, and a column of chords
      * beside a strip of unmarked buttons says nothing about which is which.
+     *
+     * Not delayed the way the chip is: the tint is the button answering the
+     * pointer, and a control that takes half a second to admit it is one reads
+     * as a dead cell.
      */
     lit: () => hovered() === id || (peeking() && chord() !== ''),
-    enter: () => setHovered(id),
-    leave: () => setHovered(cur => (cur === id ? null : cur)),
+    enter: () => enter(id),
+    leave: () => leave(id),
     ref: (node: TargetBox) => {
       box = node
     },
@@ -120,16 +189,16 @@ export function useTooltip(command: string | (() => string) | undefined) {
 }
 
 /**
- * What to draw now: nothing unless the pointer is on a target or the peek is up,
- * and nothing for a control whose command has no key — a chord is all a tooltip
- * ever says, so with no chord there is nothing to say. A command left unbound
- * therefore costs its button a tooltip, which is the right way round: binding
- * one gives it back.
+ * What to draw now: nothing unless the pointer has rested on a target or the
+ * peek is up, and nothing for a control whose command has no key — a chord is
+ * all a tooltip ever says, so with no chord there is nothing to say. A command
+ * left unbound therefore costs its button a tooltip, which is the right way
+ * round: binding one gives it back.
  */
 export function tooltipAnchors(): TooltipAnchor[] {
   version()
   if (!enabled()) return []
-  const at = hovered()
+  const at = resting()
   const peek = peeking()
   const anchors: TooltipAnchor[] = []
 
