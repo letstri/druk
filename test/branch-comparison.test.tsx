@@ -1,7 +1,6 @@
 import { expect, test } from 'bun:test'
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import {
@@ -13,9 +12,10 @@ import {
   untilFrame,
   untilGone,
 } from './helpers'
+import { tempDir } from './temp'
 
 function repo() {
-  const dir = mkdtempSync(join(tmpdir(), 'druk-compare-ui-'))
+  const dir = tempDir('druk-compare-ui-')
   const git = (...args: string[]) =>
     execFileSync('git', args, { cwd: dir, encoding: 'utf8' }).trim()
   git('init', '-q', '-b', 'trunk')

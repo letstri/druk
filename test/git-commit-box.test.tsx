@@ -1,11 +1,11 @@
 import { expect, test } from 'bun:test'
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { fixture, launch, press, pressEscape, runCommand, settle, until } from './helpers'
 import type { Harness } from './helpers'
+import { tempDir } from './temp'
 
 const ESC = String.fromCharCode(27)
 /** Ctrl+Opt+G as terminals spell it: an ESC prefix ahead of Ctrl+G (0x07). */
@@ -31,7 +31,7 @@ function repo() {
  * the shape where sync's pull half and push half both have work to do.
  */
 function behindWithEdit() {
-  const base = mkdtempSync(join(tmpdir(), 'druk-sync-'))
+  const base = tempDir('druk-sync-')
   const origin = join(base, 'origin.git')
   execFileSync('git', ['init', '-q', '--bare', '-b', 'main', origin])
 

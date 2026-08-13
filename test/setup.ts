@@ -1,7 +1,9 @@
 import { afterAll, afterEach } from 'bun:test'
-import { mkdtempSync, rmSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { rmSync } from 'node:fs'
+
+// Static, unlike the imports below: `temp.ts` is `node:fs`/`node:os`/`node:path`
+// and nothing else, so hoisting it above the env assignments captures nothing.
+import { fixtures, tempDir } from './temp'
 
 /**
  * Give every test process its own config home, before anything reads it.
@@ -15,7 +17,7 @@ import { join } from 'node:path'
  * A preload, not a `beforeAll`: the path is captured when the module is first
  * imported, which happens before any hook runs.
  */
-process.env.XDG_CONFIG_HOME = mkdtempSync(join(tmpdir(), 'druk-test-config-'))
+process.env.XDG_CONFIG_HOME = tempDir('druk-test-config-')
 
 /**
  * OSC 9;4 would light the developer's terminal tab for every busy operation the
@@ -29,7 +31,7 @@ process.env.DRUK_PROGRESS = '0'
  * druk installed. Without it a developer who once accepted an install would have
  * `installedCommand` answer for a real binary, and the suite would spawn it.
  */
-process.env.XDG_DATA_HOME = mkdtempSync(join(tmpdir(), 'druk-test-data-'))
+process.env.XDG_DATA_HOME = tempDir('druk-test-data-')
 
 /**
  * And the cache home, where `src/core/market.ts` keeps the extension catalog. A
@@ -37,7 +39,7 @@ process.env.XDG_DATA_HOME = mkdtempSync(join(tmpdir(), 'druk-test-data-'))
  * the market tests would be asserting against whatever the registry published
  * that day.
  */
-process.env.XDG_CACHE_HOME = mkdtempSync(join(tmpdir(), 'druk-test-cache-'))
+process.env.XDG_CACHE_HOME = tempDir('druk-test-cache-')
 
 /**
  * Register the extensions druk ships inside the binary — its languages, and so the
@@ -78,16 +80,17 @@ afterEach(async () => {
 })
 
 /**
- * Delete the fixtures this file made.
+ * Delete the temp directories this file made.
  *
  * A full run creates some three thousand temp projects, and nothing used to
  * remove them: after a few dozen runs the temp folder held ~100k directories,
  * every `mkdtemp` in it slowed down, and whole test files began timing out and
  * being killed — failures that look like flaky tests and are not. `afterAll`
  * rather than `afterEach`, since a file may hand one fixture to several tests.
+ *
+ * Only what `tempDir()` made: a raw `mkdtempSync` is invisible here and leaks.
  */
-afterAll(async () => {
-  const { fixtures } = await import('./helpers')
+afterAll(() => {
   for (const dir of fixtures) rmSync(dir, { recursive: true, force: true })
   fixtures.clear()
 })

@@ -1,14 +1,14 @@
 import { describe, expect, test } from 'bun:test'
-import { mkdtempSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { launch, press, pressEscape, settle } from './helpers'
 import type { Harness } from './helpers'
+import { tempDir } from './temp'
 
 /** Enough top-level files that the tree scrolls. */
 function manyFiles(count: number) {
-  const dir = mkdtempSync(join(tmpdir(), 'druk-tree-'))
+  const dir = tempDir('druk-tree-')
   for (let i = 0; i < count; i++) {
     writeFileSync(join(dir, `f${String(i).padStart(3, '0')}.ts`), `const a${i} = ${i}\n`)
   }

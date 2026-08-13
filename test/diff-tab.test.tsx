@@ -1,15 +1,15 @@
 import { expect, test } from 'bun:test'
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { launch, openDiff, openFile, press, pressTimes, runCommand, untilFrame } from './helpers'
 import type { Harness } from './helpers'
+import { tempDir } from './temp'
 
 /** A repository with two committed, then modified, files. */
 function repo() {
-  const dir = mkdtempSync(join(tmpdir(), 'druk-difftab-'))
+  const dir = tempDir('druk-difftab-')
   const git = (...args: string[]) => execFileSync('git', args, { cwd: dir })
   git('init', '-q', '-b', 'main')
   git('config', 'user.email', 'test@example.com')

@@ -1,7 +1,6 @@
 import { expect, test } from 'bun:test'
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import {
@@ -11,9 +10,10 @@ import {
   loadBranchComparison,
   resolveComparison,
 } from '../src/core/git'
+import { tempDir } from './temp'
 
 function repo(initial = 'trunk') {
-  const dir = mkdtempSync(join(tmpdir(), 'druk-compare-'))
+  const dir = tempDir('druk-compare-')
   const git = (...args: string[]) =>
     execFileSync('git', args, { cwd: dir, encoding: 'utf8' }).trim()
   git('init', '-q', '-b', initial)
@@ -107,7 +107,7 @@ test('comparison refuses detached HEAD without calling it an invalid branch', as
 })
 
 test('comparison distinguishes an unborn current branch', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'druk-compare-unborn-'))
+  const dir = tempDir('druk-compare-unborn-')
   execFileSync('git', ['init', '-q', '-b', 'feature'], { cwd: dir })
 
   const result = await resolveComparison(dir, 'trunk')

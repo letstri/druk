@@ -1,10 +1,10 @@
 import { expect, test } from 'bun:test'
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { launch, press, pressEscape, runCommand, until } from './helpers'
+import { tempDir } from './temp'
 
 const git = (cwd: string, ...args: string[]) => execFileSync('git', args, { cwd })
 
@@ -14,7 +14,7 @@ const git = (cwd: string, ...args: string[]) => execFileSync('git', args, { cwd 
  * rejected in, so it is the shape the offer has to be tested against.
  */
 function diverged() {
-  const base = mkdtempSync(join(tmpdir(), 'druk-push-'))
+  const base = tempDir('druk-push-')
   const origin = join(base, 'origin.git')
   execFileSync('git', ['init', '-q', '--bare', '-b', 'main', origin])
 

@@ -1,14 +1,14 @@
 import { describe, expect, test } from 'bun:test'
-import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { launch, press, settle } from './helpers'
 import type { Harness } from './helpers'
+import { tempDir } from './temp'
 
 /** A folder with enough entries that the delete spans several frames. */
 function project(packages: number) {
-  const dir = mkdtempSync(join(tmpdir(), 'druk-bulkui-'))
+  const dir = tempDir('druk-bulkui-')
   writeFileSync(join(dir, 'a.ts'), 'const a = 1\n')
   for (let index = 0; index < packages; index++) {
     mkdirSync(join(dir, 'node_modules', `pkg-${index}`), { recursive: true })

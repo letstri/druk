@@ -1,11 +1,11 @@
 import { expect, test } from 'bun:test'
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { fixture, launch, openComparison, press, runCommand, untilFrame } from './helpers'
 import type { Harness } from './helpers'
+import { tempDir } from './temp'
 
 /**
  * A `<text>` wraps by word unless it is told not to, so anywhere the user's own
@@ -26,7 +26,7 @@ const rowsWith = (t: Harness, needle: string) =>
     .filter(row => row.includes(needle)).length
 
 function repo() {
-  const dir = mkdtempSync(join(tmpdir(), 'druk-long-'))
+  const dir = tempDir('druk-long-')
   const git = (...args: string[]) => execFileSync('git', args, { cwd: dir })
   git('init', '-q', '-b', 'main')
   git('config', 'init.defaultBranch', 'main')
@@ -41,7 +41,7 @@ function repo() {
 
 test('the branch picker gives a long branch and its upstream one row each', async () => {
   const dir = repo()
-  const bare = mkdtempSync(join(tmpdir(), 'druk-long-bare-'))
+  const bare = tempDir('druk-long-bare-')
   execFileSync('git', ['init', '-q', '--bare', bare])
   execFileSync('git', ['remote', 'add', 'origin', bare], { cwd: dir })
   execFileSync('git', ['switch', '-q', '-c', BRANCH], { cwd: dir })

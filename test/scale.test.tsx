@@ -7,18 +7,18 @@
  */
 import { describe, expect, test } from 'bun:test'
 import { execFileSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { statusMap } from '../src/core/git'
 import { launch, press, settle } from './helpers'
+import { tempDir } from './temp'
 
 /** Past the point where an unwindowed view exhausts the core's renderables. */
 const OVER_THE_CEILING = 6000
 
 function wideDir(count: number) {
-  const dir = mkdtempSync(join(tmpdir(), 'druk-scale-tree-'))
+  const dir = tempDir('druk-scale-tree-')
   mkdirSync(join(dir, 'many'))
   for (let i = 0; i < count; i++) writeFileSync(join(dir, 'many', `f${i}.ts`), 'x\n')
   return dir
@@ -62,7 +62,7 @@ describe('git output size', () => {
     // core/git.ts reads as empty output — the tree would show no marks at all in a
     // repository with a lot of changed files. `statusMap` is the caller with the
     // largest output now that druk runs no diffs of its own.
-    const dir = mkdtempSync(join(tmpdir(), 'druk-scale-status-'))
+    const dir = tempDir('druk-scale-status-')
     execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: dir })
 
     // ~130 bytes of porcelain per entry, so this clears 1 MB comfortably.

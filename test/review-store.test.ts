@@ -1,12 +1,12 @@
 import { expect, test } from 'bun:test'
-import { mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { loadNotes, readNotes, saveNotes } from '../src/core/review'
 import type { ReviewNote } from '../src/core/review'
+import { tempDir } from './temp'
 
-const notesFile = () => join(mkdtempSync(join(tmpdir(), 'druk-review-store-')), 'review.json')
+const notesFile = () => join(tempDir('druk-review-store-'), 'review.json')
 
 const note = (id: string, over: Partial<ReviewNote> = {}): ReviewNote => ({
   id,

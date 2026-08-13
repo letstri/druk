@@ -1,14 +1,14 @@
 import { describe, expect, test } from 'bun:test'
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { watchTree } from '../src/core/fs'
 import { launch, untilFrame, untilGone } from './helpers'
+import { tempDir } from './temp'
 
 function repo() {
-  const dir = mkdtempSync(join(tmpdir(), 'druk-outside-'))
+  const dir = tempDir('druk-outside-')
   const git = (...args: string[]) => execFileSync('git', args, { cwd: dir })
   git('init', '-q', '-b', 'main')
   git('config', 'user.email', 't@e.com')

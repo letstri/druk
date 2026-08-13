@@ -1,9 +1,7 @@
 import { describe, expect, test } from 'bun:test'
-import { mkdtempSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
 
 import { nfpmConfig, packageFileName } from '../scripts/packages'
+import { tempDir } from './temp'
 
 describe('packageFileName', () => {
   test('deb keeps underscores and Debian arch names', () => {
@@ -40,7 +38,7 @@ describe('nfpmConfig', () => {
 })
 
 test('a missing binary is named before nfpm is ever needed', () => {
-  const empty = mkdtempSync(join(tmpdir(), 'druk-dist-'))
+  const empty = tempDir('druk-dist-')
   const proc = Bun.spawnSync(['bun', 'scripts/packages.ts'], {
     cwd: process.cwd(),
     env: { ...process.env, DRUK_DIST: empty },

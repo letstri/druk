@@ -3,7 +3,6 @@ import {
   chmodSync,
   cpSync,
   mkdirSync,
-  mkdtempSync,
   readFileSync,
   readdirSync,
   readlinkSync,
@@ -11,14 +10,15 @@ import {
   symlinkSync,
   writeFileSync,
 } from 'node:fs'
-import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+
+import { tempDir } from './temp'
 
 const script = new URL('../install', import.meta.url).pathname
 
 const scratches: string[] = []
 function scratch() {
-  const dir = mkdtempSync(join(tmpdir(), 'druk-install-'))
+  const dir = tempDir('druk-install-')
   scratches.push(dir)
   return dir
 }

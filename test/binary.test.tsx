@@ -1,13 +1,13 @@
 import { expect, test } from 'bun:test'
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { launch, openFile, press, settle } from './helpers'
+import { tempDir } from './temp'
 
 /** A project with a real binary file next to a text one. */
 function project() {
-  const dir = mkdtempSync(join(tmpdir(), 'druk-'))
+  const dir = tempDir()
   writeFileSync(join(dir, '.DS_Store'), Buffer.from([0, 1, 2, 0, 3, 4]))
   writeFileSync(join(dir, 'main.ts'), 'const a = 1\n')
   return dir

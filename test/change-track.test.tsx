@@ -1,12 +1,12 @@
 import { describe, expect, test } from 'bun:test'
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { ui } from '../src/themes'
 import { fixture, launch, openFile, press, settle } from './helpers'
 import type { Harness } from './helpers'
+import { tempDir } from './temp'
 
 const SOURCE = `${Array.from({ length: 400 }, (_, index) => `const value${index} = ${index}`).join(
   '\n',
@@ -31,7 +31,7 @@ const track = (t: Harness) => {
 }
 
 async function repoWith(edit: (lines: string[]) => void) {
-  const dir = mkdtempSync(join(tmpdir(), 'druk-track-'))
+  const dir = tempDir('druk-track-')
   const git = (...args: string[]) => execFileSync('git', args, { cwd: dir })
   git('init', '-q', '-b', 'main')
   git('config', 'user.email', 'test@example.com')
@@ -92,7 +92,7 @@ describe('the track agrees with the scrollbar', () => {
   ).join('\n')}\n`
 
   async function wrappedRepo(changeAt: number) {
-    const dir = mkdtempSync(join(tmpdir(), 'druk-wrapped-'))
+    const dir = tempDir('druk-wrapped-')
     const git = (...args: string[]) => execFileSync('git', args, { cwd: dir })
     git('init', '-q', '-b', 'main')
     git('config', 'user.email', 'test@example.com')

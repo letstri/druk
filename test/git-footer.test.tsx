@@ -1,11 +1,11 @@
 import { describe, expect, test } from 'bun:test'
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { launch, until } from './helpers'
 import type { Harness } from './helpers'
+import { tempDir } from './temp'
 
 /**
  * druk runs no git commands of its own any more, so everything here is set up with
@@ -15,7 +15,7 @@ const git = (cwd: string, ...args: string[]) => execFileSync('git', args, { cwd 
 
 /** A bare "remote" plus clones of it, so ahead/behind are real. */
 function remoteSetup() {
-  const base = mkdtempSync(join(tmpdir(), 'druk-footer-'))
+  const base = tempDir('druk-footer-')
   const origin = join(base, 'origin.git')
   execFileSync('git', ['init', '-q', '--bare', '-b', 'main', origin])
 

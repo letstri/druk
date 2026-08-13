@@ -1,14 +1,14 @@
 import { describe, expect, test } from 'bun:test'
-import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { copyAll, moveAll, removeAll } from '../src/core/bulk'
 import type { BulkProgress } from '../src/core/bulk'
+import { tempDir } from './temp'
 
 /** A directory of `count` packages, each with a file inside — a small node_modules. */
 function heavyDir(count: number) {
-  const base = mkdtempSync(join(tmpdir(), 'druk-bulk-'))
+  const base = tempDir('druk-bulk-')
   const dir = join(base, 'node_modules')
   for (let index = 0; index < count; index++) {
     mkdirSync(join(dir, `pkg-${index}`), { recursive: true })

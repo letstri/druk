@@ -1,6 +1,5 @@
 import { afterAll, describe, expect, test } from 'bun:test'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import {
@@ -12,8 +11,9 @@ import {
   stepPdfZoom,
 } from '../src/core/pdf'
 import { pdfFixture } from './pdf-fixture'
+import { tempDir } from './temp'
 
-const dir = mkdtempSync(join(tmpdir(), 'druk-pdf-'))
+const dir = tempDir('druk-pdf-')
 afterAll(() => rmSync(dir, { recursive: true, force: true }))
 
 describe('PDF geometry', () => {

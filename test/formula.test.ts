@@ -1,12 +1,13 @@
 import { afterAll, expect, test } from 'bun:test'
 import { createHash } from 'node:crypto'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+
+import { tempDir } from './temp'
 
 const root = join(import.meta.dir, '..')
 // Never the repo's own dist/, for the reason release-notices.test.ts gives.
-const dist = mkdtempSync(join(tmpdir(), 'druk-formula-'))
+const dist = tempDir('druk-formula-')
 afterAll(() => rmSync(dist, { recursive: true, force: true }))
 
 const TARGETS = ['darwin-arm64', 'darwin-x64', 'linux-arm64', 'linux-x64'] as const

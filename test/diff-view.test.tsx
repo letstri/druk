@@ -1,7 +1,6 @@
 import { expect, test } from 'bun:test'
 import { execFileSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { HATCH } from '../src/ui/DiffView'
@@ -16,6 +15,7 @@ import {
   untilFrame,
   untilGone,
 } from './helpers'
+import { tempDir } from './temp'
 
 interface Span {
   text: string
@@ -24,7 +24,7 @@ interface Span {
 
 /** A real repository with committed files. */
 function repo(files: Record<string, string>) {
-  const dir = mkdtempSync(join(tmpdir(), 'druk-diff-'))
+  const dir = tempDir('druk-diff-')
   const git = (...args: string[]) => execFileSync('git', args, { cwd: dir })
   git('init', '-q', '-b', 'main')
   git('config', 'user.email', 'test@example.com')
@@ -354,7 +354,7 @@ test('the palette opens over the diff, and Ctrl+W closes the page', async () => 
 })
 
 test('a long path is cut from the left so the hints stay on screen', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'druk-diff-'))
+  const dir = tempDir('druk-diff-')
   const git = (...args: string[]) => execFileSync('git', args, { cwd: dir })
   git('init', '-q', '-b', 'main')
   git('config', 'user.email', 'test@example.com')

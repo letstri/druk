@@ -1,16 +1,16 @@
 import { expect, test } from 'bun:test'
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { listBranches } from '../src/core/git'
 import { fixture, launch, press, pressEscape, runCommand, settle } from './helpers'
 import type { Harness } from './helpers'
+import { tempDir } from './temp'
 
 /** A repository with one commit on `main`, plus whatever extra branches. */
 function repo(...branches: string[]) {
-  const dir = mkdtempSync(join(tmpdir(), 'druk-branch-'))
+  const dir = tempDir('druk-branch-')
   const git = (...args: string[]) => execFileSync('git', args, { cwd: dir })
   git('init', '-q', '-b', 'main')
   git('config', 'user.email', 'test@example.com')
@@ -46,7 +46,7 @@ test('listBranches marks the current branch and reads upstreams', () => {
     ]),
   )
 
-  const bare = mkdtempSync(join(tmpdir(), 'druk-bare-'))
+  const bare = tempDir('druk-bare-')
   execFileSync('git', ['init', '-q', '--bare', bare])
   execFileSync('git', ['remote', 'add', 'origin', bare], { cwd: dir })
   execFileSync('git', ['push', '-q', '--set-upstream', 'origin', 'main'], { cwd: dir })
