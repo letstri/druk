@@ -18,6 +18,7 @@ import { ConfirmModal } from '../ui/ConfirmModal'
 import { FilePicker } from '../ui/FilePicker'
 import { HelpOverlay } from '../ui/HelpOverlay'
 import { KeyPeek } from '../ui/KeyPeek'
+import { ListPicker } from '../ui/ListPicker'
 import { ProblemsModal } from '../ui/ProblemsModal'
 import type { ProblemEntry } from '../ui/ProblemsModal'
 import { PromptModal } from '../ui/PromptModal'
@@ -40,6 +41,11 @@ import type { Workspace } from './workspace'
 
 type InstallServerPrompt = Extract<Prompt, { kind: 'installServer' }>
 type ReviewKindPrompt = Extract<Prompt, { kind: 'reviewKind' }>
+type StashPickPrompt = Extract<Prompt, { kind: 'stashPick' }>
+type StashActionPrompt = Extract<Prompt, { kind: 'stashAction' }>
+type TagDeletePrompt = Extract<Prompt, { kind: 'tagDelete' }>
+type RemoteRemovePrompt = Extract<Prompt, { kind: 'remoteRemove' }>
+type FileHistoryPrompt = Extract<Prompt, { kind: 'fileHistory' }>
 
 /** What the problems modal is showing: every open file's, or the cursor's line. */
 export type ProblemsScope = 'all' | 'cursor'
@@ -233,6 +239,18 @@ export function OverlayStack(props: { ctx: AppContext; commands: Accessor<Comman
     return ask?.kind === 'reviewKind' ? ask : null
   })
 
+  /** One narrowing memo per picker prompt, so each `Show` keys its child on it. */
+  const promptOf = <K extends NonNullable<Prompt>['kind']>(kind: K) =>
+    createMemo<Extract<Prompt, { kind: K }> | null>(() => {
+      const ask = prompts.prompt()
+      return ask?.kind === kind ? (ask as Extract<Prompt, { kind: K }>) : null
+    })
+  const stashPick = promptOf('stashPick')
+  const stashAction = promptOf('stashAction')
+  const tagDelete = promptOf('tagDelete')
+  const remoteRemove = promptOf('remoteRemove')
+  const fileHistory = promptOf('fileHistory')
+
   return (
     <>
       <Show when={prompts.promptTitle()}>
@@ -264,6 +282,74 @@ export function OverlayStack(props: { ctx: AppContext; commands: Accessor<Comman
             choices={KIND_CHOICES}
             onPick={prompts.chooseReviewKind}
             onCancel={prompts.cancelPrompt}
+          />
+        )}
+      </Show>
+      <Show when={stashPick()}>
+        {(ask: () => StashPickPrompt) => (
+          <ListPicker
+            title="Stashes"
+            placeholder="Type part of a stash message…"
+            items={ask().stashes.map(stash => ({
+              id: stash.ref,
+              label: `${stash.ref}  ${stash.message}`,
+            }))}
+            onPick={prompts.chooseStash}
+            onClose={prompts.cancelPrompt}
+          />
+        )}
+      </Show>
+      <Show when={stashAction()}>
+        {(ask: () => StashActionPrompt) => (
+          <ChoiceModal
+            title={ask().ref}
+            message={ask().message}
+            choices={[
+              { id: 'apply', label: 'Apply — keep the stash' },
+              { id: 'pop', label: 'Pop — apply and drop it' },
+              { id: 'drop', label: 'Drop — discard its changes' },
+            ]}
+            onPick={prompts.chooseStashAction}
+            onCancel={prompts.cancelPrompt}
+          />
+        )}
+      </Show>
+      <Show when={tagDelete()}>
+        {(ask: () => TagDeletePrompt) => (
+          <ListPicker
+            title="Delete tag"
+            placeholder="Type part of a tag name…"
+            items={ask().tags.map(tag => ({ id: tag, label: tag }))}
+            onPick={prompts.chooseTagDelete}
+            onClose={prompts.cancelPrompt}
+          />
+        )}
+      </Show>
+      <Show when={remoteRemove()}>
+        {(ask: () => RemoteRemovePrompt) => (
+          <ListPicker
+            title="Remove remote"
+            placeholder="Type part of a remote name…"
+            items={ask().remotes.map(remote => ({
+              id: remote.name,
+              label: `${remote.name}  ${remote.url}`,
+            }))}
+            onPick={prompts.chooseRemoteRemove}
+            onClose={prompts.cancelPrompt}
+          />
+        )}
+      </Show>
+      <Show when={fileHistory()}>
+        {(ask: () => FileHistoryPrompt) => (
+          <ListPicker
+            title="File history"
+            placeholder="Type part of a commit subject…"
+            items={ask().commits.map(commit => ({
+              id: commit.oid,
+              label: `${commit.oid.slice(0, 7)}  ${commit.subject}`,
+            }))}
+            onPick={prompts.chooseHistoryCommit}
+            onClose={prompts.cancelPrompt}
           />
         )}
       </Show>

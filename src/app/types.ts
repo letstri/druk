@@ -1,5 +1,5 @@
 import type { TextEncoding } from '../core/fs'
-import type { DiscardTarget } from '../core/git'
+import type { DiscardTarget, Remote, StashEntry } from '../core/git'
 import type { NoteKind } from '../core/review'
 import type { SearchOptions } from '../core/search'
 import type { PackageManager } from '../lsp/install'
@@ -54,6 +54,19 @@ export type Prompt =
    */
   | { kind: 'commitAll'; message: string; variant: CommitVariant; repo: string; count: number }
   | { kind: 'undoCommit'; subject: string }
+  /** The Stashes… picker, then what to do with the one picked. */
+  | { kind: 'stashPick'; repo: string; stashes: StashEntry[] }
+  | { kind: 'stashAction'; repo: string; ref: string; message: string }
+  | { kind: 'stashDrop'; repo: string; ref: string; message: string }
+  | { kind: 'newTag'; repo: string }
+  | { kind: 'tagDelete'; repo: string; tags: string[] }
+  /** Adding a remote asks the name first, then the URL — two prompts, one flow. */
+  | { kind: 'remoteAddName'; repo: string }
+  | { kind: 'remoteAddUrl'; repo: string; name: string }
+  | { kind: 'remoteRemove'; repo: string; remotes: Remote[] }
+  | { kind: 'remoteRemoveConfirm'; repo: string; name: string; url: string }
+  /** The active file's commits; picking one opens it in the commit page. */
+  | { kind: 'fileHistory'; repo: string; commits: { oid: string; subject: string }[] }
   | { kind: 'discardChange'; target: DiscardTarget }
   /** `from` is the branch to start at, or null for HEAD. */
   | { kind: 'newBranch'; from: string | null }

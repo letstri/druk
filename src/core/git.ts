@@ -1413,6 +1413,97 @@ export function stashPop(cwd: string): Promise<GitResult> {
   return mutate(cwd, ['stash', 'pop'])
 }
 
+export interface StashEntry {
+  /** `stash@{0}` — the name every stash command addresses one by. */
+  ref: string
+  message: string
+}
+
+/** Every stash, newest first — what the Stashes… picker lists. */
+export function stashList(cwd: string): StashEntry[] {
+  const run = git(cwd, ['stash', 'list', '--format=%gd%x1f%gs'], 5000)
+  if (run.status !== 0) return []
+  return run.stdout
+    .split('\n')
+    .filter(line => line.includes('\x1F'))
+    .map(line => {
+      const [ref = '', message = ''] = line.split('\x1F')
+      return { ref, message }
+    })
+}
+
+export function stashApply(cwd: string, ref: string): Promise<GitResult> {
+  return mutate(cwd, ['stash', 'apply', ref])
+}
+
+export function stashPopRef(cwd: string, ref: string): Promise<GitResult> {
+  return mutate(cwd, ['stash', 'pop', ref])
+}
+
+export function stashDrop(cwd: string, ref: string): Promise<GitResult> {
+  return mutate(cwd, ['stash', 'drop', ref])
+}
+
+/** Every tag, newest first — what the Delete tag… picker lists. */
+export function listTags(cwd: string): string[] {
+  const run = git(cwd, ['tag', '--sort=-creatordate'], 5000)
+  if (run.status !== 0) return []
+  return run.stdout.split('\n').filter(line => line.length > 0)
+}
+
+export function createTag(cwd: string, name: string): Promise<GitResult> {
+  return mutate(cwd, ['tag', '--', name])
+}
+
+export function deleteTag(cwd: string, name: string): Promise<GitResult> {
+  return mutate(cwd, ['tag', '-d', '--', name])
+}
+
+export interface Remote {
+  name: string
+  url: string
+}
+
+/** The configured remotes, with their fetch URLs. */
+export function listRemotes(cwd: string): Remote[] {
+  const run = git(cwd, ['remote', '-v'], 5000)
+  if (run.status !== 0) return []
+  const remotes: Remote[] = []
+  for (const line of run.stdout.split('\n')) {
+    // `origin<TAB>url (fetch)` — the push line repeats the pair.
+    const match = /^(\S+)\t(\S+) \(fetch\)$/.exec(line)
+    if (match) remotes.push({ name: match[1]!, url: match[2]! })
+  }
+  return remotes
+}
+
+export function addRemote(cwd: string, name: string, url: string): Promise<GitResult> {
+  return mutate(cwd, ['remote', 'add', '--', name, url])
+}
+
+export function removeRemote(cwd: string, name: string): Promise<GitResult> {
+  return mutate(cwd, ['remote', 'remove', name])
+}
+
+/** The last fifty commits that touched `relPath`, renames followed — the timeline. */
+export function fileHistory(cwd: string, relPath: string): { oid: string; subject: string }[] {
+  const run = git(
+    cwd,
+    ['log', '--follow', '-n', '50', '--format=%H %s', '--', literal(relPath)],
+    5000,
+  )
+  if (run.status !== 0) return []
+  return run.stdout
+    .split('\n')
+    .filter(line => line.length > 0)
+    .map(line => {
+      const split = line.indexOf(' ')
+      return split < 0
+        ? { oid: line, subject: '' }
+        : { oid: line.slice(0, split), subject: line.slice(split + 1) }
+    })
+}
+
 export function push(cwd: string, branch: string, hasUpstream: boolean): Promise<GitResult> {
   return mutate(cwd, hasUpstream ? ['push'] : ['push', '--set-upstream', 'origin', branch])
 }

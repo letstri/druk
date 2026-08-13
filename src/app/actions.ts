@@ -8,8 +8,11 @@ import type { TreeNode } from '../core/fs'
 import {
   discardTarget,
   fetchRemote,
+  fileHistory,
   indexText,
   lastCommitSubject,
+  listRemotes,
+  listTags,
   pull,
   pullAndPush,
   push,
@@ -17,6 +20,7 @@ import {
   refText,
   stagedPaths,
   stagePaths,
+  stashList,
   stashPop,
   stashPush,
   statusMap,
@@ -784,6 +788,46 @@ export function createCommands(ctx: AppContext) {
     gitStash: () => gitOp('Stashing', repo => stashPush(repo), { touchesTree: { kind: 'sync' } }),
     gitStashPop: () =>
       gitOp('Popping stash', repo => stashPop(repo), { touchesTree: { kind: 'sync' } }),
+    gitStashList: () => {
+      const repo = git.activeRepo()
+      if (repo === null) return say(noRepository(git), 'warn')
+      const stashes = stashList(repo)
+      if (stashes.length === 0) return say('No stashes')
+      ctx.prompts.setPrompt({ kind: 'stashPick', repo, stashes })
+    },
+    gitNewTag: () => {
+      const repo = git.activeRepo()
+      if (repo === null) return say(noRepository(git), 'warn')
+      ctx.prompts.setPrompt({ kind: 'newTag', repo })
+    },
+    gitDeleteTag: () => {
+      const repo = git.activeRepo()
+      if (repo === null) return say(noRepository(git), 'warn')
+      const tags = listTags(repo)
+      if (tags.length === 0) return say('No tags')
+      ctx.prompts.setPrompt({ kind: 'tagDelete', repo, tags })
+    },
+    gitAddRemote: () => {
+      const repo = git.activeRepo()
+      if (repo === null) return say(noRepository(git), 'warn')
+      ctx.prompts.setPrompt({ kind: 'remoteAddName', repo })
+    },
+    gitRemoveRemote: () => {
+      const repo = git.activeRepo()
+      if (repo === null) return say(noRepository(git), 'warn')
+      const remotes = listRemotes(repo)
+      if (remotes.length === 0) return say('No remotes')
+      ctx.prompts.setPrompt({ kind: 'remoteRemove', repo, remotes })
+    },
+    gitFileHistory: () => {
+      const path = workspace.activePath()
+      if (!path) return say('No file open', 'warn')
+      const repo = git.repoFor(path)
+      if (repo === null) return say('Not a git repository', 'warn')
+      const commits = fileHistory(repo, relative(repo, path))
+      if (commits.length === 0) return say('No commits touch this file')
+      ctx.prompts.setPrompt({ kind: 'fileHistory', repo, commits })
+    },
     gitSwitchBranch: () => ctx.branches.open('switch'),
     gitNewBranch: ctx.branches.newBranch,
     gitNewBranchFrom: () => ctx.branches.open('from'),

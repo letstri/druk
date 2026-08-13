@@ -111,6 +111,12 @@ export interface CommandActions {
   gitPull: () => void
   gitStash: () => void
   gitStashPop: () => void
+  gitStashList: () => void
+  gitNewTag: () => void
+  gitDeleteTag: () => void
+  gitAddRemote: () => void
+  gitRemoveRemote: () => void
+  gitFileHistory: () => void
   gitSwitchBranch: () => void
   gitNewBranch: () => void
   gitNewBranchFrom: () => void
@@ -255,6 +261,12 @@ export function buildCommands(actions: CommandActions, ctx: CommandContext): Com
         { id: 'git.commitAmend', label: 'Commit (amend)…', run: actions.gitCommitAmend },
         { id: 'git.stash', label: 'Stash changes', run: actions.gitStash },
         { id: 'git.stashPop', label: 'Stash pop', run: actions.gitStashPop },
+        { id: 'git.stashList', label: 'Stashes…', run: actions.gitStashList },
+        { id: 'git.fileHistory', label: 'File history…', run: actions.gitFileHistory },
+        { id: 'git.tagNew', label: 'Create tag…', run: actions.gitNewTag },
+        { id: 'git.tagDelete', label: 'Delete tag…', run: actions.gitDeleteTag },
+        { id: 'git.remoteAdd', label: 'Add remote…', run: actions.gitAddRemote },
+        { id: 'git.remoteRemove', label: 'Remove remote…', run: actions.gitRemoveRemote },
         {
           id: 'git.branch',
           label: 'Branch',

@@ -115,7 +115,14 @@ and each command acting on the *active* one — the repository of the change und
 panel's cursor, else of the open file, else the only one there is;
 and file-level discard from a changed row (`d` or palette → Git → Discard changes,
 all confirmed and scoped to that row's repository), plus palette
-commands for commit/undo/stash/push/fetch/pull — a push origin
+commands for commit/undo/stash/push/fetch/pull/sync, the VS Code commit variants
+(Commit & push, Commit & sync, Commit (amend) — amend opens its prompt carrying the
+old subject), Stashes… (a filterable picker — `ListPicker`, the `BranchPicker`
+arrangement for any list of named things — then apply/pop/drop, drop behind a
+confirm), Create/Delete tag…, Add/Remove remote… (name then URL as two prompts;
+removal confirmed, it being config), and File history… (the open file's last fifty
+commits, renames followed, a pick opening the commit over the editor the way an
+Incoming/Outgoing row does) — a push origin
 rejects offers to merge origin in and push again, VS Code's prompt, rather than
 naming the two commands and stopping — and for branches
 (switch, create, create-from, merge, rename, delete), a diff view (inline or

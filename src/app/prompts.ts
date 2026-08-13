@@ -4,10 +4,17 @@ import { createMemo, createSignal } from 'solid-js'
 
 import { createDir, createFile, isDirectory } from '../core/fs'
 import {
+  addRemote,
   commitAmend,
+  createTag,
+  deleteTag,
   discardChange,
   pullAndPush,
   PUSH_REJECTED,
+  removeRemote,
+  stashApply,
+  stashDrop,
+  stashPopRef,
   undoLastCommit,
 } from '../core/git'
 import { NOTE_KINDS, NOTE_LABELS } from '../core/review'
@@ -40,6 +47,9 @@ const PROMPT_TITLES: Partial<Record<PromptKind, string>> = {
   gotoLine: 'Go to line',
   commit: 'Commit message',
   commitAmend: 'Amend commit message',
+  newTag: 'New tag name',
+  remoteAddName: 'Remote name',
+  remoteAddUrl: 'Remote URL',
   newBranch: 'New branch name',
   renameBranch: 'Rename branch to',
   reviewNote: 'Review note',
@@ -138,6 +148,18 @@ export function createPromptHandlers(deps: {
         repo: p.repo,
         done: () => `Amended "${p.subject}"`,
       })
+    } else if (p.kind === 'newTag') {
+      gitOp('Creating tag', repo => createTag(repo, name), {
+        repo: p.repo,
+        done: () => `Tagged ${name}`,
+      })
+    } else if (p.kind === 'remoteAddName') {
+      setPrompt({ kind: 'remoteAddUrl', repo: p.repo, name })
+    } else if (p.kind === 'remoteAddUrl') {
+      gitOp('Adding remote', repo => addRemote(repo, p.name, name), {
+        repo: p.repo,
+        done: () => `Added remote ${p.name}`,
+      })
     } else if (p.kind === 'newBranch') {
       branches.create(name, p.from)
     } else if (p.kind === 'renameBranch') {
@@ -160,6 +182,64 @@ export function createPromptHandlers(deps: {
         body: value.trim(),
       })
     }
+  }
+
+  /** A stash picked from the list: ask what to do with it. */
+  const chooseStash = (ref: string) => {
+    const p = prompt()
+    setPrompt(null)
+    if (p?.kind !== 'stashPick') return
+    const entry = p.stashes.find(candidate => candidate.ref === ref)
+    if (!entry) return
+    setPrompt({ kind: 'stashAction', repo: p.repo, ref: entry.ref, message: entry.message })
+  }
+
+  /** Apply, pop or drop the stash the picker chose. */
+  const chooseStashAction = (action: string) => {
+    const p = prompt()
+    setPrompt(null)
+    if (p?.kind !== 'stashAction') return
+    if (action === 'drop') {
+      return setPrompt({ kind: 'stashDrop', repo: p.repo, ref: p.ref, message: p.message })
+    }
+    if (action !== 'apply' && action !== 'pop') return
+    gitOp(
+      action === 'apply' ? 'Applying stash' : 'Popping stash',
+      repo => (action === 'apply' ? stashApply(repo, p.ref) : stashPopRef(repo, p.ref)),
+      {
+        repo: p.repo,
+        touchesTree: { kind: 'sync' },
+        done: () => `${action === 'apply' ? 'Applied' : 'Popped'} ${p.ref}`,
+      },
+    )
+  }
+
+  const chooseTagDelete = (name: string) => {
+    const p = prompt()
+    setPrompt(null)
+    if (p?.kind !== 'tagDelete' || !p.tags.includes(name)) return
+    gitOp('Deleting tag', repo => deleteTag(repo, name), {
+      repo: p.repo,
+      done: () => `Deleted tag ${name}`,
+    })
+  }
+
+  /** A remote picked for removal: it holds config, so a confirm stands before it. */
+  const chooseRemoteRemove = (name: string) => {
+    const p = prompt()
+    setPrompt(null)
+    if (p?.kind !== 'remoteRemove') return
+    const remote = p.remotes.find(candidate => candidate.name === name)
+    if (!remote) return
+    setPrompt({ kind: 'remoteRemoveConfirm', repo: p.repo, name: remote.name, url: remote.url })
+  }
+
+  /** A commit picked from the file's history: open it over the editor slot. */
+  const chooseHistoryCommit = (oid: string) => {
+    const p = prompt()
+    setPrompt(null)
+    if (p?.kind !== 'fileHistory') return
+    commitView.open(p.repo, oid)
   }
 
   /** The kind chosen: the same prompt again, now asking for the words. */
@@ -201,6 +281,16 @@ export function createPromptHandlers(deps: {
       case 'undoCommit':
         return gitOp('Undoing commit', repo => undoLastCommit(repo), {
           done: () => `Undid "${p.subject}" — its changes are staged`,
+        })
+      case 'stashDrop':
+        return gitOp('Dropping stash', repo => stashDrop(repo, p.ref), {
+          repo: p.repo,
+          done: () => `Dropped ${p.ref}`,
+        })
+      case 'remoteRemoveConfirm':
+        return gitOp('Removing remote', repo => removeRemote(repo, p.name), {
+          repo: p.repo,
+          done: () => `Removed remote ${p.name}`,
         })
       case 'commitAll':
         return runCommit(gitOp, git, {
@@ -366,6 +456,20 @@ export function createPromptHandlers(deps: {
           danger: false,
           message: `Nothing is staged — commit all ${p.count} changed ${p.count === 1 ? 'file' : 'files'} directly?`,
         }
+      case 'stashDrop':
+        return {
+          title: 'Drop stash',
+          verb: 'drop it',
+          danger: true,
+          message: `Drop ${p.ref} ("${p.message}")? Its changes are lost.`,
+        }
+      case 'remoteRemoveConfirm':
+        return {
+          title: 'Remove remote',
+          verb: 'remove it',
+          danger: true,
+          message: `Remove remote "${p.name}" (${p.url})? Branch tracking against it is dropped.`,
+        }
       case 'deleteBranch':
         return {
           title: p.force ? 'Delete branch (force)' : 'Delete branch',
@@ -443,6 +547,11 @@ export function createPromptHandlers(deps: {
     confirmPrompt,
     chooseInstallServer,
     chooseReviewKind,
+    chooseStash,
+    chooseStashAction,
+    chooseTagDelete,
+    chooseRemoteRemove,
+    chooseHistoryCommit,
     cancelPrompt,
     promptTitle,
     promptValue,
