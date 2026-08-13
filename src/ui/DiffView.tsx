@@ -121,6 +121,9 @@ function blend(color: string, base: string, amount: number): string {
  */
 export const HATCH = '╱'
 
+/** A row that holds a hatch bar and nothing else — a padded row, repaintable. */
+const onlyHatch = new RegExp(`^${HATCH}+$`)
+
 /** `[startOffset, endOffset, captureGroup]` in the pane document's coordinates. */
 type PaneHighlight = [number, number, string]
 
@@ -456,13 +459,19 @@ export function DiffView(props: DiffViewProps) {
       ['right', host.rightCodeRenderable],
     ] as const) {
       if (!code || code.isDestroyed) continue
-      // Before the first layout the pane has no width yet; half the pane's own
-      // columns overshoots by the gutter, which `wrapMode="none"` clips away.
-      const bar = HATCH.repeat(Math.max(1, code.width || Math.ceil(props.width / 2)))
+      // `code.width` is a layout behind — zero before the first pass, and the old
+      // size after a resize — and a bar cut to it keeps that length for the rest
+      // of the page's life, a row carrying one no longer being blank. So the bar
+      // is cut to the whole diff, which neither pane can exceed, and
+      // `wrapMode="none"` clips the overshoot away.
+      const bar = HATCH.repeat(Math.max(1, props.width))
       const lines = code.content.split('\n')
       let hatched = false
       refs[which].forEach((ref, row) => {
-        if (ref || lines[row] !== '') return
+        const line = lines[row]
+        // A bar left by a narrower pane is repainted; anything else is content.
+        if (ref || line === undefined || line === bar) return
+        if (line !== '' && !onlyHatch.test(line)) return
         lines[row] = bar
         hatched = true
       })

@@ -159,6 +159,35 @@ test('split view hatches the rows it pads a side with', async () => {
     .split('\n')
     .filter(line => line.includes(run))
   expect(hatched.length).toBeGreaterThanOrEqual(2)
+  // Right up to the other pane's gutter: a bar cut short reads as blank editor
+  // for the rest of the row.
+  for (const line of hatched) expect(line).toMatch(new RegExp(`${HATCH} +\\d+ \\+ `))
+})
+
+test('the hatch fills the pane again when the diff is given more columns', async () => {
+  // The pane's own width is a layout behind, so a bar cut to it is short by
+  // whatever the pane has just grown by — and a padded row is no longer blank,
+  // so nothing would ever repaint it.
+  const dir = repo({ 'a.ts': 'one\ntwo\nthree\n' })
+  writeFileSync(join(dir, 'a.ts'), 'one\nTWO\nthree\nfour\nfive\n')
+
+  const t = await launch(dir, { diffView: 'split' }, { width: 130 })
+  await openDiff(t)
+  await untilFrame(t, '+ five')
+  const run = HATCH.repeat(8)
+  await until(t, () => t.captureCharFrame().includes(run))
+  const width = (frame: string) =>
+    Math.max(...frame.split('\n').map(line => line.match(/╱+/)?.[0].length ?? 0))
+  const narrow = width(t.captureCharFrame())
+
+  // Hiding the sidebar hands the diff its columns, so each pane widens.
+  await press(t, i => i.pressKey('b', { ctrl: true }))
+  await until(t, () => width(t.captureCharFrame()) > narrow)
+  const hatched = t
+    .captureCharFrame()
+    .split('\n')
+    .filter(line => line.includes(run))
+  for (const line of hatched) expect(line).toMatch(new RegExp(`${HATCH} +\\d+ \\+ `))
 })
 
 test('the panel cursor pages the diff: ↓ to the next change, ↑ back', async () => {
