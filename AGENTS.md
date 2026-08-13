@@ -155,7 +155,9 @@ instead), the panel is the only way in, and the diff is a tab of its own in the 
 → Git → Show all changes (`a` in the panel) covers the editor slot with every change
 stacked as sections, Cursor's Changes page: a summary header and one block per file,
 always inline; while that page is up the panel's arrows scroll to the file under the
-cursor rather than replacing it with a one-file diff, and Esc closes it — a
+cursor rather than replacing it with a one-file diff (a file past the stacked-row cap
+is kept so that landing is not empty), the header says how many were left out, the
+page goes when the last change does, and Esc closes it — a
 comparison base that points marks, gutter, panel and diff at another branch instead of
 HEAD (palette → Git → Compare against branch…), branch comparison against the
 repository's default branch or any selected base (palette → Git → Compare branches, or

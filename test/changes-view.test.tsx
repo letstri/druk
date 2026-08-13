@@ -22,6 +22,8 @@ function repo(files: Record<string, string>) {
   return dir
 }
 
+const many = (tag: string) => `${Array.from({ length: 40 }, (_, i) => `${tag}${i}`).join('\n')}\n`
+
 test('Show all changes stacks every file in the editor slot', async () => {
   const dir = repo({ 'a.ts': 'alpha\n', 'b.ts': 'beta\n' })
   writeFileSync(join(dir, 'a.ts'), 'ALPHA\n')
@@ -122,4 +124,36 @@ test('Enter in the panel opens the file and closes the page', async () => {
   await press(t, i => i.pressEnter())
   await untilGone(t, 'Uncommitted')
   expect(t.captureCharFrame()).toContain('ALPHA')
+})
+
+test('opening the page scrolls to the file under the panel cursor', async () => {
+  const dir = repo({ 'a.ts': many('old'), 'b.ts': 'beta\n' })
+  writeFileSync(join(dir, 'a.ts'), many('new'))
+  writeFileSync(join(dir, 'b.ts'), 'BETA\n')
+
+  const t = await launch(dir, {}, { height: 24 })
+  await runCommand(t, 'Source control')
+  await untilFrame(t, 'b.ts')
+  // Heading or a.ts: two downs land on b.ts and stay there.
+  await press(t, i => i.pressArrow('down'))
+  await press(t, i => i.pressArrow('down'))
+  await press(t, i => i.pressKey('a'))
+  await untilFrame(t, 'Uncommitted')
+  await untilFrame(t, '+ BETA')
+  expect(t.captureCharFrame()).not.toContain('+ new0')
+})
+
+test('the page closes once nothing is left to show', async () => {
+  const dir = repo({ 'a.ts': 'alpha\n' })
+  writeFileSync(join(dir, 'a.ts'), 'ALPHA\n')
+
+  const t = await launch(dir, {}, { height: 40 })
+  await runCommand(t, 'Show all changes')
+  await untilFrame(t, 'Uncommitted')
+  await runCommand(t, 'Focus tree / editor')
+  await press(t, i => i.pressArrow('down'))
+  await press(t, i => void i.typeText('d'))
+  await untilFrame(t, 'Discard changes')
+  await press(t, i => i.pressEnter())
+  await untilGone(t, 'Uncommitted')
 })

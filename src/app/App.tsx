@@ -45,6 +45,7 @@ import { setTooltipsEnabled, useTooltipPeek } from '../ui/tooltip'
 import { TooltipLayer } from '../ui/TooltipLayer'
 import { createCommands } from './actions'
 import { createBranches } from './branches'
+import { slotKey } from './changeSections'
 import { createCommitView } from './commitView'
 import { createComparison } from './comparison'
 import type { AppContext } from './context'
@@ -237,7 +238,7 @@ export function App(props: {
 
   const changesFocusKey = () => {
     const row = git.rows()[git.gitCursor()]
-    return row?.kind === 'file' ? `${row.change.area}:${row.change.path}` : null
+    return row?.kind === 'file' ? slotKey(row.change.path, row.change.area) : null
   }
 
   const ctx: AppContext = {
@@ -288,14 +289,14 @@ export function App(props: {
 
   // `revision` covers saves, git commands and anything the watcher sees in .git;
   // `reloadKey` covers a buffer replaced from disk; `diffBase` covers the branch
-  // being compared against moving under it. `refreshDiff` rebuilds the stacked
-  // page and the one-file diff, and returns at once when neither is up.
-  //
-  // It reads `gitStatus`, which `wireGitEffects` fills from the same three — and
-  // does so first, since effects run in creation order and that call is above.
+  // being compared against moving under it. `statusEntries` is the async fill
+  // that `revision` only *starts* — a discard's bump would otherwise rebuild
+  // the stacked page from the list that still held the file.
+  // `refreshDiff` rebuilds the stacked page and the one-file diff, and returns
+  // at once when neither is up.
   createEffect(
     on(
-      () => [git.revision(), editor.reloadKey(), git.diffBase()] as const,
+      () => [git.revision(), editor.reloadKey(), git.diffBase(), git.statusEntries()] as const,
       () => {
         actions.refreshDiff()
         comparison.refresh()

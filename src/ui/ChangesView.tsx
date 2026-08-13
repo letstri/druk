@@ -29,8 +29,18 @@ export interface ChangeSection {
 export interface ChangesMeta {
   /** File rows the panel lists, including ones past the display cap. */
   total: number
+  /** +/- of the sections on screen — not of the files the cap left out. */
   adds: number
   dels: number
+}
+
+/** Header line: when the stack was cut, `+X −Y` is what is showing, not the whole change list. */
+export function changesSummary(title: string, shown: number, meta: ChangesMeta): string {
+  const counts = `+${meta.adds} −${meta.dels}`
+  if (meta.total > shown) {
+    return `${title} · showing ${shown} of ${meta.total} files · ${counts}`
+  }
+  return `${title} · ${meta.total} files · ${counts}`
 }
 
 export interface ChangesViewProps {
@@ -89,12 +99,27 @@ export function ChangesView(props: ChangesViewProps) {
 
   createEffect(
     on(
-      () => props.focusKey,
-      key => {
-        if (!key) return
+      // Membership, not identity: a refresh that reuses the same keys must not
+      // yank the scroll back. First open still fires — focusKey is set before
+      // the section refs exist, and a tick that misses has to try again.
+      () => `${props.focusKey ?? ''}\n${props.sections.map(s => s.key).join('\n')}`,
+      () => {
+        const key = props.focusKey
+        if (!key || !props.sections.some(s => s.key === key)) return
         clearTimeout(revealTimer)
-        // y is a layout pass behind; revealing on this tick would scroll to 0.
-        revealTimer = setTimeout(() => reveal(key), 0)
+        const tryReveal = () => {
+          const el = anchors.get(key)
+          const first = props.sections[0]?.key === key
+          // y stays 0 until layout; treating that as ready scrolled a later
+          // file to the top of the stack on first open.
+          const ready = el && box && el.height > 0 && (first || el.y > 0)
+          if (ready) {
+            reveal(key)
+            return
+          }
+          revealTimer = setTimeout(tryReveal, 16)
+        }
+        tryReveal()
       },
     ),
   )
@@ -115,12 +140,7 @@ export function ChangesView(props: ChangesViewProps) {
     key.preventDefault()
   })
 
-  const truncated = () => props.meta.total > props.sections.length
-  const summary = () => {
-    const counts = `${props.meta.total} files · +${props.meta.adds} −${props.meta.dels}`
-    const shown = truncated() ? ` · showing ${props.sections.length} of ${props.meta.total}` : ''
-    return `${props.title} · ${counts}${shown}`
-  }
+  const summary = () => changesSummary(props.title, props.sections.length, props.meta)
 
   const hints = () => {
     const full = ' ↑↓ scroll · Esc close '

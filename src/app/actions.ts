@@ -3,7 +3,6 @@ import { basename, dirname, relative } from 'node:path'
 import { createMemo, createSignal } from 'solid-js'
 
 import { ancestorDirs, changesFor, rowArea, rowRel } from '../core/changeTree'
-import { unifiedDiff } from '../core/diff'
 import { readFile } from '../core/fs'
 import type { TreeNode } from '../core/fs'
 import {
@@ -32,16 +31,14 @@ import { pathTokenAt, resolveImportPath } from '../core/imports'
 import { NOTE_LABELS } from '../core/review'
 import type { NoteKind } from '../core/review'
 import type { ChangeSection, ChangesMeta } from '../ui/ChangesView'
-import { DIFF_MAX_LINES } from '../ui/DiffView'
 import type { DiffFile } from '../ui/DiffView'
+import { slotKey, takeChangeSections } from './changeSections'
 import { buildCommands } from './commands'
 import type { Command } from './commands'
 import type { AppContext } from './context'
 import { noRepository, runCommit } from './git'
 import type { CommitVariant } from './git'
 import { problemFrom, problemsOn } from './lsp'
-
-const slotKey = (path: string, area: ChangeArea) => `${area}:${path}`
 
 /** Wire the palette's command tree to the controllers that carry the actions out. */
 export function createCommands(ctx: AppContext) {
@@ -189,72 +186,32 @@ export function createCommands(ctx: AppContext) {
     dels: 0,
   })
 
+  const cursorSlot = (): string | null => {
+    const row = git.rows()[git.gitCursor()]
+    return row?.kind === 'file' ? slotKey(row.change.path, row.change.area) : null
+  }
+
   /**
    * Every file row in panel order, as sections the all-changes page stacks.
    * Stops adding once the patches would exceed the per-page row cap — one
    * lockfile rewrite is enough to fill the slot, and the header says how many
-   * were left out. Previous section objects are reused when the texts have not
-   * moved, so the list does not remount every git revision.
+   * were left out. The file under the panel cursor is kept even past that cap:
+   * arrows that land on an omitted row would otherwise scroll nowhere.
    */
   const rebuildAllChanges = () => {
     const changes = git.changes()
     const prev = new Map(allChanges().map(section => [section.key, section]))
-    const sections: ChangeSection[] = []
-    const keep = new Set<string>()
-    let lines = 0
-    let adds = 0
-    let dels = 0
     // Panel order, but every file: a folded folder's files are not in `rows`
     // and this page is the one that shows them all.
     const ordered = (['merge', 'staged', 'unstaged'] as const).flatMap(area =>
       changes.filter(entry => entry.area === area),
     )
-    for (const change of ordered) {
-      const key = slotKey(change.path, change.area)
-      if (lines >= DIFF_MAX_LINES && sections.length > 0) break
-      const file = diffFileFor(change.path, change.status, change.area)
-      const last = prev.get(key)
-      if (
-        last &&
-        ((file === null && last.file === null) ||
-          (file !== null &&
-            last.file !== null &&
-            last.file.oldText === file.oldText &&
-            last.file.newText === file.newText))
-      ) {
-        if (lines + last.lines > DIFF_MAX_LINES && sections.length > 0) break
-        lines += last.lines
-        adds += last.adds
-        dels += last.dels
-        sections.push(last)
-        keep.add(key)
-        continue
-      }
-      let patchLines = 0
-      let patchAdds = 0
-      let patchDels = 0
-      if (file) {
-        const patch = unifiedDiff(file.rel, file.oldText, file.newText, DIFF_MAX_LINES)
-        if (lines + patch.lines > DIFF_MAX_LINES && sections.length > 0) break
-        patchLines = patch.lines
-        patchAdds = patch.adds
-        patchDels = patch.dels
-      }
-      lines += patchLines
-      adds += patchAdds
-      dels += patchDels
-      sections.push({
-        key,
-        rel: change.rel,
-        area: change.area,
-        status: change.status,
-        file,
-        lines: patchLines,
-        adds: patchAdds,
-        dels: patchDels,
-      })
-      keep.add(key)
-    }
+    const { sections, adds, dels, keep } = takeChangeSections(
+      ordered,
+      change => diffFileFor(change.path, change.status, change.area),
+      prev,
+      cursorSlot(),
+    )
     setAllChanges(sections)
     setAllChangesMeta({ total: changes.length, adds, dels })
     for (const cached of diffFileCache.keys()) {
@@ -281,7 +238,8 @@ export function createCommands(ctx: AppContext) {
   }
 
   /**
-   * Move the panel's cursor to `row`, diffing it if it is a file. The only way
+   * Move the panel's cursor to `row`, diffing it if it is a file — or, on the
+   * all-changes page, rebuilding the stack when that file was past the row cap.
    * the cursor moves, so the page and the cursor cannot disagree about which
    * change is on screen. A folder or heading row leaves the page as it was:
    * folding is what `gitActivateRow` is for, and a mere pass must not fold one.
@@ -292,9 +250,13 @@ export function createCommands(ctx: AppContext) {
     const target = rows[at]
     if (!target) return
     git.setGitCursor(at)
-    if (target.kind === 'file' && workspace.page() !== 'allChanges') {
+    if (target.kind !== 'file') return
+    if (workspace.page() !== 'allChanges') {
       showDiff(target.change.path, target.change.area)
+      return
     }
+    const key = slotKey(target.change.path, target.change.area)
+    if (!allChanges().some(section => section.key === key)) rebuildAllChanges()
   }
 
   /**
@@ -784,7 +746,14 @@ export function createCommands(ctx: AppContext) {
      * palette command: `App` runs it whenever git or a buffer moves.
      */
     refreshDiff: () => {
-      if (workspace.page() === 'allChanges') rebuildAllChanges()
+      if (workspace.page() === 'allChanges') {
+        // Opening an empty page from the palette still explains itself; a
+        // commit, stash or discard that cleared the last change should not
+        // leave that message covering the editor.
+        const had = allChangesMeta().total > 0
+        rebuildAllChanges()
+        if (had && git.changes().length === 0) workspace.setPage(null)
+      }
       const shown = workspace.diff()?.path
       if (!shown) return
       // The page belongs to a row in the panel: once the change is committed,

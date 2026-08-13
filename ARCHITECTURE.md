@@ -701,7 +701,9 @@ is just a diff against the empty tree.
   while the panel keeps the focus. **Show all changes** (`git.diffAll`, `a` in the
   panel) is the other reading surface: a stacked page over the editor slot. While
   it is up the panel's arrows move the cursor and scroll to that file's section
-  instead of replacing the page with a one-file diff.
+  instead of replacing the page with a one-file diff — a file past the stacked-row
+  cap is still built so that landing is not empty, and a refresh that leaves
+  nothing to show closes the page.
 - **A row's heading is part of what it means.** `Staged Changes` and `Changes` are not two
   views of one list: a half-staged path is a `Change` under each, distinguished only by
   `area`, and everything downstream has to carry it — the fold key (`foldKey`), the diff
