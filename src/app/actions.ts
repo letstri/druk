@@ -383,6 +383,8 @@ export function createCommands(ctx: AppContext) {
   const openCommitRow = (oid: string) => {
     const repo = git.activeRepo()
     if (repo === null) return say(noRepository(git), 'warn')
+    // The page sits above this one; leaving it up would hide the commit.
+    workspace.setPage(null)
     ctx.commitView.open(repo, oid)
   }
 

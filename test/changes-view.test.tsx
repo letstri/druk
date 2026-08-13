@@ -4,7 +4,15 @@ import { mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
-import { launch, press, pressEscape, runCommand, untilFrame, untilGone } from './helpers'
+import {
+  launch,
+  press,
+  pressEscape,
+  pressTimes,
+  runCommand,
+  untilFrame,
+  untilGone,
+} from './helpers'
 
 /** A real repository with committed files. */
 function repo(files: Record<string, string>) {
@@ -110,6 +118,45 @@ test('a path staged and then edited is two sections', async () => {
   expect(frame).toContain('staged')
   expect(frame).toContain('+ BETA')
   expect(frame).toContain('+ GAMMA')
+})
+
+test('Enter on an Incoming commit closes the page so the commit is visible', async () => {
+  const base = mkdtempSync(join(tmpdir(), 'druk-changes-sync-'))
+  const origin = join(base, 'origin.git')
+  execFileSync('git', ['init', '-q', '--bare', '-b', 'main', origin])
+  const mine = join(base, 'mine')
+  execFileSync('git', ['clone', '-q', origin, mine])
+  const git = (...args: string[]) => execFileSync('git', args, { cwd: mine })
+  git('config', 'user.email', 'test@example.com')
+  git('config', 'user.name', 'Test')
+  git('config', 'commit.gpgsign', 'false')
+  writeFileSync(join(mine, 'a.ts'), 'const a = 1\n')
+  git('add', '.')
+  git('commit', '-qm', 'first')
+  git('push', '-q', '-u', 'origin', 'main')
+
+  const theirs = join(base, 'theirs')
+  execFileSync('git', ['clone', '-q', origin, theirs])
+  execFileSync('git', ['config', 'user.email', 'theirs@example.com'], { cwd: theirs })
+  execFileSync('git', ['config', 'user.name', 'Theirs'], { cwd: theirs })
+  execFileSync('git', ['config', 'commit.gpgsign', 'false'], { cwd: theirs })
+  writeFileSync(join(theirs, 'remote.ts'), 'const r = 1\n')
+  execFileSync('git', ['add', '.'], { cwd: theirs })
+  execFileSync('git', ['commit', '-qm', 'from elsewhere'], { cwd: theirs })
+  execFileSync('git', ['push', '-q'], { cwd: theirs })
+  git('fetch', '-q')
+  writeFileSync(join(mine, 'a.ts'), 'dirty\n')
+
+  const t = await launch(mine, {}, { height: 40 })
+  await runCommand(t, 'Show all changes')
+  await untilFrame(t, 'Uncommitted')
+  await untilFrame(t, 'from elsewhere')
+  // Changes heading, the dirty file, Incoming, then the commit.
+  await pressTimes(t, 8, i => i.pressArrow('up'))
+  await pressTimes(t, 3, i => i.pressArrow('down'))
+  await press(t, i => i.pressEnter())
+  await untilGone(t, 'Uncommitted')
+  await untilFrame(t, 'const r = 1')
 })
 
 test('Enter in the panel opens the file and closes the page', async () => {

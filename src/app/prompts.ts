@@ -239,6 +239,8 @@ export function createPromptHandlers(deps: {
     const p = prompt()
     setPrompt(null)
     if (p?.kind !== 'fileHistory') return
+    // The page sits above this one; leaving it up would hide the commit.
+    workspace.setPage(null)
     commitView.open(p.repo, oid)
   }
 
