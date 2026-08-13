@@ -154,10 +154,14 @@ instead), the panel is the only way in, and the diff is a tab of its own in the 
 (`⇄ name`), so opening a file switches away from it instead of leaving it on top — palette
 → Git → Show all changes (`a` in the panel) covers the editor slot with every change
 stacked as sections, Cursor's Changes page: a summary header and one block per file,
-always inline; while that page is up the panel's arrows scroll to the file under the
-cursor rather than replacing it with a one-file diff (a file past the stacked-row cap
-is kept so that landing is not empty), the header says how many were left out, the
-page goes when the last change does, and Esc closes it — a
+always inline, a rule between files and a two-row header (path, then +/− and whether
+it is new/deleted/renamed) that sticks to the top of the scroll until the next file's
+header pushes it off; Tab into the page lights the current file's header (accent
+edges), Tab / Shift+Tab walk the headers, and a click or ←/→ folds that one; while
+that page is up the panel's arrows scroll to the file under the cursor rather than
+replacing it with a one-file diff (a file past the stacked-row cap is kept so that
+landing is not empty), the header says how many were left out, the page goes when the
+last change does, and Esc closes it — a
 comparison base that points marks, gutter, panel and diff at another branch instead of
 HEAD (palette → Git → Compare against branch…), branch comparison against the
 repository's default branch or any selected base (palette → Git → Compare branches, or

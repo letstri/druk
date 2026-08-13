@@ -699,11 +699,15 @@ is just a diff against the empty tree.
   Inside the page the arrows scroll and Tab toggles the layout — the panel and the
   page each own their arrows, so neither needs a chord, and that split only holds
   while the panel keeps the focus. **Show all changes** (`git.diffAll`, `a` in the
-  panel) is the other reading surface: a stacked page over the editor slot. While
-  it is up the panel's arrows move the cursor and scroll to that file's section
-  instead of replacing the page with a one-file diff — a file past the stacked-row
-  cap is still built so that landing is not empty, and a refresh that leaves
-  nothing to show closes the page.
+  panel) is the other reading surface: a stacked page over the editor slot, each
+  file a two-row header (path, then +/− and new/deleted/renamed) over its patch,
+  with a rule between files. The header sticks to the top of the scroll until the
+  next file pushes it off. Tab into the page lights the current file (accent
+  edges on the header); Tab / Shift+Tab walk the files, and a click or ←/→ folds
+  the lit one. While it is up the panel's arrows move the cursor and scroll to
+  that file's section instead of replacing the page with a one-file diff — a file
+  past the stacked-row cap is still built so that landing is not empty, and a
+  refresh that leaves nothing to show closes the page.
 - **A row's heading is part of what it means.** `Staged Changes` and `Changes` are not two
   views of one list: a half-staged path is a `Change` under each, distinguished only by
   `area`, and everything downstream has to carry it — the fold key (`foldKey`), the diff

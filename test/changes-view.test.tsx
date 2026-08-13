@@ -223,3 +223,80 @@ test('after the list shrinks the page still follows the highlighted file', async
   await untilFrame(t, '+ BETA')
   expect(t.captureCharFrame()).not.toContain('+ new0')
 })
+
+test('a file header names the path above the patch and leaves a gap', async () => {
+  const dir = repo({ 'a.ts': 'alpha\n', 'b.ts': 'beta\n' })
+  writeFileSync(join(dir, 'a.ts'), 'ALPHA\n')
+  writeFileSync(join(dir, 'b.ts'), 'BETA\n')
+
+  const t = await launch(dir, {}, { height: 40 })
+  await runCommand(t, 'Show all changes')
+  await untilFrame(t, '+ ALPHA')
+
+  const lines = t.captureCharFrame().split('\n')
+  const header = lines.findIndex(row => row.includes('▾') && row.includes('a.ts'))
+  const patch = lines.findIndex(row => row.includes('+ ALPHA'))
+  expect(header).toBeGreaterThanOrEqual(0)
+  expect(patch).toBeGreaterThan(header + 1)
+  expect(t.captureCharFrame()).toContain('b.ts')
+})
+
+test('← folds a file to its header and → opens it again', async () => {
+  const dir = repo({ 'a.ts': 'alpha\n' })
+  writeFileSync(join(dir, 'a.ts'), 'ALPHA\n')
+
+  const t = await launch(dir, {}, { height: 40 })
+  await runCommand(t, 'Show all changes')
+  await untilFrame(t, '+ ALPHA')
+  await press(t, i => i.pressTab())
+  await press(t, i => i.pressKey('h'))
+  await untilGone(t, '+ ALPHA')
+  expect(t.captureCharFrame()).toContain('▸')
+  expect(t.captureCharFrame()).toContain('a.ts')
+  await press(t, i => i.pressKey('l'))
+  await untilFrame(t, '+ ALPHA')
+  expect(t.captureCharFrame()).toContain('▾')
+})
+
+test('Tab and Shift+Tab walk the file headers that ← folds', async () => {
+  const dir = repo({ 'a.ts': 'alpha\n', 'b.ts': 'beta\n' })
+  writeFileSync(join(dir, 'a.ts'), 'ALPHA\n')
+  writeFileSync(join(dir, 'b.ts'), 'BETA\n')
+
+  const t = await launch(dir, {}, { height: 40 })
+  await runCommand(t, 'Show all changes')
+  await untilFrame(t, '+ ALPHA')
+  await press(t, i => i.pressTab())
+  await press(t, i => i.pressTab())
+  await press(t, i => i.pressKey('h'))
+  await untilGone(t, '+ BETA')
+  expect(t.captureCharFrame()).toContain('+ ALPHA')
+  await press(t, i => i.pressTab({ shift: true }))
+  await press(t, i => i.pressKey('h'))
+  await untilGone(t, '+ ALPHA')
+})
+
+test('an added file is labelled new', async () => {
+  const dir = repo({ 'a.ts': 'alpha\n' })
+  writeFileSync(join(dir, 'fresh.ts'), 'hello\n')
+
+  const t = await launch(dir, {}, { height: 40 })
+  await runCommand(t, 'Show all changes')
+  await untilFrame(t, 'fresh.ts')
+  expect(t.captureCharFrame()).toContain('new')
+})
+
+test('a scrolled file keeps its header at the top of the page', async () => {
+  const dir = repo({ 'a.ts': many('old'), 'b.ts': 'beta\n' })
+  writeFileSync(join(dir, 'a.ts'), many('new'))
+  writeFileSync(join(dir, 'b.ts'), 'BETA\n')
+
+  const t = await launch(dir, {}, { height: 24 })
+  await runCommand(t, 'Show all changes')
+  await untilFrame(t, '▾ M a.ts')
+  // The panel keeps the keyboard: downs land on b.ts and scroll it into view,
+  // which is past a.ts's own header. The sticky overlay is what keeps it.
+  await pressTimes(t, 3, i => i.pressArrow('down'))
+  await untilFrame(t, '+ BETA')
+  expect(t.captureCharFrame()).toContain('▾ M a.ts')
+})

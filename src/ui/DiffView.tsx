@@ -38,8 +38,9 @@ export interface DiffViewProps {
   mode: DiffMode
   /**
    * `page` fills the editor slot and owns keys. `section` is one file in the
-   * all-changes scroll: as tall as its patch, always inline, silent on the
-   * keyboard — the parent scrolls and closes.
+   * all-changes scroll: as tall as its patch, always inline, no header (the
+   * parent draws those so they can stick and fold), silent on the keyboard —
+   * the parent scrolls and closes.
    */
   variant?: 'page' | 'section'
   /** Extra header token — `staged` when the same path also sits unstaged. */
@@ -94,8 +95,23 @@ export function diffMark(status: DiffFileStatus): string {
   return MARKS[status]
 }
 
+/** Right-edge word on a stacked file header — modified has the mark and no word. */
+export function diffStatusLabel(status: DiffFileStatus): string | undefined {
+  if (status === 'added' || status === 'untracked') return 'new'
+  if (status === 'deleted') return 'deleted'
+  if (status === 'renamed') return 'renamed'
+  if (status === 'copied') return 'copied'
+  if (status === 'typeChanged') return 'type'
+  return undefined
+}
+
 export function diffStatusColor(status: DiffFileStatus): string {
-  if (status === 'added' || status === 'deleted' || status === 'modified') {
+  if (
+    status === 'added' ||
+    status === 'untracked' ||
+    status === 'deleted' ||
+    status === 'modified'
+  ) {
     return statusColor(status)
   }
   return statusColor('modified')
@@ -617,21 +633,24 @@ export function DiffView(props: DiffViewProps) {
       backgroundColor={ui.solidBg}
       onMouseDown={() => props.onFocus()}
     >
-      {/* Pinned: the pane below measures as tall as the whole patch, and yoga
-          would otherwise shrink this row to nothing on a diff of thousands of
-          lines — the spans inside are already flexShrink={0}, which only stops
-          them being cut, not their row being crushed. */}
-      <box flexDirection="row" flexShrink={0} backgroundColor={ui.solidBarBg}>
-        <text
-          wrapMode="none"
-          fg={diffStatusColor(props.file.status)}
-          bg={ui.solidBarBg}
-          flexShrink={0}
-          content={header()}
-        />
-        <box flexGrow={1} backgroundColor={ui.solidBarBg} />
-        <text wrapMode="none" fg={ui.dim} bg={ui.solidBarBg} flexShrink={0} content={hints()} />
-      </box>
+      {/* The stacked page draws its own file header (sticky, foldable). Pinned
+          here for the one-file page: the pane below measures as tall as the
+          whole patch, and yoga would otherwise shrink this row to nothing —
+          the spans inside are already flexShrink={0}, which only stops them
+          being cut, not their row being crushed. */}
+      <Show when={!section()}>
+        <box flexDirection="row" flexShrink={0} backgroundColor={ui.solidBarBg}>
+          <text
+            wrapMode="none"
+            fg={diffStatusColor(props.file.status)}
+            bg={ui.solidBarBg}
+            flexShrink={0}
+            content={header()}
+          />
+          <box flexGrow={1} backgroundColor={ui.solidBarBg} />
+          <text wrapMode="none" fg={ui.dim} bg={ui.solidBarBg} flexShrink={0} content={hints()} />
+        </box>
+      </Show>
 
       <Show
         when={diff().patch !== '' && client() !== undefined}

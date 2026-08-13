@@ -3,7 +3,8 @@ import { expect, test } from 'bun:test'
 import { slotKey, takeChangeSections } from '../src/app/changeSections'
 import type { Change } from '../src/core/changeTree'
 import { unifiedDiff } from '../src/core/diff'
-import { changesSummary } from '../src/ui/ChangesView'
+import { changesSummary, stickyHeader } from '../src/ui/ChangesView'
+import { diffStatusLabel } from '../src/ui/DiffView'
 import type { DiffFile } from '../src/ui/DiffView'
 
 const change = (rel: string): Change => ({
@@ -88,4 +89,23 @@ test('a binary or empty patch still costs a row toward the cap', () => {
     'a.ts',
     'b.ts',
   ])
+})
+
+test('stickyHeader pins a header once it has scrolled off, and the next one pushes it', () => {
+  const ys = [1, 20, 40]
+  expect(stickyHeader(0, ys)).toBeNull()
+  expect(stickyHeader(1, ys)).toBeNull()
+  expect(stickyHeader(2, ys)).toEqual({ index: 0, clipped: 0 })
+  expect(stickyHeader(18, ys)).toEqual({ index: 0, clipped: 0 })
+  expect(stickyHeader(19, ys)).toEqual({ index: 0, clipped: 1 })
+  expect(stickyHeader(20, ys)).toBeNull()
+  expect(stickyHeader(21, ys)).toEqual({ index: 1, clipped: 0 })
+})
+
+test('diffStatusLabel names added and deleted files and leaves modified quiet', () => {
+  expect(diffStatusLabel('added')).toBe('new')
+  expect(diffStatusLabel('untracked')).toBe('new')
+  expect(diffStatusLabel('deleted')).toBe('deleted')
+  expect(diffStatusLabel('renamed')).toBe('renamed')
+  expect(diffStatusLabel('modified')).toBeUndefined()
 })

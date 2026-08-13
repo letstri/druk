@@ -25,11 +25,13 @@ const sectionFor = (
   let patchLines = 0
   let patchAdds = 0
   let patchDels = 0
+  let truncated = false
   if (file) {
     const patch = unifiedDiff(file.rel, file.oldText, file.newText, DIFF_MAX_LINES)
     patchLines = patch.lines
     patchAdds = patch.adds
     patchDels = patch.dels
+    truncated = patch.truncated
   }
   return {
     key: slotKey(change.path, change.area),
@@ -40,6 +42,7 @@ const sectionFor = (
     lines: patchLines,
     adds: patchAdds,
     dels: patchDels,
+    truncated,
   }
 }
 

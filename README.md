@@ -208,8 +208,10 @@ files. Work you do in another terminal shows up without a restart.
 changed files under the branch name. `↑↓` walks the changes and the diff for the one
 under the cursor opens beside the panel — that is the way to read a single file, and
 the way to move between them. `a` (or *Git → Show all changes*) stacks every file in
-one scroll over the editor instead. `Tab` steps into the page (`Tab` again lays a
-one-file diff out side by side, `Esc` closes it), `c` commits (pick the files, type
+one scroll over the editor instead: each file has a header that sticks while you
+scroll, names whether it is new or deleted, and folds on a click or `←`. `Tab`
+steps into that page (`Tab` / `Shift+Tab` walk the file headers, `Esc` closes it).
+On a one-file diff `Tab` lays it out side by side. `c` commits (pick the files, type
 the message), `d` discards the selected file after confirmation (*Git → Discard
 changes* does the same), `p` pushes, `b` switches branch, and `Esc` puts the file
 tree back. *Git → Diff current file* in the palette opens the panel on the file you
