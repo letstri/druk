@@ -237,7 +237,7 @@ export function App(props: {
     preview.target() !== null
 
   const changesFocusKey = () => {
-    const row = git.rows()[git.gitCursor()]
+    const row = git.cursorRow()
     return row?.kind === 'file' ? slotKey(row.change.path, row.change.area) : null
   }
 

@@ -151,14 +151,24 @@ export function createGit(
     ...(staging() ? commitRows(syncCommits().incoming, syncCommits().outgoing, collapsed()) : []),
   ])
 
+  /**
+   * The row the panel is highlighting. The stored index is not rewritten when
+   * the list shrinks (a commit, discard or fold), so a raw `rows()[gitCursor()]`
+   * would miss the last row the panel still paints.
+   */
+  const cursorRow = () => {
+    const list = rows()
+    if (list.length === 0) return undefined
+    return list[Math.max(0, Math.min(gitCursor(), list.length - 1))]
+  }
+
   /** Which repository a path belongs to — the innermost, so a nested one wins. */
   const repoFor = (path: string) => repoOf(path, repos())
 
   /** The repository the source-control panel's cursor is in, when it is showing. */
   const cursorRepo = createMemo(() => {
     if (!panelShowing()) return null
-    const at = gitCursor()
-    const row = rows()[Math.max(0, Math.min(at, rows().length - 1))]
+    const row = cursorRow()
     if (!row) return null
     // A heading is about no path in particular, so it says nothing about which
     // repository is meant and the open file answers instead — and a sync row is
@@ -254,6 +264,7 @@ export function createGit(
     setDiffBase,
     changes,
     rows,
+    cursorRow,
     collapsed,
     toggleCollapsed,
     collapseAll,

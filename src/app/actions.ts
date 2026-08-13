@@ -187,7 +187,7 @@ export function createCommands(ctx: AppContext) {
   })
 
   const cursorSlot = (): string | null => {
-    const row = git.rows()[git.gitCursor()]
+    const row = git.cursorRow()
     return row?.kind === 'file' ? slotKey(row.change.path, row.change.area) : null
   }
 
@@ -266,7 +266,7 @@ export function createCommands(ctx: AppContext) {
    * throw a diff over whatever page is up for a mere fold.
    */
   const gitCollapseAll = () => {
-    const row = git.rows()[git.gitCursor()]
+    const row = git.cursorRow()
     const rel = row ? rowRel(row) : null
     const area = row ? rowArea(row) : null
     git.collapseAll()
@@ -287,7 +287,7 @@ export function createCommands(ctx: AppContext) {
     if (comparison.active()) return say('Staging is unavailable while comparing branches', 'warn')
     if (!git.staging())
       return say('Staging compares against HEAD — reset the comparison base', 'warn')
-    const row = git.rows()[at ?? git.gitCursor()]
+    const row = at != null ? git.rows()[at] : git.cursorRow()
     if (!row) return say('Nothing to stage', 'warn')
     const area = rowArea(row)
     const targets = changesFor(git.changes(), row)
@@ -333,7 +333,7 @@ export function createCommands(ctx: AppContext) {
     if (panes.view() !== 'git') {
       return say('Open the Git panel and select a changed file', 'warn')
     }
-    const row = git.rows()[git.gitCursor()]
+    const row = git.cursorRow()
     if (row && row.kind !== 'file') return say('Select a changed file, not a folder', 'warn')
     const path = row?.kind === 'file' ? row.change.path : null
     const repo = path ? git.repoFor(path) : null
@@ -686,9 +686,9 @@ export function createCommands(ctx: AppContext) {
      * until an arrow was pressed.
      */
     gitLandOnFile: () => {
-      const rows = git.rows()
-      if (rows[git.gitCursor()]?.kind === 'file') return
-      const at = rows.findIndex(row => row.kind === 'file')
+      const row = git.cursorRow()
+      if (row?.kind === 'file') return
+      const at = git.rows().findIndex(entry => entry.kind === 'file')
       // The cursor alone, not `gitMoveTo`: opening the panel is not a landing,
       // and throwing a diff over the editor for merely showing the sidebar is
       // not what the panel has ever done.
@@ -761,7 +761,7 @@ export function createCommands(ctx: AppContext) {
       // stashed or reverted the row is gone, and so is the page it opened.
       // Which heading's row it was is the cursor's, so staging the file it shows
       // moves the page to the staged side rather than closing it.
-      const row = git.rows()[git.gitCursor()]
+      const row = git.cursorRow()
       const area = row?.kind === 'file' && row.change.path === shown ? row.change.area : 'unstaged'
       const entry = git.statusEntries().get(shown)
       const fileStatus = area === 'staged' ? entry?.staged : entry?.unstaged
