@@ -154,6 +154,31 @@ test('an installed extension with a newer version in the market is reported at s
   await untilFrame(t, 'Go 1.1.0 is out')
 })
 
+test('a built-in is never an update, however new the market copy', async () => {
+  // typescript ships inside the binary and updates with druk itself, so a newer
+  // catalog version of it must not count as an extension update.
+  catalog = {
+    extensions: [
+      {
+        id: 'typescript',
+        name: 'TypeScript',
+        version: '9.9.9',
+        description: 'TypeScript and friends',
+        provides: { themes: [], icons: [], filetypes: ['typescript'] },
+      },
+    ],
+  }
+  const dir = fixture({ 'a.ts': 'const a = 1\n' })
+  const t = await launch(dir, { extensionUpdates: true })
+
+  await runCommand(t, 'Check for extension updates')
+  await untilFrame(t, 'Extension market: 1 extension')
+  // The second pass is the assertion: with a catalog already in hand it answers
+  // about updates, and "1 extension update available" is the failure this pins.
+  await runCommand(t, 'Check for extension updates')
+  await untilFrame(t, 'Every extension is up to date')
+})
+
 test('the market is not touched when the setting is off', async () => {
   const dir = fixture({ 'main.go': 'package main\n' })
   const t = await launch(dir, { lsp: true, extensionUpdates: false }, {}, { checkUpdates: true })

@@ -74,8 +74,12 @@ export function createMarket(deps: {
   const entry = (id: string): MarketEntry | undefined =>
     catalog().find(extension => extension.id === id)
 
+  // Market copies only: a built-in is part of the binary and updates with druk
+  // itself, so the market must never offer it one.
   const installedVersions = () =>
-    extensions().map(extension => ({ id: extension.id, version: extension.version }))
+    extensions()
+      .filter(extension => !extension.builtin)
+      .map(extension => ({ id: extension.id, version: extension.version }))
 
   /** Installed extensions the market has a newer version of. */
   const updates = createMemo(() => updatesFor(installedVersions(), catalog(), isNewer))

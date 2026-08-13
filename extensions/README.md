@@ -165,8 +165,10 @@ update and `1.0.0` re-published is not.
 A few of these ship inside the binary, so a fresh druk highlights code with no
 network: typescript, json, markdown, html, css, yaml and toml. The list is
 `src/extensions/builtin.ts`, and a preinstalled extension may carry no assets — it is
-parsed without a folder, so a relative path would resolve to nothing. Installing
-the market's copy of one replaces the built-in, which is how it gets an update.
+parsed without a folder, so a relative path would resolve to nothing. A preinstalled
+extension updates with druk itself: the market never offers it an update, and a copy
+of its id in an extensions folder is skipped and reported rather than loaded. Bumping
+one's `version` therefore only reaches users through a druk release.
 
 ## Testing yours before it is merged
 

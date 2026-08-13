@@ -322,9 +322,11 @@ Five things hold it together:
   means the registry served something other than what was reviewed.
 - **Some of it ships inside the binary.** [`src/extensions/builtin.ts`](src/extensions/builtin.ts)
   imports a handful of the same manifests as JSON, so a first run highlights the
-  languages most projects open with no network at all. A built-in is an ordinary
-  extension otherwise — listed, disableable, and replaced outright by a copy of the
-  same id on disk, which is how the market updates one. The static imports are
+  languages most projects open with no network at all. A built-in is listed and
+  disableable like any other extension, but it is part of the binary and updates
+  with druk itself: the market never offers it an update, and a disk copy of the
+  same id is skipped and reported rather than loaded — a stale copy would otherwise
+  pin the extension through every druk update. The static imports are
   load-bearing: a computed path resolves to nothing in the compiled binary, so the
   preinstalled set is spelled out rather than globbed.
 - **The catalog is cached and best-effort.** `$XDG_CACHE_HOME/druk/market.json`,
