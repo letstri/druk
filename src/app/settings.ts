@@ -15,8 +15,6 @@ import {
   SIDEBAR_MAX,
 } from '../core/config'
 import type { Config, ConfigScope, SidebarPosition } from '../core/config'
-import { FORGE_KINDS } from '../core/forge'
-import type { ForgeSetting } from '../core/forge'
 import { FILE_TOKEN } from '../core/format'
 import { bindingProblem, formatChord, parseChord } from '../core/keybindings'
 import { MARKET_URL } from '../core/market'
@@ -38,9 +36,6 @@ import type { Status } from './status'
 const EDITOR_MIN = 20
 
 const TAB_SIZES = [2, 4, 8]
-
-/** What `reviewForge` may be set to, in the order the row steps through them. */
-const FORGE_SETTINGS: ForgeSetting[] = ['auto', ...FORGE_KINDS]
 
 /** Levels the repository scan may look down; 0 is "the opened folder only". */
 const SCAN_DEPTHS = [0, 1, 2, 3, 4, 5]
@@ -498,24 +493,6 @@ export function createSettings(deps: {
     status.say(`Auto-save ${onOff(config.autoSaveOnBlur)}`)
   }
 
-  const applyReviewForge = (forge: ForgeSetting) => {
-    patchConfig({ reviewForge: forge })
-    status.say(
-      forge === 'auto' ? "Forge: read off the remote's host" : `Forge: ${forge} whatever the host`,
-    )
-  }
-
-  const applyReviewRemote = (value: string) => {
-    const remote = value.trim() || 'origin'
-    patchConfig({ reviewRemote: remote })
-    status.say(`Pull requests read from "${remote}"`)
-  }
-
-  const toggleReviewAutoFetch = () => {
-    patchConfig({ reviewAutoFetch: !view().reviewAutoFetch })
-    status.say(`Fetching on open ${onOff(config.reviewAutoFetch)}`)
-  }
-
   const toggleReviewInline = () => {
     patchConfig({ reviewInline: !view().reviewInline })
     status.say(`Inline review notes ${onOff(config.reviewInline)}`)
@@ -864,39 +841,6 @@ export function createSettings(deps: {
     },
     {
       section: 'Review',
-      key: 'reviewForge',
-      label: 'Pull requests come from',
-      value: view().reviewForge,
-      cycle: dir => applyReviewForge(step(FORGE_SETTINGS, view().reviewForge, dir)),
-      select: {
-        options: [...FORGE_SETTINGS],
-        pick: at => applyReviewForge(FORGE_SETTINGS[at]!),
-      },
-    },
-    {
-      // Free text: a remote is a name only this repository knows, and the only
-      // answers that matter are `origin` and whatever a fork workflow calls it.
-      section: 'Review',
-      key: 'reviewRemote',
-      label: 'Remote to ask',
-      value: view().reviewRemote,
-      cycle: () => status.say('Enter sets the remote name'),
-      edit: {
-        title: 'Remote to ask for pull requests',
-        fields: [{ initial: view().reviewRemote, placeholder: 'origin' }],
-        hint: ['A git remote name — its URL says which forge', 'Empty: origin'],
-        apply: values => applyReviewRemote(values[0] ?? ''),
-      },
-    },
-    {
-      section: 'Review',
-      key: 'reviewAutoFetch',
-      label: 'Fetch comments on open',
-      value: onOff(view().reviewAutoFetch),
-      cycle: toggleReviewAutoFetch,
-    },
-    {
-      section: 'Review',
       key: 'reviewInline',
       label: 'Inline review notes',
       value: onOff(view().reviewInline),
@@ -1069,8 +1013,6 @@ export function createSettings(deps: {
     toggleGitPanelView,
     toggleDotfiles,
     toggleGitignored,
-    applyReviewForge,
-    applyReviewRemote,
     toggleReviewInline,
     toggleLsp,
     toggleLspInline,

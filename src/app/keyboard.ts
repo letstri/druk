@@ -91,7 +91,6 @@ export function installKeyboard(ctx: AppContext, actions: CommandActions) {
     'view.review': panes.toggleReviewView,
     'view.extensions': panes.toggleExtensionsView,
     'review.note': actions.reviewNote,
-    'review.fetch': actions.reviewFetch,
     'view.collapse': actions.collapseSidebar,
     'view.markdown': workspace.toggleRendered,
     'view.wrap': actions.toggleWrap,
@@ -308,8 +307,8 @@ export function installKeyboard(ctx: AppContext, actions: CommandActions) {
         case 'delete':
           review.remove()
           break
-        case 'f':
-          actions.reviewFetch()
+        case 'r':
+          actions.reviewReply()
           break
         case 'escape':
           panes.toggleReviewView()

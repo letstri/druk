@@ -113,7 +113,7 @@ export interface CommandActions {
   openReview: () => void
   reviewNote: () => void
   reviewNoteOf: (kind: NoteKind) => void
-  reviewFetch: () => void
+  reviewReply: () => void
   reviewClear: () => void
   /** Not commands: the review panel's cursor, moved and pressed. */
   reviewMoveTo: (row: number) => void
@@ -295,9 +295,9 @@ export function buildCommands(actions: CommandActions, ctx: CommandContext): Com
           run: () => actions.reviewNoteOf(kind),
         })),
         {
-          id: 'review.fetch',
-          label: 'Fetch pull request comments',
-          run: actions.reviewFetch,
+          id: 'review.reply',
+          label: 'Reply to the remark under the cursor…',
+          run: actions.reviewReply,
         },
         { id: 'review.clear', label: 'Clear review notes', run: actions.reviewClear },
       ],

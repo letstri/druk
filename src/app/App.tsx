@@ -171,14 +171,8 @@ export function App(props: {
   const fileOps = createFileOps({ rootDir, status, tree, workspace, renderer })
   const gitOp = createGitOp({ git, status, workspace })
   const branches = createBranches({ status, git, gitOp, prompts: promptState })
-  const review = createReview({
-    rootDir,
-    status,
-    settings,
-    workspace,
-    git,
-    panes,
-  })
+  const commitView = createCommitView({ status })
+  const review = createReview({ rootDir, status, workspace })
   const promptHandlers = createPromptHandlers({
     renderer,
     state: promptState,
@@ -471,28 +465,16 @@ export function App(props: {
     ),
   )
 
-  // The same arrangement for the review panel, and for the same reason: the
-  // comments are the half of the list druk cannot know without asking, and `f`
-  // is a key nobody finds. The branch is in the signal too, so a switch while
-  // the panel is up re-asks — the comments belong to the branch, not to the
-  // session.
-  createEffect(
-    on(
-      () => (panes.sidebar() && panes.view() === 'review' ? git.branch() : null),
-      branch => {
-        if (branch) review.autoFetch()
-      },
-    ),
-  )
-
-  // …and puts the code the cursor points at into the editor slot beside it. The
-  // remarks are drawn on their own lines, so the panel is the index and the file
-  // is the review — a list of rows over an unrelated file is neither.
-  // The count rather than the view alone, so the comments a fetch brings back
-  // land in the editor too — arriving a second after the panel opened is the
-  // ordinary case, and by then the view has not changed to fire on. The guard
-  // reads focus untracked: once the keyboard has gone to the editor the user is
-  // reading something, and a late fetch must not swap the file under them.
+  // The review panel puts the code its cursor points at into the editor slot
+  // beside it. The remarks are drawn on their own lines, so the panel is the
+  // index and the file is the review — a list of rows over an unrelated file is
+  // neither.
+  //
+  // The count rather than the view alone, so a note another writer adds under an
+  // open panel lands in the editor too: by then the view has not changed to fire
+  // on. The guard reads focus untracked — once the keyboard has gone to the
+  // editor the user is reading something, and an arriving note must not swap the
+  // file under them.
   createEffect(
     on(
       () => (panes.sidebar() && panes.view() === 'review' ? review.count() : -1),
@@ -652,8 +634,6 @@ export function App(props: {
                 rows={review.rows()}
                 cursor={review.cursor()}
                 count={review.count()}
-                pull={review.pull() ? `#${review.pull()!.number} ${review.pull()!.title}` : null}
-                fetching={review.fetching()}
                 focused={panes.focus() === 'tree'}
                 width={settings.treeWidth()}
                 onFocus={() => panes.setFocus('tree')}

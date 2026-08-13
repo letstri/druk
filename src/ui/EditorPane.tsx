@@ -120,9 +120,16 @@ export interface EditorPaneProps {
    * keeps the card out of ordinary editing.
    *
    * `line` is the *file's*, as every line in these props is; the card finds its
-   * own row, folds included.
+   * own row, folds included. `replies` is the rest of the thread, in the order
+   * it was said — a remark answered is read as the conversation it became.
    */
-  reviewCard: { line: number; draft: boolean; heading: string; body: string } | null
+  reviewCard: {
+    line: number
+    draft: boolean
+    heading: string
+    body: string
+    replies: { label: string; body: string }[]
+  } | null
   /**
    * Ask the language server for completions at a buffer position. Null when the
    * feature is off — the resolver also answers null, but a null prop is what
@@ -426,17 +433,28 @@ export function EditorPane(props: EditorPaneProps) {
     // Two columns of border and one of padding either side.
     const room = host.width - 4
     if (room < 12) return null
-    const wrapped = wrapText(card.body.replaceAll(/\s+/g, ' ').trim(), room)
+    const flat = (text: string) => text.replaceAll(/\s+/g, ' ').trim()
+    // The remark, then whatever was said back to it — each answer marked by its
+    // own first line rather than by a blank row, which in an eight-row box is a
+    // row of the conversation given up to punctuation.
+    const wrapped: { text: string; dim: boolean }[] = wrapText(flat(card.body), room).map(text => ({
+      text,
+      dim: false,
+    }))
+    for (const said of card.replies) {
+      const body = wrapText(`↳ ${said.label}: ${flat(said.body)}`, room)
+      for (const text of body) wrapped.push({ text, dim: true })
+    }
     const lines = wrapped.slice(0, CARD_LINES)
     if (wrapped.length > CARD_LINES) {
-      lines[CARD_LINES - 1] = `… ${wrapped.length - CARD_LINES + 1} more lines`
+      lines[CARD_LINES - 1] = { text: `… ${wrapped.length - CARD_LINES + 1} more lines`, dim: true }
     }
     return {
       line: card.line,
       draft: card.draft,
       // Spaces of its own: the border draws straight up to the title otherwise.
       heading: cut(` ${REVIEW_GLYPH[card.draft ? 'draft' : 'fetched']} ${card.heading} `, room),
-      lines: lines.map(line => cut(line, room)),
+      lines: lines.map(line => ({ text: cut(line.text, room), dim: line.dim })),
       /** Borders included — the gap has to hold the whole box. */
       rows: lines.length + 2,
     }
@@ -2512,7 +2530,14 @@ export function EditorPane(props: EditorPaneProps) {
                 title={card().heading}
               >
                 <For each={card().lines}>
-                  {line => <text fg={ui.text} bg={ui.panelBg} wrapMode="none" content={line} />}
+                  {line => (
+                    <text
+                      fg={line.dim ? ui.dim : ui.text}
+                      bg={ui.panelBg}
+                      wrapMode="none"
+                      content={line.text}
+                    />
+                  )}
                 </For>
               </box>
             )}

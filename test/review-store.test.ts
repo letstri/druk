@@ -31,6 +31,27 @@ test('a save keeps the note another writer added meanwhile', () => {
   ).toEqual(['mine', 'theirs'])
 })
 
+test('a reply survives the round trip, and keeps who wrote it', () => {
+  const file = notesFile()
+  const answer = note('r1', { parent: 'a', author: 'claude', kind: 'note', body: 'fixed' })
+  saveNotes('/p', [note('a'), answer], { file })
+  const held = loadNotes('/p', file)
+  expect(held).toHaveLength(2)
+  expect(held[1]).toMatchObject({ parent: 'a', author: 'claude' })
+  // A note with neither is a note, not a reply to something called "".
+  expect(held[0]!.parent).toBeUndefined()
+})
+
+test('an agent may answer a note this session is holding', () => {
+  const file = notesFile()
+  saveNotes('/p', [note('a')], { seen: new Set(['a']), file })
+  // The agent read the file, appended its answer and wrote the pair back.
+  saveNotes('/p', [note('a'), note('r1', { parent: 'a', author: 'claude' })], { file })
+  // druk saves again knowing only its own note: the reply is not its to drop.
+  saveNotes('/p', [note('a')], { seen: new Set(['a']), file })
+  expect(loadNotes('/p', file).map(held => held.id)).toEqual(['a', 'r1'])
+})
+
 test('a note removed this session stays removed', () => {
   const file = notesFile()
   saveNotes('/p', [note('a'), note('b')], { file })

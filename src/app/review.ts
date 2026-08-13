@@ -1,58 +1,71 @@
 /**
- * Reading code with a review beside you: the draft notes dropped on lines while
- * reading, and the pull-request comments fetched from whichever forge the
- * repository is on.
+ * Reading code with a review beside you: the notes dropped on lines while
+ * reading, and the answers to them.
  *
  * The division is the panel's usual one — this owns the list, the cursor and
  * the fold state, `ui/ReviewPanel.tsx` draws whatever `rows()` returns and
  * reports clicks, and `app/keyboard.ts` holds the keys.
  *
- * Nothing here writes to a forge: the fetch is a read and only a read.
+ * Nothing here talks to a network. A review is what this session's reader and
+ * whichever agent shares the notes file have said to each other, and that is
+ * deliberately all of it.
  */
-import { basename, join, relative } from 'node:path'
+import { basename, relative } from 'node:path'
 
 import { createMemo, createSignal } from 'solid-js'
 
-import { fetchComments, findPullRequest, forgeFor } from '../core/forge'
-import type { PullRequest } from '../core/forge'
-import { remoteUrl } from '../core/git'
 import { loadNotes, NOTE_LABELS, readNotes, saveNotes } from '../core/review'
 import type { NoteKind, ReviewNote } from '../core/review'
-import type { AnchoredComment, ReviewRow } from '../ui/ReviewPanel'
-import type { Git } from './git'
-import type { Panes } from './panes'
-import type { Settings } from './settings'
+import { chordFor } from '../ui/keys'
+import type { ReviewRow } from '../ui/ReviewPanel'
 import type { Status } from './status'
 import type { Workspace } from './workspace'
 
-export type { AnchoredComment, ReviewRow } from '../ui/ReviewPanel'
-
-/** Comments that name no file are grouped under this heading. */
-const GENERAL = 'On the pull request'
+export type { ReviewRow } from '../ui/ReviewPanel'
 
 /** One line of a remark, for a row that has one line to draw it in. */
 const oneLine = (text: string) => text.replaceAll(/\s+/g, ' ').trim()
 
+/**
+ * What the panel says when the review is empty, which is the only time it has
+ * the room to say anything: a sidebar is thirty columns, so the lines are short
+ * enough to survive being cut at one, and the key is asked for rather than
+ * spelled out — a rebind has to rename it here too.
+ */
+const emptyHints = (chord: string): string[] => {
+  const key = chord || 'palette → Review → Note'
+  return [
+    'No notes yet.',
+    '',
+    `${key} notes the line`,
+    'or selection under the',
+    'cursor as an issue,',
+    'suggestion, question',
+    'or note.',
+    '',
+    '↑↓     walk the list',
+    'Enter  jump to the line',
+    'r      answer a remark',
+    '⌫      drop the thread',
+    '←→     fold a file',
+    '',
+    'Notes are kept per',
+    'project in review.json',
+    'beside the config, so',
+    'an agent can read them',
+    'and answer them live.',
+  ]
+}
+
 /** How long after creating a note an external write missing it reads as a stale clobber. */
 const RESCUE_WINDOW = 2000
 
-export function createReview(deps: {
-  rootDir: string
-  status: Status
-  settings: Settings
-  workspace: Workspace
-  git: Git
-  panes: Panes
-}) {
-  const { rootDir, status, settings, workspace, git, panes } = deps
+export function createReview(deps: { rootDir: string; status: Status; workspace: Workspace }) {
+  const { rootDir, status, workspace } = deps
   const { say } = status
-  const { config } = settings
 
   const initial = loadNotes(rootDir)
   const [notes, setNotes] = createSignal<ReviewNote[]>(initial)
-  const [comments, setComments] = createSignal<AnchoredComment[]>([])
-  const [pull, setPull] = createSignal<PullRequest | null>(null)
-  const [fetching, setFetching] = createSignal(false)
   const [collapsed, setCollapsed] = createSignal<ReadonlySet<string>>(new Set())
   const [cursor, setCursor] = createSignal(0)
 
@@ -76,7 +89,9 @@ export function createReview(deps: {
     a.endLine === b.endLine &&
     a.kind === b.kind &&
     a.body === b.body &&
-    a.at === b.at
+    a.at === b.at &&
+    a.parent === b.parent &&
+    a.author === b.author
 
   /**
    * Adopt what the file says — the way git state made in another terminal
@@ -107,23 +122,78 @@ export function createReview(deps: {
     writeNotes([...fresh, ...orphaned])
   }
 
+  /**
+   * The replies to each note, oldest first — the order a conversation reads in,
+   * and not the order the list happens to hold them in: another writer appends
+   * wherever it likes, and druk's own rescue puts a note back at the end.
+   */
+  const threads = createMemo(() => {
+    const byParent = new Map<string, ReviewNote[]>()
+    for (const note of notes()) {
+      if (!note.parent) continue
+      const held = byParent.get(note.parent)
+      if (held) held.push(note)
+      else byParent.set(note.parent, [note])
+    }
+    for (const said of byParent.values()) said.sort((a, b) => a.at - b.at)
+    return byParent
+  })
+
+  const repliesOf = (id: string) => threads().get(id) ?? []
+
+  /**
+   * The notes a thread hangs off. A reply whose note is gone from the file —
+   * another writer deleted one and left its answers — is one of these too: it
+   * is somebody's words, and hiding it would lose them silently.
+   */
+  const threadStarts = createMemo(() => {
+    const ids = new Set(notes().map(note => note.id))
+    return notes().filter(note => !note.parent || !ids.has(note.parent))
+  })
+
   /** Ids only have to be unique within this list; the clock plus a counter is that. */
   let counter = 0
   const nextId = () => `${Date.now().toString(36)}-${counter++}`
 
-  const add = (note: Omit<ReviewNote, 'id' | 'at'>) => {
-    const full: ReviewNote = { ...note, id: nextId(), at: Date.now() }
+  const add = (note: Omit<ReviewNote, 'id' | 'at' | 'parent'>, parent?: string) => {
+    const full: ReviewNote = { ...note, id: nextId(), at: Date.now(), parent }
     created.add(full.id)
     writeNotes([...notes(), full])
     const where = `${basename(note.path)}:${note.line + 1}`
-    say(`${NOTE_LABELS[note.kind]} noted on ${where} — ${notes().length} in this review`)
+    if (parent) {
+      const said = repliesOf(parent).length
+      return say(`Replied on ${where} — ${said} in this thread`)
+    }
+    say(`${NOTE_LABELS[note.kind]} noted on ${where} — ${threadStarts().length} in this review`)
+  }
+
+  /**
+   * An answer to a note, which is a note of its own carrying the other's id —
+   * see `core/review.ts` for why a thread is a list rather than a field. It
+   * takes the line and the file it answers on: everything that groups, marks
+   * or opens a remark reads those, and a reply belongs wherever its note does.
+   */
+  const reply = (parent: ReviewNote, body: string) => {
+    add(
+      { path: parent.path, line: parent.line, endLine: parent.endLine, kind: 'note', body },
+      parent.id,
+    )
   }
 
   const removeNote = (id: string) => {
     const held = notes().find(note => note.id === id)
     if (!held) return
-    writeNotes(notes().filter(note => note.id !== id))
-    say(`Removed the ${NOTE_LABELS[held.kind].toLowerCase()} on ${basename(held.path)}`)
+    // A thread goes whole: a reply without the note it answers reads as a
+    // remark nobody made, and there is no way back to the question it was for.
+    const gone = new Set([id, ...repliesOf(id).map(note => note.id)])
+    writeNotes(notes().filter(note => !gone.has(note.id)))
+    const answers = gone.size - 1
+    const what = held.parent
+      ? 'reply'
+      : `${NOTE_LABELS[held.kind].toLowerCase()} on ${basename(held.path)}`
+    say(
+      `Removed the ${what}${answers > 0 ? ` and its ${answers} repl${answers === 1 ? 'y' : 'ies'}` : ''}`,
+    )
   }
 
   const clear = () => {
@@ -133,60 +203,44 @@ export function createReview(deps: {
     say(`Cleared ${gone} review note${gone === 1 ? '' : 's'}`)
   }
 
-  /** Draft notes of one file, by line — the gutter marks and the inline text. */
-  const notesFor = (path: string) => notes().filter(note => note.path === path)
-
-  /** Fetched comments of one file, by line, for the same two. */
-  const commentsFor = (path: string) =>
-    comments().filter(entry => entry.path === path && entry.comment.line !== null)
-
   /**
-   * What the editor draws beside a line: the draft notes and the fetched
-   * comments of the open file, worst-case one per line. A line carrying both
-   * shows the draft — it is this session's own remark, and the one still being
-   * worked on.
+   * Draft notes of one file, by line — the gutter marks and the inline text.
+   * Threads, not messages: a reply sits on the line its note does, and one mark
+   * per line is what the gutter and the row after the line have room for.
    */
+  const notesFor = (path: string) => threadStarts().filter(note => note.path === path)
+
+  /** What the editor draws beside a line: the threads of the open file, one per line. */
   const marks = createMemo(() => {
     const path = workspace.activePath()
     const byLine = new Map<number, { draft: boolean; label: string; text: string }>()
     if (!path) return byLine
-    for (const entry of commentsFor(path)) {
-      byLine.set(entry.comment.line!, {
-        draft: false,
-        label: `@${entry.comment.author || 'reviewer'}`,
-        text: oneLine(entry.comment.body),
-      })
-    }
     for (const note of notesFor(path)) {
+      const said = repliesOf(note.id).length
       byLine.set(note.line, {
         draft: true,
-        label: NOTE_LABELS[note.kind],
+        // The count is the whole of what a thread adds to a one-line mark: the
+        // conversation itself is in the panel and in the card under the line.
+        label: said > 0 ? `${NOTE_LABELS[note.kind]} ↳${said}` : NOTE_LABELS[note.kind],
         text: oneLine(note.body),
       })
     }
     return byLine
   })
 
-  /** Everything in the review, grouped by file, files in path order. */
+  /** Every thread, grouped by file, files in path order. */
   const grouped = createMemo(() => {
-    const groups = new Map<
-      string,
-      { rel: string; notes: ReviewNote[]; comments: AnchoredComment[] }
-    >()
-    const group = (path: string | null) => {
-      const rel = path ? relative(rootDir, path) || basename(path) : GENERAL
+    const groups = new Map<string, { rel: string; notes: ReviewNote[] }>()
+    const group = (path: string) => {
+      const rel = relative(rootDir, path) || basename(path)
       const held = groups.get(rel)
       if (held) return held
-      const made = { rel, notes: [], comments: [] }
+      const made = { rel, notes: [] }
       groups.set(rel, made)
       return made
     }
-    for (const note of notes()) group(note.path).notes.push(note)
-    for (const entry of comments()) group(entry.path).comments.push(entry)
-    return [...groups.values()].toSorted((a, b) =>
-      // The general heading last: it is the only one that is not a file.
-      a.rel === GENERAL ? 1 : b.rel === GENERAL ? -1 : a.rel.localeCompare(b.rel),
-    )
+    for (const note of threadStarts()) group(note.path).notes.push(note)
+    return [...groups.values()].toSorted((a, b) => a.rel.localeCompare(b.rel))
   })
 
   const rows = createMemo<ReviewRow[]>(() => {
@@ -197,7 +251,9 @@ export function createReview(deps: {
         kind: 'file',
         id: `file:${entry.rel}`,
         rel: entry.rel,
-        count: entry.notes.length + entry.comments.length,
+        // Replies counted too: the number says what the fold is hiding, and a
+        // fold hides the whole thread.
+        count: entry.notes.reduce((held, note) => held + 1 + repliesOf(note.id).length, 0),
         collapsed: shut,
       })
       if (shut) continue
@@ -209,21 +265,27 @@ export function createReview(deps: {
           label: `${NOTE_LABELS[note.kind]} ${note.line + 1}`,
           text: oneLine(note.body),
         })
-      }
-      for (const held of entry.comments) {
-        const line = held.comment.line
-        out.push({
-          kind: 'comment',
-          id: held.comment.url || `${entry.rel}:${line}:${held.comment.body.slice(0, 16)}`,
-          entry: held,
-          label: `@${held.comment.author || 'reviewer'}${line === null ? '' : ` ${line + 1}`}`,
-          text: oneLine(held.comment.body),
-        })
+        // The answers under what they answer, and only the file's fold hides
+        // them: a thread is three rows on a bad day, and a second fold to learn
+        // would cost more than it saved.
+        for (const said of repliesOf(note.id)) {
+          out.push({
+            kind: 'reply',
+            id: said.id,
+            note: said,
+            label: said.author ? `↳ @${said.author}` : '↳ you',
+            text: oneLine(said.body),
+          })
+        }
       }
     }
+    // An empty review is the one place with room to say what the panel is for,
+    // and the one time the user has nothing else to read here.
     if (out.length === 0) {
-      out.push({ kind: 'hint', id: 'empty', label: 'No notes yet — Ctrl+Opt+A on a line' })
-      out.push({ kind: 'hint', id: 'fetch', label: 'f fetches the pull request' })
+      const hints = emptyHints(chordFor('review.note'))
+      for (const [index, label] of hints.entries()) {
+        out.push({ kind: 'hint', id: `hint:${index}`, label })
+      }
     }
     return out
   })
@@ -249,13 +311,8 @@ export function createReview(deps: {
 
   const collapseAll = () => setCollapsed(new Set(grouped().map(entry => entry.rel)))
 
-  /** The line one remark is about, or nothing for a comment on no file at all. */
-  const placeOf = (remark: ReviewNote | AnchoredComment) =>
-    'kind' in remark
-      ? { path: remark.path, line: remark.line }
-      : remark.path && remark.comment.line !== null
-        ? { path: remark.path, line: remark.comment.line }
-        : null
+  /** The line one remark is about. */
+  const placeOf = (note: ReviewNote) => ({ path: note.path, line: note.line })
 
   /**
    * The remark the row at `index` speaks for, which is what both the editor
@@ -266,14 +323,11 @@ export function createReview(deps: {
    * review that shows no code until the second keypress is the thing this is
    * for. A collapsed group still answers — the remarks are hidden, not gone.
    */
-  const remarkOf = (index = at()): ReviewNote | AnchoredComment | null => {
+  const remarkOf = (index = at()): ReviewNote | null => {
     const current = rows()[Math.max(0, Math.min(index, rows().length - 1))]
     if (!current || current.kind === 'hint') return null
-    if (current.kind === 'note') return current.note
-    if (current.kind === 'comment') return current.entry
-    const group = grouped().find(entry => entry.rel === current.rel)
-    const held = [...(group?.notes ?? []), ...(group?.comments ?? [])]
-    return held.find(remark => placeOf(remark)) ?? null
+    if (current.kind === 'note' || current.kind === 'reply') return current.note
+    return grouped().find(entry => entry.rel === current.rel)?.notes[0] ?? null
   }
 
   const targetOf = (index = at()) => {
@@ -291,20 +345,20 @@ export function createReview(deps: {
     const path = workspace.activePath()
     if (!remark || !path) return null
     const place = placeOf(remark)
-    if (!place || place.path !== path) return null
-    return 'kind' in remark
-      ? {
-          line: place.line,
-          draft: true,
-          heading: NOTE_LABELS[remark.kind],
-          body: remark.body,
-        }
-      : {
-          line: place.line,
-          draft: false,
-          heading: `@${remark.comment.author || 'reviewer'}`,
-          body: remark.comment.body,
-        }
+    if (place.path !== path) return null
+    // The whole thread, whichever of its messages the cursor is on: a reply read
+    // without the remark it answers is half a conversation.
+    const root = (remark.parent && notes().find(note => note.id === remark.parent)) || remark
+    return {
+      line: place.line,
+      draft: true,
+      heading: NOTE_LABELS[root.kind],
+      body: root.body,
+      replies: repliesOf(root.id).map(said => ({
+        label: said.author ? `@${said.author}` : 'you',
+        body: said.body,
+      })),
+    }
   })
 
   /** Enter: fold a heading, or land on the line the remark is about. */
@@ -313,91 +367,38 @@ export function createReview(deps: {
     const current = row()
     if (!current || current.kind === 'hint') return
     if (current.kind === 'file') return toggleFile(current.rel)
-    if (current.kind === 'note') return open?.(current.note.path, current.note.line)
-    const { path, comment } = current.entry
-    if (path && comment.line !== null) return open?.(path, comment.line)
-    say(comment.url || 'This comment is about the whole pull request')
+    if (current.kind === 'note' || current.kind === 'reply') {
+      open?.(current.note.path, current.note.line)
+    }
   }
 
-  /** Backspace: drop a draft. A fetched comment is not druk's to remove. */
+  /** Backspace: drop the thread, or the one answer, under the cursor. */
   const remove = () => {
     const current = row()
-    if (current?.kind === 'comment') return say('That comment is on the forge, not here', 'warn')
-    if (current?.kind !== 'note') return
+    if (current?.kind !== 'note' && current?.kind !== 'reply') return
     removeNote(current.note.id)
   }
 
   /**
-   * The pull request open for this branch, and everything said on it.
+   * The note an answer would hang off — the remark the card is showing, so `r`
+   * answers what is on screen rather than what the cursor is literally on: a
+   * heading stands in for its file's first remark, as it does everywhere else.
    *
-   * Every step reports what stopped it: no remote, a host druk cannot place, a
-   * private repository, no open change for this branch. "Nothing happened" is
-   * the one outcome a fetch the user asked for must never have — so `quiet`
-   * silences exactly the outcomes that are facts about the checkout rather than
-   * about this attempt, and never an error. It is what the fetch on opening the
-   * panel uses: a repository with no pull request would otherwise say so every
-   * time the sidebar changed view.
+   * Answering a reply answers the note it belongs to. A thread is flat, as it is
+   * everywhere a review is read, and nesting the second answer under the first
+   * says a hierarchy nobody meant.
    */
-  const fetchPullRequest = async (quiet = false) => {
-    const absent = (message: string) => {
-      if (!quiet) say(message, 'warn')
+  const replyTarget = (): ReviewNote | null => {
+    const remark = remarkOf()
+    if (!remark) {
+      say('Put the cursor on a remark to answer it', 'warn')
+      return null
     }
-    if (fetching()) return absent('Already fetching')
-    const repo = git.activeRepo()
-    if (!repo) return absent('Not a git repository')
-    const branch = git.branch()
-    if (!branch) return absent('No branch — a detached HEAD has no pull request')
-    const url = remoteUrl(repo, config.reviewRemote)
-    if (!url) return absent(`No "${config.reviewRemote}" remote to ask`)
-    const target = forgeFor(url, config.reviewForge)
-    if (!target.ok) return say(target.error, 'error')
-
-    setFetching(true)
-    if (!quiet) say(`Looking for ${branch} on ${target.value.host}…`)
-    try {
-      const found = await findPullRequest(target.value, branch)
-      if (!found.ok) return say(found.error, 'error')
-      if (!found.value) {
-        if (!quiet) say(`No open pull request for ${branch}`)
-        return
-      }
-      setPull(found.value)
-      const said = await fetchComments(target.value, found.value)
-      if (!said.ok) return say(said.error, 'error')
-      // A forge reports paths from the repository root, which is not always the
-      // folder druk was opened in.
-      setComments(
-        said.value.map(comment => ({
-          comment,
-          path: comment.path ? join(repo, comment.path) : null,
-        })),
-      )
-      // Not while quiet: the panel is already up, and the fetch is slow enough
-      // that the user may have tabbed into the editor — `showView` would take
-      // the keyboard back from under them.
-      if (!quiet) panes.showView('review')
-      const count = said.value.length
-      if (count > 0) say(`#${found.value.number}: ${count} comment${count === 1 ? '' : 's'}`)
-      else if (!quiet) say(`#${found.value.number} "${found.value.title}" — no comments yet`)
-    } finally {
-      setFetching(false)
-    }
-  }
-
-  /**
-   * The fetch an opened panel makes for itself, which is what `reviewAutoFetch`
-   * turns off: four unauthenticated requests land on GitHub's sixty an hour, and
-   * a panel toggled often enough would spend them.
-   */
-  const autoFetch = () => {
-    if (config.reviewAutoFetch) void fetchPullRequest(true)
+    return (remark.parent && notes().find(note => note.id === remark.parent)) || remark
   }
 
   return {
     notes,
-    comments,
-    pull,
-    fetching,
     marks,
     rows,
     cursor: at,
@@ -410,13 +411,14 @@ export function createReview(deps: {
     collapseAll,
     remove,
     add,
+    reply,
+    replyTarget,
+    repliesOf,
     removeNote,
     clear,
     reloadNotes,
-    fetchPullRequest: () => void fetchPullRequest(),
-    autoFetch,
     /** The header's count, which no fold narrows. */
-    count: () => notes().length + comments().length,
+    count: () => notes().length,
   }
 }
 

@@ -1019,18 +1019,6 @@ export function inRepository(cwd: string): boolean {
 }
 
 /**
- * Where a remote points, as configured — `git@github.com:owner/repo.git`. Read
- * from the config rather than with `git remote get-url`, which is the same
- * lookup and would resolve `insteadOf` rewrites into a URL naming a mirror
- * host that serves no API. Null when the repository has no such remote.
- */
-export function remoteUrl(cwd: string, remote = 'origin'): string | null {
-  const run = git(cwd, ['config', '--get', `remote.${remote}.url`], 3000)
-  const url = run.status === 0 ? run.stdout.trim() : ''
-  return url.length > 0 ? url : null
-}
-
-/**
  * Absolute paths staged in the index, keyed like `statusMap` so the two can be
  * compared. On an unborn branch git diffs the index against the empty tree, so
  * a fresh repository with staged files still reports correctly.

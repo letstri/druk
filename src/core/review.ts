@@ -2,7 +2,9 @@
  * Review notes: the remarks made while reading code, and where they are kept.
  *
  * A note is a line, a kind and a sentence — nothing else, because the whole
- * point is that writing one costs a keystroke and a line of typing. They are
+ * point is that writing one costs a keystroke and a line of typing. An answer
+ * to one is another note carrying its `parent`, so a conversation is a list of
+ * notes and never a note that grew a field. They are
  * kept beside the config rather than in the project, keyed by project path, as
  * `sessions.json` is: a draft remark is personal scratch, and a `.druk/` file
  * would land in somebody's commit the first time they staged everything.
@@ -52,6 +54,15 @@ export interface ReviewNote {
   body: string
   /** Epoch ms — the order notes were written in, which is the order they read in. */
   at: number
+  /**
+   * The note this one answers, making the two a thread. A reply is a note of
+   * its own rather than a field on the one it answers, and that is what keeps
+   * the merge below simple: an answer *appends*, so no writer ever has to
+   * change a note somebody else may be changing at the same moment.
+   */
+  parent?: string
+  /** Who wrote it. Absent means the person at the keyboard — druk sets no name. */
+  author?: string
 }
 
 const isKind = (raw: unknown): raw is NoteKind => NOTE_KINDS.includes(raw as NoteKind)
@@ -64,6 +75,7 @@ function parseNote(raw: unknown): ReviewNote | null {
   if (!isKind(note.kind)) return null
   const line = Math.max(0, Math.floor(note.line))
   const endLine = typeof note.endLine === 'number' ? Math.max(line, Math.floor(note.endLine)) : line
+  const text = (raw: unknown) => (typeof raw === 'string' && raw ? raw : undefined)
   return {
     id: note.id,
     path: note.path,
@@ -72,6 +84,8 @@ function parseNote(raw: unknown): ReviewNote | null {
     kind: note.kind,
     body: note.body,
     at: typeof note.at === 'number' ? note.at : 0,
+    parent: text(note.parent),
+    author: text(note.author),
   }
 }
 

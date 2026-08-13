@@ -194,4 +194,23 @@ test('the review panel gives a long note and a deep path one row each', async ()
   // the file's name too and shortens it itself.
   expect(rowsWith(t, 'ISSUE 1')).toBe(1)
   expect(rowsWith(t, 'src/features')).toBe(1)
+
+  // And an answer to it, whose author is whatever a writer of the notes file
+  // put there: one row, which is also the row the card's copy of it is drawn
+  // on — the box floats beside the sidebar, so a second row here would be the
+  // reply wrapping in one of the two.
+  await press(t, input => input.pressArrow('down'))
+  await press(t, input => void input.typeText('r'))
+  await press(
+    t,
+    input =>
+      void input.typeText(
+        'it is not, the refresh window is measured against the issuer clock and that is the ' +
+          'whole of it',
+      ),
+  )
+  await press(t, input => input.pressEnter())
+  await untilFrame(t, '↳ you')
+  expect(rowsWith(t, '↳ you')).toBe(1)
+  expect(rowsWith(t, 'ISSUE 1')).toBe(1)
 }, 20000)

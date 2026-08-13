@@ -129,7 +129,18 @@ code with the remarks beside it: `Ctrl+Opt+A` drops a note on the line or select
 the cursor (issue / suggestion / question / note, each spelled out in the palette as
 well as behind the chooser), the notes show as `◆` in the gutter and after the line
 (`reviewInline`, with the panel's chord after a remark the row was too narrow for —
-the same "name the key where the text ran out" rule the diagnostics follow) and
+the same "name the key where the text ran out" rule the diagnostics follow); a remark is
+answered with `r` in the panel (palette → Review → Reply), which makes the two a thread —
+an answer is a *note of its own* carrying the other's id in `parent`, never a field on
+the note it answers, which is what keeps a conversation append-only and so safe for two
+writers at once: an agent answers by appending `{"parent": "<id>", "author": "claude"}`
+and druk's merge cannot lose it. The panel draws the answers under what they answer
+(`↳ you`, `↳ @claude`), the card under the line shows the whole thread, the row after
+the line says `ISSUE ↳2` since one line has room for the count and nothing more, `r`
+answers whatever the card is showing (a heading stands in for its file's first remark,
+as it does everywhere else), a reply to a reply joins the same thread rather than
+nesting, deleting a note takes its answers with it, and a reply whose note another
+writer deleted is listed on its own rather than vanishing. Notes
 outlive the session in `review.json` beside the config — a file druk
 does not own alone: an agent editing it while druk is open is the intended flow, so
 another writer's notes appear live (the config directory is watched; a rename-replaced
@@ -152,18 +163,12 @@ down the moment the *editor* takes the keyboard, which is what stops rows the fi
 from ever being typed into — `baseFold` is the folds alone and `folded()` is what the
 buffer holds, which is the split that keeps a gap from being remembered or reconciled as
 one. The trailing text is suppressed on the line the card is under so nothing is said
-twice. Opening the
-panel fetches the open pull request's comments for the current branch by itself
-(`reviewAutoFetch`, and again whenever the branch changes under an open panel, since the
-comments belong to the branch; `f` asks again on demand, and is the loud path — the
-automatic one keeps quiet about a checkout with no remote and no open change, which is a
-fact about the repository rather than about that attempt, but never about an error) —
-GitHub, GitLab,
-Gitea/Forgejo and Bitbucket Cloud, told apart by the remote's host, with `reviewForge`
-naming the one a self-hosted host cannot be guessed from and `reviewRemote` saying which
-remote to read; a token comes from `GITHUB_TOKEN` / `GITLAB_TOKEN` / `GITEA_TOKEN` /
-`BITBUCKET_TOKEN` or `DRUK_FORGE_TOKEN`, and a public repository needs none (the fetch
-is a read and only a read: druk posts to no forge and nothing leaves the editor),
+twice. Nothing in the review touches a network — a review is what the reader and the
+agent sharing `review.json` have said to each other, and there is no forge, no token
+and no fetch. An empty panel is where that is explained: it spells out the chord that
+notes a line (asked of the keymap with `chordFor`, so a rebind renames it), the keys the
+panel answers to, and where the notes are kept, since that is the half an agent has to
+be told,
 an image viewer (PNG/JPEG as half-block cells), a PDF viewer (page, zoom and pan controls
 rendered into terminal cells), a rendered view for markdown files (`Ctrl+Opt+M`, palette → View — OpenTUI's
 `<markdown>` renderable over the editor slot, per path so each tab keeps the view it
@@ -548,8 +553,7 @@ dependency rule, and recipes for the extension points:
 | row in the extensions panel | `src/app/extensionsPanel.ts` (the cursor, the fold state and what Enter does); `src/ui/ExtensionsPanel.tsx` owns the `ExtensionRow` type, draws whatever `rows()` returns and reports clicks, and the keys live in `src/app/keyboard.ts` beside the tree's and the git panel's. Row/view-model types live in the ui component and the controller imports them — the `SettingRow` arrangement, enforced by `test/boundaries.test.ts` |
 | sidebar view | `SidebarView` in `src/ui/SidebarTabs.tsx` (add a `short` initial — the strip falls back to those in a narrow sidebar), a branch in `App.tsx`'s sidebar, one in `keyboard.ts`'s pane switch, a `KeyScope` in `src/ui/keys.ts` with a `SCOPE_LABELS` entry in `KeyPeek.tsx`, a `toggle…View` on `src/app/panes.ts`, and its place in the Shift+Tab cycle, which is spelt out as one `showView` per pane block in `keyboard.ts` rather than held as a list |
 | branch-comparison behaviour | git queries and models in `src/core/git.ts`, state and caches in `src/app/comparison.ts`, rows in `ComparePanel` and the detail page in `ComparisonView` |
-| forge (pull-request comments) | a `ForgeKind` in `src/core/forge.ts`: the host names it answers to in `kindForHost`, its API base in `apiBase`, the header its token goes in, and a `find…`/`…Comments` pair mapping its JSON onto `PullRequest` / `ForgeComment` — 0-based lines, because that is what the rest of druk counts in. A host no name places is an error naming `reviewForge`, never a guess. Everything is read-only: druk posts no comment and approves nothing |
-| review row or key | `src/app/review.ts` (the notes, the fetched comments, the rows and what Enter does); `ui/ReviewPanel.tsx` draws `rows()` and reports clicks, the keys sit in `keyboard.ts` beside the git panel's, and the note's shape and where it is persisted are `src/core/review.ts` |
+| review row or key | `src/app/review.ts` (the notes, their replies, the fetched comments, the rows and what Enter does); `ui/ReviewPanel.tsx` draws `rows()` and reports clicks, the keys sit in `keyboard.ts` beside the git panel's, and the note's shape and where it is persisted are `src/core/review.ts`. A reply is a note carrying `parent`, so anything that lists remarks reads `threadStarts()` rather than `notes()` — a thread is one mark, one heading count and one card |
 | source-control row kind | `ChangeRow` in `src/core/changeTree.ts` — `changeRows` builds the headings and `rowArea`/`rowRel`/`foldKey` are how a row's fold state is addressed, the area being part of the key because one path can sit under both headings at once. `changesFor` answers what a row *stands for*, and reads the change list rather than the rows: a folded folder's files are not in `rows` and staging one still has to reach them |
 | git command | run it in `git.activeRepo()`, never in `rootDir` — the opened folder may hold several repositories and be none itself. A mutation goes through `gitOp`, which refuses when no repository is picked and *hands the chosen one to the callback*; an operation offered for a particular row pins `options.repo` so a later refresh cannot redirect it. A query asks `git.repoFor(path)` for the repository of the path it is about. A path passed after `--` is a *pathspec*, so it goes through `literal()` (`src/core/git.ts`) — `[`, `*` and `?` are glob metacharacters there, and `git clean -f -- '[id].tsx'` deletes `i.tsx` as well. Which repositories exist is `discoverRepos` (`src/core/repos.ts`), refreshed in `wireGitEffects` |
 

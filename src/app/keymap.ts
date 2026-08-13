@@ -118,7 +118,6 @@ export const BINDABLE: Bindable[] = [
   { id: 'git.compare', label: 'Compare branches', defaults: [] },
   // A for annotate: R is the panel, and the note is the thing pressed far more often.
   { id: 'review.note', label: 'Note this line for a review', defaults: [`Ctrl+${ALT}+A`] },
-  { id: 'review.fetch', label: 'Fetch pull request comments', defaults: [] },
   { id: 'problems.list', label: 'List problems', defaults: [] },
   // I for inspect: a terminal has no hover, so this chord is the only way to read
   // the whole of a diagnostic the inline note beside the line had to shorten.

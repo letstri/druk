@@ -274,8 +274,8 @@ export const KEYS: KeyInfo[] = [
   // Short labels on purpose, as the source-control rows are: the help table only
   // just fits a 60-row terminal, and a wrapped label costs it a second row.
   {
-    key: 'Enter · f · Esc',
-    label: 'Jump · fetch · back',
+    key: 'Enter · r · ⌫ · Esc',
+    label: 'Jump · reply · drop · back',
     section: 'Review',
     where: 'review',
   },

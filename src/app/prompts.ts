@@ -41,6 +41,7 @@ const PROMPT_TITLES: Partial<Record<PromptKind, string>> = {
   newBranch: 'New branch name',
   renameBranch: 'Rename branch to',
   reviewNote: 'Review note',
+  reviewReply: 'Reply',
 }
 
 /**
@@ -126,6 +127,13 @@ export function createPromptHandlers(deps: {
       branches.create(name, p.from)
     } else if (p.kind === 'renameBranch') {
       branches.rename(p.from, name)
+    } else if (p.kind === 'reviewReply') {
+      // Looked up now rather than held from when the prompt opened: an agent may
+      // have struck the note off while the answer was being typed, and a reply
+      // to a note that is gone is a remark hanging off nothing.
+      const parent = review.notes().find(note => note.id === p.parent)
+      if (!parent) return say('The remark this answers is gone', 'warn')
+      review.reply(parent, value.trim())
     } else if (p.kind === 'reviewNote') {
       // `value`, not the trimmed `name`: a remark is prose, and the only thing
       // trimming it can do is lose an intended line break at the end of one.
@@ -248,6 +256,11 @@ export function createPromptHandlers(deps: {
       const span = p.endLine > p.line ? `${p.line + 1}-${p.endLine + 1}` : `${p.line + 1}`
       return `${NOTE_LABELS[p.noteKind]} · ${basename(p.path)}:${span}`
     }
+    // Which remark is being answered — a thread is only a thread if the answer
+    // is to the thing on screen, and this is the last moment to notice it is not.
+    if (p.kind === 'reviewReply') return `Reply to ${p.heading}`
+    // Which remote the URL is for — the name was the previous prompt's answer.
+    if (p.kind === 'remoteAddUrl') return `URL for ${p.name}`
     return PROMPT_TITLES[p.kind]
   }
   const promptValue = () => {

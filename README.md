@@ -221,22 +221,24 @@ does that part for you: it notes the line — or the selection — the cursor is
 **issue**, **suggestion**, **question** or **note**, and the remark shows as `◆` in the
 gutter and after the line. Notes are per project and survive a restart.
 
-The review lives inside the source-control panel: the `◆` in its header opens it, as
-does `r` there or `Ctrl+Opt+R` from anywhere, and `Git` stays the pressed tab — click it,
-or press `Esc`, to get back to the change list. Every note sits under the file it is
-about. The cursor is a pager: the file a remark is about goes up beside the list at its
-line, and the remark opens as a card under that line the way a comment reads on GitHub —
-`↑↓` walks it, `Enter` puts the caret there, `Backspace` drops a note. Opening it also
-fetches the
-comments on the pull request open for the current branch, which then read in the same
-list and beside the same lines — `f` asks again, and *Fetch comments on open* in the
-settings page turns the automatic one off.
+`Ctrl+Opt+R` opens the panel from anywhere, `r` opens it from the source-control panel,
+and `Review` is a tab of its own in the sidebar strip. Every note sits under the file it
+is about. The cursor is a pager: the file a remark is about goes up beside the list at
+its line, and the remark opens as a card under that line the way a comment reads on
+GitHub — `↑↓` walks it, `Enter` puts the caret there, `Backspace` drops a note, and `←→`
+fold a file. An empty panel says all of that on screen, so none of it has to be
+remembered.
 
-The pull request can be on **GitHub, GitLab, Gitea/Forgejo or Bitbucket Cloud** — druk
-reads the remote's URL to know which, self-hosted instances included. A private
-repository wants a token in `GITHUB_TOKEN`, `GITLAB_TOKEN`, `GITEA_TOKEN`,
-`BITBUCKET_TOKEN` or `DRUK_FORGE_TOKEN`; a public one needs none. druk only ever *reads*
-a forge: nothing is posted, approved or resolved.
+`r` **answers** the remark under the cursor, which makes the two a thread: the answers
+draw under what they answer, the card shows the whole conversation, and the line itself
+says `ISSUE ↳2`. Deleting a remark takes its answers with it.
+
+Notes live in `review.json` beside the config, keyed by project — **an agent can read
+them and answer them while druk is open**, and the panel shows what it wrote as it
+writes it. An answer is a note carrying the answered one's `id` in `parent` and its own
+`author`, so both sides only ever append and neither can lose the other's words. druk
+makes no network request for a review: there is no forge to configure and no token to
+set.
 
 ## Settings
 
@@ -263,8 +265,6 @@ instead of breaking startup.
 | `showDotfiles` | `true` | set `false` to hide dotfiles in the file tree |
 | `respectGitignore` | `false` | set `true` to hide git-ignored files in the file tree |
 | `diffView` | `"inline"` | `inline` or `split` — how the diff view lays out changes |
-| `reviewForge` | `"auto"` | where pull-request comments come from: read off the remote's host, or pin `github` / `gitlab` / `gitea` / `bitbucket` for a self-hosted one, whose name says nothing about which it runs |
-| `reviewRemote` | `"origin"` | which remote's URL says where the pull request lives |
 | `reviewInline` | `true` | set `false` to keep review notes out of the text and in the gutter and panel only |
 | `extensionUpdates` | `true` | check the extension market at startup: update notices, and the offer of an extension for a language or theme you are missing. `false` never contacts it |
 | `extensionRegistry` | druk's own | an https folder holding `index.json` and `<id>/extension.json` — point it at a fork if you keep your own market |

@@ -43,8 +43,7 @@ scripts/
     editor.ts        one-shot signal channels into EditorPane (goto, undo, edits…)
     market.ts        the market as the editor sees it: updates, offers, installs
     extensionsPanel.ts the sidebar's extensions view: rows, cursor, fold state
-    review.ts        the review view: draft notes on lines and the pull
-                     request's comments, as one list
+    review.ts        the review view: notes on lines with their reply threads
     lsp.ts           language servers: spawn per language, sync buffers, diagnostics,
                      completion requests (flushing the didChange debounce first)
     settings.ts      the two config layers (user / project) resolved into one store,
@@ -66,9 +65,8 @@ scripts/
     git.ts           queries, mutations, and async branch-comparison metadata/blob reads
     repos.ts         which repositories the opened folder holds, and which one a path
                      is in — filesystem-only, so the tree may ask per row
-    forge.ts         a remote URL -> which forge, and its open pull request's
-                     comments: GitHub, GitLab, Gitea/Forgejo, Bitbucket Cloud
-    review.ts        review notes: the model, and the store beside the config
+    review.ts        review notes and their replies: the model, and the store
+                     beside the config
     diff.ts          Myers line diff between two texts, emitted as a unified patch
     imports.ts       the path token under the cursor, and where it resolves —
                      relative, project-root, or through tsconfig/jsconfig aliases
@@ -707,26 +705,28 @@ is just a diff against the empty tree.
   placeholder and destroys the native buffer while `editor` still points at it. Both
   pending timers touch it, so they are cleared from the ref's own `onCleanup` — the pane's
   `onCleanup` fires far too late and the timer throws from outside any handler.
-- **The review is read-only.** `core/forge.ts` asks a forge three questions — which
-  change is open for this branch, what was said on it, and where each remark sits —
-  and has no code path that writes. Nothing posts a comment, approves, or resolves
-  a thread, which is also why a token is optional
-  (a public repository answers all three questions unauthenticated). The one place
-  a guess would be tempting is the forge itself, and it is refused: a self-hosted
-  GitLab and a self-hosted Gitea are identical from the outside, and asking one of
-  them the other's questions produces plausible nonsense rather than an error, so
-  an unplaceable host is reported against `reviewForge` instead.
+- **The review talks to nothing.** It reads and writes one file and draws it. There is
+  no forge client, no token and no request: a review is what the person reading the code
+  and the agent sharing `review.json` have said to each other. druk did fetch pull-request
+  comments once, and the feature was removed rather than left switched off — every path
+  that could reach a network from the review is gone with it.
 - **Review notes live beside the config, not in the project.** `review.json` next to
   `sessions.json`, keyed by project path, for the same reason sessions are: a draft
   remark is personal scratch, and a `.druk/` file would land in somebody's commit the
   first time they staged everything.
+- **A thread is a list of notes, not a note with a list in it.** An answer is a whole
+  note carrying the answered one's id in `parent`, so every writer only ever *appends*
+  — which is what makes a conversation safe between druk and the agent editing the same
+  file. The merge rule the store is built on ("the file's copy wins for an id both sides
+  hold, because druk never changes a note after creating it") survives threads only
+  because of that; a `replies` array on the note would mean two writers editing one
+  record, and one of them losing.
 - **Network.** druk makes two kinds of request, both at startup and both
   best-effort (2.5s timeout, failures ignored): one npm registry lookup for a newer
   druk, disabled by `checkUpdates: false`, and the extension market's `index.json`,
   disabled by `extensionUpdates: false` and cached for six hours in between. Everything
   after that is a fetch someone asked for — a manifest, because an extension is being
-  installed, or a forge's API, because a review asked for a pull request's comments
-  (10s, since somebody is waiting on it). druk runs no git command that talks to a
+  installed. druk runs no git command that talks to a
   remote, which is also what
   keeps a credential prompt from ever opening `/dev/tty` behind the alt-screen and
   freezing the single render thread.

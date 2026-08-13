@@ -1,4 +1,4 @@
-import { dirname, relative } from 'node:path'
+import { basename, dirname, relative } from 'node:path'
 
 import { createMemo } from 'solid-js'
 
@@ -710,7 +710,18 @@ export function createCommands(ctx: AppContext) {
       noteTarget(target =>
         ctx.prompts.setPrompt({ kind: 'reviewNote', ...target, noteKind: kind }),
       ),
-    reviewFetch: ctx.review.fetchPullRequest,
+    reviewReply: () => {
+      const parent = ctx.review.replyTarget()
+      // Nothing under the cursor to answer — `replyTarget` has already said so
+      // for the one case where there is something and it is not druk's.
+      if (!parent) return
+      const span = `${basename(parent.path)}:${parent.line + 1}`
+      ctx.prompts.setPrompt({
+        kind: 'reviewReply',
+        parent: parent.id,
+        heading: `${NOTE_LABELS[parent.kind]} · ${span}`,
+      })
+    },
     reviewClear: ctx.review.clear,
     reviewMoveTo: (row: number) => ctx.review.moveTo(row),
     reviewMove: (delta: number) => {

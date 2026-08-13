@@ -82,6 +82,12 @@ export type Prompt =
       endLine: number
       noteKind: NoteKind
     }
+  /**
+   * An answer to a remark. `parent` is the note it hangs off — the id and not
+   * the note, since the list may be rewritten by another writer while the
+   * prompt is open, and the id is what survives that.
+   */
+  | { kind: 'reviewReply'; parent: string; heading: string }
   /** A language server is missing and druk can fetch it; `id` is the server id. */
   | {
       kind: 'installServer'
