@@ -560,6 +560,7 @@ export function createCommands(ctx: AppContext) {
     toggleWrap: settings.toggleWrap,
     toggleSidebarPosition: settings.toggleSidebarPosition,
     lineOp: editor.requestLineOp,
+    lineHome: editor.requestLineHome,
     foldOp: editor.requestFoldOp,
     triggerCompletion: editor.requestCompletion,
     openSettings: () => {

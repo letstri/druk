@@ -781,6 +781,7 @@ export function App(props: {
             history={editor.history()}
             edit={editor.edit()}
             lineOp={editor.lineOp()}
+            lineHome={editor.lineHome()}
             foldOp={editor.foldOp()}
             vim={config.vim}
             cursorStyle={config.cursorStyle}

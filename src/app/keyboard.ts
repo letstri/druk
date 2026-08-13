@@ -81,6 +81,7 @@ export function installKeyboard(ctx: AppContext, actions: CommandActions) {
     'nav.forward': actions.navForward,
     'tabs.closeOthers': actions.closeOthers,
     'tabs.closeAll': actions.closeAll,
+    'editor.lineStart': () => editor.requestLineHome(),
     'editor.deleteLine': () => actions.lineOp('delete'),
     'editor.format': actions.formatDocument,
     'editor.formatOpen': actions.formatOpenFiles,

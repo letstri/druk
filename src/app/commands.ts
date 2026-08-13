@@ -69,6 +69,7 @@ export interface CommandActions {
   previewIcons: (id: string) => void
   restoreIcons: () => void
   lineOp: (op: 'comment' | 'up' | 'down' | 'duplicate' | 'delete') => void
+  lineHome: () => void
   foldOp: (op: FoldOp) => void
   triggerCompletion: () => void
   openSettings: () => void
@@ -508,6 +509,12 @@ export function buildCommands(actions: CommandActions, ctx: CommandContext): Com
           label: 'Duplicate line',
           hint: `${ALT}+Shift+↓`,
           run: () => actions.lineOp('duplicate'),
+        },
+        {
+          id: 'editor.lineStart',
+          label: 'Go to beginning of line',
+          hint: `Ctrl+${ALT}+B`,
+          run: actions.lineHome,
         },
         {
           id: 'editor.deleteLine',

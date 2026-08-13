@@ -79,6 +79,9 @@ export const BINDABLE: Bindable[] = [
   { id: 'nav.forward', label: 'Go forward', defaults: [`Ctrl+${ALT}+Y`] },
   { id: 'tabs.closeOthers', label: 'Close other tabs', defaults: [] },
   { id: 'tabs.closeAll', label: 'Close all tabs', defaults: [] },
+  // B for beginning: Ctrl+A is select-all, Ctrl+E is the textarea's line-end,
+  // and Ctrl+Opt+E already unfolds. Ctrl+Shift+E is the same byte as Ctrl+E.
+  { id: 'editor.lineStart', label: 'Go to beginning of line', defaults: [`Ctrl+${ALT}+B`] },
   // Shrink and expand, since the bracket pair every GUI editor uses for this is
   // Ctrl+Shift+[ / ] — a shifted Ctrl chord no terminal can deliver, and Ctrl+[
   // is the Escape byte anyway. C, the other obvious letter, is Copy path.

@@ -94,6 +94,13 @@ export const KEYS: KeyInfo[] = [
   { key: 'Ctrl+S', label: 'Save file', section: 'Editing', where: 'editor', ids: ['save'] },
   { key: 'Ctrl+Z / Ctrl+Y', label: 'Undo / redo', section: 'Editing', where: 'editor' },
   { key: 'Ctrl+A', label: 'Select all', section: 'Editing', where: 'editor' },
+  {
+    key: `Ctrl+${ALT}+B`,
+    label: 'Go to beginning of line',
+    section: 'Editing',
+    where: 'editor',
+    ids: ['editor.lineStart'],
+  },
   { key: 'Ctrl+C', label: 'Copy selection — quits if none', section: 'Editing', where: 'all' },
   { key: 'Ctrl+X / Ctrl+V', label: 'Cut / paste', section: 'Editing', where: 'editor' },
   { key: 'Ctrl+/ · Ctrl+L', label: 'Toggle comment', section: 'Editing', where: 'editor' },

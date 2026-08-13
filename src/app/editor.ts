@@ -26,6 +26,8 @@ export function createEditorBridge(vim: boolean) {
   } | null>(null)
   /** Folding, the same one-shot shape: the pane owns which blocks are collapsed. */
   const [foldOp, setFoldOp] = createSignal<{ op: FoldOp; key: number } | null>(null)
+  /** Caret to column 0 of the current line — not a lineOp, those rewrite text. */
+  const [lineHome, setLineHome] = createSignal<{ key: number } | null>(null)
   const [cursor, setCursor] = createSignal({ line: 0, col: 0 })
   /**
    * The lines the editor's selection spans, or null while there is none. Only
@@ -51,6 +53,7 @@ export function createEditorBridge(vim: boolean) {
     setLineOp(prev => ({ op, key: (prev?.key ?? 0) + 1 }))
   const requestCompletion = () => setCompletion(prev => ({ key: (prev?.key ?? 0) + 1 }))
   const requestFoldOp = (op: FoldOp) => setFoldOp(prev => ({ op, key: (prev?.key ?? 0) + 1 }))
+  const requestLineHome = () => setLineHome(prev => ({ key: (prev?.key ?? 0) + 1 }))
 
   return {
     vimMode,
@@ -67,6 +70,8 @@ export function createEditorBridge(vim: boolean) {
     requestLineOp,
     foldOp,
     requestFoldOp,
+    lineHome,
+    requestLineHome,
     completion,
     requestCompletion,
     completionOpen,
