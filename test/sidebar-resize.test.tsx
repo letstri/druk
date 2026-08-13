@@ -1,13 +1,13 @@
 import { describe, expect, test } from 'bun:test'
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { SIDEBAR_MIN } from '../src/core/config'
 import { ui } from '../src/themes'
 import { fixture, launch, openFile, press, pressEscape, runCommand, settle } from './helpers'
 import type { Harness } from './helpers'
+import { tempDir } from './temp'
 
 const PROJECT = { 'alpha.ts': 'const a = 1\n', 'beta.ts': 'const b = 2\n' }
 
@@ -262,7 +262,7 @@ describe('what must not move when the sidebar does', () => {
   })
 
   test('git marks line up at the panel edge, and follow it on a resize', async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'druk-marks-'))
+    const dir = tempDir('druk-marks-')
     const git = (...args: string[]) => execFileSync('git', args, { cwd: dir })
     git('init', '-q', '-b', 'main')
     git('config', 'user.email', 't@e.com')

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -21,6 +21,7 @@ import type { Diagnostic, RpcMessage } from '../src/lsp/protocol'
 import { headline, isDeprecated, isUnnecessary, severityOf } from '../src/lsp/protocol'
 import { installHint, resolveServer, resolveServers } from '../src/lsp/servers'
 import { createDecoder, encodeMessage } from '../src/lsp/transport'
+import { tempDir } from './temp'
 
 const FAKE = join(import.meta.dir, 'fixtures', 'fake-lsp.ts')
 
@@ -191,7 +192,7 @@ describe('protocol mapping', () => {
 
 describe('installed servers', () => {
   test('a command is rewritten only when druk installed that binary', () => {
-    const root = mkdtempSync(join(tmpdir(), 'druk-lsp-root-'))
+    const root = tempDir('druk-lsp-root-')
     const command = ['pyright-langserver', '--stdio']
     expect(installedCommand(command, root)).toBeNull()
 
@@ -208,7 +209,7 @@ describe('installed servers', () => {
   })
 
   test('a release binary downloads into bin/ and reports HTTP errors', async () => {
-    const root = mkdtempSync(join(tmpdir(), 'druk-lsp-root-'))
+    const root = tempDir('druk-lsp-root-')
     const server = Bun.serve({
       port: 0,
       fetch(req) {
@@ -229,7 +230,7 @@ describe('installed servers', () => {
   }, 20_000)
 
   test('a downloaded server is removed by deleting its binary', async () => {
-    const root = mkdtempSync(join(tmpdir(), 'druk-lsp-root-'))
+    const root = tempDir('druk-lsp-root-')
     const target = join(root, 'bin', 'expert')
     mkdirSync(join(root, 'bin'), { recursive: true })
     writeFileSync(target, '')
@@ -247,14 +248,14 @@ describe('installed servers', () => {
   })
 
   test('a server druk never installed is refused rather than half-removed', async () => {
-    const root = mkdtempSync(join(tmpdir(), 'druk-lsp-root-'))
+    const root = tempDir('druk-lsp-root-')
     expect(await removeServer({ kind: 'manual', command: 'brew install zls' }, 'zls', root)).toBe(
       'druk did not install it',
     )
   })
 
   test('an install creates the manager working directory', async () => {
-    const root = join(mkdtempSync(join(tmpdir(), 'druk-lsp-root-')), 'lsp')
+    const root = join(tempDir('druk-lsp-root-'), 'lsp')
     const path = process.env.PATH
     process.env.PATH = ''
     try {
@@ -268,7 +269,7 @@ describe('installed servers', () => {
   }, 20_000)
 
   test('no node leaves no manager to offer, whatever else is on PATH', () => {
-    const root = mkdtempSync(join(tmpdir(), 'druk-lsp-root-'))
+    const root = tempDir('druk-lsp-root-')
     const path = process.env.PATH
     process.env.PATH = ''
     try {
@@ -281,7 +282,7 @@ describe('installed servers', () => {
   })
 
   test('a prefix keeps the manager that filled it, so the removal matches the install', () => {
-    const root = mkdtempSync(join(tmpdir(), 'druk-lsp-root-'))
+    const root = tempDir('druk-lsp-root-')
     writeFileSync(join(root, '.manager'), 'bun')
     // Both are a given here: bun runs this suite, and node is what the servers
     // the list exists for are run by.
@@ -289,11 +290,11 @@ describe('installed servers', () => {
   })
 
   test('installing a second server keeps the first', async () => {
-    const root = mkdtempSync(join(tmpdir(), 'druk-lsp-root-'))
+    const root = tempDir('druk-lsp-root-')
     // Local directories, so npm resolves them without a registry — the point of
     // the test is what npm does to the tree it finds, not where it got it.
     const fake = (name: string) => {
-      const dir = join(mkdtempSync(join(tmpdir(), 'druk-fake-pkg-')), name)
+      const dir = join(tempDir('druk-fake-pkg-'), name)
       mkdirSync(dir, { recursive: true })
       writeFileSync(
         join(dir, 'package.json'),
@@ -314,7 +315,7 @@ describe('installed servers', () => {
   }, 60_000)
 
   test('a prefix filled before the manifest existed is described, not pruned', async () => {
-    const root = mkdtempSync(join(tmpdir(), 'druk-lsp-root-'))
+    const root = tempDir('druk-lsp-root-')
     const pkg = join(root, 'node_modules', 'typescript-language-server')
     mkdirSync(pkg, { recursive: true })
     writeFileSync(
@@ -337,7 +338,7 @@ describe('installed servers', () => {
   }, 20_000)
 
   test('an install with no npm to run it fails instead of hanging', async () => {
-    const root = mkdtempSync(join(tmpdir(), 'druk-lsp-root-'))
+    const root = tempDir('druk-lsp-root-')
     // PATH is what `spawn` searches, so emptying it is how npm goes missing.
     const path = process.env.PATH
     process.env.PATH = ''
@@ -353,7 +354,7 @@ describe('installed servers', () => {
 
 describe('the project’s own server', () => {
   const project = (files: Record<string, string>) => {
-    const dir = mkdtempSync(join(tmpdir(), 'druk-project-'))
+    const dir = tempDir('druk-project-')
     for (const [name, content] of Object.entries(files)) {
       const path = join(dir, name)
       mkdirSync(join(path, '..'), { recursive: true })
@@ -469,7 +470,7 @@ describe('headline', () => {
 
 describe('client against a live server', () => {
   test('handshake, didOpen diagnostics, didChange clearing them, dispose', async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'druk-lsp-'))
+    const dir = tempDir('druk-lsp-')
     const path = join(dir, 'a.ts')
     const deliveries = collector<Diagnostic[]>()
     const client = spawnLspClient({

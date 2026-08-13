@@ -1,6 +1,5 @@
 import { expect, test } from 'bun:test'
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { loadNotes, saveNotes } from '../src/core/review'
@@ -19,11 +18,12 @@ import {
   untilGone,
 } from './helpers'
 import type { Harness } from './helpers'
+import { tempDir } from './temp'
 
 // ── Notes, and where they live ─────────────────────────────────────────────
 
 test('notes survive a restart, and clearing forgets the project', () => {
-  const file = join(mkdtempSync(join(tmpdir(), 'druk-notes-')), 'review.json')
+  const file = join(tempDir('druk-notes-'), 'review.json')
   const note = {
     id: 'a',
     path: '/p/src/a.ts',

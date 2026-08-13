@@ -1,6 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { buildCommands } from '../src/app/commands'
@@ -11,6 +10,7 @@ import { searchProject, searchText } from '../src/core/search'
 import { isNewer } from '../src/core/update'
 import { THEMES } from '../src/themes'
 import { flattenCommands } from '../src/ui/CommandPalette'
+import { tempDir } from './temp'
 
 describe('search', () => {
   const text = 'const alpha = 1\nlet beta = 2\n// alpha again\n'
@@ -27,7 +27,7 @@ describe('search', () => {
   })
 
   test('walks subdirectories but skips node_modules', () => {
-    const dir = mkdtempSync(join(tmpdir(), 'druk-'))
+    const dir = tempDir()
     mkdirSync(join(dir, 'sub'))
     mkdirSync(join(dir, 'node_modules'))
     writeFileSync(join(dir, 'a.ts'), 'alpha\n')
@@ -41,13 +41,13 @@ describe('search', () => {
 
 describe('files', () => {
   test('refuses binary content', () => {
-    const dir = mkdtempSync(join(tmpdir(), 'druk-'))
+    const dir = tempDir()
     writeFileSync(join(dir, 'bin'), Buffer.from([0x89, 0x50, 0x00, 0x01]))
     expect(() => readFile(join(dir, 'bin'))).toThrow('binary file')
   })
 
   test('an install is reported as a dependency change, and a source edit is not', async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'druk-deps-'))
+    const dir = tempDir('druk-deps-')
     const seen: Changed[] = []
     const stop = watchTree(dir, changed => void seen.push(changed))
     try {

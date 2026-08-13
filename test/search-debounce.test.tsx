@@ -1,15 +1,15 @@
 import { describe, expect, test } from 'bun:test'
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { searchProject } from '../src/core/search'
 import { fixture, launch, openFile, press, runCommand, settle } from './helpers'
 import type { Harness } from './helpers'
+import { tempDir } from './temp'
 
 /** A project big enough that one scan is unmistakably slower than one keystroke. */
 function corpus(count: number) {
-  const dir = mkdtempSync(join(tmpdir(), 'druk-corpus-'))
+  const dir = tempDir('druk-corpus-')
   for (let i = 0; i < count; i++) {
     const sub = join(dir, `pkg${i % 40}`)
     mkdirSync(sub, { recursive: true })

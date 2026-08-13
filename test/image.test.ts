@@ -1,16 +1,16 @@
 import { describe, expect, test } from 'bun:test'
-import { mkdtempSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { encode } from 'fast-png'
 
 import { decodeImage, isImagePath, toCells } from '../src/core/image'
 import type { RawImage } from '../src/core/image'
+import { tempDir } from './temp'
 
 /** A PNG on disk with the given RGBA pixels. */
 function pngFixture(width: number, height: number, rgba: number[]): string {
-  const dir = mkdtempSync(join(tmpdir(), 'druk-img-'))
+  const dir = tempDir('druk-img-')
   const path = join(dir, 'img.png')
   writeFileSync(path, encode({ width, height, data: new Uint8Array(rgba), channels: 4 }))
   return path
@@ -45,7 +45,7 @@ describe('decodeImage', () => {
   })
 
   test('throws a readable error on a file that is not an image', () => {
-    const dir = mkdtempSync(join(tmpdir(), 'druk-img-'))
+    const dir = tempDir('druk-img-')
     const path = join(dir, 'fake.png')
     writeFileSync(path, 'not a png at all')
     expect(() => decodeImage(path)).toThrow()

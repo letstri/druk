@@ -1,13 +1,13 @@
 import { describe, expect, test } from 'bun:test'
-import { chmodSync, mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { chmodSync, mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { FILE_TOKEN, formatArgs, formatterFor, resolveBin, runFormatter } from '../src/core/format'
+import { tempDir } from './temp'
 
 /** A command whose script file sees the target path as argv[2], as real ones do. */
 function script(code: string): { command: string[]; dir: string } {
-  const dir = mkdtempSync(join(tmpdir(), 'druk-fmt-'))
+  const dir = tempDir('druk-fmt-')
   const file = join(dir, 'tool.js')
   writeFileSync(file, code)
   return { command: [process.execPath, file], dir }
@@ -78,7 +78,7 @@ describe('formatArgs', () => {
 
 /** A project whose `node_modules/.bin` holds an executable `name`. */
 function projectWithBin(name: string, code: string): string {
-  const dir = mkdtempSync(join(tmpdir(), 'druk-proj-'))
+  const dir = tempDir('druk-proj-')
   const bin = join(dir, 'node_modules', '.bin')
   mkdirSync(bin, { recursive: true })
   const file = join(bin, name)
@@ -94,7 +94,7 @@ describe('resolveBin', () => {
   })
 
   test('a name the project did not install is left to PATH', () => {
-    const dir = mkdtempSync(join(tmpdir(), 'druk-proj-'))
+    const dir = tempDir('druk-proj-')
     expect(resolveBin('gofmt', dir)).toBe('gofmt')
   })
 

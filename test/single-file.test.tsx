@@ -1,6 +1,5 @@
 import { describe, expect, test } from 'bun:test'
-import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 
 import { resolveTarget } from '../src/core/cli'
@@ -8,6 +7,7 @@ import type { Config } from '../src/core/config'
 import { loadSession, saveSession } from '../src/core/session'
 import { fixture, launch, press, settle } from './helpers'
 import type { Harness } from './helpers'
+import { tempDir } from './temp'
 
 const PROJECT = {
   'one.ts': 'const one = 1\n',
@@ -123,7 +123,7 @@ describe('the CLI itself', () => {
    * its preload the Solid JSX transform never happens.
    */
   function run(args: string[]) {
-    const home = mkdtempSync(join(tmpdir(), 'druk-home-'))
+    const home = tempDir('druk-home-')
     const proc = Bun.spawnSync(['bun', 'src/index.tsx', ...args], {
       cwd: process.cwd(),
       env: { ...process.env, XDG_CONFIG_HOME: home },

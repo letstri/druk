@@ -1,11 +1,11 @@
 import { expect, test } from 'bun:test'
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { launch, press, pressEscape, until, untilFrame } from './helpers'
 import type { Harness } from './helpers'
+import { tempDir } from './temp'
 
 const ESC = String.fromCharCode(27)
 /** Ctrl+Opt+G as terminals spell it: an ESC prefix ahead of Ctrl+G (0x07). */
@@ -18,7 +18,7 @@ const git = (cwd: string, ...args: string[]) => execFileSync('git', args, { cwd 
  * sync section — with a clean working tree, so the sections are all there is.
  */
 function adrift() {
-  const base = mkdtempSync(join(tmpdir(), 'druk-adrift-'))
+  const base = tempDir('druk-adrift-')
   const origin = join(base, 'origin.git')
   execFileSync('git', ['init', '-q', '--bare', '-b', 'main', origin])
 

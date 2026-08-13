@@ -36,3 +36,22 @@ test('ui/ and the feature folders never import from app/', () => {
   }
   expect(offenders).toEqual([])
 })
+
+/**
+ * A raw `mkdtempSync` is invisible to the sweep in `test/setup.ts` and leaks for
+ * good: the git helpers each made one and left tens of thousands of directories
+ * behind, until `mkdtemp` in that folder slowed down and files began failing with
+ * `ENOENT` on their own fixtures.
+ */
+test('tests take their temp directories from tempDir()', () => {
+  const dir = import.meta.dir
+  const offenders: string[] = []
+  for (const name of readdirSync(dir)) {
+    if (name === 'temp.ts' || !/\.tsx?$/.test(name)) continue
+    const source = readFileSync(join(dir, name), 'utf8')
+    for (const [line, text] of source.split('\n').entries()) {
+      if (/\bmkdtempSync\s*\(/.test(text)) offenders.push(`${name}:${line + 1}: ${text.trim()}`)
+    }
+  }
+  expect(offenders).toEqual([])
+})

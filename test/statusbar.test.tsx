@@ -1,15 +1,15 @@
 import { describe, expect, test } from 'bun:test'
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { fixture, launch, openFile, press, pressEscape, settle } from './helpers'
 import type { Harness } from './helpers'
+import { tempDir } from './temp'
 
 /** A repo with one committed file, one edit and one untracked file. */
 function repo() {
-  const dir = mkdtempSync(join(tmpdir(), 'druk-bar-'))
+  const dir = tempDir('druk-bar-')
   const git = (...args: string[]) => execFileSync('git', args, { cwd: dir })
   git('init', '-q', '-b', 'main')
   git('config', 'user.email', 't@e.com')

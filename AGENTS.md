@@ -783,12 +783,20 @@ harness exists to encode:
 - **Poll for what you are waiting for.** `until()` renders until a condition holds, so a
   watcher event or an async highlight costs what it actually takes. A fixed
   `settle(t, 400)` is right only when the assertion is that *nothing* happened.
-- **A fixture lives as long as its file.** `test/setup.ts` deletes every `fixture()`
+- **A fixture lives as long as its file.** `test/setup.ts` deletes every registered
   directory in a global `afterAll`, so nothing may expect one to outlive the file that
   made it. The sweep is not tidiness: a full run creates some three thousand temp
   projects, and when they accumulated across runs the temp folder reached ~100k
   entries, every `mkdtemp` in it slowed down, and whole files began timing out and
   being killed — which reads as flaky tests and is not.
+- **A temp directory comes from `tempDir()` (`test/temp.ts`), never from `mkdtempSync`.**
+  Only what `tempDir` made is in the swept set, so a raw `mkdtempSync` leaks for good —
+  the `repo()` helpers of the git tests each did one and left 60k directories behind,
+  until two of those files began failing with `ENOENT` on their own fixture files. It
+  takes the name prefix (`tempDir('druk-git-')`) and lives in its own module rather than
+  in `helpers.tsx` so a unit test can have it without pulling in `<App/>`; `fixture()` is
+  built on it. A helper that nests (a base holding `origin.git`, `mine` and `theirs`)
+  registers the outermost directory and joins onto it.
 
 `captureCharFrame()` returns text only — selection and focus are background colors, so
 assert on something textual (a prompt appearing, the status bar, file contents on disk).

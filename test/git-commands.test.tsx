@@ -1,15 +1,15 @@
 import { expect, test } from 'bun:test'
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { fixture, launch, press, runCommand, settle } from './helpers'
 import type { Harness } from './helpers'
+import { tempDir } from './temp'
 
 /** A real repository with one committed file. */
 function repo(committed: string) {
-  const dir = mkdtempSync(join(tmpdir(), 'druk-git-'))
+  const dir = tempDir('druk-git-')
   const git = (...args: string[]) => execFileSync('git', args, { cwd: dir })
   git('init', '-q', '-b', 'main')
   git('config', 'user.email', 'test@example.com')
@@ -147,7 +147,7 @@ test('stash reverts the working tree and pop brings it back', async () => {
 
 test('push sets an upstream on a local bare remote, and fetch succeeds after', async () => {
   const dir = repo('one\n')
-  const bare = mkdtempSync(join(tmpdir(), 'druk-bare-'))
+  const bare = tempDir('druk-bare-')
   execFileSync('git', ['init', '-q', '--bare', bare])
   execFileSync('git', ['remote', 'add', 'origin', bare], { cwd: dir })
 

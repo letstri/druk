@@ -1,7 +1,6 @@
 import { expect, test } from 'bun:test'
 import { execFileSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { mkdirSync, symlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import {
@@ -16,10 +15,11 @@ import {
 import { THEMES } from '../src/themes'
 import { launch, press, settle, until } from './helpers'
 import type { Harness } from './helpers'
+import { tempDir } from './temp'
 
 /** A real repository with one committed file. */
 function repo(committed: string) {
-  const dir = mkdtempSync(join(tmpdir(), 'druk-git-'))
+  const dir = tempDir('druk-git-')
   const git = (...args: string[]) => execFileSync('git', args, { cwd: dir })
   git('init', '-q', '-b', 'main')
   git('config', 'user.email', 'test@example.com')
@@ -52,7 +52,7 @@ test('a hunk that grows marks rewrites and additions separately', async () => {
 })
 
 test('is empty outside a repository', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'druk-'))
+  const dir = tempDir()
   writeFileSync(join(dir, 'a.ts'), 'x\n')
   expect((await diffLines(join(dir, 'a.ts'))).size).toBe(0)
   expect(currentBranch(dir)).toBeNull()
@@ -322,7 +322,7 @@ test('one path beyond a symlink does not blank the whole answer', () => {
 test('ignoredAmong is empty outside a repository', () => {
   // `check-ignore` exits 128 here rather than reporting nothing, and that has to
   // read as "nothing is ignored" — the tree still draws these rows.
-  const dir = mkdtempSync(join(tmpdir(), 'druk-'))
+  const dir = tempDir()
   writeFileSync(join(dir, 'a.ts'), 'x\n')
   expect(ignoredAmong(dir, [join(dir, 'a.ts')]).size).toBe(0)
 })

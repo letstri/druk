@@ -1,7 +1,6 @@
 import { expect, test } from 'bun:test'
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { createRoot } from 'solid-js'
@@ -9,9 +8,10 @@ import { createRoot } from 'solid-js'
 import { createComparison } from '../src/app/comparison'
 import { createGit } from '../src/app/git'
 import { createStatus } from '../src/app/status'
+import { tempDir } from './temp'
 
 function repo() {
-  const dir = mkdtempSync(join(tmpdir(), 'druk-controller-'))
+  const dir = tempDir('druk-controller-')
   const git = (...args: string[]) =>
     execFileSync('git', args, { cwd: dir, encoding: 'utf8' }).trim()
   git('init', '-q', '-b', 'trunk')

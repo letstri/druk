@@ -1,6 +1,5 @@
 import { expect, test } from 'bun:test'
-import { existsSync, mkdtempSync, readFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import {
@@ -18,6 +17,7 @@ import {
 import type { Fetcher, MarketEntry } from '../src/core/market'
 import { isNewer } from '../src/core/update'
 import { loadExtensions } from '../src/extensions'
+import { tempDir } from './temp'
 
 const REGISTRY = 'https://example.test/extensions/'
 
@@ -54,7 +54,7 @@ const serving = (bodies: Record<string, unknown>, seen: string[] = []): Fetcher 
     )
   }) as Fetcher
 
-const temp = (name: string) => mkdtempSync(join(tmpdir(), `druk-${name}-`))
+const temp = (name: string) => tempDir(`druk-${name}-`)
 
 test('a malformed catalog row is dropped, not fatal', () => {
   const parsed = parseCatalog({

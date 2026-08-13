@@ -1,13 +1,13 @@
 import { describe, expect, test } from 'bun:test'
 import { execFileSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { listDir } from '../src/core/fs'
 import { ignoredPaths } from '../src/core/git'
 import { listFiles, searchProject } from '../src/core/search'
 import { fixture, launch, toggleSetting } from './helpers'
+import { tempDir } from './temp'
 
 const PROJECT = { 'src/main.ts': 'const a = 1\n', '.DS_Store': 'junk\n', '.gitignore': 'dist\n' }
 
@@ -43,7 +43,7 @@ describe('showDotfiles: false', () => {
 
 describe('respectGitignore: true', () => {
   function repo() {
-    const dir = mkdtempSync(join(tmpdir(), 'druk-ignored-'))
+    const dir = tempDir('druk-ignored-')
     execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: dir })
     writeFileSync(join(dir, '.gitignore'), 'dist\n*.log\n')
     writeFileSync(join(dir, 'a.ts'), 'const a = 1\n')
@@ -99,7 +99,7 @@ describe('respectGitignore: true', () => {
  */
 describe('project search and the fuzzy picker skip ignored files', () => {
   function repo() {
-    const dir = mkdtempSync(join(tmpdir(), 'druk-searchignore-'))
+    const dir = tempDir('druk-searchignore-')
     execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: dir })
     // Deliberately not `dist`: SKIPPED_DIRS drops that by name, which would pass
     // this test without gitignore being consulted at all.
@@ -125,7 +125,7 @@ describe('project search and the fuzzy picker skip ignored files', () => {
   })
 
   test('outside a repository everything is listed', () => {
-    const dir = mkdtempSync(join(tmpdir(), 'druk-searchplain-'))
+    const dir = tempDir('druk-searchplain-')
     writeFileSync(join(dir, '.gitignore'), 'generated\n')
     mkdirSync(join(dir, 'generated'))
     writeFileSync(join(dir, 'generated', 'bundle.js'), 'var alpha = 1\n')
@@ -135,7 +135,7 @@ describe('project search and the fuzzy picker skip ignored files', () => {
 
 describe('the VCS store is not project content', () => {
   function repo() {
-    const dir = mkdtempSync(join(tmpdir(), 'druk-vcs-'))
+    const dir = tempDir('druk-vcs-')
     execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: dir })
     writeFileSync(join(dir, 'a.ts'), 'const a = 1\n')
     writeFileSync(join(dir, '.gitignore'), 'dist\n')
@@ -167,7 +167,7 @@ describe('the VCS store is not project content', () => {
   })
 
   test('a file named like a VCS directory is still a file', () => {
-    const dir = mkdtempSync(join(tmpdir(), 'druk-vcsfile-'))
+    const dir = tempDir('druk-vcsfile-')
     // A worktree or submodule checkout has `.git` as a *file* pointing elsewhere.
     // It is text, and there is no reason to pretend it is not there.
     writeFileSync(join(dir, '.git'), 'gitdir: /elsewhere\n')
