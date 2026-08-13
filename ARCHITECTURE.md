@@ -702,9 +702,9 @@ is just a diff against the empty tree.
   panel) is the other reading surface: a stacked page over the editor slot, each
   file a two-row header (path, then +/− and new/deleted/renamed) over its patch,
   with a rule between files. The header sticks to the top of the scroll until the
-  next file pushes it off. Tab into the page lights the current file (accent
-  edges on the header); Tab / Shift+Tab walk the files, and a click or ←/→ folds
-  the lit one. While it is up the panel's arrows move the cursor and scroll to
+  next file pushes it off. Tab into the page lights the current file (a cell of
+  accent on the left of the header, and the selection fill); Tab / Shift+Tab walk
+  the files, and a click or ←/→ folds the lit one. While it is up the panel's arrows move the cursor and scroll to
   that file's section instead of replacing the page with a one-file diff — a file
   past the stacked-row cap is still built so that landing is not empty, and a
   refresh that leaves nothing to show closes the page.

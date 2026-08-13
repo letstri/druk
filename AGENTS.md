@@ -156,8 +156,8 @@ instead), the panel is the only way in, and the diff is a tab of its own in the 
 stacked as sections, Cursor's Changes page: a summary header and one block per file,
 always inline, a rule between files and a two-row header (path, then +/− and whether
 it is new/deleted/renamed) that sticks to the top of the scroll until the next file's
-header pushes it off; Tab into the page lights the current file's header (accent
-edges), Tab / Shift+Tab walk the headers, and a click or ←/→ folds that one; while
+header pushes it off; Tab into the page lights the current file's header (a cell of
+accent on the left and the selection fill), Tab / Shift+Tab walk the headers, and a click or ←/→ folds that one; while
 that page is up the panel's arrows scroll to the file under the cursor rather than
 replacing it with a one-file diff (a file past the stacked-row cap is kept so that
 landing is not empty), the header says how many were left out, the page goes when the

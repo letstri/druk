@@ -4,6 +4,7 @@ import { mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
+import { ui } from '../src/themes'
 import {
   launch,
   press,
@@ -13,6 +14,27 @@ import {
   untilFrame,
   untilGone,
 } from './helpers'
+import type { Harness } from './helpers'
+
+interface Frame {
+  lines: { spans: { text: string; bg?: { buffer: Uint8Array } }[] }[]
+}
+
+const hex = (color?: { buffer: Uint8Array }) =>
+  color
+    ? `#${Array.from(color.buffer.slice(0, 3), v => v.toString(16).padStart(2, '0')).join('')}`
+    : ''
+
+const rowBgs = (t: Harness, y: number) => {
+  const frame = t.captureSpans() as unknown as Frame
+  return frame.lines[y]?.spans.map(span => hex(span.bg)) ?? []
+}
+
+const rowOf = (t: Harness, text: string) =>
+  t
+    .captureCharFrame()
+    .split('\n')
+    .findIndex(line => line.includes(text))
 
 /** A real repository with committed files. */
 function repo(files: Record<string, string>) {
@@ -267,7 +289,14 @@ test('Tab and Shift+Tab walk the file headers that ← folds', async () => {
   await runCommand(t, 'Show all changes')
   await untilFrame(t, '+ ALPHA')
   await press(t, i => i.pressTab())
+  const a = rowOf(t, '▾ M a.ts')
+  const b = rowOf(t, '▾ M b.ts')
+  expect(rowBgs(t, a)).toContain(ui.accent)
+  expect(rowBgs(t, a)).toContain(ui.treeSelectedBg)
+  expect(rowBgs(t, b)).not.toContain(ui.accent)
   await press(t, i => i.pressTab())
+  expect(rowBgs(t, rowOf(t, '▾ M b.ts'))).toContain(ui.accent)
+  expect(rowBgs(t, rowOf(t, '▾ M a.ts'))).not.toContain(ui.accent)
   await press(t, i => i.pressKey('h'))
   await untilGone(t, '+ BETA')
   expect(t.captureCharFrame()).toContain('+ ALPHA')

@@ -1,4 +1,4 @@
-import type { BorderSides, KeyEvent, MouseEvent, ScrollBoxRenderable } from '@opentui/core'
+import type { KeyEvent, MouseEvent, ScrollBoxRenderable } from '@opentui/core'
 import { useTerminalDimensions } from '@opentui/solid'
 import { createEffect, createMemo, createSignal, For, on, onCleanup, Show } from 'solid-js'
 import type { Accessor } from 'solid-js'
@@ -85,10 +85,10 @@ export interface StickyHeader {
  */
 export const SECTION_HEADER_ROWS = 2
 
-/** Left and right only: a full box border would add two rows and jump the stack
- * when the selection moved. Unselected, the colour matches the header so the
- * columns are reserved without drawing. */
-const HEADER_EDGE: BorderSides[] = ['left', 'right']
+/** Left column the selection mark occupies. A box border drew `│` in accent,
+ * which several palettes put too close to `barBg` to see. A full cell of
+ * accent plus `treeSelectedBg` is the pair every other list already uses. */
+const HEADER_MARK = 1
 
 /**
  * Which in-flow header should be mirrored at the top of the viewport.
@@ -173,12 +173,12 @@ interface FileHeaderProps {
 }
 
 function FileHeader(props: FileHeaderProps) {
-  const bg = () => (props.hovered ? ui.hoverBg : ui.solidBarBg)
-  const edge = () => (props.selected ? ui.accent : bg())
+  const bg = () => (props.selected ? ui.treeSelectedBg : props.hovered ? ui.hoverBg : ui.solidBarBg)
+  const mark = () => (props.selected ? ui.accent : bg())
   const label = () => diffStatusLabel(props.section.status)
   const color = () => diffStatusColor(props.section.status)
   const chevron = () => (props.collapsed ? '▸' : '▾')
-  const textWidth = () => Math.max(8, props.width - HEADER_EDGE.length)
+  const textWidth = () => Math.max(8, props.width - HEADER_MARK)
   const path = () => {
     const word = label()
     const right = word ? ` ${word} ` : ''
@@ -189,13 +189,7 @@ function FileHeader(props: FileHeaderProps) {
   const meta = () => cut(headerMeta(props.section), textWidth())
 
   return (
-    <box
-      flexShrink={0}
-      flexDirection="column"
-      backgroundColor={bg()}
-      border={HEADER_EDGE}
-      borderColor={edge()}
-    >
+    <box flexShrink={0} flexDirection="column" backgroundColor={bg()}>
       <Show when={props.part === 'full'}>
         <box
           height={1}
@@ -206,6 +200,7 @@ function FileHeader(props: FileHeaderProps) {
           onMouseOver={() => props.onEnter()}
           onMouseOut={() => props.onLeave()}
         >
+          <text wrapMode="none" fg={mark()} bg={mark()} flexShrink={0} content=" " />
           <text wrapMode="none" fg={ui.dim} bg={bg()} flexShrink={0} content={` ${chevron()} `} />
           <text
             wrapMode="none"
@@ -232,6 +227,7 @@ function FileHeader(props: FileHeaderProps) {
         onMouseOver={() => props.onEnter()}
         onMouseOut={() => props.onLeave()}
       >
+        <text wrapMode="none" fg={mark()} bg={mark()} flexShrink={0} content=" " />
         <text wrapMode="none" fg={ui.dim} bg={bg()} flexShrink={0} content={meta()} />
         <box flexGrow={1} backgroundColor={bg()} />
       </box>
