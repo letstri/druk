@@ -26,6 +26,8 @@ const filesFor = (entries: Change[], oldText: string, newText: string) => {
   return (entry: Change) => files.get(entry.path) ?? null
 }
 
+const none = () => null
+
 test('files past the row cap are omitted unless they are the cursor file', () => {
   const ordered = [change('a.ts'), change('b.ts'), change('c.ts')]
   const budget = unifiedDiff('a.ts', 'old\n', 'new\n').lines
@@ -64,4 +66,26 @@ test('the truncated header names how many of the files are on screen', () => {
   expect(changesSummary('Uncommitted', 3, { total: 3, adds: 4, dels: 1 })).toBe(
     'Uncommitted · 3 files · +4 −1',
   )
+})
+
+test('a binary or empty patch still costs a row toward the cap', () => {
+  const binaries = [change('a.bin'), change('b.bin'), change('c.bin'), change('d.bin')]
+  const omitted = takeChangeSections(binaries, none, new Map(), null, 2)
+  expect(omitted.sections.map(s => s.rel)).toEqual(['a.bin', 'b.bin'])
+
+  const pinned = takeChangeSections(
+    binaries,
+    none,
+    new Map(),
+    slotKey(binaries[3]!.path, binaries[3]!.area),
+    2,
+  )
+  expect(pinned.sections.map(s => s.rel)).toEqual(['a.bin', 'b.bin', 'd.bin'])
+
+  const empty = [change('a.ts'), change('b.ts'), change('c.ts')]
+  const same = filesFor(empty, 'same\n', 'same\n')
+  expect(takeChangeSections(empty, same, new Map(), null, 2).sections.map(s => s.rel)).toEqual([
+    'a.ts',
+    'b.ts',
+  ])
 })

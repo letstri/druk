@@ -43,6 +43,10 @@ const sectionFor = (
   }
 }
 
+/** Visual rows a section costs the stacked page. A binary stub and an empty
+ * patch still take a row, or a folder of them would never trip the cap. */
+const sectionCost = (section: ChangeSection) => Math.max(1, section.lines)
+
 /**
  * Walk panel-order changes into stacked sections, stopping once the patches
  * would exceed `maxLines`. The file under the panel cursor (`pin`) is kept
@@ -67,7 +71,7 @@ export function takeChangeSections(
   const push = (section: ChangeSection) => {
     sections.push(section)
     keep.add(section.key)
-    lines += section.lines
+    lines += sectionCost(section)
     adds += section.adds
     dels += section.dels
     if (lines >= maxLines) full = true
@@ -77,7 +81,7 @@ export function takeChangeSections(
     const key = slotKey(change.path, change.area)
     if (full && key !== pin) continue
     const section = sectionFor(change, fileFor(change), prev.get(key))
-    if (!full && lines + section.lines > maxLines && sections.length > 0 && key !== pin) {
+    if (!full && lines + sectionCost(section) > maxLines && sections.length > 0 && key !== pin) {
       full = true
       continue
     }
