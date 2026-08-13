@@ -341,6 +341,33 @@ test('a Deprecated span is struck through, and its neighbours are not', async ()
   expect(struck()).toEqual(['stale'])
 }, 30_000)
 
+test('a span crossing lines is marked on every line it covers', async () => {
+  const dir = fixture({ 'a.ts': 'const sprawl = {\n  a: 1,\n}\nconst after = 2\n' })
+  const t = await launch(
+    dir,
+    { lsp: true, lspServers: { typescript: [process.execPath, FAKE], eslint: [], oxlint: [] } },
+    {},
+    { openFile: join(dir, 'a.ts') },
+  )
+
+  const struck = () => {
+    const frame = t.captureSpans() as unknown as {
+      lines: { spans: { text: string; attributes: number }[] }[]
+    }
+    return frame.lines
+      .flatMap(line => line.spans)
+      .filter(span => (span.attributes & STRIKETHROUGH) !== 0)
+      .map(span => span.text.trim())
+      .filter(Boolean)
+  }
+
+  await until(t, () => struck().length > 1, LSP_WAIT)
+  // From the column it starts at to the end of that line, the line between
+  // whole, and up to the end column on the last — never `const`, and never the
+  // line below the range.
+  expect(struck().join(' ')).toBe('sprawl = { a: 1, }')
+}, 30_000)
+
 test('a problem far below the viewport is marked on the track', async () => {
   const lines = Array.from({ length: 400 }, (_, index) => `const value${index} = ${index}`)
   lines[380] = 'const oops = 1'

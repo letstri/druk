@@ -66,6 +66,18 @@ const publish = (uri: string, text: string) => {
         source: 'fake',
       })
     }
+    // A range over a whole block, the shape a server sends for "this object is
+    // wrong" — tagged Deprecated so the mark it leaves is assertable as text.
+    const sprawl = lines[line]!.indexOf('sprawl')
+    if (sprawl >= 0 && line + 2 < lines.length) {
+      diagnostics.push({
+        range: { start: { line, character: sprawl }, end: { line: line + 2, character: 1 } },
+        severity: 4,
+        tags: [2],
+        message: 'this whole block is deprecated',
+        source: 'fake',
+      })
+    }
     const nag = lines[line]!.indexOf('nag')
     if (nag < 0) continue
     diagnostics.push({
