@@ -272,6 +272,31 @@ test('a server spawns only once a file of its language opens', async () => {
   await until(t, () => existsSync(marker), LSP_WAIT)
 }, 30_000)
 
+test('a folded line with a diagnostic on it says both, one after the other', async () => {
+  const dir = fixture({ 'a.ts': 'const oops = {\n  a: 1,\n}\n' })
+  const t = await launch(
+    dir,
+    { lsp: true, lspServers: { typescript: [process.execPath, FAKE], eslint: [], oxlint: [] } },
+    { width: 120, height: 24 },
+    { openFile: join(dir, 'a.ts') },
+  )
+
+  await untilFrame(t, 'found oops', LSP_WAIT)
+  await runCommand(t, 'Fold block at cursor')
+  await untilFrame(t, '⋯ 1 line', LSP_WAIT)
+
+  // Both are drawn absolutely in the slot after the line, so overprinting is
+  // what the two of them used to do — the fold note keeps the slot and the
+  // message follows it.
+  const row = t
+    .captureCharFrame()
+    .split('\n')
+    .find(line => line.includes('const oops = {'))
+  expect(row).toContain('⋯ 1 line')
+  expect(row).toContain('found oops')
+  expect(row!.indexOf('⋯ 1 line')).toBeLessThan(row!.indexOf('found oops'))
+}, 30_000)
+
 test('inline text hides when the setting is off, the gutter dot stays', async () => {
   const dir = fixture({ 'a.ts': 'const oops = 1\n' })
   const t = await launch(

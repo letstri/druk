@@ -170,6 +170,8 @@ export interface EditorPaneProps {
   onQuit: () => void
 }
 
+type ProblemRange = EditorPaneProps['problemRanges'][number]
+
 /**
  * Long enough to swallow the keystrokes of one fast burst, no longer. It used to be
  * 80ms, which was 80ms of doing nothing before a parse that costs 70ms on its own —
@@ -801,6 +803,54 @@ export function EditorPane(props: EditorPaneProps) {
   })
 
   /**
+   * What a collapsed block says for itself. Without it a fold is only a jump in
+   * the gutter's numbers, which reads as a rendering fault rather than as
+   * something the editor was told to do.
+   *
+   * Declared before the inline notes because those are laid out *after* it: a
+   * folded line with a diagnostic on it wants both, in the one slot after the
+   * line, and a memo is computed where it is created.
+   */
+  const foldNotes = createMemo(() => {
+    wrapKey()
+    void props.content
+    const view = folded()
+    if (!view) return []
+    // The `▸` in the gutter opens it with a click; the chord is what a keyboard
+    // has, and only the row the caret is standing on says it — see the inline
+    // diagnostic note for why the hint follows the caret rather than the marks.
+    const chord = chordFor('editor.unfold')
+    const notes: { top: number; left: number; text: string; hint?: boolean }[] = []
+    for (const [line, count] of view.hidden) {
+      const row = view.display[line]
+      if (row === undefined || row < 0) continue
+      const slot = noteSlot(row)
+      if (!slot) continue
+      const text = `⋯ ${count} line${count === 1 ? '' : 's'}`
+      notes.push({ top: slot.top, left: slot.left, text: cut(text, slot.room) })
+      if (chord && row === cursorRow() && slot.room - text.length > chord.length + 1) {
+        notes.push({
+          top: slot.top,
+          left: slot.left + text.length,
+          text: ` ${chord}`,
+          hint: true,
+        })
+      }
+    }
+    return notes
+  })
+
+  /** Screen column each row's fold note ends at — what an inline note starts after. */
+  const foldNoteEnds = createMemo(() => {
+    const ends = new Map<number, number>()
+    for (const note of foldNotes()) {
+      const end = note.left + note.text.length
+      ends.set(note.top, Math.max(ends.get(note.top) ?? 0, end))
+    }
+    return ends
+  })
+
+  /**
    * The worst problem's message, drawn after the end of its line — the gutter
    * dot says where, this says what, without a trip to the problems list.
    */
@@ -850,10 +900,20 @@ export function EditorPane(props: EditorPaneProps) {
       }
     }
     if (wanted.size === 0) return []
+    const ends = foldNoteEnds()
     const notes: { top: number; left: number; text: string; color: string }[] = []
     for (const [row, note] of wanted) {
       const slot = noteSlot(row)
       if (!slot) continue
+      // A folded line has already spent that slot on `⋯ N lines`; both are drawn
+      // absolutely at the same zIndex, so sharing the column overprints one with
+      // the other rather than dropping either.
+      const end = ends.get(slot.top)
+      const left = end === undefined ? slot.left : end + 1
+      const room = slot.room - (left - slot.left)
+      // The threshold `noteSlot` applies: less than this is a truncation nobody
+      // can read, and the message is a keystroke away in the problems list.
+      if (room < 8) continue
       const flat = note.text.replaceAll(/\s+/g, ' ')
       // Cut by the terminal's width counts as well as cut by `headline`: a
       // message that says all of itself needs no key, and one the pane ran out
@@ -861,55 +921,21 @@ export function EditorPane(props: EditorPaneProps) {
       const hint =
         note.chord &&
         row === cursorRow() &&
-        (note.more || flat.length > slot.room) &&
+        (note.more || flat.length > room) &&
         // A hint that leaves no room for the message is two truncations, not one.
-        slot.room - note.chord.length > 12
+        room - note.chord.length > 12
           ? ` ${note.chord}`
           : ''
-      const text = cut(flat, slot.room - hint.length)
-      notes.push({ top: slot.top, left: slot.left, text, color: note.color })
+      const text = cut(flat, room - hint.length)
+      notes.push({ top: slot.top, left, text, color: note.color })
       // Its own renderable rather than a suffix on that string: the hint is not
       // part of what the server said, and a shared colour would read as if it were.
       if (hint) {
         notes.push({
           top: slot.top,
-          left: slot.left + text.length,
+          left: left + text.length,
           text: hint,
           color: ui.faint,
-        })
-      }
-    }
-    return notes
-  })
-
-  /**
-   * What a collapsed block says for itself. Without it a fold is only a jump in
-   * the gutter's numbers, which reads as a rendering fault rather than as
-   * something the editor was told to do.
-   */
-  const foldNotes = createMemo(() => {
-    wrapKey()
-    void props.content
-    const view = folded()
-    if (!view) return []
-    // The `▸` in the gutter opens it with a click; the chord is what a keyboard
-    // has, and only the row the caret is standing on says it — see the inline
-    // diagnostic note for why the hint follows the caret rather than the marks.
-    const chord = chordFor('editor.unfold')
-    const notes: { top: number; left: number; text: string; hint?: boolean }[] = []
-    for (const [line, count] of view.hidden) {
-      const row = view.display[line]
-      if (row === undefined || row < 0) continue
-      const slot = noteSlot(row)
-      if (!slot) continue
-      const text = `⋯ ${count} line${count === 1 ? '' : 's'}`
-      notes.push({ top: slot.top, left: slot.left, text: cut(text, slot.room) })
-      if (chord && row === cursorRow() && slot.room - text.length > chord.length + 1) {
-        notes.push({
-          top: slot.top,
-          left: slot.left + text.length,
-          text: ` ${chord}`,
-          hint: true,
         })
       }
     }
@@ -1368,46 +1394,68 @@ export function EditorPane(props: EditorPaneProps) {
   }
 
   /**
-   * The spans, bucketed by the line they start on. `applyWindow` marks one line
-   * at a time, so a flat scan meant every line of the window walked every
-   * diagnostic in the file — a file with hundreds of them paid that on each
-   * scroll tick.
+   * The spans, bucketed by the line they start on, plus the few that cross
+   * lines. `applyWindow` marks one line at a time, so a flat scan meant every
+   * line of the window walked every diagnostic in the file — a file with
+   * hundreds of them paid that on each scroll tick. A crossing span is *not*
+   * bucketed onto each line it covers: one reaching over a thousand lines
+   * would cost an entry on each of them, and there are only ever a handful, so
+   * they are scanned linearly instead.
    */
   const problemsByLine = createMemo(() => {
-    const byStart = new Map<number, EditorPaneProps['problemRanges']>()
+    const byStart = new Map<number, ProblemRange[]>()
+    const crossing: ProblemRange[] = []
     for (const problem of props.problemRanges) {
       const list = byStart.get(problem.line)
       if (list) list.push(problem)
       else byStart.set(problem.line, [problem])
+      if (problem.endLine > problem.line) crossing.push(problem)
     }
-    return byStart
+    return { byStart, crossing }
   })
 
   /**
-   * Mark the spans of every problem starting on `line`. Layered over the syntax
+   * Mark whatever of `line` a problem covers. Layered over the syntax
    * highlights: a fault keeps its text color and gains a faint severity tint,
    * while an Unnecessary-tagged span fades and a Deprecated one is struck
-   * through. A multi-line span marks its first line only — the gutter dot marks
-   * the rest, and measuring every continuation line costs more than it says.
+   * through. A span crossing lines marks the whole of each of them — from its
+   * column to the end of its first line, all of the lines between, and up to
+   * its end column on the last — since a diagnostic about a block that tinted
+   * one character of the opening line said nothing about what it was about.
    */
   const markProblems = (row: number, line: number) => {
-    const problems = problemsByLine().get(line)
-    if (!editor || !problems) return
+    if (!editor) return
+    const { byStart, crossing } = problemsByLine()
+    const starting = byStart.get(line)
+    const covering = crossing.filter(problem => problem.line < line && line <= problem.endLine)
+    if (!starting && covering.length === 0) return
     // Only now: without a parse this walks the buffer to find the line, and most
     // lines of a window carry no diagnostic at all.
     const text = parsedLine(line) ?? lineTextAt(row)
-    for (const problem of problems) {
+    const mark = (problem: ProblemRange, start: number, end: number) => {
+      if (end <= start) return
       const group = problem.unnecessary
         ? 'unnecessary'
         : problem.deprecated
           ? 'deprecated'
           : problem.severity
       const styleId = styleIdForGroup(`druk.problem.${group}`)
-      if (styleId == null) continue
-      const sameLine = problem.endLine === problem.line
-      // A zero-width or line-crossing span still marks something visible.
-      const end = sameLine ? Math.max(problem.endCol, problem.col + 1) : problem.col + 1
-      editor.addHighlight(row, inCells({ start: problem.col, end, styleId, priority: 100 }, text))
+      if (styleId == null) return
+      editor?.addHighlight(row, inCells({ start, end, styleId, priority: 100 }, text))
+    }
+    for (const problem of starting ?? []) {
+      // A zero-width span still marks something visible; one that runs off the
+      // line covers the rest of it, the lines below carrying their own mark.
+      const end =
+        problem.endLine === problem.line
+          ? Math.max(problem.endCol, problem.col + 1)
+          : Math.max(text.length, problem.col + 1)
+      mark(problem, problem.col, end)
+    }
+    // A range ending at column 0 stops at the line above — the shape a server
+    // sends for "up to here", where `end <= start` leaves this line unmarked.
+    for (const problem of covering) {
+      mark(problem, 0, line === problem.endLine ? problem.endCol : text.length)
     }
   }
 
