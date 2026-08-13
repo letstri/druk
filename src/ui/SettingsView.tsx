@@ -1,8 +1,8 @@
 import { homedir } from 'node:os'
 
-import type { KeyEvent } from '@opentui/core'
+import type { KeyEvent, MouseEvent } from '@opentui/core'
 import { useTerminalDimensions } from '@opentui/solid'
-import { createEffect, createMemo, createSignal, For, Show } from 'solid-js'
+import { createEffect, createMemo, createSignal, For, on, Show } from 'solid-js'
 
 import type { ConfigScope } from '../core/config'
 import { fuzzyScore } from '../core/search'
@@ -175,22 +175,51 @@ export function SettingsView(props: SettingsViewProps) {
     return Math.max(1, count)
   }
 
-  createEffect(() => {
-    const at = selected()
-    setTop(previous => {
-      if (at < previous) return at
-      // Walk the window's start down until the selection is inside it: with
-      // variable row heights there is no arithmetic for this.
-      let start = previous
-      while (start < at && start + fits(start) <= at) start += 1
-      return start
-    })
-  })
+  // `on`, so only a moved selection touches the window: editing a value rebuilds
+  // `props.rows`, and a plain effect tracks that through `fits` — which yanked a
+  // wheel-scrolled page back to the selection every time the rows were rebuilt.
+  createEffect(
+    on(selected, at => {
+      setTop(previous => {
+        if (at < previous) return at
+        // Walk the window's start down until the selection is inside it: with
+        // variable row heights there is no arithmetic for this.
+        let start = previous
+        while (start < at && start + fits(start) <= at) start += 1
+        return start
+      })
+    }),
+  )
 
   const visible = createMemo(() => {
     const start = Math.min(top(), Math.max(0, rows().length - 1))
     return { start, rows: rows().slice(start, start + fits(start)) }
   })
+
+  /**
+   * Furthest the window may start: the first row whose window still reaches the
+   * last one. Walked backwards because a heading costs three rows and a plain
+   * setting one, so there is no arithmetic for it.
+   */
+  const maxTop = () => {
+    let start = Math.max(0, rows().length - 1)
+    while (start > 0 && start - 1 + fits(start - 1) >= rows().length) start -= 1
+    return start
+  }
+
+  /** The wheel moves the window alone — the selection is the keyboard's. */
+  const wheel = (event: MouseEvent) => {
+    const scroll = event.scroll
+    if (picking() || editing() || !scroll) return
+    if (scroll.direction !== 'up' && scroll.direction !== 'down') return
+    const delta = Math.max(1, scroll.delta)
+    setTop(previous =>
+      Math.max(
+        0,
+        Math.min(scroll.direction === 'down' ? previous + delta : previous - delta, maxTop()),
+      ),
+    )
+  }
 
   /** Which of the two files is on show — the page is otherwise identical. */
   const title = () => ` Settings — ${props.scope === 'project' ? 'Project' : 'User'}`
@@ -243,6 +272,7 @@ export function SettingsView(props: SettingsViewProps) {
       flexDirection="column"
       backgroundColor={ui.solidBg}
       onMouseDown={() => props.onFocus()}
+      onMouseScroll={wheel}
     >
       <box flexDirection="row" backgroundColor={ui.solidBarBg}>
         <text fg={ui.text} bg={ui.solidBarBg} flexShrink={0} content={title()} />

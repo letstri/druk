@@ -10,6 +10,7 @@ import {
   press,
   pressEscape,
   runCommand,
+  settle,
 } from './helpers'
 import type { Harness } from './helpers'
 
@@ -214,4 +215,44 @@ test('the page windows its rows and the selection carries the window down', asyn
   expect(frame).toContain('Settings')
   // The first rows gave way rather than the chrome.
   expect(frame).not.toContain('Vim mode')
+}, 20_000)
+
+/**
+ * Wheel the settings page, a flush per tick: OpenTUI's scroll acceleration drops
+ * events that arrive within its minimum interval, so a tight loop of them counts
+ * as far fewer ticks than were sent.
+ */
+async function wheel(t: Harness, ticks: number, direction: 'up' | 'down') {
+  for (let tick = 0; tick < ticks; tick++) {
+    await t.mockMouse.scroll(60, 8, direction)
+    await settle(t)
+  }
+}
+
+test('the wheel scrolls the page without moving the selection', async () => {
+  const t = await launch(fixture(PROJECT), {}, { height: 16 })
+  await runCommand(t, 'Settings')
+  expect(t.captureCharFrame()).toContain('Follow OS appearance')
+
+  await wheel(t, 6, 'down')
+  const scrolled = t.captureCharFrame()
+  expect(scrolled).not.toContain('Follow OS appearance')
+  expect(scrolled).toContain('Settings') // the chrome stayed
+
+  await wheel(t, 12, 'up')
+  expect(t.captureCharFrame()).toContain('Follow OS appearance')
+
+  // The wheel is not a cursor: the selection is where the keyboard left it.
+  const cursor = t
+    .captureCharFrame()
+    .split('\n')
+    .find(line => line.includes('▌'))
+  expect(cursor).toContain('Theme')
+
+  // Wheeling past the end stops with the last row on screen rather than
+  // running the window off into blank page.
+  await wheel(t, 60, 'down')
+  const bottom = t.captureCharFrame()
+  expect(bottom).toContain('Registry')
+  expect(bottom).toContain('Settings')
 }, 20_000)
