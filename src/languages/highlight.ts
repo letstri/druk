@@ -21,6 +21,60 @@ export const DIFF_FILLER = 'druk.diff.filler'
 
 let clientDead = false
 let initPromise: Promise<TreeSitterClient | null> | null = null
+
+/**
+ * How long one worker parse may take before the caller stops waiting. Generous:
+ * ~15s is a source file of several hundred thousand lines at the measured parse
+ * rates, far past where the diff view already refuses to colour at all.
+ */
+const PARSE_TIMEOUT_MS = 15_000
+/** Timeouts in a row before the worker is written off for the session. */
+const PARSE_STRIKE_LIMIT = 3
+let parseStrikes = 0
+let parseTimeoutMs = PARSE_TIMEOUT_MS
+
+/** Test-only: the real timeout would put a hung-worker test at 45 seconds. */
+export function setParseTimeoutForTests(ms: number): void {
+  parseTimeoutMs = ms
+  parseStrikes = 0
+  clientDead = false
+}
+
+type HighlightResult = Awaited<ReturnType<TreeSitterClient['highlightOnce']>>
+
+/**
+ * `highlightOnce` with an answer guaranteed. The worker request can pend forever
+ * — a parser stuck inside its wasm never posts anything, and a throw inside the
+ * worker's dispatcher is posted as an ERROR that carries no request id, so the
+ * waiting promise is simply never settled ([#82]: one such bash file left every
+ * tab unhighlighted until restart, because the editor serializes its parses and
+ * the flag guarding that never came back). Null means "no answer": the caller
+ * paints without the worker, and three of those in a row retire the worker for
+ * the session rather than taxing every parse fifteen seconds forever.
+ */
+async function highlightOnceGuarded(
+  client: TreeSitterClient,
+  content: string,
+  filetype: string,
+): Promise<HighlightResult | null> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const timedOut = new Promise<null>(resolve => {
+    timer = setTimeout(() => resolve(null), parseTimeoutMs)
+    timer.unref?.()
+  })
+  try {
+    const result = await Promise.race([client.highlightOnce(content, filetype), timedOut])
+    if (result === null) {
+      parseStrikes++
+      if (parseStrikes >= PARSE_STRIKE_LIMIT) clientDead = true
+      return null
+    }
+    parseStrikes = 0
+    return result
+  } finally {
+    clearTimeout(timer)
+  }
+}
 let syntaxStyle: SyntaxStyle | null = null
 /** Theme the cached `syntaxStyle` was built for — style ids are per instance. */
 let styleFor: ThemeName | null = null
@@ -384,8 +438,12 @@ async function resolveInjections(
   const injected = await Promise.all(
     spans.map(async span => {
       try {
-        const res = await client.highlightOnce(content.slice(span.start, span.end), span.filetype)
-        return (res.highlights ?? [])
+        const res = await highlightOnceGuarded(
+          client,
+          content.slice(span.start, span.end),
+          span.filetype,
+        )
+        return (res?.highlights ?? [])
           .filter(h => !h[2].startsWith(INJECTION))
           .map(h => [h[0] + span.start, h[1] + span.start, h[2]] as RawCapture)
       } catch {
@@ -550,7 +608,8 @@ export async function computeHighlights(
   const client = filetype ? await ensureClient() : null
   if (!client) return prepare(content, [...overlay, ...guides])
   try {
-    const res = await client.highlightOnce(content, filetype!)
+    const res = await highlightOnceGuarded(client, content, filetype!)
+    if (res === null) return prepare(content, [...overlay, ...guides])
     if (isStale?.()) return STALE
     const hl = await resolveInjections(client, content, res.highlights ?? [])
     if (isStale?.()) return STALE
