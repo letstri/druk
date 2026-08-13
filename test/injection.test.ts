@@ -23,6 +23,9 @@ function painter(source: string, filetype: string) {
 
 const VUE = `<template>
   <div :class="tone">{{ greeting.value }}</div>
+  <li v-for="(item, i) in items" :key="item.id" @click.stop="shout()">
+    <b v-if="items.length > 0" :style="{ width: size + 'px' }">x</b>
+  </li>
 </template>
 
 <script setup lang="ts">
@@ -73,6 +76,25 @@ describe('vue highlighting', () => {
   // so the injected capture has to be the one that wins the expression.
   test('paints the expression inside an interpolation', async () => {
     expect(await painted('variable.member')).toContain('value')
+  })
+
+  // A directive's value is an expression the whole of the template's logic is
+  // written in, and the outer `@string` covers it — so the injection has to win
+  // it the way the interpolation's does.
+  test('paints directive values as the expressions they are', async () => {
+    expect(await painted('keyword.operator')).toContain('in')
+    expect(await painted('number')).toContain('0')
+    expect(await painted('operator')).toContain('>')
+    expect(await painted('variable.member')).toContain('length')
+    expect(await painted('function')).toContain('shout')
+    // An object literal inside the value, whose own parts are painted apart.
+    expect(await painted('variable.member')).toContain('width')
+    expect(await painted('operator')).toContain('+')
+  })
+
+  // The plain attribute beside them is a literal, and reads as one.
+  test('leaves a plain attribute value a string', async () => {
+    expect(await painted('string')).toContain('"ts"')
   })
 })
 
