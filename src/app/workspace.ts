@@ -162,9 +162,10 @@ export function createWorkspace(deps: {
     setDiffTab(file)
     setDiffShown(file !== null)
   }
-  /** The full-slot pages — settings, LSP status — which cover the editor the
-   * same way the diff does. One at a time: each is a view of the editor slot. */
-  const [page, setPage] = createSignal<'settings' | 'lspStatus' | null>(null)
+  /** The full-slot pages — settings, LSP status, all-changes — which cover the
+   * editor the same way the diff does. One at a time: each is a view of the
+   * editor slot. */
+  const [page, setPage] = createSignal<'settings' | 'lspStatus' | 'allChanges' | null>(null)
   /** A file that would not open, shown over the editor until the next keypress. */
   const [notice, setNotice] = createSignal<{ name: string; reason: string } | null>(null)
   const [conflict, setConflict] = createSignal<Conflict | null>(null)

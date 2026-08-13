@@ -101,6 +101,7 @@ export function installKeyboard(ctx: AppContext, actions: CommandActions) {
     'view.preview': actions.togglePreview,
     'view.focus': actions.toggleFocus,
     'git.diffFile': actions.gitDiffFile,
+    'git.diffAll': actions.gitDiffAll,
     'git.commit': actions.gitCommit,
     'git.stage': actions.gitToggleStage,
     'git.discard': actions.gitDiscard,
@@ -395,7 +396,9 @@ export function installKeyboard(ctx: AppContext, actions: CommandActions) {
           // Shift+Tab walks the tab strip above the sidebar, the way it walks any
           // other one; plain Tab keeps handing the keyboard to the editor.
           if (key.shift) panes.showView('review')
-          else if (workspace.activePath() || workspace.diff()) panes.setFocus('editor')
+          else if (workspace.activePath() || workspace.diff() || workspace.page()) {
+            panes.setFocus('editor')
+          }
           break
         case 'up':
           goTo(at - 1)
@@ -439,6 +442,9 @@ export function installKeyboard(ctx: AppContext, actions: CommandActions) {
         case 's':
           actions.gitSync()
           break
+        case 'a':
+          actions.gitDiffAll()
+          break
         case 'b':
           actions.gitSwitchBranch()
           break
@@ -453,6 +459,7 @@ export function installKeyboard(ctx: AppContext, actions: CommandActions) {
           // with no key here that closes it. The commit page draws over the
           // diff, so it goes first.
           if (commitView.isOpen()) commitView.close()
+          else if (workspace.page() === 'allChanges') workspace.setPage(null)
           else if (workspace.diff()) workspace.setDiff(null)
           else panes.toggleGitView()
           break

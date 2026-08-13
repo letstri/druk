@@ -21,6 +21,7 @@ import { filetypeForPath } from '../languages/highlight'
 import { SEVERITY_RANK } from '../lsp/protocol'
 import type { ProblemSeverity } from '../lsp/protocol'
 import { ui } from '../themes'
+import { ChangesView } from '../ui/ChangesView'
 import { ComparePanel } from '../ui/ComparePanel'
 import { ComparisonView } from '../ui/ComparisonView'
 import { DiffView } from '../ui/DiffView'
@@ -44,6 +45,7 @@ import { setTooltipsEnabled, useTooltipPeek } from '../ui/tooltip'
 import { TooltipLayer } from '../ui/TooltipLayer'
 import { createCommands } from './actions'
 import { createBranches } from './branches'
+import { rowSlotKey } from './changeSections'
 import { createCommitView } from './commitView'
 import { createComparison } from './comparison'
 import type { AppContext } from './context'
@@ -282,15 +284,14 @@ export function App(props: {
 
   // `revision` covers saves, git commands and anything the watcher sees in .git;
   // `reloadKey` covers a buffer replaced from disk; `diffBase` covers the branch
-  // being compared against moving under it. `refreshDiff` returns at once when no
-  // diff is open, so the subprocess it needs is only ever spawned for a page that
-  // is actually on screen.
-  //
-  // It reads `gitStatus`, which `wireGitEffects` fills from the same three — and
-  // does so first, since effects run in creation order and that call is above.
+  // being compared against moving under it. `statusEntries` is the async fill
+  // that `revision` only *starts* — a discard's bump would otherwise rebuild
+  // the stacked page from the list that still held the file.
+  // `refreshDiff` rebuilds the stacked page and the one-file diff, and returns
+  // at once when neither is up.
   createEffect(
     on(
-      () => [git.revision(), editor.reloadKey(), git.diffBase()] as const,
+      () => [git.revision(), editor.reloadKey(), git.diffBase(), git.statusEntries()] as const,
       () => {
         actions.refreshDiff()
         comparison.refresh()
@@ -912,6 +913,21 @@ export function App(props: {
                 onFocus={() => panes.setFocus('editor')}
                 onRestart={actions.restartLsp}
                 onUninstall={actions.uninstallServer}
+                onClose={() => workspace.setPage(null)}
+              />
+            </box>
+          </Show>
+          <Show when={workspace.page() === 'allChanges'}>
+            <box position="absolute" top={0} left={0} width="100%" height="100%" zIndex={60}>
+              <ChangesView
+                sections={actions.allChanges()}
+                meta={actions.allChangesMeta()}
+                focusKey={rowSlotKey(git.cursorRow())}
+                title={git.diffBase() ? `Against ${git.diffBase()}` : 'Uncommitted'}
+                width={dimensions().width - (panes.sidebar() ? settings.treeWidth() + 1 : 0)}
+                focused={panes.focus() === 'editor'}
+                blocked={overlays.overlay()}
+                onFocus={() => panes.setFocus('editor')}
                 onClose={() => workspace.setPage(null)}
               />
             </box>

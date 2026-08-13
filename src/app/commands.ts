@@ -15,6 +15,7 @@ import type { FoldOp } from '../editor/folds'
 import { iconThemeLabel, iconThemeNames, iconThemeNeedsFont } from '../icons'
 import { themeLabel, themeNames } from '../themes'
 import type { ThemeName } from '../themes'
+import type { ChangeSection, ChangesMeta } from '../ui/ChangesView'
 import type { Command } from '../ui/CommandPalette'
 import { ALT } from '../ui/keys'
 
@@ -82,6 +83,10 @@ export interface CommandActions {
   uninstallServer: (id: string) => void
   lspStatus: () => void
   gitDiffFile: () => void
+  gitDiffAll: () => void
+  /** Not a command: the all-changes page reads this. */
+  allChanges: () => ChangeSection[]
+  allChangesMeta: () => ChangesMeta
   gitCompareBranches: () => void
   gitDiffBase: () => void
   gitDiffBaseReset: () => void
@@ -219,9 +224,15 @@ export function buildCommands(actions: CommandActions, ctx: CommandContext): Com
       id: 'git',
       label: 'Git',
       children: [
-        // The only way in: it opens the source-control panel on this file, which
+        // The one-file pager: it opens the source-control panel on this file, which
         // is where the cursor pages through every other change.
         { id: 'git.diffFile', label: 'Diff current file', run: actions.gitDiffFile },
+        {
+          id: 'git.diffAll',
+          label: 'Show all changes',
+          hint: 'a in source control',
+          run: actions.gitDiffAll,
+        },
         {
           id: 'git.stage',
           label: 'Stage / unstage selection',

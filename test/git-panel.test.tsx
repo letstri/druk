@@ -110,7 +110,7 @@ test('the peek strip advertises the panel keys, not the tree ones', async () => 
   const peek = frame(t)
   expect(peek).toContain('Keys · source control')
   expect(peek).toContain('↑↓ · Enter')
-  expect(peek).toContain('Space c d p')
+  expect(peek).toContain('Space a c d')
   expect(peek).not.toContain('a / A')
 })
 
