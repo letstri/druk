@@ -153,13 +153,17 @@ export function tooltipAnchors(): TooltipAnchor[] {
 }
 
 /**
- * Every registered control's cells, tooltip or not — what the placement must not
- * draw over. `Files` is in here despite having no chord of its own: it is still
- * a button, and a chip parked on it would read as its key.
+ * Every registered control's cells — what the peek must not draw over. Hover
+ * returns none: a single chip sits against its button, and skipping a row to
+ * miss a neighbour (Ext walking around the explorer header) makes the chord
+ * look like it belongs to the file list.
+ *
+ * Files is in here despite having no chord of its own: it is still a button,
+ * and a peek chip parked on it would read as its key.
  */
 export function tooltipObstacles(): TooltipObstacle[] {
   version()
-  if (!enabled()) return []
+  if (!enabled() || !peeking()) return []
   const boxes: TooltipObstacle[] = []
   for (const target of targets.values()) {
     const box = target.box()

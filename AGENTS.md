@@ -635,14 +635,16 @@ are load-bearing:
   tooltip is not.
 - **The peek lights the buttons as well as naming their keys** — `useTooltip` returns
   `lit()` beside `hovered()`, and every call site paints its hover tint from that, so a
-  screenful of chords says which control each one runs. It follows that a tooltip may
-  never be drawn *over* a control: `placeTooltips` takes every registered box as an
-  obstacle, which is why `useTooltip` registers a control with no command too.
+  screenful of chords says which control each one runs. It follows that a peek tooltip
+  may never be drawn *over* a control: `placeTooltips` takes every registered box as an
+  obstacle, which is why `useTooltip` registers a control with no command too. A hover
+  chip is one, so it sits against its button and may cover a neighbour — walking around
+  the explorer header is what used to put Ext's chord on the file list.
 - **Placement is `placeTooltips` (`src/ui/tooltipLayout.ts`)**, pure and tested on its
   own: away from the nearer edge of the screen (the tab strip is row 0, the status bar the
-  last), never over a control, stacked onto further rows where two would collide, and
-  dropped where the terminal has run out — half a row of overlapping text says less than
-  nothing.
+  last), never over a control during a peek, stacked onto further rows where two would
+  collide, and dropped where the terminal has run out — half a row of overlapping text
+  says less than nothing. Hover passes no obstacles, so the chip stays on the nearest row.
 
 The status bar's groups are buttons too, VS Code's arrangement: the branch opens the
 branch switcher, the `↑↓` counts sync, `~n` shows the source-control panel, the problem

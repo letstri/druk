@@ -3,7 +3,7 @@ import { describe, expect, test } from 'bun:test'
 import { ui } from '../src/themes'
 import { ALT } from '../src/ui/keys'
 import { placeTooltips } from '../src/ui/tooltipLayout'
-import { fixture, launch, openFile, settle } from './helpers'
+import { fixture, launch, openFile, settle, until } from './helpers'
 import type { Harness } from './helpers'
 
 /** A theme colour as the captured spans report one. */
@@ -138,6 +138,32 @@ describe('hover tooltips', () => {
     await t.mockMouse.moveTo(at.x, at.y)
     await settle(t)
     expect(t.captureCharFrame()).toContain(GIT_TIP)
+  })
+
+  test('a hover chip sits against its button, not shifted off a neighbour', async () => {
+    const t = await launch(
+      fixture({ 'a.ts': 'const a = 1\n', 'src/b.ts': 'const b = 2\n' }),
+      // Wide enough that the header's ▴ sits under Ext — the neighbour the chip
+      // used to walk around, landing on the file list instead of the tab.
+      { sidebarWidth: 45 },
+      { width: 120 },
+    )
+    // Tree still has the keyboard: opening a file first would send the arrows
+    // into the editor, and the header's ▴ only exists while a folder is open.
+    t.mockInput.pressArrow('down')
+    t.mockInput.pressArrow('right')
+    await until(t, () => t.captureCharFrame().includes('▴'))
+    await openFile(t, 'a.ts')
+
+    const at = cellOf(t, 'Ext')
+    await t.mockMouse.moveTo(at.x, at.y)
+    await settle(t)
+    const tip = `Ctrl+${ALT}+X`
+    const tipRow = t
+      .captureCharFrame()
+      .split('\n')
+      .findIndex(line => line.includes(tip))
+    expect(tipRow).toBe(at.y + 1)
   })
 
   test("it is filled in chrome colours, not in the editor's own", async () => {
