@@ -735,7 +735,8 @@ export function createCommands(ctx: AppContext) {
       // Page first so diffFileFor keeps the batch instead of dropping to four.
       workspace.setPage('allChanges')
       rebuildAllChanges()
-      panes.setFocus('editor')
+      // The panel keeps the keyboard, as a one-file diff does: its arrows are
+      // what pages the stack. Tab is the way into the page to scroll it.
     },
     allChanges,
     allChangesMeta,

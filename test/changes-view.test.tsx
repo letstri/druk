@@ -61,7 +61,6 @@ test('arrows in the panel do not open a one-file diff over the page', async () =
   const t = await launch(dir, {}, { height: 40 })
   await runCommand(t, 'Show all changes')
   await untilFrame(t, '+ ALPHA')
-  await runCommand(t, 'Focus tree / editor')
   await press(t, i => i.pressArrow('down'))
 
   const frame = t.captureCharFrame()
@@ -120,7 +119,6 @@ test('Enter in the panel opens the file and closes the page', async () => {
   const t = await launch(dir, {}, { height: 40 })
   await runCommand(t, 'Show all changes')
   await untilFrame(t, 'Uncommitted')
-  await runCommand(t, 'Focus tree / editor')
   await press(t, i => i.pressEnter())
   await untilGone(t, 'Uncommitted')
   expect(t.captureCharFrame()).toContain('ALPHA')
@@ -150,7 +148,6 @@ test('the page closes once nothing is left to show', async () => {
   const t = await launch(dir, {}, { height: 40 })
   await runCommand(t, 'Show all changes')
   await untilFrame(t, 'Uncommitted')
-  await runCommand(t, 'Focus tree / editor')
   await press(t, i => i.pressArrow('down'))
   await press(t, i => void i.typeText('d'))
   await untilFrame(t, 'Discard changes')
