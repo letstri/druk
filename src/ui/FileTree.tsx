@@ -5,8 +5,9 @@ import type { TreeNode } from '../core/fs'
 import type { FileStatus } from '../core/git'
 import { iconFor } from '../icons'
 import { ui } from '../themes'
-import { useHover, useHoverKey } from './hover'
+import { useHoverKey } from './hover'
 import { createScrollList, scrollbarOptions } from './list'
+import { useTooltip } from './tooltip'
 
 export interface FileTreeProps {
   rootName: string
@@ -81,7 +82,7 @@ export function FileTree(props: FileTreeProps) {
 
   const list = createScrollList(() => props.nodes.length)
   const visible = createMemo(() => props.nodes.slice(list.window().start, list.window().end))
-  const collapse = useHover()
+  const collapse = useTooltip('view.collapse')
   const rowHover = useHoverKey<string>()
 
   /**
@@ -162,15 +163,16 @@ export function FileTree(props: FileTreeProps) {
             folds — and gone when there is nothing open to fold. */}
         <Show when={props.expanded.size > 0}>
           <box
+            ref={collapse.ref}
             flexShrink={0}
-            backgroundColor={collapse.hovered() ? ui.hoverBg : ui.sidebarBg}
+            backgroundColor={collapse.lit() ? ui.hoverBg : ui.sidebarBg}
             onMouseDown={props.onCollapseAll}
             onMouseOver={collapse.enter}
             onMouseOut={collapse.leave}
           >
             <text
-              fg={collapse.hovered() ? ui.text : ui.dim}
-              bg={collapse.hovered() ? ui.hoverBg : ui.sidebarBg}
+              fg={collapse.lit() ? ui.text : ui.dim}
+              bg={collapse.lit() ? ui.hoverBg : ui.sidebarBg}
               content="▴ "
             />
           </box>

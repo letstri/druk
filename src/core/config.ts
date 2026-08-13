@@ -104,6 +104,13 @@ export interface Config {
    * the glyph that says so.
    */
   tabIcons: boolean
+  /**
+   * Show the key that does what a chrome button does: the one under the pointer,
+   * and every one of them at once while Ctrl or Cmd is held. The held-modifier
+   * half needs a terminal that speaks the kitty keyboard protocol; hovering
+   * works everywhere.
+   */
+  tooltips: boolean
   /** Modal editing (normal / insert / visual). */
   vim: boolean
   /**
@@ -234,6 +241,7 @@ export const DEFAULTS: Config = {
   transparent: false,
   iconTheme: NO_ICONS,
   tabIcons: false,
+  tooltips: true,
   vim: false,
   // OpenTUI's own default, so an unset key keeps the caret druk has always drawn.
   cursorStyle: 'block',
@@ -316,6 +324,7 @@ const VALIDATORS: { [K in keyof Config]: Validator<K> } = {
   // been uninstalled with falls back to the default rather than drawing nothing.
   iconTheme: raw => (isIconThemeName(raw) ? raw : undefined),
   tabIcons: bool,
+  tooltips: bool,
   vim: bool,
   cursorStyle: among(...CURSOR_STYLES),
   wrap: bool,

@@ -47,6 +47,26 @@ export async function main(target: Target): Promise<void> {
     ),
     {
       useMouse: true,
+      /*
+       * `events` and `allKeysAsEscapes` together are what make a held Ctrl
+       * visible: the protocol reports a modifier as a key of its own only when
+       * every key is reported as an escape code, and its press and release only
+       * when event types are on. That is what the tooltip peek watches for
+       * (src/ui/tooltip.ts).
+       *
+       * Neither costs the existing key handling anything. Releases are emitted
+       * as `keyrelease`, which nothing but the peek listens to, and a key
+       * arriving as `CSI <code> u` is parsed back to the same name and text —
+       * `test/keylayout.test.tsx` drives the whole editor through that encoding,
+       * Cyrillic included. A terminal with no kitty protocol ignores the request
+       * and sends what it always did, so the peek is simply not there.
+       */
+      useKittyKeyboard: {
+        disambiguate: true,
+        alternateKeys: true,
+        events: true,
+        allKeysAsEscapes: true,
+      },
       // Without motion reporting the terminal never hands drags to the app, so every
       // click-drag paints the terminal's own selection over the UI instead.
       enableMouseMovement: true,

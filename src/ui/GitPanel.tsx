@@ -9,6 +9,7 @@ import { MARKS, statusColor } from './FileTree'
 import { useHover, useHoverKey } from './hover'
 import { createScrollList, rowBg, scrollbarOptions } from './list'
 import { TextInput } from './TextInput'
+import { useTooltip } from './tooltip'
 
 /** `Show`'s `when` takes a value, not a predicate: these hand it the narrowed row
  * (or nothing) so the block inside needs no cast. */
@@ -94,7 +95,7 @@ export function GitPanel(props: GitPanelProps) {
 
   const list = createScrollList(() => props.rows.length)
   const visible = createMemo(() => props.rows.slice(list.window().start, list.window().end))
-  const collapse = useHover()
+  const collapse = useTooltip('view.collapse')
   const message = useHover()
   const commit = useHover()
   const sync = useHover()
@@ -149,15 +150,16 @@ export function GitPanel(props: GitPanelProps) {
             flat list draws no folder rows at all. */}
         <Show when={props.rows.some(row => row.kind === 'dir' && !row.collapsed)}>
           <box
+            ref={collapse.ref}
             flexShrink={0}
-            backgroundColor={collapse.hovered() ? ui.hoverBg : ui.sidebarBg}
+            backgroundColor={collapse.lit() ? ui.hoverBg : ui.sidebarBg}
             onMouseDown={props.onCollapseAll}
             onMouseOver={collapse.enter}
             onMouseOut={collapse.leave}
           >
             <text
-              fg={collapse.hovered() ? ui.text : ui.dim}
-              bg={collapse.hovered() ? ui.hoverBg : ui.sidebarBg}
+              fg={collapse.lit() ? ui.text : ui.dim}
+              bg={collapse.lit() ? ui.hoverBg : ui.sidebarBg}
               content="▴ "
             />
           </box>

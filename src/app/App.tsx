@@ -39,6 +39,8 @@ import { SettingsView } from '../ui/SettingsView'
 import { SidebarTabs } from '../ui/SidebarTabs'
 import { StatusBar } from '../ui/StatusBar'
 import { Tabs } from '../ui/Tabs'
+import { setTooltipsEnabled, useTooltipPeek } from '../ui/tooltip'
+import { TooltipLayer } from '../ui/TooltipLayer'
 import { createCommands } from './actions'
 import { createBranches } from './branches'
 import { createCommitView } from './commitView'
@@ -267,6 +269,13 @@ export function App(props: {
   wireLspEffects({ lsp, settings, workspace })
   const { commands, actions } = createCommands(ctx)
   const keyboard = installKeyboard(ctx, actions)
+
+  // After the keymap, so the peek never sees a chord the keyboard has not
+  // resolved yet. Watching for the hold is unconditional; the setting is pushed
+  // into the same module, since it gates the buttons lighting up as well as the
+  // boxes being drawn.
+  useTooltipPeek()
+  createEffect(() => setTooltipsEnabled(settings.config.tooltips))
 
   // `revision` covers saves, git commands and anything the watcher sees in .git;
   // `reloadKey` covers a buffer replaced from disk; `diffBase` covers the branch
@@ -1018,6 +1027,9 @@ export function App(props: {
         onGotoLine={() => promptState.setPrompt({ kind: 'gotoLine' })}
         onHint={keyboard.run}
       />
+      {/* Over the chrome, under the modals: a tooltip is an annotation of what
+          is on screen, and a modal replaces what is on screen. */}
+      <TooltipLayer />
       <OverlayStack ctx={ctx} commands={commands} />
     </box>
   )

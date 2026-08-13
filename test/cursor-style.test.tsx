@@ -42,8 +42,8 @@ const cursorRow = (t: Harness) =>
 
 const savedStyle = () => JSON.parse(readFileSync(CONFIG_FILE, 'utf8')).cursorStyle
 
-/** Theme, Follow OS, Light, Dark, Transparent, File icons, File icons in tabs, Vim → Cursor. */
-const CURSOR_ROW = 8
+/** Theme, Follow OS, Light, Dark, Transparent, File icons, Tab icons, Tooltips, Vim → Cursor. */
+const CURSOR_ROW = 9
 
 test('the cursor row starts on the block druk has always drawn', async () => {
   const t = await launch(fixture(PROJECT))
