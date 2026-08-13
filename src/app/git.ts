@@ -383,7 +383,7 @@ export function runCommit(
       // may have sat in a confirm while the active repository changed under it.
       const branch = currentBranch(repo)
       if (!branch) return { ok: true, detail: 'Committed — no branch to push' }
-      const hasUpstream = upstreamOf(repo)?.name != null
+      const hasUpstream = (await upstreamOf(repo))?.name != null
       pushed = { branch, hasUpstream }
       if (opts.variant === 'commitPush') return push(repo, branch, hasUpstream)
       // Sync on a branch origin has never seen is a publish, VS Code's own turn.
@@ -456,9 +456,25 @@ export function wireGitEffects(deps: {
     }
   }
 
+  /**
+   * Which pass's answer wins, one counter per query. Every query below is
+   * asynchronous, so a burst can land an earlier pass's result after a newer
+   * one's — and the clearing branches count too, or a diff still in flight would
+   * repaint marks for the file that was just closed.
+   */
+  let linesRun = 0
+  let upstreamRun = 0
+
   const refreshLines = deferred(() => {
     const path = workspace.activePath()
-    git.setGitLines(path ? diffLines(path, git.diffBase()) : new Map())
+    const run = ++linesRun
+    if (!path) {
+      git.setGitLines(new Map())
+      return
+    }
+    void diffLines(path, git.diffBase()).then(lines => {
+      if (run === linesRun) git.setGitLines(lines)
+    })
   })
 
   createEffect(
@@ -472,17 +488,24 @@ export function wireGitEffects(deps: {
 
   const refreshUpstream = deferred(() => {
     const repo = git.activeRepo()
-    const upstream = repo ? upstreamOf(repo) : null
-    git.setUpstream(upstream)
-    // The sync sections measure the same distance, so they move on its cadence.
-    git.setSyncCommits(
-      repo && upstream?.name != null
-        ? {
-            incoming: upstreamCommits(repo, 'incoming'),
-            outgoing: upstreamCommits(repo, 'outgoing'),
-          }
-        : { incoming: [], outgoing: [] },
-    )
+    const run = ++upstreamRun
+    void (async () => {
+      const upstream = repo ? await upstreamOf(repo) : null
+      if (run !== upstreamRun) return
+      // Published before the log below rather than with it: the status bar's
+      // counts are two subprocesses cheaper than the panel's rows, and waiting
+      // for those would hold the arrows back on every branch change.
+      git.setUpstream(upstream)
+      // The sync sections measure the same distance, so they move on its cadence.
+      const [incoming, outgoing] =
+        repo && upstream?.name != null
+          ? await Promise.all([
+              upstreamCommits(repo, 'incoming'),
+              upstreamCommits(repo, 'outgoing'),
+            ])
+          : [[], []]
+      if (run === upstreamRun) git.setSyncCommits({ incoming, outgoing })
+    })()
   })
 
   // Ahead/behind only moves when history does, so it is deliberately not tied to

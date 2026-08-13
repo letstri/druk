@@ -36,10 +36,12 @@ export function combinedStatus(entry: StatusEntry): FileStatus {
 }
 
 /**
- * Queries run synchronously (`git`) — they sit behind the gutter marks, tree marks
- * and status bar, and finish in milliseconds. Mutations run through `mutate`,
- * asynchronously: a push or fetch talks to the network and would freeze the whole
- * TUI for its duration if awaited on the render thread's clock.
+ * Everything on a refresh path — the gutter marks, the tree marks, the status
+ * bar's branch and counts — runs through `gitAsync`: `spawnSync` blocks the event
+ * loop for the subprocess's whole life, which on a large repository is input the
+ * terminal does not answer. `git` (synchronous) is left for the one-shot calls a
+ * user's own keystroke asks for. Mutations run through `mutate`, asynchronously
+ * for the same reason twice over: a push or fetch talks to the network.
  *
  * `spawnSync` truncates at 1 MB by default and reports ENOBUFS, which every caller
  * here reads as "no output" — `status` would lose files in a large repository.
@@ -57,9 +59,9 @@ function git(cwd: string, args: string[], timeout = 5000, input?: string) {
 }
 
 /**
- * `git` off the render thread, for the comparison queries — the synchronous
- * `git` above would stall a frame for as long as the subprocess takes, which on
- * a branch's worth of files is not a frame's worth of time.
+ * `git` off the render thread — the synchronous `git` above would stall a frame
+ * for as long as the subprocess takes, which on a branch's worth of files, or a
+ * repository large enough for `status` to take its time, is not a frame's worth.
  */
 function gitAsync(cwd: string, args: string[], timeout = 10_000): Promise<ProcessResult> {
   return runProcess('git', args, { cwd, timeout, maxOutput: MAX_OUTPUT })
@@ -70,9 +72,12 @@ function gitAsync(cwd: string, args: string[], timeout = 10_000): Promise<Proces
  * Returns an empty map outside a repository, for untracked files, or when git is
  * unavailable.
  */
-export function diffLines(path: string, ref: string | null = null): Map<number, LineChange> {
+export async function diffLines(
+  path: string,
+  ref: string | null = null,
+): Promise<Map<number, LineChange>> {
   const marks = new Map<number, LineChange>()
-  const run = git(
+  const run = await gitAsync(
     dirname(path),
     ['diff', '--no-color', '--unified=0', ...(ref ? [ref] : []), '--', path],
     3000,
@@ -106,7 +111,15 @@ export function diffLines(path: string, ref: string | null = null): Map<number, 
  * must never reach `git push --set-upstream`.
  */
 export function currentBranch(cwd: string): string | null {
-  const run = git(cwd, ['rev-parse', '--abbrev-ref', 'HEAD'], 3000)
+  return branchName(git(cwd, ['rev-parse', '--abbrev-ref', 'HEAD'], 3000))
+}
+
+/** `currentBranch` off the render thread, for the queries that are already async. */
+async function currentBranchAsync(cwd: string): Promise<string | null> {
+  return branchName(await gitAsync(cwd, ['rev-parse', '--abbrev-ref', 'HEAD'], 3000))
+}
+
+function branchName(run: { status: number | null; stdout: string }): string | null {
   if (run.status !== 0) return null
   const branch = run.stdout.trim()
   return branch.length > 0 && branch !== 'HEAD' ? branch : null
@@ -1012,18 +1025,18 @@ export interface Upstream {
  * worst, one outside a repository — the status bar asks for this often enough
  * that a `currentBranch` call on top of them is worth avoiding.
  */
-export function upstreamOf(cwd: string): Upstream | null {
-  const ref = git(cwd, ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'])
+export async function upstreamOf(cwd: string): Promise<Upstream | null> {
+  const ref = await gitAsync(cwd, ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'])
   if (ref.status !== 0) {
     // No upstream and no repository look the same here; the branch tells them apart.
     // Ahead/behind stay 0: with nothing to compare against there is no distance to
     // report, and a repo with no remote at all must not show a phantom ↑.
-    return currentBranch(cwd) ? { name: null, ahead: 0, behind: 0 } : null
+    return (await currentBranchAsync(cwd)) ? { name: null, ahead: 0, behind: 0 } : null
   }
 
   // Status checked, and NaN floored: a failed count would otherwise put "NaN↓"
   // on the status bar — `[''].map(Number)` is `[NaN]`, which `?? 0` keeps.
-  const counts = git(cwd, ['rev-list', '--left-right', '--count', '@{u}...HEAD'])
+  const counts = await gitAsync(cwd, ['rev-list', '--left-right', '--count', '@{u}...HEAD'])
   const [behind, ahead] = counts.status === 0 ? counts.stdout.trim().split(/\s+/).map(Number) : []
   return { name: ref.stdout.trim(), ahead: ahead || 0, behind: behind || 0 }
 }
@@ -1037,12 +1050,16 @@ const SYNC_LOG_CAP = 50
  * measure against, and capped: a branch hundreds of commits adrift is a wall of
  * rows the header's counts already summarise.
  */
-export function upstreamCommits(
+export async function upstreamCommits(
   cwd: string,
   direction: 'incoming' | 'outgoing',
-): { oid: string; subject: string }[] {
+): Promise<{ oid: string; subject: string }[]> {
   const range = direction === 'incoming' ? 'HEAD..@{upstream}' : '@{upstream}..HEAD'
-  const run = git(cwd, ['log', '-n', String(SYNC_LOG_CAP), '--format=%H %s', range], 5000)
+  const run = await gitAsync(
+    cwd,
+    ['log', '-n', String(SYNC_LOG_CAP), '--format=%H %s', range],
+    5000,
+  )
   if (run.status !== 0) return []
   return run.stdout
     .split('\n')

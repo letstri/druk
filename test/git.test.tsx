@@ -14,7 +14,7 @@ import {
   statusMap,
 } from '../src/core/git'
 import { THEMES } from '../src/themes'
-import { launch, press, settle } from './helpers'
+import { launch, press, settle, until } from './helpers'
 import type { Harness } from './helpers'
 
 /** A real repository with one committed file. */
@@ -32,29 +32,29 @@ function repo(committed: string) {
   return dir
 }
 
-test('marks modified and added lines', () => {
+test('marks modified and added lines', async () => {
   const dir = repo('one\ntwo\nthree\n')
   writeFileSync(join(dir, 'a.ts'), 'one\nCHANGED\nthree\nfour\n')
 
-  const marks = diffLines(join(dir, 'a.ts'))
+  const marks = await diffLines(join(dir, 'a.ts'))
   expect(marks.get(1)).toBe('modified') // "two" -> "CHANGED"
   expect(marks.get(3)).toBe('added') // new final line
   expect(marks.get(0)).toBeUndefined() // untouched
 })
 
-test('a hunk that grows marks rewrites and additions separately', () => {
+test('a hunk that grows marks rewrites and additions separately', async () => {
   const dir = repo('one\ntwo\n')
   writeFileSync(join(dir, 'a.ts'), 'one\nCHANGED\nEXTRA\n')
 
-  const marks = diffLines(join(dir, 'a.ts'))
+  const marks = await diffLines(join(dir, 'a.ts'))
   expect(marks.get(1)).toBe('modified')
   expect(marks.get(2)).toBe('added')
 })
 
-test('is empty outside a repository', () => {
+test('is empty outside a repository', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'druk-'))
   writeFileSync(join(dir, 'a.ts'), 'x\n')
-  expect(diffLines(join(dir, 'a.ts')).size).toBe(0)
+  expect((await diffLines(join(dir, 'a.ts'))).size).toBe(0)
   expect(currentBranch(dir)).toBeNull()
 })
 
@@ -76,10 +76,15 @@ test('status marks reach the file tree', async () => {
   writeFileSync(join(dir, 'fresh.ts'), 'new\n') // untracked
 
   const t = await launch(dir)
-  const frame = t.captureCharFrame()
-  const row = (name: string) => frame.split('\n').find(line => line.includes(name)) ?? ''
+  const row = (name: string) =>
+    t
+      .captureCharFrame()
+      .split('\n')
+      .find(line => line.includes(name)) ?? ''
 
-  expect(row('a.ts')).toContain('M')
+  // Polled: the status queries are subprocesses off the render thread, so the
+  // first frame is drawn before any of them has answered.
+  await until(t, () => row('a.ts').includes('M'))
   expect(row('fresh.ts')).toContain('U')
 })
 
@@ -91,11 +96,12 @@ test('a folder inherits the status of its contents', async () => {
   // Rendered, not just statusMap()'d: the inheritance lives in FileTree.statusOf,
   // and git reports `?? sub/` on its own, so the map alone proves nothing.
   const t = await launch(dir)
-  const row = t
-    .captureCharFrame()
-    .split('\n')
-    .find(line => line.includes('sub'))!
-  expect(row).toContain('U')
+  const row = () =>
+    t
+      .captureCharFrame()
+      .split('\n')
+      .find(line => line.includes('sub')) ?? ''
+  await until(t, () => row().includes('U'))
 })
 
 test('a path git has to quote still gets its mark', () => {
