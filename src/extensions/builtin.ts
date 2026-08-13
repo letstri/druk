@@ -2,10 +2,10 @@
  * The extensions that ship inside the binary.
  *
  * Same manifests as the market's — these are `extensions/<id>/extension.json` in this
- * repository, imported as JSON so `bun build --compile` inlines them. Nothing
- * else distinguishes a preinstalled extension: it is listed, it can be disabled,
- * and installing the market's copy of the same id replaces it, which is how a
- * built-in extension gets an update.
+ * repository, imported as JSON so `bun build --compile` inlines them. A
+ * preinstalled extension is listed and can be disabled like any other, but it is
+ * part of the binary: it updates with druk itself, so the market never offers it
+ * an update and a disk copy of the same id never replaces it.
  *
  * What is here is a judgement about a first run: the languages most projects
  * open, so a fresh druk highlights code with no network and no installs. Every

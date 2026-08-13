@@ -7,8 +7,9 @@
  * under `$XDG_CONFIG_HOME/druk/extensions/`, or a bare `<name>.json` in that folder
  * for one that needs no files at all. A project may carry its own in
  * `<project>/.druk/extensions/`, the way it carries its own settings. `./builtin.ts`
- * holds the manifests compiled into the binary; a copy on disk with the same id
- * replaces one of those, which is how the market updates it.
+ * holds the manifests compiled into the binary; those always win over a disk copy
+ * of the same id, because a built-in updates with druk itself, never through the
+ * market.
  *
  * Data, deliberately. Installing an extension runs no code, so a shared theme pack
  * is as safe to drop in as a config file, and the compiled binary needs no
@@ -121,11 +122,19 @@ export function loadExtensions(
     const extension = parsed.extension
     if (!extension) continue
     const held = found.get(extension.id)
-    // Shadowing a built-in is the update path — the market's copy of an extension
-    // druk ships is how it gets a newer version — but two on disk is a mistake
-    // someone has to be told about, since which one wins is a directory listing.
-    if (held && !held.builtin) {
-      problems.push({ source, reason: `"${extension.id}" is already loaded from ${held.source}` })
+    // A built-in updates with druk itself, so a copy on disk can only be stale —
+    // loading it would pin the extension at whatever version was once fetched,
+    // and every druk update after that would silently not apply. Skipped and
+    // named, so the leftover (druk used to update built-ins through the market)
+    // can be deleted. Two market copies stay a mistake to report, since which
+    // one wins is a directory listing.
+    if (held) {
+      problems.push({
+        source,
+        reason: held.builtin
+          ? `"${extension.id}" ships with druk and updates with it — delete this copy`
+          : `"${extension.id}" is already loaded from ${held.source}`,
+      })
       continue
     }
     found.set(extension.id, extension)

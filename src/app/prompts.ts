@@ -522,15 +522,15 @@ export function createPromptHandlers(deps: {
         }
       case 'installExtension':
         return {
-          title: p.current ? 'Extension update' : 'Extension available',
-          verb: p.current ? 'update it' : 'install it',
+          title: 'Extension available',
+          verb: 'install it',
           danger: false,
           // The commands are the part worth reading before agreeing: a manifest
           // is data and installing it runs nothing, but a language server is a
           // program druk will spawn the next time a matching file opens.
           message: [
             p.why,
-            `${p.name} adds ${p.summary}${p.current ? ` (${p.current} installed)` : ''}.`,
+            `${p.name} adds ${p.summary}.`,
             p.runs.length > 0 ? `It runs: ${p.runs.join(', ')}` : '',
           ]
             .filter(Boolean)

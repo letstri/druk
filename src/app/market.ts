@@ -2,10 +2,12 @@
  * The extension market as the editor sees it: what is on offer, what is out of
  * date, and what the open file would want installed.
  *
- * Every path into an install goes through the same two steps — fetch and
+ * Every path into a first install goes through the same two steps — fetch and
  * validate the manifest (`core/market.ts`), then ask. The prompt is raised only
  * once the manifest is in hand, so what it names is the file that will actually
- * be written rather than a claim the catalog made about it.
+ * be written rather than a claim the catalog made about it. An *update* of an
+ * installed extension is applied without asking: the question was answered when
+ * it was installed, and an update kept behind a prompt is an update nobody runs.
  *
  * Nothing here is load-bearing: the catalog is fetched best-effort, and every
  * failure leaves the editor exactly as it was with at most a status line.
@@ -74,8 +76,12 @@ export function createMarket(deps: {
   const entry = (id: string): MarketEntry | undefined =>
     catalog().find(extension => extension.id === id)
 
+  // Market copies only: a built-in is part of the binary and updates with druk
+  // itself, so the market must never offer it one.
   const installedVersions = () =>
-    extensions().map(extension => ({ id: extension.id, version: extension.version }))
+    extensions()
+      .filter(extension => !extension.builtin)
+      .map(extension => ({ id: extension.id, version: extension.version }))
 
   /** Installed extensions the market has a newer version of. */
   const updates = createMemo(() => updatesFor(installedVersions(), catalog(), isNewer))
@@ -115,7 +121,6 @@ export function createMarket(deps: {
   const offer = async (id: string, why: string, quiet = false): Promise<void> => {
     const found = entry(id)
     if (!found) return void (quiet || status.say(`No extension "${id}" in the market`, 'warn'))
-    const installed = extensions().find(extension => extension.id === id)
     const result = await fetchExtension(id, { registry: registry(), fetcher })
     if (!result.ok) return void (quiet || status.say(`Extension ${id}: ${result.error}`, 'error'))
     // An offer druk raised itself must never replace a question the user is
@@ -132,8 +137,50 @@ export function createMarket(deps: {
       // The one part of a manifest that is not inert: these are spawned when a
       // file of a matching type opens, so the answer is about them.
       runs: result.extension.servers.map(server => server.command.join(' ')),
-      ...(installed ? { current: installed.version } : null),
     })
+  }
+
+  /**
+   * Install every pending update, no questions asked. Failures are reported and
+   * skipped — one unreachable manifest must not hold the rest back — except when
+   * `quiet`: the startup check runs uninvited, and an editor that reports a
+   * failed background request on every launch is worse than one that says
+   * nothing.
+   */
+  const applyUpdates = async (
+    pending: { entry: MarketEntry; current: string }[],
+    quiet = false,
+  ): Promise<void> => {
+    const updated: MarketEntry[] = []
+    let servers = false
+    for (const { entry: found } of pending) {
+      const result = await fetchExtension(found.id, { registry: registry(), fetcher })
+      if (!result.ok) {
+        if (!quiet) status.say(`Extension ${found.id}: ${result.error}`, 'error')
+        continue
+      }
+      const error = await writeExtension(found.id, result, EXTENSIONS_DIR, {
+        registry: registry(),
+        fetcher,
+      })
+      if (error) {
+        if (!quiet) status.say(`Could not update ${found.id}: ${error}`, 'error')
+        continue
+      }
+      servers ||= result.extension.servers.length > 0
+      updated.push(found)
+    }
+    if (updated.length === 0) return
+    settings.reloadExtensions()
+    status.say(
+      updated.length === 1
+        ? `Updated ${updated[0]!.name} to ${updated[0]!.version}`
+        : `Updated ${updated.length} extensions`,
+    )
+    // After the confirmation, as in `accept`: the restart re-syncs the open
+    // documents, and what a new server has to say about them should land on
+    // top of the line saying the update happened, not under it.
+    if (servers) onServersReload?.()
   }
 
   /**
@@ -195,11 +242,7 @@ export function createMarket(deps: {
       return void status.say('Could not reach the extension market', 'warn')
     }
     const pending = updates()
-    if (pending.length > 0) {
-      return void status.say(
-        `${pending.length} extension update${pending.length === 1 ? '' : 's'} available`,
-      )
-    }
+    if (pending.length > 0) return applyUpdates(pending)
     status.say(
       before === 0
         ? `Extension market: ${fresh.length} extension${fresh.length === 1 ? '' : 's'}`
@@ -211,10 +254,7 @@ export function createMarket(deps: {
     await refresh(true)
     const pending = updates()
     if (pending.length === 0) return void status.say('Every extension is up to date')
-    // One prompt at a time: each manifest is fetched and confirmed on its own,
-    // and the palette command is how the next one is reached. A queue of modals
-    // would be worse than a list.
-    await offer(pending[0]!.entry.id, `Update ${pending[0]!.entry.name}?`)
+    await applyUpdates(pending)
   }
 
   /**
@@ -257,18 +297,12 @@ export function createMarket(deps: {
     }
   }
 
-  /** The startup pass: refresh, report updates, then offer what the config wants. */
+  /** The startup pass: refresh, apply updates, then offer what the config wants. */
   const check = async (): Promise<void> => {
     if (!settings.config.extensionUpdates) return
     await ready()
     const pending = updates()
-    if (pending.length > 0) {
-      status.say(
-        pending.length === 1
-          ? `${pending[0]!.entry.name} ${pending[0]!.entry.version} is out — palette → Extensions`
-          : `${pending.length} extension updates available — palette → Extensions`,
-      )
-    }
+    if (pending.length > 0) await applyUpdates(pending, true)
     suggestMissingNames()
   }
 

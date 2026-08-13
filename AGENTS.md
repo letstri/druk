@@ -381,7 +381,10 @@ an extension market — `extensions/` **in this repository**, one folder per ext
 raw from `main`, so a merged pull request is installable without a druk release;
 the panel's `AVAILABLE` section installs one after a confirm that names the
 commands it would have druk spawn, an installed extension with a newer version in the
-catalog is reported in the status bar at startup, a file whose language no
+catalog is updated automatically by the startup check, the status bar saying so
+(never a preinstalled one, which is part of the binary and updates with druk itself —
+a disk copy of a built-in's id is skipped and reported rather than loaded; the confirm
+is for first installs alone, an update being a question already answered), a file whose language no
 installed extension serves offers the extension that does, and a config naming a theme
 nothing registers is offered its extension back (`extensionUpdates` turns the whole of
 that off, `extensionRegistry` points it at a fork),
