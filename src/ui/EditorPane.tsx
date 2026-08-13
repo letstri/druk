@@ -104,6 +104,7 @@ export interface EditorPaneProps {
     endCol: number
     severity: ProblemSeverity
     unnecessary: boolean
+    deprecated: boolean
   }[]
   /** Also draw each problem's message after the end of its line. */
   problemText: boolean
@@ -1383,9 +1384,9 @@ export function EditorPane(props: EditorPaneProps) {
   /**
    * Mark the spans of every problem starting on `line`. Layered over the syntax
    * highlights: a fault keeps its text color and gains a faint severity tint,
-   * while an Unnecessary-tagged span fades instead. A multi-line span marks its
-   * first line only — the gutter dot marks the rest, and measuring every
-   * continuation line costs more than it says.
+   * while an Unnecessary-tagged span fades and a Deprecated one is struck
+   * through. A multi-line span marks its first line only — the gutter dot marks
+   * the rest, and measuring every continuation line costs more than it says.
    */
   const markProblems = (row: number, line: number) => {
     const problems = problemsByLine().get(line)
@@ -1394,7 +1395,11 @@ export function EditorPane(props: EditorPaneProps) {
     // lines of a window carry no diagnostic at all.
     const text = parsedLine(line) ?? lineTextAt(row)
     for (const problem of problems) {
-      const group = problem.unnecessary ? 'unnecessary' : problem.severity
+      const group = problem.unnecessary
+        ? 'unnecessary'
+        : problem.deprecated
+          ? 'deprecated'
+          : problem.severity
       const styleId = styleIdForGroup(`druk.problem.${group}`)
       if (styleId == null) continue
       const sameLine = problem.endLine === problem.line

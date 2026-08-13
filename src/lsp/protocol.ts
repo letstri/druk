@@ -42,9 +42,14 @@ export interface Diagnostic {
 }
 
 const TAG_UNNECESSARY = 1
+const TAG_DEPRECATED = 2
 
 export function isUnnecessary(diagnostic: Diagnostic): boolean {
   return diagnostic.tags?.includes(TAG_UNNECESSARY) ?? false
+}
+
+export function isDeprecated(diagnostic: Diagnostic): boolean {
+  return diagnostic.tags?.includes(TAG_DEPRECATED) ?? false
 }
 
 export interface PublishDiagnosticsParams {
@@ -132,6 +137,8 @@ export interface Problem {
   severity: ProblemSeverity
   /** LSP's Unnecessary tag: unused code, dimmed instead of underlined. */
   unnecessary: boolean
+  /** LSP's Deprecated tag: still there, not to be reached for — struck through. */
+  deprecated: boolean
   message: string
   source?: string
   /** The rule that fired, as the server spells it: `2345`, `import/no-cycle`. */

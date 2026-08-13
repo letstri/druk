@@ -289,6 +289,33 @@ test('inline text hides when the setting is off, the gutter dot stays', async ()
   expect(t.captureCharFrame()).not.toContain('found oops')
 }, 30_000)
 
+/** OpenTUI's TextAttributes.STRIKETHROUGH — bit 7 of a span's attributes. */
+const STRIKETHROUGH = 1 << 7
+
+test('a Deprecated span is struck through, and its neighbours are not', async () => {
+  const dir = fixture({ 'a.ts': 'const stale = 1\n' })
+  const t = await launch(
+    dir,
+    { lsp: true, lspServers: { typescript: [process.execPath, FAKE], eslint: [], oxlint: [] } },
+    {},
+    { openFile: join(dir, 'a.ts') },
+  )
+
+  const struck = () => {
+    const frame = t.captureSpans() as unknown as {
+      lines: { spans: { text: string; attributes: number }[] }[]
+    }
+    return frame.lines
+      .flatMap(line => line.spans)
+      .filter(span => (span.attributes & STRIKETHROUGH) !== 0)
+      .map(span => span.text.trim())
+  }
+
+  await until(t, () => struck().length > 0, LSP_WAIT)
+  // The tagged span alone: `const` on the same line keeps its letterforms.
+  expect(struck()).toEqual(['stale'])
+}, 30_000)
+
 test('a problem far below the viewport is marked on the track', async () => {
   const lines = Array.from({ length: 400 }, (_, index) => `const value${index} = ${index}`)
   lines[380] = 'const oops = 1'

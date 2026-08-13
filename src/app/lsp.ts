@@ -20,7 +20,7 @@ import {
 } from '../lsp/install'
 import type { PackageManager } from '../lsp/install'
 import { projectCommand } from '../lsp/project'
-import { isUnnecessary, SEVERITY_RANK, severityOf } from '../lsp/protocol'
+import { isDeprecated, isUnnecessary, SEVERITY_RANK, severityOf } from '../lsp/protocol'
 import type { CompletionItem, Diagnostic, Problem } from '../lsp/protocol'
 import { installHint, resolveServers, servers as serverSpecs } from '../lsp/servers'
 import type { FetchableInstall, ResolvedServer } from '../lsp/servers'
@@ -149,6 +149,7 @@ export function createLsp(deps: {
         endCol: diagnostic.range.end.character,
         severity: severityOf(diagnostic),
         unnecessary: isUnnecessary(diagnostic),
+        deprecated: isDeprecated(diagnostic),
         message: diagnostic.message,
         source: diagnostic.source,
         code: diagnostic.code === undefined ? undefined : String(diagnostic.code),

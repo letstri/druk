@@ -1,5 +1,11 @@
 import '../core/assets'
-import { getTreeSitterClient, pathToFiletype, SyntaxStyle } from '@opentui/core'
+import {
+  getTreeSitterClient,
+  pathToFiletype,
+  resolveRenderLib,
+  SyntaxStyle,
+  TextAttributes,
+} from '@opentui/core'
 import type { StyleDefinitionInput, TreeSitterClient } from '@opentui/core'
 
 import { paintedTheme, syntaxTheme, ui } from '../themes'
@@ -64,6 +70,9 @@ export function mixColors(base: string, tint: string, t: number): string {
   return `#${channel(1)}${channel(3)}${channel(5)}`
 }
 
+/** The Deprecated tag's span: crossed out, keeping its syntax colour. */
+export const DEPRECATED_GROUP = 'druk.problem.deprecated'
+
 /** Shared style table used by every editor buffer (built from the active theme). */
 export function getSyntaxStyle(): SyntaxStyle {
   // Keyed on the painted theme: every theme's `keyword` (etc.) reuses the same
@@ -94,8 +103,32 @@ export function getSyntaxStyle(): SyntaxStyle {
       // its stroke is a capture group like any other painted span.
       [DIFF_FILLER]: { fg: mixColors(ui.solidBg, ui.dim, 0.55) },
     })
+    registerStruckThrough(syntaxStyle, DEPRECATED_GROUP)
   }
   return syntaxStyle
+}
+
+/**
+ * Register a style whose only mark is a strikethrough — what a deprecated symbol
+ * wants, and the one thing `SyntaxStyle.registerStyle` cannot express: it passes
+ * bold/italic/underline/dim to `createTextAttributes` and drops the rest, so the
+ * native table has to be written to directly. `styleIdByGroup` is seeded with the
+ * id because a style registered this way is not in `styleDefs`, and the walk in
+ * `styleIdForGroup` decides membership with `getStyle`, which reads only that.
+ */
+function registerStruckThrough(style: SyntaxStyle, group: string): void {
+  try {
+    const id = resolveRenderLib().syntaxStyleRegister(
+      style.ptr,
+      group,
+      null,
+      null,
+      TextAttributes.STRIKETHROUGH,
+    )
+    styleIdByGroup.set(group, id)
+  } catch {
+    // best-effort: the span paints as it did before, without the strike
+  }
 }
 
 export function invalidateSyntaxStyle(): void {

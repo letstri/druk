@@ -7,7 +7,7 @@ import { MARKET_DIR } from '../scripts/extensions'
 import { problemFrom, problemsOn } from '../src/app/lsp'
 import type { Problem } from '../src/app/lsp'
 import { loadExtensions } from '../src/extensions'
-import { styleIdForGroup } from '../src/languages/highlight'
+import { DEPRECATED_GROUP, styleIdForGroup } from '../src/languages/highlight'
 import { spawnLspClient } from '../src/lsp/client'
 import {
   availablePackageManagers,
@@ -18,7 +18,7 @@ import {
 } from '../src/lsp/install'
 import { projectCommand, typescriptMajor } from '../src/lsp/project'
 import type { Diagnostic, RpcMessage } from '../src/lsp/protocol'
-import { headline, isUnnecessary, severityOf } from '../src/lsp/protocol'
+import { headline, isDeprecated, isUnnecessary, severityOf } from '../src/lsp/protocol'
 import { installHint, resolveServer, resolveServers } from '../src/lsp/servers'
 import { createDecoder, encodeMessage } from '../src/lsp/transport'
 
@@ -99,6 +99,9 @@ describe('protocol mapping', () => {
       expect(styleIdForGroup(`druk.problem.${severity}`)).not.toBeNull()
     }
     expect(styleIdForGroup('druk.problem.unnecessary')).not.toBeNull()
+    // Registered against the native table rather than through SyntaxStyle, so
+    // the walk in styleIdForGroup can only find it through its seeded id.
+    expect(styleIdForGroup(DEPRECATED_GROUP)).not.toBeNull()
   })
 
   test('the Unnecessary tag is recognised, and other tags are not', () => {
@@ -107,6 +110,13 @@ describe('protocol mapping', () => {
     expect(isUnnecessary({ ...at(0, 0), tags: [2] })).toBe(false)
     expect(isUnnecessary({ ...at(0, 0), tags: [1] })).toBe(true)
     expect(isUnnecessary({ ...at(0, 0), tags: [2, 1] })).toBe(true)
+  })
+
+  test('the Deprecated tag is recognised, and other tags are not', () => {
+    expect(isDeprecated(at(0, 0))).toBe(false)
+    expect(isDeprecated({ ...at(0, 0), tags: [1] })).toBe(false)
+    expect(isDeprecated({ ...at(0, 0), tags: [2] })).toBe(true)
+    expect(isDeprecated({ ...at(0, 0), tags: [1, 2] })).toBe(true)
   })
 
   // The market extensions are what carry the server specs now — the typescript one
@@ -405,6 +415,7 @@ describe('problemFrom', () => {
     endCol: col,
     severity: 'error',
     unnecessary: false,
+    deprecated: false,
     message: 'm',
   })
   const list = [problem(1, 4), problem(5, 0), problem(5, 9)]

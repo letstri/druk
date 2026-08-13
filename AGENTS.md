@@ -253,7 +253,10 @@ sentence is routinely longer than a row and a list of them cut mid-word is a lis
 of diagnostics nobody can read — spans given a faint severity tint — no
 underline, which OpenTUI can only draw in the text's own colour — except where
 the server tagged them Unnecessary, where unused code fades toward the
-background instead; the
+background instead, and where it tagged them Deprecated, where the span is
+struck through and keeps its colour — the strike is a text attribute
+`SyntaxStyle.registerStyle` drops, so that one style is written to the native
+table directly (`registerStruckThrough` in `src/languages/highlight.ts`); the
 settings page toggles LSP, the inline text and each server, and edits per-server
 commands; diagnostics arrive either way the protocol offers them — published, or
 pulled with `textDocument/diagnostic` after every sync for the servers that

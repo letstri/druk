@@ -54,6 +54,18 @@ const publish = (uri: string, text: string) => {
         code: 'no-oops',
       })
     }
+    // Tagged Deprecated, at the severity a real server sends one at: a hint,
+    // whose whole mark is the strikethrough over the span.
+    const stale = lines[line]!.indexOf('stale')
+    if (stale >= 0) {
+      diagnostics.push({
+        range: { start: { line, character: stale }, end: { line, character: stale + 5 } },
+        severity: 4,
+        tags: [2],
+        message: "'stale' is deprecated",
+        source: 'fake',
+      })
+    }
     const nag = lines[line]!.indexOf('nag')
     if (nag < 0) continue
     diagnostics.push({
