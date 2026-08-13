@@ -52,6 +52,7 @@ import type { CompletionItem, ProblemSeverity } from '../lsp/protocol'
 import { paintedTheme, ui } from '../themes'
 import { layoutMenu } from './completionLayout'
 import { CompletionMenu } from './CompletionMenu'
+import { useHover } from './hover'
 import { chordFor } from './keys'
 import { SEVERITY_COLOR } from './severity'
 import { cut, wrapText } from './text'
@@ -631,6 +632,11 @@ export function EditorPane(props: EditorPaneProps) {
   let track: { y: number } | undefined
   /** True between grabbing the scrollbar thumb and letting go. */
   const [dragging, setDragging] = createSignal(false)
+  const problemsHover = useHover()
+  const changesHover = useHover()
+  const scrollbarHover = useHover()
+  /** The real line of the fold chevron under the pointer, or null. */
+  const [hotFold, setHotFold] = createSignal<number | null>(null)
 
   /** Bumped when the buffer re-wraps, so the inline notes re-measure. */
   const [wrapKey, setWrapKey] = createSignal(0)
@@ -1132,7 +1138,9 @@ export function EditorPane(props: EditorPaneProps) {
         signs.set(row, {
           ...signs.get(row),
           after: shut ? '▸' : '▾',
-          afterColor: shut ? ui.text : ui.gutter,
+          // The chevron under the pointer takes the accent — the open ones sit
+          // in gutter colour and read as furniture until something says they act.
+          afterColor: hotFold() === line ? ui.accent : shut ? ui.text : ui.gutter,
         })
       }
     }
@@ -2522,6 +2530,8 @@ export function EditorPane(props: EditorPaneProps) {
                 height={1}
                 zIndex={6}
                 onMouseDown={() => toggleFoldAt(marker.line)}
+                onMouseOver={() => setHotFold(marker.line)}
+                onMouseOut={() => setHotFold(line => (line === marker.line ? null : line))}
               />
             )}
           </For>
@@ -2559,10 +2569,12 @@ export function EditorPane(props: EditorPaneProps) {
             <box
               width={1}
               flexShrink={0}
-              backgroundColor={ui.bg}
+              backgroundColor={problemsHover.hovered() ? ui.hoverBg : ui.bg}
               onMouseDown={(event: MouseEvent) => {
                 if (!dragging()) jumpToRow(event.y - (editor?.y ?? 0))
               }}
+              onMouseOver={problemsHover.enter}
+              onMouseOut={problemsHover.leave}
             >
               {/* `Index`, not `For`, on all three tracks: the rows are a fixed
                   column of marks whose *values* change as the file scrolls, and
@@ -2573,7 +2585,7 @@ export function EditorPane(props: EditorPaneProps) {
                 {severity => (
                   <text
                     fg={trackColor(SEVERITY_COLOR, severity())}
-                    bg={ui.bg}
+                    bg={problemsHover.hovered() ? ui.hoverBg : ui.bg}
                     content={severity() ? '•' : ' '}
                   />
                 )}
@@ -2587,16 +2599,18 @@ export function EditorPane(props: EditorPaneProps) {
             <box
               width={1}
               flexShrink={0}
-              backgroundColor={ui.bg}
+              backgroundColor={changesHover.hovered() ? ui.hoverBg : ui.bg}
               onMouseDown={(event: MouseEvent) => {
                 if (!dragging()) jumpToRow(event.y - (editor?.y ?? 0))
               }}
+              onMouseOver={changesHover.enter}
+              onMouseOut={changesHover.leave}
             >
               <Index each={changeTrack()}>
                 {change => (
                   <text
                     fg={trackColor(CHANGE_COLORS, change())}
-                    bg={ui.bg}
+                    bg={changesHover.hovered() ? ui.hoverBg : ui.bg}
                     content={change() ? '▎' : ' '}
                   />
                 )}
@@ -2615,12 +2629,20 @@ export function EditorPane(props: EditorPaneProps) {
                 setDragging(true)
                 dragTo(event.y)
               }}
+              onMouseOver={scrollbarHover.enter}
+              onMouseOut={scrollbarHover.leave}
             >
               <Index each={scrollbar()}>
                 {/* The trough is a space, not a glyph hidden by painting it in
                     the background color: with `transparent` on there is no
                     background color to hide it in. */}
-                {filled => <text fg={ui.scrollbar} bg={ui.bg} content={filled() ? '█' : ' '} />}
+                {filled => (
+                  <text
+                    fg={scrollbarHover.hovered() || dragging() ? ui.dim : ui.scrollbar}
+                    bg={ui.bg}
+                    content={filled() ? '█' : ' '}
+                  />
+                )}
               </Index>
             </box>
           </Show>

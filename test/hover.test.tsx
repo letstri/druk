@@ -1,11 +1,11 @@
 import { describe, expect, test } from 'bun:test'
 
 import { ui } from '../src/themes'
-import { fixture, launch, settle } from './helpers'
+import { fixture, launch, openFile, settle } from './helpers'
 import type { Harness } from './helpers'
 
 interface Frame {
-  lines: { spans: { text: string; bg?: { buffer: Uint8Array } }[] }[]
+  lines: { spans: { text: string; fg?: { buffer: Uint8Array }; bg?: { buffer: Uint8Array } }[] }[]
 }
 
 const hex = (color?: { buffer: Uint8Array }) =>
@@ -17,6 +17,13 @@ const hex = (color?: { buffer: Uint8Array }) =>
 const rowBgs = (t: Harness, y: number) => {
   const frame = t.captureSpans() as unknown as Frame
   return frame.lines[y]?.spans.map(span => hex(span.bg)) ?? []
+}
+
+/** Foreground of the first span on row `y` whose text holds `glyph`. */
+const glyphFg = (t: Harness, y: number, glyph: string) => {
+  const frame = t.captureSpans() as unknown as Frame
+  const span = frame.lines[y]?.spans.find(s => s.text.includes(glyph))
+  return hex(span?.fg)
 }
 
 /** The row of the char frame that contains `text`, or -1. */
@@ -57,5 +64,25 @@ describe('hover on clickable rows', () => {
     await settle(t)
     expect(rowBgs(t, y)).toContain(ui.treeSelectedBg)
     expect(rowBgs(t, y)).not.toContain(ui.hoverBg)
+  })
+
+  test('the fold chevron under the pointer takes the accent', async () => {
+    const t = await launch(
+      fixture({ 'a.ts': 'function outer() {\n  const a = 1\n  return a\n}\n' }),
+    )
+    await openFile(t, 'a.ts')
+
+    const y = rowOf(t, 'function outer() {')
+    const x = t.captureCharFrame().split('\n')[y]!.indexOf('▾')
+    expect(x).toBeGreaterThan(0)
+    expect(glyphFg(t, y, '▾')).toBe(ui.gutter)
+
+    await t.mockMouse.moveTo(x, y)
+    await settle(t)
+    expect(glyphFg(t, y, '▾')).toBe(ui.accent)
+
+    await t.mockMouse.moveTo(x, y + 1)
+    await settle(t)
+    expect(glyphFg(t, y, '▾')).toBe(ui.gutter)
   })
 })
