@@ -628,20 +628,27 @@ is just a diff against the empty tree.
   rules as they walk into it, and `git.activeRepo()` — panel cursor, then open file, then
   the only one — is the cwd every command runs in. That last one is why `gitOp` hands the
   repository to its callback instead of letting callers look it up again.
-- **git queries are synchronous, mutations are not.** `core/git.ts` runs `diff`,
-  `status` and `rev-parse`/`rev-list` with `spawnSync` — they sit behind the gutter and
-  tree marks and finish in milliseconds. Everything that writes (commit, push, stash,
-  checkout, merge, branch create/rename/delete) goes through the async `mutate`, because a
-  push talks to the network and would freeze the TUI for its duration. `createGitOp`
+- **Refresh queries run off the event loop; mutations always did.** `spawnSync` blocks
+  the loop for the subprocess's whole life, and every keystroke and mouse move waits it
+  out — on a large repository, long enough to read as a freeze. So everything on a
+  refresh cadence — `diff`, `status`, `check-ignore` and the `rev-parse`/`rev-list` pair
+  behind the status bar's branch and counts — goes through `gitAsync`, and each answer is
+  behind a generation counter in `wireGitEffects`: they land out of order, and an earlier
+  pass answering after a newer one would repaint marks the newer one has already
+  replaced. The synchronous `git` is left for the one-shot calls a keystroke asks for
+  outright — `statusMap` for the commit picker, `currentBranch` for the comparison's own
+  lookups — where there is no cadence to fall behind. Everything that writes (commit,
+  push, stash, checkout, merge, branch create/rename/delete) goes through the async
+  `mutate` for the same reason twice over: a push talks to the network. `createGitOp`
   serialises them, and anything that rewrites the working tree passes a `touchesTree`
   strategy so open buffers are pulled back from disk rather than waiting for the watcher.
   Pulls, stashes and branch operations use clash-safe whole-tree sync; a confirmed
   file-level discard forces only the paths belonging to that row to follow disk, because
   the confirmation has already authorized losing their unsaved buffers.
-- **Branch comparison is the one read-only query that runs off the render thread.** A
-  branch's worth of changed files is more than a frame's worth of subprocess, so its five
-  queries go through `gitAsync` rather than the synchronous `git` every other query uses.
-  All of them are NUL-delimited (`-z`), because a path may contain a tab or a newline and
+- **Branch comparison's queries are NUL-delimited.** Its five go through `gitAsync` like
+  every other read — a branch's worth of changed files was never a frame's worth of
+  subprocess, which is why these were the first to move off the loop.
+  All of them are `-z`, because a path may contain a tab or a newline and
   the default output C-quotes it; a truncated record fails the whole read rather than
   dropping a row, which would read as "this file did not change". Blobs are fetched by
   object ID only once a row is opened. `app/comparison.ts` drops stale generations and
@@ -657,18 +664,19 @@ is just a diff against the empty tree.
   reports ENOBUFS, which every caller in `core/git.ts` reads as "no output" — `status` in a
   repository with thousands of changed files would silently become "nothing changed" and
   the tree would show no marks. The helper raises `maxBuffer`.
-- **The multi-repository status refresh is the exception to that.** `statusMapAsync`
-  exists because the refresh runs one status query *per repository*: a folder of twenty
-  checkouts is forty subprocesses, and synchronously that is a visible freeze on every
-  save and every filesystem event. They run at once and a generation counter drops an
-  earlier pass that answers late. The synchronous `statusMap` stays for the commit
+- **The status refresh is one query per repository.** `statusMapAsync` exists because a
+  folder of twenty checkouts is forty subprocesses, and synchronously that was a visible
+  freeze on every save and every filesystem event. They run at once and a generation
+  counter drops an earlier pass that answers late. The synchronous `statusMap` stays for the commit
   picker, which asks about one repository on demand; both share their parsers, because a
   file the two disagreed about would be a row that cannot be committed.
-- **git waits for the first frame.** Every query is a synchronous subprocess, and
-  effects run inside the initial render pass, so `wireGitEffects` sits behind one
-  deferred tick and `branch` starts null — `statusMap` alone can take hundreds of
-  milliseconds in a large repository, all of it otherwise spent before anything is on
-  screen. The marks and branch appear a beat later; nothing else changes cadence.
+- **git waits for the first frame.** Every query is a subprocess, and effects run inside
+  the initial render pass, so `wireGitEffects` sits behind one deferred tick and `branch`
+  starts null — `status` alone can take hundreds of milliseconds in a large repository,
+  all of it otherwise spent before anything is on screen. The marks and branch appear a
+  beat later; nothing else changes cadence. It follows that a test asserting on a mark
+  has to poll for it (`until`) rather than read the frame `launch` returns — none of the
+  queries has answered by then.
 - **The diff page is a snapshot, and something has to refresh it.** `workspace.diffTab`
   holds one file's two texts as they read when it opened, so a commit, stash or save
   leaves it showing changes that are gone — `App` re-runs `actions.refreshDiff` on

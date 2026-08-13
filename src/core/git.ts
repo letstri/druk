@@ -1062,7 +1062,11 @@ export interface Upstream {
  * that a `currentBranch` call on top of them is worth avoiding.
  */
 export async function upstreamOf(cwd: string): Promise<Upstream | null> {
-  const ref = await gitAsync(cwd, ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'])
+  const ref = await gitAsync(
+    cwd,
+    ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'],
+    5000,
+  )
   if (ref.status !== 0) {
     // No upstream and no repository look the same here; the branch tells them apart.
     // Ahead/behind stay 0: with nothing to compare against there is no distance to
@@ -1072,7 +1076,7 @@ export async function upstreamOf(cwd: string): Promise<Upstream | null> {
 
   // Status checked, and NaN floored: a failed count would otherwise put "NaN↓"
   // on the status bar — `[''].map(Number)` is `[NaN]`, which `?? 0` keeps.
-  const counts = await gitAsync(cwd, ['rev-list', '--left-right', '--count', '@{u}...HEAD'])
+  const counts = await gitAsync(cwd, ['rev-list', '--left-right', '--count', '@{u}...HEAD'], 5000)
   const [behind, ahead] = counts.status === 0 ? counts.stdout.trim().split(/\s+/).map(Number) : []
   return { name: ref.stdout.trim(), ahead: ahead || 0, behind: behind || 0 }
 }
