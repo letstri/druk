@@ -785,6 +785,7 @@ export function App(props: {
             vim={config.vim}
             cursorStyle={config.cursorStyle}
             wrap={config.wrap}
+            scrollPastEnd={config.scrollPastEnd}
             tabSize={config.tabSize}
             gitLines={git.gitLines()}
             problems={problemLines()}

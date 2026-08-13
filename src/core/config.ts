@@ -118,6 +118,13 @@ export interface Config {
    */
   wrap: boolean
   /**
+   * Scroll on past the last line, until it is the only one left on screen —
+   * VS Code's `editor.scrollBeyondLastLine`. Off, the file stops with its last
+   * line at the bottom, so code being read at the end of a file sits under the
+   * status bar rather than in the middle of the pane.
+   */
+  scrollPastEnd: boolean
+  /**
    * Columns per indent level for space indentation — the Tab key and the guides.
    * A literal tab is two columns whatever this says: OpenTUI's renderer fixes that
    * width and exposes no setting for it.
@@ -232,6 +239,7 @@ export const DEFAULTS: Config = {
   cursorStyle: 'block',
   // On, because it always was: druk wrapped unconditionally before this was a key.
   wrap: true,
+  scrollPastEnd: true,
   tabSize: 2,
   sidebarWidth: 'auto',
   sidebarPosition: 'left',
@@ -311,6 +319,7 @@ const VALIDATORS: { [K in keyof Config]: Validator<K> } = {
   vim: bool,
   cursorStyle: among(...CURSOR_STYLES),
   wrap: bool,
+  scrollPastEnd: bool,
   tabSize: raw => (typeof raw === 'number' && raw >= 1 && raw <= 16 ? Math.floor(raw) : undefined),
   sidebarWidth: raw => {
     if (raw === 'auto') return 'auto'

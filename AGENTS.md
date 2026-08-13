@@ -57,6 +57,14 @@ overrides while it is on, since there the shape is what tells normal from insert
 word wrap on by default with a toggle (`wrap`, palette → View → Toggle word wrap —
 off, a long line's tail is reached by moving the cursor into it, since OpenTUI
 scrolls sideways only with the caret),
+scrolling on past the last line until it is the only one left on screen
+(`scrollPastEnd`, on as it is in VS Code, settings → Editor → Scroll past end —
+the buffer stops with the last line at the *bottom*, so the end of a file is
+otherwise read from the very edge of the terminal; `allowScrollPastEnd` in
+`src/ui/EditorPane.tsx` rewrites the renderable's `handleScroll` for it, and has
+to drag the caret along and drop the scroll margin while it is out there, the
+renderer keeping the caret on screen being what would otherwise pull the view
+straight back),
 selecting a word by double-click and a line by triple-click (OpenTUI has no such
 event, so both are counted from consecutive mouse-downs at one cell, the way the
 file tree already counts its own; a line terminator is not a token, so a click

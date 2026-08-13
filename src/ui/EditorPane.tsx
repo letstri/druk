@@ -87,6 +87,8 @@ export interface EditorPaneProps {
   cursorStyle: CursorStyle
   /** Soft-wrap long lines — see the `wrap` config key. */
   wrap: boolean
+  /** Scroll on until the last line is the only one left — see `scrollPastEnd`. */
+  scrollPastEnd: boolean
   tabSize: number
   /** True while a modal owns the keyboard; the editor must ignore all keys. */
   blocked: boolean
@@ -298,6 +300,78 @@ export function ignoreScrollOutsideBounds(el: TextareaRenderable) {
   }
 }
 
+/**
+ * OpenTUI's own, which it takes as a constructor option and exposes no setter
+ * for — so a margin turned off for a scroll past the end has to be put back by
+ * value. Rows the caret is kept away from the edge by, as a share of the pane.
+ */
+const SCROLL_MARGIN = 0.2
+
+/**
+ * Let the viewport go past the last line, until that line is the only one drawn
+ * — VS Code's `editor.scrollBeyondLastLine`, which the `scrollPastEnd` key is.
+ *
+ * `handleScroll` stops with the last line at the *bottom*, so the end of a file
+ * can only ever be read from the very edge of the terminal. Two things have to
+ * give for the rows below it to be blank, and both are why this is a rewrite of
+ * the handler rather than a clamp raised on it: the caret has to travel with the
+ * viewport, since the renderer keeps it on screen and would otherwise pull the
+ * view straight back to it; and the scroll margin has to go, since it is what
+ * holds the caret — and so the last line — a fifth of a screen off the bottom.
+ *
+ * Everything druk scrolls with — the wheel, a scrollbar drag, `scrollByRows` —
+ * comes through here, so this one hook covers them all. It answers with the
+ * margin's keeper: the caret may leave the tail without scrolling, so the
+ * viewport has to be watched for its way back rather than waited on here.
+ */
+export function allowScrollPastEnd(el: TextareaRenderable, active: () => boolean) {
+  const view = el.editorView
+  let margin = SCROLL_MARGIN
+  /** True once the last line has been scrolled off the bottom of the pane. */
+  const pastEnd = (offset: number, rows: number, height: number) =>
+    offset > Math.max(0, rows - height)
+  const setMargin = (wanted: number) => {
+    if (margin === wanted) return
+    margin = wanted
+    view.setScrollMargin(wanted)
+  }
+
+  // `handleScroll` is protected, and this is a subclass's override without the
+  // subclass — same as `ignoreScrollOutsideBounds` above.
+  const host = el as unknown as { handleScroll: (event: ScrollEvent) => void }
+  const handle = host.handleScroll.bind(host)
+  host.handleScroll = (event: ScrollEvent) => {
+    const scroll = event.scroll
+    const vertical = scroll?.direction === 'up' || scroll?.direction === 'down'
+    if (!active() || !scroll || !vertical) return handle(event)
+    const port = view.getViewport()
+    const rows = view.getTotalVirtualLineCount()
+    // Only a file taller than the pane: a short one would slide away with no
+    // scrollbar drawn to say where it went.
+    const last = rows > port.height ? rows - 1 : 0
+    const next =
+      scroll.direction === 'down'
+        ? Math.min(port.offsetY + scroll.delta, last)
+        : Math.max(0, port.offsetY - scroll.delta)
+    if (next === port.offsetY) return
+    setMargin(pastEnd(next, rows, port.height) ? 0 : SCROLL_MARGIN)
+    view.setViewport(port.offsetX, next, port.width, port.height, true)
+    el.requestRender()
+  }
+
+  /** Put the margin back once the file fills the pane again. */
+  return () => {
+    if (margin === SCROLL_MARGIN) return
+    const port = view.getViewport()
+    if (pastEnd(port.offsetY, view.getTotalVirtualLineCount(), port.height)) return
+    setMargin(SCROLL_MARGIN)
+  }
+}
+
+interface ScrollEvent {
+  scroll?: { direction: 'up' | 'down' | 'left' | 'right'; delta: number }
+}
+
 /** OpenTUI has no double-click event, so detect it from consecutive downs — same as FileTree. */
 const DOUBLE_CLICK_MS = 400
 
@@ -369,6 +443,8 @@ export function EditorPane(props: EditorPaneProps) {
   }
   let gutter: GutterHost | undefined
   let editor: TextareaRenderable | undefined
+  /** `allowScrollPastEnd`'s keeper, run wherever the viewport is read back. */
+  let keepScrollMargin: (() => void) | null = null
   let highlightTimer: ReturnType<typeof setTimeout> | null = null
   /** A parse is with the worker; `queuedParse` says the text moved on since. */
   let parsing = false
@@ -643,7 +719,11 @@ export function EditorPane(props: EditorPaneProps) {
   const scrollbar = createMemo(() => {
     const m = scrollMetrics()
     if (!m) return []
-    const at = Math.min(m.span, Math.round((m.top / (m.total - m.height)) * m.span))
+    // The topmost line the file can be scrolled to, which past-end scrolling
+    // moves to the last one — without this the thumb reaches the bottom of the
+    // track while there is still a screenful of scrolling left.
+    const last = props.scrollPastEnd ? m.total - 1 : m.total - m.height
+    const at = Math.min(m.span, Math.round((m.top / last) * m.span))
     return Array.from({ length: m.height }, (_, row) => row >= at && row < at + m.size)
   })
 
@@ -1208,6 +1288,7 @@ export function EditorPane(props: EditorPaneProps) {
 
   const syncViewport = () => {
     if (!editor) return
+    keepScrollMargin?.()
     setViewTop(editor.scrollY)
     setViewHeight(editor.height)
     setViewTotal(editor.lineCount)
@@ -2411,6 +2492,7 @@ export function EditorPane(props: EditorPaneProps) {
                 editor = el
                 setEditorEl(el)
                 ignoreScrollOutsideBounds(el)
+                keepScrollMargin = allowScrollPastEnd(el, () => props.scrollPastEnd)
                 selectOnMultiClick(el, () => scheduleCursorSync())
                 // The gutter paints into a cached buffer and repaints only when
                 // it is dirty or the scroll moved. A file switch reuses this

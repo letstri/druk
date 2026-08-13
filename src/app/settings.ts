@@ -222,6 +222,11 @@ export function createSettings(deps: {
     status.say(`Word wrap ${onOff(config.wrap)}`)
   }
 
+  const toggleScrollPastEnd = () => {
+    patchConfig({ scrollPastEnd: !view().scrollPastEnd })
+    status.say(`Scroll past end ${onOff(config.scrollPastEnd)}`)
+  }
+
   const applyIconTheme = (id: string) => {
     // Before the write, not after: the preview is what the tree is reading, and
     // leaving it up would keep showing the arrowed-past set over the saved one.
@@ -718,6 +723,13 @@ export function createSettings(deps: {
       label: 'Word wrap',
       value: onOff(view().wrap),
       cycle: toggleWrap,
+    },
+    {
+      section: 'Editor',
+      key: 'scrollPastEnd',
+      label: 'Scroll past end',
+      value: onOff(view().scrollPastEnd),
+      cycle: toggleScrollPastEnd,
     },
     {
       section: 'Editor',
