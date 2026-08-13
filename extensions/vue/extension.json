@@ -1,8 +1,8 @@
 {
   "id": "vue",
   "name": "Vue",
-  "version": "1.1.0",
-  "description": "Vue single-file component highlighting, with the Vue language server.",
+  "version": "1.2.0",
+  "description": "Vue single-file component highlighting, with the Vue language server and TypeScript in <script> blocks.",
   "languages": [
     {
       "id": "vue",
@@ -19,6 +19,15 @@
       "install": {
         "kind": "npm",
         "packages": ["@vue/language-server", "typescript@5"]
+      }
+    },
+    {
+      "id": "vue-typescript",
+      "command": ["typescript-language-server", "--stdio"],
+      "filetypes": ["vue"],
+      "install": {
+        "kind": "npm",
+        "packages": ["typescript-language-server", "@vue/typescript-plugin", "typescript@5"]
       }
     }
   ]

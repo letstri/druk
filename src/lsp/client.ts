@@ -91,6 +91,12 @@ export interface LspClientOptions {
    * did not account for, a config file it watches most of all.
    */
   onRefreshDiagnostics?: () => void
+  /**
+   * Put a raw tsserver command to whichever server drives one, and answer with
+   * its body. Undefined — or a rejection — is answered as nothing, which the
+   * asking server treats as "that question has no answer here".
+   */
+  onTsserverRequest?: (command: string, args: unknown) => Promise<unknown>
 }
 
 /** window/logMessage's MessageType, spelled out. Anything unknown reads as "log". */
@@ -133,6 +139,8 @@ export function spawnLspClient(options: LspClientOptions) {
    * meets — a client that only listens would show an empty file forever.
    */
   let pullProvider = false
+  /** From the initialize reply: what `workspace/executeCommand` may be sent. */
+  let commands = new Set<string>()
   /** Documents whose pull was asked for before the handshake finished. */
   const pendingPulls = new Set<string>()
   let nextId = 1
@@ -180,6 +188,35 @@ export function spawnLspClient(options: LspClientOptions) {
       .catch(() => {}) // a refused or cancelled pull leaves the last report standing
   }
 
+  /**
+   * Answer a `tsserver/request`, the notification pair Vue's server invented for
+   * its hybrid mode: since 3.0 it does no TypeScript of its own and asks the
+   * *client* to put the question to the tsserver running
+   * `@vue/typescript-plugin`. Every request has to be answered, with nothing if
+   * need be — the server holds the feature it was serving open until the
+   * response lands, so a client that ignores this leaves completion in a `.vue`
+   * file hanging forever rather than merely answering less.
+   *
+   * `params` is a batch of `[id, command, args]`, and the reply is the matching
+   * batch of `[id, body]`.
+   */
+  const answerTsserverRequests = async (params: unknown) => {
+    if (!Array.isArray(params)) return
+    const answers: [number, unknown][] = []
+    for (const entry of params as unknown[]) {
+      if (!Array.isArray(entry)) continue
+      const [id, command, args] = entry as [number, string, unknown]
+      let body: unknown = null
+      try {
+        body = (await options.onTsserverRequest?.(command, args)) ?? null
+      } catch {
+        body = null // an unanswerable question is answered, never left open
+      }
+      answers.push([id, body])
+    }
+    if (answers.length > 0) notify('tsserver/response', answers)
+  }
+
   const die = (reason: string | null, missing = false) => {
     if (state === 'dead') return
     state = 'dead'
@@ -219,6 +256,8 @@ export function spawnLspClient(options: LspClientOptions) {
     } else if (message.method === 'textDocument/publishDiagnostics') {
       const params = message.params as PublishDiagnosticsParams
       options.onDiagnostics(params.uri, params.diagnostics ?? [])
+    } else if (message.method === 'tsserver/request') {
+      void answerTsserverRequests(message.params)
     } else if (message.method === 'window/logMessage' || message.method === 'window/showMessage') {
       const params = message.params as { type?: number; message?: string } | undefined
       log('server', `${MESSAGE_LEVEL[params?.type ?? 4] ?? 'log'}: ${params?.message ?? ''}`)
@@ -317,11 +356,13 @@ export function spawnLspClient(options: LspClientOptions) {
           capabilities?: {
             completionProvider?: { resolveProvider?: boolean }
             diagnosticProvider?: unknown
+            executeCommandProvider?: { commands?: string[] }
           }
         } | null
       )?.capabilities
       resolveProvider = capabilities?.completionProvider?.resolveProvider === true
       pullProvider = capabilities?.diagnosticProvider != null
+      commands = new Set(capabilities?.executeCommandProvider?.commands ?? [])
       send({ jsonrpc: '2.0', method: 'initialized', params: {} })
       // After `initialized`, as the protocol requires, and before the queued
       // didOpens below — a server that reads only the push would otherwise
@@ -364,6 +405,21 @@ export function spawnLspClient(options: LspClientOptions) {
     dead: () => state === 'dead',
 
     pullDiagnostics,
+
+    /** Whether `executeCommand` may be sent this command at all. */
+    supportsCommand(command: string): boolean {
+      return commands.has(command)
+    },
+
+    /**
+     * Run one of the server's own commands. Null while it is starting or once it
+     * is dead, and on an error reply — the callers are relays, and a refusal is
+     * an answer of "nothing", not something to surface.
+     */
+    executeCommand(command: string, args: unknown[]): Promise<unknown> {
+      if (state !== 'ready') return Promise.resolve(null)
+      return request('workspace/executeCommand', { command, arguments: args }).catch(() => null)
+    },
 
     /** Documents currently synced, as project-relative paths — the status page's list. */
     documents(): string[] {
