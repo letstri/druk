@@ -613,13 +613,18 @@ whole-pane focus clicks are not buttons, so they get no tint.
 A chrome button also carries a tooltip: `useTooltip` (`src/ui/tooltip.ts`) is `useHover`
 plus a `ref` and the id of the command the button runs, and `TooltipLayer` (mounted by
 `App.tsx`, gated on the `tooltips` setting) draws whatever is registered. A tooltip is
-that command's chord and nothing else — hovering gives one button's, holding Ctrl or Cmd
-for half a second lights every registered button's at once. No labels either way: each of
-these buttons is already on screen with its own name or glyph, so a box reading `Files`
-under a button labelled `Files` would be a box saying nothing. The chord comes from
-`chordFor`, so a rebind renames a tooltip and an unbound command has none at all — which
-is the intended shape, not a gap: binding one is what brings its tooltip back. Six things
-are load-bearing:
+that command's chord and nothing else — resting the pointer on one button gives that
+button's, holding Ctrl or Cmd for half a second lights every registered button's at once.
+Both halves wait: a chip drawn the moment the pointer crossed a button would flash chord
+after chord as the mouse travelled the tab strip on its way to the editor, so hovering
+counts out a dwell of its own (`DWELL_MS`), re-counted from the start on each button the
+pointer reaches. The *tint* is not delayed — that is the button answering the pointer, and
+one that took half a second to admit it is a button would read as a dead cell. No labels
+either way: each of these buttons is already on screen with its own name or glyph, so a
+box reading `Files` under a button labelled `Files` would be a box saying nothing. The
+chord comes from `chordFor`, so a rebind renames a tooltip and an unbound command has none
+at all — which is the intended shape, not a gap: binding one is what brings its tooltip
+back. Six things are load-bearing:
 
 - **The peek needs the kitty keyboard protocol**, which is why `src/main.tsx` asks for
   `events` *and* `allKeysAsEscapes`: a modifier is reported as a key of its own only when

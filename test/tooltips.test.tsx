@@ -3,7 +3,7 @@ import { describe, expect, test } from 'bun:test'
 import { ui } from '../src/themes'
 import { ALT } from '../src/ui/keys'
 import { placeTooltips } from '../src/ui/tooltipLayout'
-import { fixture, launch, openFile, settle, until } from './helpers'
+import { fixture, launch, openFile, settle, until, untilFrame } from './helpers'
 import type { Harness } from './helpers'
 
 /** A theme colour as the captured spans report one. */
@@ -48,6 +48,17 @@ const release = (t: Harness) => t.renderer.stdin.emit('data', Buffer.from(`\x1B[
 /** Long enough for the hold to have counted out. */
 const HELD = 700
 
+/** Long enough for the hover dwell to have counted out, had it been going to. */
+const RESTED = 600
+
+/** Point at `text` and wait out the dwell the tooltip only appears after. */
+async function rest(t: Harness, text: string) {
+  const at = cellOf(t, text)
+  await t.mockMouse.moveTo(at.x, at.y)
+  await settle(t, RESTED)
+  return at
+}
+
 const kitty = { kittyKeyboard: true }
 
 /**
@@ -56,6 +67,7 @@ const kitty = { kittyKeyboard: true }
  */
 const TIP = ' Ctrl+G '
 const GIT_TIP = ` Ctrl+${ALT}+G `
+const EXT_TIP = ` Ctrl+${ALT}+X `
 
 describe('tooltip placement', () => {
   test('a control near the top is annotated below it, one near the bottom above', () => {
@@ -121,10 +133,8 @@ describe('hover tooltips', () => {
   test('a status bar button gives its key, and says nothing else — the label is on it already', async () => {
     const t = await launch(fixture({ 'a.ts': 'const a = 1\n' }))
     await openFile(t, 'a.ts')
-    const at = cellOf(t, 'Ln 1')
     expect(t.captureCharFrame()).not.toContain(TIP)
-    await t.mockMouse.moveTo(at.x, at.y)
-    await settle(t)
+    await rest(t, 'Ln 1')
     expect(t.captureCharFrame()).toContain(TIP)
     expect(t.captureCharFrame()).not.toContain('Go to line')
   })
@@ -134,10 +144,44 @@ describe('hover tooltips', () => {
     // With a file open: the welcome screen lists chords too, and this is looking
     // for one of them by its spelling.
     await openFile(t, 'a.ts')
+    await rest(t, 'Git')
+    expect(t.captureCharFrame()).toContain(GIT_TIP)
+  })
+
+  test('nothing is drawn until the pointer has rested there', async () => {
+    const t = await launch(fixture({ 'a.ts': 'const a = 1\n' }))
+    await openFile(t, 'a.ts')
     const at = cellOf(t, 'Git')
     await t.mockMouse.moveTo(at.x, at.y)
-    await settle(t)
+    await settle(t, 100)
+    expect(t.captureCharFrame()).not.toContain(GIT_TIP)
+    await untilFrame(t, GIT_TIP)
+  })
+
+  test('a pointer only passing over a button says nothing at all', async () => {
+    const t = await launch(fixture({ 'a.ts': 'const a = 1\n' }))
+    await openFile(t, 'a.ts')
+    const at = cellOf(t, 'Git')
+    await t.mockMouse.moveTo(at.x, at.y)
+    await settle(t, 100)
+    // On past it, the way a mouse crosses the strip on its way to the editor.
+    await t.mockMouse.moveTo(60, 10)
+    await settle(t, RESTED)
+    expect(t.captureCharFrame()).not.toContain(GIT_TIP)
+  })
+
+  test('moving to the next button counts that one out from the start', async () => {
+    const t = await launch(fixture({ 'a.ts': 'const a = 1\n' }))
+    await openFile(t, 'a.ts')
+    await rest(t, 'Git')
     expect(t.captureCharFrame()).toContain(GIT_TIP)
+    const ext = cellOf(t, 'Ext')
+    await t.mockMouse.moveTo(ext.x, ext.y)
+    await settle(t, 100)
+    const frame = t.captureCharFrame()
+    expect(frame).not.toContain(GIT_TIP)
+    expect(frame).not.toContain(EXT_TIP)
+    await untilFrame(t, EXT_TIP)
   })
 
   test('a hover chip sits against its button, not shifted off a neighbour', async () => {
@@ -155,9 +199,7 @@ describe('hover tooltips', () => {
     await until(t, () => t.captureCharFrame().includes('▴'))
     await openFile(t, 'a.ts')
 
-    const at = cellOf(t, 'Ext')
-    await t.mockMouse.moveTo(at.x, at.y)
-    await settle(t)
+    const at = await rest(t, 'Ext')
     const tip = `Ctrl+${ALT}+X`
     const tipRow = t
       .captureCharFrame()
@@ -171,9 +213,7 @@ describe('hover tooltips', () => {
     // With a file open: the welcome screen lists chords too, and this is looking
     // for one of them by its spelling.
     await openFile(t, 'a.ts')
-    const at = cellOf(t, 'Git')
-    await t.mockMouse.moveTo(at.x, at.y)
-    await settle(t)
+    await rest(t, 'Git')
     expect(spanBg(t, GIT_TIP)).toBe(rgb(ui.statusBg))
     // The tooltip must not read as part of the pane it floats over.
     expect(spanBg(t, GIT_TIP)).not.toBe(rgb(ui.bg))
@@ -186,9 +226,7 @@ describe('hover tooltips', () => {
     // bindable command holds a key for it.
     await openFile(t, 'a.ts')
     const before = t.captureCharFrame()
-    const at = cellOf(t, 'Files')
-    await t.mockMouse.moveTo(at.x, at.y)
-    await settle(t)
+    await rest(t, 'Files')
     expect(t.captureCharFrame()).toBe(before)
   })
 
@@ -197,22 +235,32 @@ describe('hover tooltips', () => {
     // With a file open: the welcome screen lists chords too, and this is looking
     // for one of them by its spelling.
     await openFile(t, 'a.ts')
-    const at = cellOf(t, 'Git')
-    await t.mockMouse.moveTo(at.x, at.y)
-    await settle(t)
+    await rest(t, 'Git')
     expect(t.captureCharFrame()).toContain(GIT_TIP)
-    // Into the editor, which is nobody's button.
+    // Into the editor, which is nobody's button. No dwell on the way out: the
+    // chip goes with the pointer.
     await t.mockMouse.moveTo(60, 10)
     await settle(t)
     expect(t.captureCharFrame()).not.toContain(GIT_TIP)
   })
 
+  test('a button come back to counts out again', async () => {
+    const t = await launch(fixture({ 'a.ts': 'const a = 1\n' }))
+    await openFile(t, 'a.ts')
+    const at = await rest(t, 'Git')
+    expect(t.captureCharFrame()).toContain(GIT_TIP)
+    await t.mockMouse.moveTo(60, 10)
+    await settle(t)
+    await t.mockMouse.moveTo(at.x, at.y)
+    await settle(t, 100)
+    expect(t.captureCharFrame()).not.toContain(GIT_TIP)
+    await untilFrame(t, GIT_TIP)
+  })
+
   test('nothing is drawn while the setting is off', async () => {
     const t = await launch(fixture({ 'a.ts': 'const a = 1\n' }), { tooltips: false })
     await openFile(t, 'a.ts')
-    const at = cellOf(t, 'Git')
-    await t.mockMouse.moveTo(at.x, at.y)
-    await settle(t)
+    await rest(t, 'Git')
     expect(t.captureCharFrame()).not.toContain(GIT_TIP)
   })
 })
