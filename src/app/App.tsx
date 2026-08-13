@@ -289,12 +289,17 @@ export function App(props: {
   // Landing on the `Changes` heading would show no diff and take a keypress to
   // leave, so opening the panel puts the cursor on the first change instead —
   // wherever it was opened from. Only on the way in: resting on a heading is how
-  // a whole group is staged, so nothing may push the cursor off one later.
+  // a whole group is staged, so nothing may push the cursor off one later. The
+  // one exception is the first file rows arriving *after* the panel opened —
+  // the status answer is asynchronous, so a panel opened right at launch beats
+  // it — where the cursor still sits on row 0 and has never been anywhere else.
   createEffect(
     on(
-      () => panes.view(),
-      view => {
-        if (view === 'git') actions.gitLandOnFile()
+      () => [panes.view(), git.rows().some(row => row.kind === 'file')] as const,
+      ([view, hasFile], previous) => {
+        if (view !== 'git' || !hasFile) return
+        const opened = previous?.[0] !== 'git'
+        if (opened || (!previous?.[1] && git.gitCursor() === 0)) actions.gitLandOnFile()
       },
       { defer: true },
     ),

@@ -49,15 +49,34 @@ export const statusColor = (status: FileStatus) =>
       : ui.gitModified
 
 export function FileTree(props: FileTreeProps) {
-  /** A folder inherits the status of whatever changed inside it. */
+  /**
+   * A folder inherits the status of whatever changed inside it — precomputed by
+   * walking each entry's ancestors once per status refresh. Asking per folder
+   * row instead (scan the whole map for a prefix) is O(rows × entries) *per
+   * rebuild*, and on a large repository that scan was a visible share of every
+   * refresh's stall. First entry under the folder wins, as the scan's map order
+   * did: an already-filled dir means its ancestors are filled too.
+   */
+  const dirStatus = createMemo(() => {
+    const map = new Map<string, FileStatus>()
+    for (const [path, status] of props.gitStatus) {
+      const mark: FileStatus = status === 'untracked' ? 'untracked' : 'modified'
+      let dir = path
+      for (;;) {
+        const cut = dir.lastIndexOf('/')
+        if (cut <= 0) break
+        dir = dir.slice(0, cut)
+        if (map.has(dir)) break
+        map.set(dir, mark)
+      }
+    }
+    return map
+  })
+
   const statusOf = (node: TreeNode): FileStatus | undefined => {
     const own = props.gitStatus.get(node.path)
     if (own || !node.isDir) return own
-    const prefix = `${node.path}/`
-    for (const [path, status] of props.gitStatus) {
-      if (path.startsWith(prefix)) return status === 'untracked' ? 'untracked' : 'modified'
-    }
-    return undefined
+    return dirStatus().get(node.path)
   }
 
   const list = createScrollList(() => props.nodes.length)

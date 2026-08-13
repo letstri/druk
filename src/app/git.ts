@@ -10,8 +10,9 @@ import {
   commitPaths,
   commitStaged,
   currentBranch,
+  currentBranchAsync,
   diffLines,
-  ignoredAmong,
+  ignoredAmongAsync,
   inRepository,
   pullAndPush,
   push,
@@ -411,10 +412,10 @@ export function runCommit(
 const SCAN_INTERVAL = 5000
 
 /** `ignoredAmong` per repository the visible rows fall in. */
-function ignoredIn(repos: string[], paths: string[]): Set<string> {
+async function ignoredIn(repos: string[], paths: string[]): Promise<Set<string>> {
   const ignored = new Set<string>()
   for (const [repo, group] of groupByRepo(paths, repos)) {
-    for (const path of ignoredAmong(repo, group)) ignored.add(path)
+    for (const path of await ignoredAmongAsync(repo, group)) ignored.add(path)
   }
   return ignored
 }
@@ -540,16 +541,23 @@ export function wireGitEffects(deps: {
 
     // With the rows hidden outright there is nothing left to dim, and the
     // subprocess would answer "none of these" on every filesystem event.
-    git.setGitIgnored(
-      config.respectGitignore
-        ? new Set<string>()
-        : ignoredIn(
-            git.repos(),
-            tree.nodes().map(n => n.path),
-          ),
-    )
+    // Asynchronous like the status above, and behind the same generation guard:
+    // run inline these were the last synchronous subprocesses on the refresh
+    // cadence, and each one froze input — hover included — for its run time.
+    if (config.respectGitignore) {
+      git.setGitIgnored(new Set<string>())
+    } else {
+      void ignoredIn(
+        git.repos(),
+        tree.nodes().map(n => n.path),
+      ).then(ignored => {
+        if (run === generation) git.setGitIgnored(ignored)
+      })
+    }
     const active = git.activeRepo()
-    git.setBranch(active ? currentBranch(active) : null)
+    void (active ? currentBranchAsync(active) : Promise.resolve(null)).then(branch => {
+      if (run === generation) git.setBranch(branch)
+    })
   })
 
   // Tree marks follow the same cadence, plus any filesystem change. The branch

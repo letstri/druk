@@ -5,7 +5,7 @@
  * notification observer and the Linux desktops disagree — so this polls a cheap
  * per-platform command instead.
  */
-import { spawnSync } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 
 export type Appearance = 'dark' | 'light'
 
@@ -72,7 +72,15 @@ function parseEnvAppearance(value: string | undefined): Appearance | null {
   return wanted === 'dark' || wanted === 'light' ? wanted : null
 }
 
-/** The current OS appearance, or `null` when nothing here can answer. */
+/**
+ * The current OS appearance, or `null` when nothing here can answer.
+ *
+ * Synchronous, so only for one-shot calls on an explicit user action (the
+ * settings toggle). The poll must use `detectAppearanceAsync`: a probe is a
+ * subprocess that can take over 100ms on a loaded machine, and run with
+ * `spawnSync` on the timer it froze the whole UI — input included — every
+ * `POLL_MS`.
+ */
 export function detectAppearance(): Appearance | null {
   const forced = parseEnvAppearance(process.env[APPEARANCE_ENV])
   if (forced) return forced
@@ -89,6 +97,39 @@ export function detectAppearance(): Appearance | null {
   return null
 }
 
+/** One probe, off the event loop. */
+function runProbe(probe: Probe): Promise<Appearance | null> {
+  return new Promise(resolve => {
+    let child: ReturnType<typeof spawn>
+    try {
+      child = spawn(probe.command, probe.args, {
+        stdio: ['ignore', 'pipe', 'ignore'],
+        timeout: 2000,
+      })
+    } catch {
+      return resolve(null)
+    }
+    let stdout = ''
+    child.stdout?.on('data', chunk => {
+      stdout += chunk
+    })
+    child.on('error', () => resolve(null))
+    child.on('close', status => resolve(probe.read(stdout, status === 0)))
+  })
+}
+
+/** `detectAppearance` without blocking the event loop — what the poll uses. */
+export async function detectAppearanceAsync(): Promise<Appearance | null> {
+  const forced = parseEnvAppearance(process.env[APPEARANCE_ENV])
+  if (forced) return forced
+
+  for (const probe of PROBES[process.platform] ?? []) {
+    const answer = await runProbe(probe)
+    if (answer) return answer
+  }
+  return null
+}
+
 const POLL_MS = 2000
 
 /**
@@ -100,16 +141,38 @@ export function watchAppearance(
   intervalMs = POLL_MS,
 ): () => void {
   let last: Appearance | null = null
+  let stopped = false
+  let inflight = false
 
-  const poll = () => {
-    const now = detectAppearance()
-    if (!now || now === last) return
+  const report = (now: Appearance | null) => {
+    if (stopped || !now || now === last) return
     last = now
     onChange(now)
   }
 
-  poll()
+  const poll = () => {
+    // The env override answers synchronously either way — the tests flip it and
+    // watch the very next poll.
+    const forced = parseEnvAppearance(process.env[APPEARANCE_ENV])
+    if (forced) return report(forced)
+    if (inflight) return
+    inflight = true
+    void detectAppearanceAsync().then(now => {
+      inflight = false
+      report(now)
+    })
+  }
+
+  // The first read is synchronous on purpose: it decides the first frame's
+  // theme, and read async the app paints in the wrong slot and flips a moment
+  // later. Only the *recurring* poll must not block — it is the one that ran a
+  // subprocess on the event loop every interval and froze input for its
+  // duration each time.
+  report(detectAppearance())
   const timer = setInterval(poll, intervalMs)
   timer.unref?.()
-  return () => clearInterval(timer)
+  return () => {
+    stopped = true
+    clearInterval(timer)
+  }
 }
