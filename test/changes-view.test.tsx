@@ -11,6 +11,7 @@ import {
   pressEscape,
   pressTimes,
   runCommand,
+  until,
   untilFrame,
   untilGone,
 } from './helpers'
@@ -35,6 +36,12 @@ const rowOf = (t: Harness, text: string) =>
     .captureCharFrame()
     .split('\n')
     .findIndex(line => line.includes(text))
+
+const rowsWith = (t: Harness, text: string) =>
+  t
+    .captureCharFrame()
+    .split('\n')
+    .filter(line => line.includes(text)).length
 
 /** A real repository with committed files. */
 function repo(files: Record<string, string>) {
@@ -328,4 +335,25 @@ test('a scrolled file keeps its header at the top of the page', async () => {
   await pressTimes(t, 3, i => i.pressArrow('down'))
   await untilFrame(t, '+ BETA')
   expect(t.captureCharFrame()).toContain('▾ M a.ts')
+})
+
+test('folding the stuck file does not leave its header drawn twice', async () => {
+  const dir = repo({ 'a.ts': many('old'), 'b.ts': 'beta\n' })
+  writeFileSync(join(dir, 'a.ts'), many('new'))
+  writeFileSync(join(dir, 'b.ts'), 'BETA\n')
+
+  const t = await launch(dir, {}, { height: 24 })
+  await runCommand(t, 'Show all changes')
+  await untilFrame(t, '▾ M a.ts')
+  // Scroll a.ts's own header off the top, so the sticky overlay is holding it.
+  await pressTimes(t, 3, i => i.pressArrow('down'))
+  await untilFrame(t, '+ BETA')
+
+  // Folding moves every header below it. The overlay reads those positions off
+  // the renderables, which only move a macrotask later — before the remeasure
+  // it kept the pre-fold position and was painted over the one now in flow.
+  await press(t, i => i.pressTab())
+  await press(t, i => i.pressKey('h'))
+  await untilFrame(t, '▸ M a.ts')
+  await until(t, () => rowsWith(t, '+40 −40') === 1)
 })

@@ -90,6 +90,16 @@ export const SECTION_HEADER_ROWS = 2
  * accent plus `treeSelectedBg` is the pair every other list already uses. */
 const HEADER_MARK = 1
 
+/** Frames the first reveal waits for the stack to lay out — half a second. */
+const REVEAL_TRIES = 30
+
+/**
+ * One frame. The renderables' positions are written by the layout pass, which
+ * has not run when the macrotask after a state change fires — re-reading them
+ * any sooner than this hands back the geometry from before the change.
+ */
+const LAYOUT_FRAME = 16
+
 /**
  * Which in-flow header should be mirrored at the top of the viewport.
  * `ys` are content-space y of each header's first row, in section order.
@@ -247,34 +257,64 @@ export function ChangesView(props: ChangesViewProps) {
   const [scrollTop, setScrollTop] = createSignal(0)
   const [pickedKey, setPickedKey] = createSignal<string | null>(null)
 
+  // Bumped when the stack's geometry has moved for a reason `scrollTop` cannot
+  // report. `equals: false` so a bump always notifies.
+  const [layout, bumpLayout] = createSignal(0, { equals: false })
+
   let box: ScrollBoxRenderable | undefined
   const anchors = new Map<string, LaidOut>()
   const headers = new Map<string, LaidOut>()
   let revealTimer: ReturnType<typeof setTimeout> | undefined
-  onCleanup(() => clearTimeout(revealTimer))
+  let layoutTimer: ReturnType<typeof setTimeout> | undefined
+  onCleanup(() => {
+    clearTimeout(revealTimer)
+    clearTimeout(layoutTimer)
+  })
+
+  const syncScroll = () => {
+    if (box) setScrollTop(box.scrollTop)
+  }
+
+  /**
+   * Folding moves every header below it and can shorten the stack enough that
+   * the scrollbox clamps its own `scrollTop`. Both are read straight off the
+   * renderables and neither is a signal, so the pinned header otherwise keeps
+   * the position it had before the fold and is painted a second time over the
+   * one now back in flow. The reconciler flushes on a macrotask, so the
+   * re-read has to wait one out.
+   */
+  const remeasure = () => {
+    clearTimeout(layoutTimer)
+    layoutTimer = setTimeout(() => {
+      syncScroll()
+      bumpLayout(0)
+    }, LAYOUT_FRAME)
+  }
 
   const inner = () => Math.max(1, props.width - 1)
   const isFolded = (key: string) => folded().has(key)
-  const toggleFold = (key: string) =>
+  const toggleFold = (key: string) => {
     setFolded(cur => {
       const next = new Set(cur)
       if (next.has(key)) next.delete(key)
       else next.add(key)
       return next
     })
-  const setFold = (key: string, collapse: boolean) =>
+    remeasure()
+  }
+  const setFold = (key: string, collapse: boolean) => {
+    let changed = false
     setFolded(cur => {
-      const has = cur.has(key)
-      if (has === collapse) return cur
+      if (cur.has(key) === collapse) return cur
+      changed = true
       const next = new Set(cur)
       if (collapse) next.add(key)
       else next.delete(key)
       return next
     })
-
-  const syncScroll = () => {
-    if (box) setScrollTop(box.scrollTop)
+    if (changed) remeasure()
   }
+
   const scroll = (delta: number) => {
     if (box) box.scrollTop = Math.max(0, box.scrollTop + delta)
     syncScroll()
@@ -298,6 +338,7 @@ export function ChangesView(props: ChangesViewProps) {
   }
 
   const headerYs = (): number[] => {
+    layout()
     const host = box
     if (!host) return []
     return props.sections.map(section => {
@@ -327,14 +368,15 @@ export function ChangesView(props: ChangesViewProps) {
   }
 
   /** Which header ←/→ and Tab talk about. Nothing is marked while the panel
-   * still has the keyboard — Tab into the page is what lights one. */
-  const selectedKey = () => {
+   * still has the keyboard — Tab into the page is what lights one. A memo, not
+   * a plain call: every header row asks, and each answer walks all the sections. */
+  const selectedKey = createMemo(() => {
     if (!props.focused) return null
     const keys = props.sections.map(section => section.key)
     const picked = pickedKey()
     if (picked && keys.includes(picked)) return picked
     return keys[currentIndex()] ?? null
-  }
+  })
 
   const isSelected = (key: string) => selectedKey() === key
 
@@ -357,6 +399,9 @@ export function ChangesView(props: ChangesViewProps) {
         const key = props.focusKey
         if (!key || !props.sections.some(s => s.key === key)) return
         clearTimeout(revealTimer)
+        // Capped: a section that never lays out would otherwise hold a 16ms
+        // timer for as long as the page is open.
+        let tries = REVEAL_TRIES
         const tryReveal = () => {
           const el = anchors.get(key)
           const first = props.sections[0]?.key === key
@@ -367,6 +412,7 @@ export function ChangesView(props: ChangesViewProps) {
             reveal(key)
             return
           }
+          if (--tries <= 0) return
           revealTimer = setTimeout(tryReveal, 16)
         }
         tryReveal()
@@ -386,11 +432,11 @@ export function ChangesView(props: ChangesViewProps) {
     else if (k === 'end' || (k === 'g' && key.shift)) scrollTo(Number.MAX_SAFE_INTEGER)
     else if (k === 'home' || k === 'g') scrollTo(0)
     else if (k === 'left' || k === 'h') {
-      const key = selectedKey()
-      if (key) setFold(key, true)
+      const sel = selectedKey()
+      if (sel) setFold(sel, true)
     } else if (k === 'right' || k === 'l') {
-      const key = selectedKey()
-      if (key) setFold(key, false)
+      const sel = selectedKey()
+      if (sel) setFold(sel, false)
     } else if (k === 'tab') moveSelection(key.shift ? -1 : 1)
     else if (k === 'escape' || k === 'q') props.onClose()
     else return

@@ -1,4 +1,4 @@
-import type { Change } from '../core/changeTree'
+import type { Change, ChangeRow } from '../core/changeTree'
 import { unifiedDiff } from '../core/diff'
 import type { ChangeArea } from '../core/git'
 import type { ChangeSection } from '../ui/ChangesView'
@@ -6,6 +6,10 @@ import { DIFF_MAX_LINES } from '../ui/DiffView'
 import type { DiffFile } from '../ui/DiffView'
 
 export const slotKey = (path: string, area: ChangeArea) => `${area}:${path}`
+
+/** The section a panel row stands for — null on a heading, folder or commit. */
+export const rowSlotKey = (row: ChangeRow | undefined): string | null =>
+  row?.kind === 'file' ? slotKey(row.change.path, row.change.area) : null
 
 const sectionFor = (
   change: Change,

@@ -45,7 +45,7 @@ import { setTooltipsEnabled, useTooltipPeek } from '../ui/tooltip'
 import { TooltipLayer } from '../ui/TooltipLayer'
 import { createCommands } from './actions'
 import { createBranches } from './branches'
-import { slotKey } from './changeSections'
+import { rowSlotKey } from './changeSections'
 import { createCommitView } from './commitView'
 import { createComparison } from './comparison'
 import type { AppContext } from './context'
@@ -235,11 +235,6 @@ export function App(props: {
     activePdf() !== null ||
     workspace.renderedPath() !== null ||
     preview.target() !== null
-
-  const changesFocusKey = () => {
-    const row = git.cursorRow()
-    return row?.kind === 'file' ? slotKey(row.change.path, row.change.area) : null
-  }
 
   const ctx: AppContext = {
     rootDir,
@@ -927,7 +922,7 @@ export function App(props: {
               <ChangesView
                 sections={actions.allChanges()}
                 meta={actions.allChangesMeta()}
-                focusKey={changesFocusKey()}
+                focusKey={rowSlotKey(git.cursorRow())}
                 title={git.diffBase() ? `Against ${git.diffBase()}` : 'Uncommitted'}
                 width={dimensions().width - (panes.sidebar() ? settings.treeWidth() + 1 : 0)}
                 focused={panes.focus() === 'editor'}

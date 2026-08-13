@@ -32,7 +32,7 @@ import { NOTE_LABELS } from '../core/review'
 import type { NoteKind } from '../core/review'
 import type { ChangeSection, ChangesMeta } from '../ui/ChangesView'
 import type { DiffFile } from '../ui/DiffView'
-import { slotKey, takeChangeSections } from './changeSections'
+import { rowSlotKey, slotKey, takeChangeSections } from './changeSections'
 import { buildCommands } from './commands'
 import type { Command } from './commands'
 import type { AppContext } from './context'
@@ -186,11 +186,6 @@ export function createCommands(ctx: AppContext) {
     dels: 0,
   })
 
-  const cursorSlot = (): string | null => {
-    const row = git.cursorRow()
-    return row?.kind === 'file' ? slotKey(row.change.path, row.change.area) : null
-  }
-
   /**
    * Every file row in panel order, as sections the all-changes page stacks.
    * Stops adding once the patches would exceed the per-page row cap — one
@@ -210,7 +205,7 @@ export function createCommands(ctx: AppContext) {
       ordered,
       change => diffFileFor(change.path, change.status, change.area),
       prev,
-      cursorSlot(),
+      rowSlotKey(git.cursorRow()),
     )
     setAllChanges(sections)
     setAllChangesMeta({ total: changes.length, adds, dels })

@@ -43,8 +43,6 @@ export interface DiffViewProps {
    * the parent scrolls and closes.
    */
   variant?: 'page' | 'section'
-  /** Extra header token — `staged` when the same path also sits unstaged. */
-  badge?: string
   /** Columns the pane owns — the editor slot, not the terminal. */
   width: number
   /** The page shares the editor's focus slot; unfocused, its keys stay dead. */
@@ -613,8 +611,7 @@ export function DiffView(props: DiffViewProps) {
       : plain()
         ? ' · plain (large file)'
         : ''
-    const badge = props.badge ? ` · ${props.badge}` : ''
-    const tail = `${badge} · +${d.adds} −${d.dels}${note}`
+    const tail = ` · +${d.adds} −${d.dels}${note}`
     const room = Math.max(8, props.width - hints().length - tail.length - 3)
     let rel =
       props.file.oldPath && props.file.oldPath !== props.file.rel
