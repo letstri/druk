@@ -32,6 +32,7 @@ function repo() {
   git('config', 'init.defaultBranch', 'main')
   git('config', 'user.email', 'test@example.com')
   git('config', 'user.name', 'Test')
+  git('config', 'commit.gpgsign', 'false')
   writeFileSync(join(dir, 'a.ts'), 'one\n')
   git('add', '.')
   git('commit', '-q', '-m', 'init')
@@ -213,4 +214,20 @@ test('the review panel gives a long note and a deep path one row each', async ()
   await untilFrame(t, '↳ you')
   expect(rowsWith(t, '↳ you')).toBe(1)
   expect(rowsWith(t, 'ISSUE 1')).toBe(1)
+}, 20000)
+
+test('the all-changes page gives a long path one row', async () => {
+  const dir = repo()
+  const name = `${'quite-a-long-file-name-'.repeat(6)}.ts`
+  writeFileSync(join(dir, name), 'two\n')
+
+  const t = await launch(dir, {}, { width: 100, height: 40 })
+  await runCommand(t, 'Show all changes')
+  await untilFrame(t, 'Uncommitted')
+
+  expect(rowsWith(t, 'Uncommitted')).toBe(1)
+  expect(t.captureCharFrame()).toContain('Esc close')
+  // Cut from the left, so the tail is what is on screen — a wrapped path would
+  // push the hunk off the page.
+  expect(rowsWith(t, name.slice(-24))).toBe(1)
 }, 20000)

@@ -206,13 +206,15 @@ files. Work you do in another terminal shows up without a restart.
 
 `Ctrl+Opt+G` swaps the sidebar for a small source-control panel, as in VS Code: the
 changed files under the branch name. `↑↓` walks the changes and the diff for the one
-under the cursor opens beside the panel — that is the way to read a diff, and the way
-to move between them. `Tab` steps into the page (`Tab` again lays it out side by side,
-`Esc` closes it), `c` commits (pick the files, type the message), `d` discards the
-selected file after confirmation (*Git → Discard changes* does the same), `p` pushes, `b`
-switches branch, and `Esc` puts the file tree back. *Git → Diff current file* in the
-palette opens the panel on the file you are editing; commit, pull, fetch, stash,
-undo-commit and the branch commands live beside it.
+under the cursor opens beside the panel — that is the way to read a single file, and
+the way to move between them. `a` (or *Git → Show all changes*) stacks every file in
+one scroll over the editor instead. `Tab` steps into the page (`Tab` again lays a
+one-file diff out side by side, `Esc` closes it), `c` commits (pick the files, type
+the message), `d` discards the selected file after confirmation (*Git → Discard
+changes* does the same), `p` pushes, `b` switches branch, and `Esc` puts the file
+tree back. *Git → Diff current file* in the palette opens the panel on the file you
+are editing; commit, pull, fetch, stash, undo-commit and the branch commands live
+beside it.
 
 ## Review
 

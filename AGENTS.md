@@ -151,7 +151,11 @@ the patch itself is cut with the header keeping the change's true counts) for wh
 on — the arrows page through
 them and Enter opens the changed file itself over the diff (a folder row folds
 instead), the panel is the only way in, and the diff is a tab of its own in the strip
-(`⇄ name`), so opening a file switches away from it instead of leaving it on top — a
+(`⇄ name`), so opening a file switches away from it instead of leaving it on top — palette
+→ Git → Show all changes (`a` in the panel) covers the editor slot with every change
+stacked as sections, Cursor's Changes page: a summary header and one block per file,
+always inline; while that page is up the panel's arrows scroll to the file under the
+cursor rather than replacing it with a one-file diff, and Esc closes it — a
 comparison base that points marks, gutter, panel and diff at another branch instead of
 HEAD (palette → Git → Compare against branch…), branch comparison against the
 repository's default branch or any selected base (palette → Git → Compare branches, or
@@ -588,6 +592,7 @@ dependency rule, and recipes for the extension points:
 | tooltip on a chrome button | `useTooltip('<command id>')` on the element (`src/ui/tooltip.ts`), plus `ref` on its box — `TooltipLayer` draws every registered target, so nothing else has to change. A chord in force is what makes a tooltip exist at all: an unbound command draws nothing, the chord being the only thing a tooltip ever says |
 | previewable value | `preview` + `restore` on the palette `Command` (`src/app/commands.ts`) or on a row's `select` (`src/ui/SettingsView.tsx`) — `preview` paints while the selection sits on the value, `restore` runs when the list is torn down, so it must put back what the config says rather than remember what it replaced |
 | setting | `src/core/config.ts` (`Config`, `DEFAULTS`, `VALIDATORS` — one validator per key, since the project file is read key by key) + a row in `src/app/settings.ts` (`specs`, with the `key` it edits) so the settings page shows it — the page windows its rows to the terminal height, so a test that asserts on a late row needs a tall terminal or arrow keys to reach it (the wheel moves that window too, leaving the selection where the keyboard left it — a test wheeling it needs a flush per tick, OpenTUI's scroll acceleration dropping events sent faster than its minimum interval) |
+| editor-slot page | `workspace.page` union in `src/app/workspace.ts`, a `Show` in `App.tsx` over the editor column (zIndex 60), and a view that takes `width` / `focused` / `blocked` / `onClose` — Settings, LSP status, and all-changes (`ChangesView`, whose `ChangeSection` the controller imports) |
 | command | `src/app/commands.ts` + bind it in `src/app/actions.ts`; the implementation goes in the controller that owns the state (`workspace.ts`, `fileOps.ts`, `git.ts`, …) |
 | keybinding | a row in `BINDABLE` (`src/app/keymap.ts`) plus a handler under the same id in `src/app/keyboard.ts` — or, for an editor-only key, `src/ui/EditorPane.tsx` — advertised in `src/ui/keys.ts` (feeds the footer hints, help overlay, Ctrl+K peek and the welcome screen), with the row's `ids` naming the commands it spells out |
 | git error message | a row in `KNOWN` in `src/core/git.ts`, with the git output it matches pinned in `test/git.test.tsx` |

@@ -78,9 +78,10 @@ export interface GitPanelProps {
 
 /**
  * The sidebar's source-control view — VS Code's left-hand git panel, sized down:
- * the changed files under the branch, the cursor paging the diff page beside it,
- * `c` to commit, `p` to push. Keys are handled in `app/keyboard.ts` beside the
- * tree's, so this renders and reports clicks, nothing more.
+ * the changed files under the branch, the cursor paging the diff beside it,
+ * `a` for every file at once, `c` to commit, `p` to push. Keys are handled in
+ * `app/keyboard.ts` beside the tree's, so this renders and reports clicks,
+ * nothing more.
  */
 export function GitPanel(props: GitPanelProps) {
   /**

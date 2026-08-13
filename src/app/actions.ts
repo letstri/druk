@@ -1,8 +1,9 @@
 import { basename, dirname, relative } from 'node:path'
 
-import { createMemo } from 'solid-js'
+import { createMemo, createSignal } from 'solid-js'
 
 import { ancestorDirs, changesFor, rowArea, rowRel } from '../core/changeTree'
+import { unifiedDiff } from '../core/diff'
 import { readFile } from '../core/fs'
 import type { TreeNode } from '../core/fs'
 import {
@@ -30,6 +31,8 @@ import type { ChangeArea, FileStatus } from '../core/git'
 import { pathTokenAt, resolveImportPath } from '../core/imports'
 import { NOTE_LABELS } from '../core/review'
 import type { NoteKind } from '../core/review'
+import type { ChangeSection, ChangesMeta } from '../ui/ChangesView'
+import { DIFF_MAX_LINES } from '../ui/DiffView'
 import type { DiffFile } from '../ui/DiffView'
 import { buildCommands } from './commands'
 import type { Command } from './commands'
@@ -37,6 +40,8 @@ import type { AppContext } from './context'
 import { noRepository, runCommit } from './git'
 import type { CommitVariant } from './git'
 import { problemFrom, problemsOn } from './lsp'
+
+const slotKey = (path: string, area: ChangeArea) => `${area}:${path}`
 
 /** Wire the palette's command tree to the controllers that carry the actions out. */
 export function createCommands(ctx: AppContext) {
@@ -118,7 +123,8 @@ export function createCommands(ctx: AppContext) {
     const reloadKey = editor.reloadKey()
     const base = git.diffBase()
     const buffer = workspace.buffers[path]?.content
-    const hit = diffFileCache.get(path)
+    const key = slotKey(path, area)
+    const hit = diffFileCache.get(key)
     if (
       hit &&
       hit.revision === revision &&
@@ -165,14 +171,95 @@ export function createCommands(ctx: AppContext) {
       }
     }
     const file: DiffFile = { path, rel, status: fileStatus, oldText, newText }
-    diffFileCache.delete(path)
-    diffFileCache.set(path, { revision, reloadKey, base, buffer, status: fileStatus, area, file })
+    diffFileCache.delete(key)
+    diffFileCache.set(key, { revision, reloadKey, base, buffer, status: fileStatus, area, file })
     // Oldest out first — the texts are the whole file twice over, so the cap is
-    // what bounds a walk across many huge changes.
-    while (diffFileCache.size > DIFF_FILE_CACHE_LIMIT) {
+    // what bounds a walk across many huge changes. The all-changes page is the
+    // exception: it *is* that walk, and rebuildAllChanges prunes to the batch.
+    while (diffFileCache.size > DIFF_FILE_CACHE_LIMIT && workspace.page() !== 'allChanges') {
       diffFileCache.delete(diffFileCache.keys().next().value!)
     }
     return file
+  }
+
+  const [allChanges, setAllChanges] = createSignal<ChangeSection[]>([])
+  const [allChangesMeta, setAllChangesMeta] = createSignal<ChangesMeta>({
+    total: 0,
+    adds: 0,
+    dels: 0,
+  })
+
+  /**
+   * Every file row in panel order, as sections the all-changes page stacks.
+   * Stops adding once the patches would exceed the per-page row cap — one
+   * lockfile rewrite is enough to fill the slot, and the header says how many
+   * were left out. Previous section objects are reused when the texts have not
+   * moved, so the list does not remount every git revision.
+   */
+  const rebuildAllChanges = () => {
+    const changes = git.changes()
+    const prev = new Map(allChanges().map(section => [section.key, section]))
+    const sections: ChangeSection[] = []
+    const keep = new Set<string>()
+    let lines = 0
+    let adds = 0
+    let dels = 0
+    // Panel order, but every file: a folded folder's files are not in `rows`
+    // and this page is the one that shows them all.
+    const ordered = (['merge', 'staged', 'unstaged'] as const).flatMap(area =>
+      changes.filter(entry => entry.area === area),
+    )
+    for (const change of ordered) {
+      const key = slotKey(change.path, change.area)
+      if (lines >= DIFF_MAX_LINES && sections.length > 0) break
+      const file = diffFileFor(change.path, change.status, change.area)
+      const last = prev.get(key)
+      if (
+        last &&
+        ((file === null && last.file === null) ||
+          (file !== null &&
+            last.file !== null &&
+            last.file.oldText === file.oldText &&
+            last.file.newText === file.newText))
+      ) {
+        if (lines + last.lines > DIFF_MAX_LINES && sections.length > 0) break
+        lines += last.lines
+        adds += last.adds
+        dels += last.dels
+        sections.push(last)
+        keep.add(key)
+        continue
+      }
+      let patchLines = 0
+      let patchAdds = 0
+      let patchDels = 0
+      if (file) {
+        const patch = unifiedDiff(file.rel, file.oldText, file.newText, DIFF_MAX_LINES)
+        if (lines + patch.lines > DIFF_MAX_LINES && sections.length > 0) break
+        patchLines = patch.lines
+        patchAdds = patch.adds
+        patchDels = patch.dels
+      }
+      lines += patchLines
+      adds += patchAdds
+      dels += patchDels
+      sections.push({
+        key,
+        rel: change.rel,
+        area: change.area,
+        status: change.status,
+        file,
+        lines: patchLines,
+        adds: patchAdds,
+        dels: patchDels,
+      })
+      keep.add(key)
+    }
+    setAllChanges(sections)
+    setAllChangesMeta({ total: changes.length, adds, dels })
+    for (const cached of diffFileCache.keys()) {
+      if (!keep.has(cached)) diffFileCache.delete(cached)
+    }
   }
 
   /**
@@ -205,7 +292,9 @@ export function createCommands(ctx: AppContext) {
     const target = rows[at]
     if (!target) return
     git.setGitCursor(at)
-    if (target.kind === 'file') showDiff(target.change.path, target.change.area)
+    if (target.kind === 'file' && workspace.page() !== 'allChanges') {
+      showDiff(target.change.path, target.change.area)
+    }
   }
 
   /**
@@ -673,12 +762,29 @@ export function createCommands(ctx: AppContext) {
       showDiff(path, change.area)
     },
     /**
+     * Cursor's Changes page: every file in one scroll over the editor slot. The
+     * panel stays the list; its arrows then move the cursor and the page follows
+     * rather than opening a one-file diff on top.
+     */
+    gitDiffAll: () => {
+      if (!git.inRepo()) return say('Not a git repository', 'warn')
+      panes.showView('git')
+      workspace.setDiff(null)
+      // Page first so diffFileFor keeps the batch instead of dropping to four.
+      workspace.setPage('allChanges')
+      rebuildAllChanges()
+      panes.setFocus('editor')
+    },
+    allChanges,
+    allChangesMeta,
+    /**
      * Rebuild the open diff from the repository as it is now. The page is a
      * snapshot taken when it opened, so a commit, stash or save made anywhere
      * else would otherwise leave it showing changes that no longer exist. Not a
      * palette command: `App` runs it whenever git or a buffer moves.
      */
     refreshDiff: () => {
+      if (workspace.page() === 'allChanges') rebuildAllChanges()
       const shown = workspace.diff()?.path
       if (!shown) return
       // The page belongs to a row in the panel: once the change is committed,

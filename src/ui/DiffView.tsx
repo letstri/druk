@@ -36,6 +36,14 @@ export interface DiffViewProps {
    * say: this pane scrolls and toggles layout, it does not page. */
   file: DiffFile
   mode: DiffMode
+  /**
+   * `page` fills the editor slot and owns keys. `section` is one file in the
+   * all-changes scroll: as tall as its patch, always inline, silent on the
+   * keyboard — the parent scrolls and closes.
+   */
+  variant?: 'page' | 'section'
+  /** Extra header token — `staged` when the same path also sits unstaged. */
+  badge?: string
   /** Columns the pane owns — the editor slot, not the terminal. */
   width: number
   /** The page shares the editor's focus slot; unfocused, its keys stay dead. */
@@ -43,9 +51,9 @@ export interface DiffViewProps {
   /** A modal above the page owns the keys — this pane's handler runs first. */
   blocked: boolean
   onFocus: () => void
-  onToggleMode: () => void
+  onToggleMode?: () => void
   /** Esc: closes the page, or hands the focus back to whatever opened it. */
-  onClose: () => void
+  onClose?: () => void
   /** Commit detail pages through its files with ←/→; ordinary diffs leave them dead. */
   onMoveFile?: (delta: number) => void
   /** What Esc does now, for the hint line — the caller owns the behaviour. */
@@ -436,7 +444,8 @@ export function DiffView(props: DiffViewProps) {
    * a dead key.
    */
   const oneSided = () => props.file.oldText === '' || props.file.newText === ''
-  const mode = (): DiffMode => (oneSided() ? 'inline' : props.mode)
+  const section = () => props.variant === 'section'
+  const mode = (): DiffMode => (section() || oneSided() ? 'inline' : props.mode)
 
   /**
    * The rows split view pads a side with where the other side has more lines.
@@ -538,8 +547,9 @@ export function DiffView(props: DiffViewProps) {
 
   useKeys((key: KeyEvent) => {
     // A page, not a modal: keys count only when this pane holds the focus, and
-    // a chord the global keymap already claimed is not ours to reuse.
-    if (props.blocked || !props.focused || key.defaultPrevented) return
+    // a chord the global keymap already claimed is not ours to reuse. A section
+    // in the all-changes scroll does not own the keyboard at all.
+    if (section() || props.blocked || !props.focused || key.defaultPrevented) return
     const k = key.name
     // The arrows scroll here and page through the changes in the source-control
     // panel — one pane owns each meaning, so neither has to be a chord.
@@ -556,14 +566,15 @@ export function DiffView(props: DiffViewProps) {
     else if (k === 'end' || (k === 'g' && key.shift)) scrollTo(Number.MAX_SAFE_INTEGER)
     else if (k === 'home' || k === 'g') scrollTo(0)
     else if (k === 'tab' || k === 's' || k === 'd') {
-      if (!oneSided()) props.onToggleMode()
-    } else if (k === 'escape' || k === 'q') props.onClose()
+      if (!oneSided()) props.onToggleMode?.()
+    } else if (k === 'escape' || k === 'q') props.onClose?.()
     else return
     key.preventDefault()
   })
 
   /** Long spelling when the pane can afford it, initials beside a sidebar. */
   const hints = () => {
+    if (section()) return ''
     const layout = mode() === 'inline' ? 'inline' : 'side-by-side'
     if (oneSided()) {
       const full = ` ${layout} · Esc ${props.escLabel ?? 'close'} `
@@ -586,7 +597,8 @@ export function DiffView(props: DiffViewProps) {
       : plain()
         ? ' · plain (large file)'
         : ''
-    const tail = ` · +${d.adds} −${d.dels}${note}`
+    const badge = props.badge ? ` · ${props.badge}` : ''
+    const tail = `${badge} · +${d.adds} −${d.dels}${note}`
     const room = Math.max(8, props.width - hints().length - tail.length - 3)
     let rel =
       props.file.oldPath && props.file.oldPath !== props.file.rel
@@ -599,7 +611,8 @@ export function DiffView(props: DiffViewProps) {
   return (
     <box
       width="100%"
-      height="100%"
+      height={section() ? undefined : '100%'}
+      flexShrink={section() ? 0 : undefined}
       flexDirection="column"
       backgroundColor={ui.solidBg}
       onMouseDown={() => props.onFocus()}
@@ -610,13 +623,14 @@ export function DiffView(props: DiffViewProps) {
           them being cut, not their row being crushed. */}
       <box flexDirection="row" flexShrink={0} backgroundColor={ui.solidBarBg}>
         <text
+          wrapMode="none"
           fg={diffStatusColor(props.file.status)}
           bg={ui.solidBarBg}
           flexShrink={0}
           content={header()}
         />
         <box flexGrow={1} backgroundColor={ui.solidBarBg} />
-        <text fg={ui.dim} bg={ui.solidBarBg} flexShrink={0} content={hints()} />
+        <text wrapMode="none" fg={ui.dim} bg={ui.solidBarBg} flexShrink={0} content={hints()} />
       </box>
 
       <Show
@@ -638,7 +652,9 @@ export function DiffView(props: DiffViewProps) {
           treeSitterClient={client() ?? undefined}
           syncScroll
           wrapMode="none"
-          flexGrow={1}
+          flexGrow={section() ? 0 : 1}
+          flexShrink={section() ? 0 : undefined}
+          height={section() ? Math.max(1, diff().lines) : undefined}
           width="100%"
           fg={ui.text}
           lineNumberFg={ui.gutter}

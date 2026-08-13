@@ -121,7 +121,7 @@ scripts/
   ui/                presentational components, no app state
     EditorPane, FileTree, GitPanel, ComparePanel, ComparisonView, CompareFilter,
     SidebarTabs, Tabs, StatusBar, CommandPalette, FilePicker,
-    SearchPanel, DiffView, ImageView, PdfView, PreviewPane, ReviewPanel, SettingsView,
+    SearchPanel, DiffView, ChangesView, ImageView, PdfView, PreviewPane, ReviewPanel, SettingsView,
     SettingEditor,
     SettingPicker, ExtensionsPanel, LspStatusView, UpdateBanner,
     Overlay, TextInput, PromptModal, ConfirmModal, ChoiceModal, HelpOverlay, Welcome
@@ -395,7 +395,7 @@ typing the textarea never sees, and the chords whose byte belongs to another key
 Ctrl+I is Tab, Ctrl+[ is Esc — are reserved outright.
 
 Keys that belong to one pane (the tree's `a`/`r`/`d`, the source-control panel's
-`c`/`p`/`b`) are not in this table: they are bare letters, so they can only be read
+`a`/`c`/`p`/`b`) are not in this table: they are bare letters, so they can only be read
 after the global chords have had their turn, and they stay `switch` cases in
 `keyboard.ts`. Not rebindable, deliberately.
 
@@ -688,16 +688,20 @@ is just a diff against the empty tree.
   closed only by `setDiff(null)`) and `diffShown` is whether it is the view on screen.
   `workspace.diff()` is the pair readers want — "what covers the editor slot". This is
   what makes `openFile` the single place the invariant holds: every way into a file
-  goes through it, and it clears `diffShown` (and the settings page) without closing
+  goes through it, and it clears `diffShown` and any page without closing
   the tab. Owning it in `overlays` instead meant each caller had to remember, and the
   tree's Enter did not — a diff stayed on screen over the file just opened.
-- **The source-control panel is the diff's pager, and its only entry point.** The page
-  holds one file because the panel's cursor says which: ↑/↓ in the panel move the cursor
-  and swap the page under it, so nothing else may open a diff without moving that cursor
-  first (`actions.gitDiffFile` shows the panel and selects the row). A page reached any
-  other way would be one the arrows could not move from. Inside the page the arrows scroll
-  and Tab toggles the layout — the panel and the page each own their arrows, so neither
-  needs a chord, and that split only holds while the panel keeps the focus.
+- **The source-control panel is the one-file diff's pager.** That page holds one
+  file because the panel's cursor says which: ↑/↓ in the panel move the cursor
+  and swap the page under it, so nothing else may open a one-file diff without
+  moving that cursor first (`actions.gitDiffFile` shows the panel and selects the
+  row). A page reached any other way would be one the arrows could not move from.
+  Inside the page the arrows scroll and Tab toggles the layout — the panel and the
+  page each own their arrows, so neither needs a chord, and that split only holds
+  while the panel keeps the focus. **Show all changes** (`git.diffAll`, `a` in the
+  panel) is the other reading surface: a stacked page over the editor slot. While
+  it is up the panel's arrows move the cursor and scroll to that file's section
+  instead of replacing the page with a one-file diff.
 - **A row's heading is part of what it means.** `Staged Changes` and `Changes` are not two
   views of one list: a half-staged path is a `Change` under each, distinguished only by
   `area`, and everything downstream has to carry it — the fold key (`foldKey`), the diff

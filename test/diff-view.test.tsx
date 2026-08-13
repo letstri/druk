@@ -29,6 +29,7 @@ function repo(files: Record<string, string>) {
   git('init', '-q', '-b', 'main')
   git('config', 'user.email', 'test@example.com')
   git('config', 'user.name', 'Test')
+  git('config', 'commit.gpgsign', 'false')
   for (const [name, content] of Object.entries(files)) {
     writeFileSync(join(dir, name), content)
   }
@@ -92,14 +93,14 @@ test('"Diff current file" on an unchanged file says so instead of opening', asyn
   expect(frame).not.toContain('Esc close')
 })
 
-test('there is no "diff all" command — the panel is the only pager', async () => {
+test('"Show all changes" is a palette command', async () => {
   const dir = repo({ 'a.ts': 'one\n' })
   writeFileSync(join(dir, 'a.ts'), 'ONE\n')
 
   const t = await launch(dir)
   await openPalette(t)
-  await press(t, i => void i.typeText('diff'))
-  expect(t.captureCharFrame()).not.toContain('Diff all changes')
+  await press(t, i => void i.typeText('all changes'))
+  expect(t.captureCharFrame()).toContain('Show all changes')
 })
 
 test('Tab into the diff, then Tab switches to side-by-side and back', async () => {
@@ -358,6 +359,7 @@ test('a long path is cut from the left so the hints stay on screen', async () =>
   git('init', '-q', '-b', 'main')
   git('config', 'user.email', 'test@example.com')
   git('config', 'user.name', 'Test')
+  git('config', 'commit.gpgsign', 'false')
   const deep = 'a-very/deeply/nested/folder/structure/with-a-quite-long-file-name.test.tsx'
   mkdirSync(join(dir, deep, '..'), { recursive: true })
   writeFileSync(join(dir, deep), 'one\n')
