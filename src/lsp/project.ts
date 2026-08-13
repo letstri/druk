@@ -54,3 +54,23 @@ export function projectCommand(id: string, command: string[], rootDir: string): 
   const local = join(binDir(rootDir), executable)
   return existsSync(local) ? [local, ...args] : null
 }
+
+/** The npm package that teaches a tsserver to read a single-file component. */
+export const VUE_TYPESCRIPT_PLUGIN = '@vue/typescript-plugin'
+
+/**
+ * A directory a tsserver can resolve `@vue/typescript-plugin` from: the
+ * project's own copy first, then druk's install prefix. Null when neither holds
+ * one — better than naming a path the plugin is not at, which tsserver reports
+ * only into its own log.
+ *
+ * A *prefix*, not the package directory. tsserver resolves a plugin the way node
+ * resolves a module, appending `node_modules` to the location and then to each
+ * of its parents, so what it wants is the directory `node_modules` sits in.
+ */
+export function vuePluginLocation(rootDir: string, installRoot: string): string | null {
+  const prefixes = [rootDir, installRoot]
+  return (
+    prefixes.find(prefix => existsSync(join(prefix, 'node_modules', VUE_TYPESCRIPT_PLUGIN))) ?? null
+  )
+}

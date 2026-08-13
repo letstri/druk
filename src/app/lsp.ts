@@ -19,7 +19,7 @@ import {
   SERVER_ROOT,
 } from '../lsp/install'
 import type { PackageManager } from '../lsp/install'
-import { projectCommand } from '../lsp/project'
+import { projectCommand, VUE_TYPESCRIPT_PLUGIN, vuePluginLocation } from '../lsp/project'
 import { isDeprecated, isUnnecessary, SEVERITY_RANK, severityOf } from '../lsp/protocol'
 import type { CompletionItem, Diagnostic, Problem } from '../lsp/protocol'
 import { installHint, resolveServers, servers as serverSpecs } from '../lsp/servers'
@@ -53,6 +53,45 @@ const DEPENDENCY_QUIET_MS = 2_000
  * chatty server from growing the render without bound.
  */
 const MAX_SERVER_LOG = 300
+
+/**
+ * The server the vue extension names for the tsserver half of a `.vue` file —
+ * `typescript-language-server` carrying `@vue/typescript-plugin`. Named here
+ * because the plugin's location is a path only druk can work out.
+ */
+const VUE_TYPESCRIPT = 'vue-typescript'
+
+/**
+ * The command a tsserver-driving server exposes for putting a raw request to the
+ * tsserver it holds; typescript-language-server and vtsls both answer to it. It
+ * is how a `tsserver/request` from Vue's server reaches a real TypeScript
+ * project — see `answerTsserverRequests` in `lsp/client.ts`.
+ */
+const TSSERVER_REQUEST = 'typescript.tsserverRequest'
+
+/**
+ * How long a relayed request waits for the server that can answer it. Vue's
+ * server asks for the project the moment the first `.vue` file opens, which is
+ * while the tsserver beside it is still reading that project — seconds, on a
+ * large one.
+ */
+const RELAY_WAIT_MS = 20_000
+
+/**
+ * The other servers registered for a filetype `from` also serves — the only ones
+ * that hold the same documents, and so the only ones a relayed request may be
+ * put to. Without this a `.ts` file's own tsserver, which is in the same map and
+ * answers to the same command, would field Vue's questions about a project it
+ * has never been shown.
+ */
+function siblingIds(from: string): Set<string> {
+  const filetypes = new Set(serverSpecs().find(spec => spec.id === from)?.filetypes ?? [])
+  return new Set(
+    serverSpecs()
+      .filter(spec => spec.id !== from && spec.filetypes.some(type => filetypes.has(type)))
+      .map(spec => spec.id),
+  )
+}
 
 /** Language servers: one per language, diagnostics per open file. */
 export function createLsp(deps: {
@@ -199,16 +238,60 @@ export function createLsp(deps: {
   }
 
   /**
-   * `initialize` options for one server. Only typescript has any: it drives a
-   * separate `tsserver`, and which TypeScript that is deserves to be settable.
+   * `initialize` options for one server. Only the two that drive a separate
+   * `tsserver` have any, and both are a path a manifest cannot hold.
+   *
+   * typescript's is which TypeScript to drive, which deserves to be settable.
    * Left empty the server decides — it prefers the open project's own copy,
    * which is what a project pinning a compiler version wants, and only falls
    * back to the one druk installed.
+   *
+   * vue-typescript's is `@vue/typescript-plugin`, without which its tsserver
+   * reads a `.vue` as a file of no language it knows and answers nothing at all.
    */
   const initializationOptionsFor = (id: string): unknown => {
+    if (id === VUE_TYPESCRIPT) {
+      const location = vuePluginLocation(rootDir, SERVER_ROOT)
+      if (location) {
+        return { plugins: [{ name: VUE_TYPESCRIPT_PLUGIN, location, languages: ['vue'] }] }
+      }
+      // A server that answers nothing is indistinguishable from a quiet one, so
+      // the missing half is said rather than left to be discovered.
+      status.say(`LSP: ${VUE_TYPESCRIPT_PLUGIN} not installed — no TypeScript in .vue`, 'warn')
+      return undefined
+    }
     if (id !== 'typescript') return undefined
     const tsdk = settings.config.typescriptTsdk.trim()
     return tsdk ? { tsserver: { path: tsdk } } : undefined
+  }
+
+  /**
+   * Put one server's `tsserver/request` to the sibling that drives a tsserver.
+   *
+   * The wait is what makes this work at all: Vue's server asks as its first act
+   * after `didOpen`, when the tsserver spawned alongside it has not finished its
+   * handshake — and a client that has not handshaken advertises no commands. It
+   * ends early once no sibling is still starting, since one that is already
+   * ready or dead will not grow the command later.
+   */
+  const relayTsserverRequest = async (from: string, command: string, args: unknown) => {
+    const siblings = siblingIds(from)
+    const deadline = Date.now() + RELAY_WAIT_MS
+    for (;;) {
+      const others = [...clients.values()].filter(
+        (client): client is LspClient => client !== null && siblings.has(client.id),
+      )
+      const target = others.find(client => client.supportsCommand(TSSERVER_REQUEST))
+      if (target) {
+        const reply = (await target.executeCommand(TSSERVER_REQUEST, [command, args])) as {
+          body?: unknown
+        } | null
+        return reply?.body ?? null
+      }
+      if (!others.some(client => !client.ready() && !client.dead())) return null
+      if (Date.now() >= deadline) return null
+      await new Promise(resolve => setTimeout(resolve, 50))
+    }
   }
 
   /** One server for `path`'s language, spawned on first use. Null if it failed. */
@@ -243,6 +326,7 @@ export function createLsp(deps: {
       settings: resolved.settings,
       onDiagnostics: onDiagnosticsFrom(resolved.id),
       onRefreshDiagnostics: () => refreshPulls?.(resolved.id),
+      onTsserverRequest: (command, args) => relayTsserverRequest(resolved.id, command, args),
       onLog: entry => {
         appendLog(resolved.id, entry)
         if (!spawned) return
@@ -427,6 +511,13 @@ export function createLsp(deps: {
   }
 
   /**
+   * Which server answered a file's last completion. A file served by several —
+   * a `.vue` is served by Vue's server and by a tsserver, and only one of them
+   * answers in any given block — is why resolve cannot simply ask the first.
+   */
+  const answeredCompletion = new Map<string, string>()
+
+  /**
    * Completion at a buffer position. The pending didChange goes first — the
    * request is aimed at what is on screen, and a server answering against text
    * 150ms stale would misplace every edit it returns.
@@ -442,7 +533,10 @@ export function createLsp(deps: {
     flushEdits?.(path)
     for (const client of ready) {
       const reply = normalizeCompletion(await client.complete(path, { line, character: col }))
-      if (reply && reply.items.length > 0) return reply
+      if (reply && reply.items.length > 0) {
+        answeredCompletion.set(path, client.id)
+        return reply
+      }
     }
     return null
   }
@@ -492,9 +586,12 @@ export function createLsp(deps: {
     item: CompletionItem,
   ): Promise<CompletionItem | null> => {
     if (!settings.config.lsp || !settings.config.lspCompletion) return Promise.resolve(null)
-    // The first ready server, not each in turn: the item came from whichever
-    // answered `complete`, and only that one holds the handle it resolves.
-    const client = readyClients(path)[0]
+    // The server that answered `complete`, not each in turn: only it holds the
+    // handle the item resolves through, and handing the item to another is how
+    // an auto-import comes back without its edit.
+    const ready = readyClients(path)
+    const source = answeredCompletion.get(path)
+    const client = ready.find(candidate => candidate.id === source) ?? ready[0]
     if (!client) return Promise.resolve(null)
     return client.resolveCompletion(item)
   }
