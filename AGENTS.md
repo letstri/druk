@@ -104,7 +104,10 @@ The conflict itself is resolved in the editor, not by a git command: `parseConfl
 parses — a conflict is resolved by rewriting text that may already be dirty, so
 `git checkout --ours` would throw those edits away. Each block's two sides are tinted
 the colours the diff view uses (`CONFLICT_GROUPS` in `src/languages/highlight.ts`, a
-background-only style over the syntax, and the marker rows painted loud), the whole
+background-only style over the syntax — `styleIdOver` there combines the pair, since a
+highlight *replaces* the cell's style rather than merging with what is under it, so a
+tint drawn as one span turns the code it covers into plain grey text; the same is true
+of every diagnostic tint — and the marker rows painted loud), the whole
 block wears one gutter mark of its own — every line of a conflict is "modified" and
 most of them are a diagnostic too, so it outranks both — `Ctrl+Opt+J` walks to the
 next one (palette → Git → Next / Previous conflict, wrapping as the problems do), and

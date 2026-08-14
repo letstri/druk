@@ -38,6 +38,7 @@ import {
   segmentsIn,
   STALE,
   styleIdForGroup,
+  styleIdOver,
 } from '../languages/highlight'
 import type { Highlighted, Segment } from '../languages/highlight'
 import {
@@ -1440,6 +1441,42 @@ export function EditorPane(props: EditorPaneProps) {
   })
 
   /**
+   * Paint `group` over columns `start`..`end` of `line` as one highlight per
+   * syntax segment underneath, each in a style combining the two.
+   *
+   * One highlight over the whole range would not layer over the syntax at all —
+   * it replaces it, `styleIdOver` has the why — so a tint drawn that way turns
+   * the code it covers into plain text, which is what a diagnostic span or a
+   * conflict side used to do to a whole block.
+   */
+  const overlay = (
+    row: number,
+    line: number,
+    text: string,
+    start: number,
+    end: number,
+    group: string,
+    priority: number,
+  ) => {
+    const paint = (from: number, to: number, base: number | null) => {
+      if (to <= from) return
+      const styleId = styleIdOver(group, base)
+      if (styleId == null) return
+      editor?.addHighlight(row, inCells({ start: from, end: to, styleId, priority }, text))
+    }
+    let at = start
+    for (const segment of byLine.get(line) ?? []) {
+      if (segment.end <= at || segment.start >= end) continue
+      const from = Math.max(segment.start, at)
+      const to = Math.min(segment.end, end)
+      paint(at, from, null)
+      paint(from, to, segment.styleId)
+      at = to
+    }
+    paint(at, end, null)
+  }
+
+  /**
    * Mark whatever of `line` a problem covers. Layered over the syntax
    * highlights: a fault keeps its text color and gains a faint severity tint,
    * while an Unnecessary-tagged span fades and a Deprecated one is struck
@@ -1464,9 +1501,7 @@ export function EditorPane(props: EditorPaneProps) {
         : problem.deprecated
           ? 'deprecated'
           : problem.severity
-      const styleId = styleIdForGroup(`druk.problem.${group}`)
-      if (styleId == null) return
-      editor?.addHighlight(row, inCells({ start, end, styleId, priority: 100 }, text))
+      overlay(row, line, text, start, end, `druk.problem.${group}`, 100)
     }
     for (const problem of starting ?? []) {
       // A zero-width span still marks something visible; one that runs off the
@@ -1507,15 +1542,19 @@ export function EditorPane(props: EditorPaneProps) {
       : line < (conflict.base ?? conflict.separator)
         ? CONFLICT_GROUPS.ours
         : CONFLICT_GROUPS.theirs
-    const styleId = styleIdForGroup(group)
-    if (styleId == null) return
     const text = parsedLine(line) ?? lineTextAt(row)
     // Past the end of the text as well: a tint that stopped at the last character
     // would leave the block's blank lines untinted and its edge ragged.
-    editor.addHighlight(
-      row,
-      inCells({ start: 0, end: Math.max(text.length, 1), styleId, priority: 110 }, text),
-    )
+    const end = Math.max(text.length, 1)
+    // The marker rows carry a foreground of their own, so they are the one part
+    // of a conflict that really does replace what is under it.
+    if (marker) {
+      const styleId = styleIdForGroup(group)
+      if (styleId == null) return
+      editor.addHighlight(row, inCells({ start: 0, end, styleId, priority: 110 }, text))
+      return
+    }
+    overlay(row, line, text, 0, end, group, 110)
   }
 
   /** Keep the viewport (plus overscan) highlighted, touching only what changed. */

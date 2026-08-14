@@ -354,10 +354,16 @@ test('a span crossing lines is marked on every line it covers', async () => {
     const frame = t.captureSpans() as unknown as {
       lines: { spans: { text: string; attributes: number }[] }[]
     }
+    // Per line, not per span: a marked stretch is one highlight per syntax
+    // segment under it, so the struck text of a line arrives in several pieces.
     return frame.lines
-      .flatMap(line => line.spans)
-      .filter(span => (span.attributes & STRIKETHROUGH) !== 0)
-      .map(span => span.text.trim())
+      .map(line =>
+        line.spans
+          .filter(span => (span.attributes & STRIKETHROUGH) !== 0)
+          .map(span => span.text)
+          .join('')
+          .trim(),
+      )
       .filter(Boolean)
   }
 

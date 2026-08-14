@@ -4,7 +4,7 @@ import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { CONFLICT_GROUPS, getSyntaxStyle, styleIdForGroup } from '../src/languages/highlight'
-import { fixture, launch, openFile, press, pressTimes, runCommand, until } from './helpers'
+import { fixture, launch, openFile, press, pressTimes, runCommand, spansOf, until } from './helpers'
 import type { Harness } from './helpers'
 import { tempDir } from './temp'
 
@@ -42,6 +42,27 @@ test('every conflict group resolves to a style, so the block is actually tinted'
     expect(styleIdForGroup(group)).not.toBeNull()
   }
 })
+
+test('a tinted side keeps the colours its code was painted in', async () => {
+  // The native buffer replaces a cell's style with the winning highlight's, so a
+  // background-only tint drawn as one span repaints the whole block in plain
+  // text — the code inside a conflict (and inside a diagnostic) went grey.
+  const t = await launch(conflicted(), {}, { width: 100, height: 24 })
+  await openFile(t, 'a.ts')
+  const keyword = (row: string) => spansOf(t, row).find(span => span.text.trim() === 'const')
+  // The first parse is a worker round trip, and a cold one loads the grammar as
+  // well: before it lands the line is one span.
+  await until(t, () => keyword('const b = 2') !== undefined, 15_000)
+  const outside = keyword('const a = 1')
+  const inside = keyword('const b = 2')
+  expect(outside).toBeDefined()
+  expect(inside).toBeDefined()
+  // Same foreground as the same keyword outside the block, over a tint of its own.
+  expect(inside?.fg).toBe(outside?.fg)
+  expect(inside?.bg).not.toBe(outside?.bg)
+  // Past bun's 5s default: the wait above is for a cold grammar load, which on a
+  // machine running the rest of the suite takes longer than the default allows.
+}, 20000)
 
 test('the gutter marks the block and nothing either side of it', async () => {
   const t = await launch(conflicted())

@@ -6,7 +6,7 @@ import {
   SyntaxStyle,
   TextAttributes,
 } from '@opentui/core'
-import type { StyleDefinitionInput, TreeSitterClient } from '@opentui/core'
+import type { RGBA, StyleDefinition, StyleDefinitionInput, TreeSitterClient } from '@opentui/core'
 
 import { paintedTheme, syntaxTheme, ui } from '../themes'
 import type { ThemeName } from '../themes'
@@ -112,6 +112,12 @@ const styleIdByGroup = new Map<string, number | null>()
 /** Built lazily from `syntaxTheme`, and dropped with the style table it indexes. */
 let styleById: Map<number, StyleDefinitionInput> | null = null
 
+/** Every registered style by id, the same way and for the same lifetime. */
+let definitionById: Map<number, StyleDefinition> | null = null
+
+/** Ids of the combined styles, keyed `<overlay group> <style underneath>`. */
+const overlaidIds = new Map<string, number | null>()
+
 /** `#rrggbb` blend, `t` of the way from `base` toward `tint`. */
 export function mixColors(base: string, tint: string, t: number): string {
   const channel = (at: number) => {
@@ -149,6 +155,8 @@ export function getSyntaxStyle(): SyntaxStyle {
     styleFor = theme
     styleIdByGroup.clear()
     styleById = null
+    definitionById = null
+    overlaidIds.clear()
     syntaxStyle = SyntaxStyle.fromStyles({
       ...syntaxTheme,
       [INDENT_GUIDE]: { bg: ui.indentGuide },
@@ -196,17 +204,23 @@ export function getSyntaxStyle(): SyntaxStyle {
  * `styleIdForGroup` decides membership with `getStyle`, which reads only that.
  */
 function registerStruckThrough(style: SyntaxStyle, group: string): void {
+  const id = struckThroughId(style, group, null)
+  if (id != null) styleIdByGroup.set(group, id)
+}
+
+/** `name` registered as a strikethrough over `fg`, or null when the call fails. */
+function struckThroughId(style: SyntaxStyle, name: string, fg: RGBA | null): number | null {
   try {
-    const id = resolveRenderLib().syntaxStyleRegister(
+    return resolveRenderLib().syntaxStyleRegister(
       style.ptr,
-      group,
-      null,
+      name,
+      fg,
       null,
       TextAttributes.STRIKETHROUGH,
     )
-    styleIdByGroup.set(group, id)
   } catch {
     // best-effort: the span paints as it did before, without the strike
+    return null
   }
 }
 
@@ -215,6 +229,59 @@ export function invalidateSyntaxStyle(): void {
   styleFor = null
   styleIdByGroup.clear()
   styleById = null
+  definitionById = null
+  overlaidIds.clear()
+}
+
+/**
+ * The style id painting `group` over whatever `base` is painted in — the token's
+ * own colour with the overlay's background, registered on first use.
+ *
+ * The native buffer replaces a cell's style with the winning highlight's rather
+ * than merging the two, so a tint carrying no foreground of its own does not
+ * "layer over" the syntax: it repaints the span in the editor's plain text
+ * colour, which is a diagnostic or a merge conflict erasing the code it covers.
+ * Combining the pair up front is what makes the background-only styles behave
+ * the way they are written.
+ *
+ * `base` of null — a stretch of the line no capture painted — is the overlay
+ * alone, and so is an overlay that carries a foreground itself (the Unnecessary
+ * fade), which is meant to replace the token's colour rather than sit under it.
+ */
+export function styleIdOver(group: string, base: number | null): number | null {
+  const plain = styleIdForGroup(group)
+  if (base == null || plain == null) return plain
+  const key = `${group} ${base}`
+  const hit = overlaidIds.get(key)
+  if (hit !== undefined) return hit
+  const id = registerOverlaid(group, base) ?? plain
+  overlaidIds.set(key, id)
+  return id
+}
+
+function registerOverlaid(group: string, base: number): number | null {
+  const ss = getSyntaxStyle()
+  const under = definitionForId(base)
+  if (!under?.fg) return null
+  const name = `${group} ${base}`
+  if (group === DEPRECATED_GROUP) return struckThroughId(ss, name, under.fg)
+  const over = ss.getStyle(group)
+  if (!over || over.fg || !over.bg) return null
+  return ss.registerStyle(name, { ...under, bg: over.bg })
+}
+
+/** Every style the table holds, by id. Rebuilt whenever the table is. */
+function definitionForId(id: number): StyleDefinition | undefined {
+  const ss = getSyntaxStyle()
+  if (!definitionById) {
+    definitionById = new Map()
+    for (const name of ss.getRegisteredNames()) {
+      const at = ss.getStyleId(name)
+      const def = ss.getStyle(name)
+      if (at != null && def) definitionById.set(at, def)
+    }
+  }
+  return definitionById.get(id)
 }
 
 /**

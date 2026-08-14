@@ -2,6 +2,7 @@ import { expect } from 'bun:test'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
+import type { RGBA } from '@opentui/core'
 import { testRender } from '@opentui/solid'
 
 import { MARKET_DIR } from '../scripts/extensions'
@@ -164,6 +165,29 @@ export async function until(t: Harness, cond: () => boolean, timeoutMs = 4000) {
   const started = Date.now()
   while (!cond() && Date.now() - started < timeoutMs) await settle(t, 15)
   expect(cond()).toBe(true)
+}
+
+/**
+ * The painted spans of the frame row containing `text`, as `#rrggbb` pairs —
+ * what `captureCharFrame` cannot say, colour being the whole point of a
+ * highlight. Empty when no row holds the text.
+ */
+export function spansOf(t: Harness, text: string): { text: string; fg: string; bg: string }[] {
+  const hex = (c: RGBA) =>
+    [c.buffer[0], c.buffer[1], c.buffer[2]]
+      .map(v => (v ?? 0).toString(16).padStart(2, '0'))
+      .join('')
+  const line = t.captureSpans().lines.find(row =>
+    row.spans
+      .map(span => span.text)
+      .join('')
+      .includes(text),
+  )
+  return (line?.spans ?? []).map(span => ({
+    text: span.text,
+    fg: hex(span.fg),
+    bg: hex(span.bg),
+  }))
 }
 
 /** `until`, on the rendered frame. */

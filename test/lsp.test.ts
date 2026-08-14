@@ -7,7 +7,7 @@ import { MARKET_DIR } from '../scripts/extensions'
 import { problemFrom, problemsOn } from '../src/app/lsp'
 import type { Problem } from '../src/app/lsp'
 import { loadExtensions } from '../src/extensions'
-import { DEPRECATED_GROUP, styleIdForGroup } from '../src/languages/highlight'
+import { DEPRECATED_GROUP, styleIdForGroup, styleIdOver } from '../src/languages/highlight'
 import { spawnLspClient } from '../src/lsp/client'
 import {
   availablePackageManagers,
@@ -103,6 +103,23 @@ describe('protocol mapping', () => {
     // Registered against the native table rather than through SyntaxStyle, so
     // the walk in styleIdForGroup can only find it through its seeded id.
     expect(styleIdForGroup(DEPRECATED_GROUP)).not.toBeNull()
+  })
+
+  test('a severity tint over a token is its own style, not the bare tint', () => {
+    // A highlight replaces a cell's whole style rather than merging with what is
+    // under it, so painting the bare tint over a span drops the syntax colour and
+    // a diagnostic turns the code it covers into plain text.
+    const keyword = styleIdForGroup('keyword')
+    const tint = styleIdForGroup('druk.problem.error')
+    expect(keyword).not.toBeNull()
+    const combined = styleIdOver('druk.problem.error', keyword)
+    expect(combined).not.toBeNull()
+    expect(combined).not.toBe(tint)
+    expect(combined).not.toBe(keyword)
+    // Memoized, or every window repaint registers another native style.
+    expect(styleIdOver('druk.problem.error', keyword)).toBe(combined)
+    // Nothing underneath, so there is nothing to keep: the tint stands alone.
+    expect(styleIdOver('druk.problem.error', null)).toBe(tint)
   })
 
   test('the Unnecessary tag is recognised, and other tags are not', () => {
