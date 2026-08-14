@@ -28,9 +28,15 @@ import {
 import type { Fetched, Fetcher, MarketEntry } from '../core/market'
 import { isNewer } from '../core/update'
 import { extensions, EXTENSIONS_DIR } from '../extensions'
+import type { Extension } from '../extensions/types'
+import { iconThemeLabel } from '../icons'
+import { isThemeName, themeLabel } from '../themes'
 import type { PromptState } from './prompts'
 import type { Settings } from './settings'
 import type { Status } from './status'
+
+/** Rows the activation offer draws; `ChoiceModal` has no scroll of its own. */
+const MAX_ACTIVATION_CHOICES = 8
 
 /** What an extension adds, in the words the prompt and the palette use. */
 function summarize(entry: MarketEntry): string {
@@ -184,6 +190,53 @@ export function createMarket(deps: {
   }
 
   /**
+   * The appearances an install brought that nothing is using. Installing a theme
+   * is not choosing one — the config still names whatever it named — so an
+   * extension whose whole point is how the editor looks would otherwise land and
+   * change nothing. What is already in force is left out: the upgrade path
+   * (`suggestMissingNames`) installs precisely the theme the config asks for,
+   * and offering to activate what is already on screen is an offer to do
+   * nothing.
+   */
+  const appearancesOf = (installed: Extension) => [
+    ...installed.themes
+      .filter(({ id }) => id !== settings.config.theme)
+      .map(({ id }) => ({ id: `theme:${id}`, label: `${themeLabel(id)} theme` })),
+    ...installed.icons
+      .filter(icons => icons.id !== settings.config.iconTheme)
+      .map(icons => ({ id: `icons:${icons.id}`, label: `${iconThemeLabel(icons.id)} file icons` })),
+  ]
+
+  /** Offer whatever `appearancesOf` found, once the install has been announced. */
+  const offerActivation = (installed: Extension): void => {
+    // A disabled id is read and listed but registers nothing, so its themes are
+    // names no palette holds — there is nothing to switch to.
+    if (installed.disabled) return
+    const choices = appearancesOf(installed)
+    if (choices.length === 0) return
+    // The install's own prompt is answered and gone by now, but the write is
+    // asynchronous and a save conflict or a watcher may have opened one while it
+    // ran — and this offer is the more skippable of the two.
+    if (prompts.prompt()) return
+    prompts.setPrompt({
+      kind: 'activateExtension',
+      name: installed.name,
+      // The modal does not scroll, so a fork's twenty-palette extension would
+      // draw a taller box than the terminal has rows; the rest are a palette away.
+      choices: choices.slice(0, MAX_ACTIVATION_CHOICES),
+      more: Math.max(0, choices.length - MAX_ACTIVATION_CHOICES),
+    })
+  }
+
+  /** A pick from that offer: `theme:<id>` or `icons:<id>`, as the prompt spelt it. */
+  const activate = (choice: string): void => {
+    const [kind, ...rest] = choice.split(':')
+    const id = rest.join(':')
+    if (kind === 'icons') return settings.applyIconTheme(id)
+    if (kind === 'theme' && isThemeName(id)) settings.applyTheme(id)
+  }
+
+  /**
    * Write the manifest the open prompt was about, and register it. Asynchronous
    * because an extension may carry assets — a grammar for a language druk ships
    * none for — and those are fetched now rather than at prompt time, so the
@@ -211,6 +264,10 @@ export function createMarket(deps: {
         // documents, and what the new server has to say about them would
         // otherwise overwrite the line saying the install worked.
         if (result.extension.servers.length > 0) onServersReload?.()
+        // Read off the reloaded extension rather than the manifest: what is
+        // registered is what can be activated, and a theme the loader threw out
+        // is not on offer.
+        if (installed) offerActivation(installed)
       } finally {
         release()
       }
@@ -325,6 +382,7 @@ export function createMarket(deps: {
     decline,
     remove,
     updateAll,
+    activate,
     suggestForFiletype,
   }
 }

@@ -146,6 +146,19 @@ export type Prompt =
       runs: string[]
     }
   /**
+   * An extension that just landed contributes an appearance nothing is using.
+   * Installing one is not choosing it, and a theme sitting in a list nobody
+   * opens is a theme that was installed for nothing — so the offer follows the
+   * install. `choices` carries what a pick applies as `theme:<id>` /
+   * `icons:<id>`, and `more` counts what the modal had no rows for.
+   */
+  | {
+      kind: 'activateExtension'
+      name: string
+      choices: { id: string; label: string }[]
+      more: number
+    }
+  /**
    * Delete an installed extension. `servers` names the language servers druk
    * fetched for it, which go with it — the one part of an uninstall that reaches
    * outside the extensions folder.

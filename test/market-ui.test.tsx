@@ -10,7 +10,9 @@ import { afterEach, beforeEach, expect, test } from 'bun:test'
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
+import { CONFIG_FILE } from '../src/core/config'
 import { loadExtensions, EXTENSIONS_DIR } from '../src/extensions'
+import { THEMES } from '../src/themes'
 import {
   fixture,
   launch,
@@ -48,6 +50,39 @@ const NIM_EXTENSION = {
   ],
 }
 
+/** A palette in the shape a manifest has to have: every chrome color, spelt out. */
+const paint = (color: string) =>
+  Object.fromEntries(Object.keys(THEMES.dark.ui).map(key => [key, color]))
+
+const theme = (id: string, name: string) => ({
+  id,
+  name,
+  ui: paint('#101010'),
+  syntax: { keyword: { fg: '#ffc799' } },
+})
+
+/** One palette: the offer it raises is a yes/no, not a list. */
+const VESPER_EXTENSION = {
+  id: 'vesper',
+  name: 'Vesper',
+  version: '1.0.0',
+  description: 'a dark palette',
+  themes: [theme('vesper', 'Vesper')],
+}
+
+/** Several palettes and an icon set: the offer is a choice between them. */
+const CATPPUCCIN_EXTENSION = {
+  id: 'catppuccin',
+  name: 'Catppuccin',
+  version: '1.0.0',
+  description: 'four flavors',
+  themes: [
+    theme('catppuccin-mocha', 'Catppuccin Mocha'),
+    theme('catppuccin-latte', 'Catppuccin Latte'),
+  ],
+  icons: [{ id: 'catppuccin-icons', name: 'Catppuccin Icons', file: '·' }],
+}
+
 const INDEX = {
   extensions: [
     {
@@ -67,6 +102,30 @@ const INDEX = {
   ],
 }
 
+/** The two above, for the tests about what an installed appearance offers. */
+const THEME_INDEX = {
+  extensions: [
+    {
+      id: 'vesper',
+      name: 'Vesper',
+      version: '1.0.0',
+      description: 'a dark palette',
+      provides: { themes: ['vesper'], icons: [], filetypes: [] },
+    },
+    {
+      id: 'catppuccin',
+      name: 'Catppuccin',
+      version: '1.0.0',
+      description: 'four flavors',
+      provides: {
+        themes: ['catppuccin-mocha', 'catppuccin-latte'],
+        icons: ['catppuccin-icons'],
+        filetypes: [],
+      },
+    },
+  ],
+}
+
 const realFetch = globalThis.fetch
 /** Every url the editor asked for, so a test can assert it asked for nothing. */
 let requested: string[] = []
@@ -78,13 +137,16 @@ beforeEach(() => {
   catalog = INDEX
   globalThis.fetch = ((url: string) => {
     requested.push(String(url))
-    const body = String(url).endsWith('index.json')
-      ? catalog
-      : String(url).endsWith('go/extension.json')
-        ? GO_EXTENSION
-        : String(url).endsWith('nim/extension.json')
-          ? NIM_EXTENSION
-          : null
+    const manifests: Record<string, unknown> = {
+      go: GO_EXTENSION,
+      nim: NIM_EXTENSION,
+      vesper: VESPER_EXTENSION,
+      catppuccin: CATPPUCCIN_EXTENSION,
+    }
+    const served = Object.entries(manifests).find(([id]) =>
+      String(url).endsWith(`${id}/extension.json`),
+    )
+    const body = String(url).endsWith('index.json') ? catalog : (served?.[1] ?? null)
     return Promise.resolve(
       body ? new Response(JSON.stringify(body)) : new Response('no', { status: 404 }),
     )
@@ -353,4 +415,69 @@ test('a kind search reaches what is installed too', async () => {
   // The preinstalled set: typescript and html carry servers, markdown does not.
   expect(frame).toContain('TypeScript')
   expect(frame).not.toContain('Markdown')
+})
+
+test('a theme extension offers to activate what it brought', async () => {
+  catalog = THEME_INDEX
+  const dir = fixture({ 'a.ts': 'const a = 1\n' })
+  const t = await launch(dir, { extensionUpdates: true }, { height: 40 })
+
+  await runCommand(t, 'Check for extension updates')
+  await untilFrame(t, 'Extension market: 2 extensions')
+  await openMarketRow(t, 'Vesper')
+  await untilFrame(t, 'Extension available')
+  await settle(t)
+  t.mockInput.pressEnter()
+
+  // Installing a palette is not choosing one, so the offer follows the install:
+  // one theme is a yes/no, there being nothing to choose between.
+  await untilFrame(t, 'Extension installed')
+  expect(t.captureCharFrame()).toContain('Use the Vesper theme?')
+  await settle(t)
+  t.mockInput.pressEnter()
+
+  await untilFrame(t, 'Theme: Vesper')
+  expect(JSON.parse(readFileSync(CONFIG_FILE, 'utf8')).theme).toBe('vesper')
+})
+
+test('several appearances are a choice, and declining changes nothing', async () => {
+  catalog = THEME_INDEX
+  const dir = fixture({ 'a.ts': 'const a = 1\n' })
+  const t = await launch(dir, { extensionUpdates: true }, { height: 40 })
+
+  await runCommand(t, 'Check for extension updates')
+  await untilFrame(t, 'Extension market: 2 extensions')
+  await openMarketRow(t, 'Catppuccin')
+  await untilFrame(t, 'Extension available')
+  await settle(t)
+  t.mockInput.pressEnter()
+
+  await untilFrame(t, 'Extension installed')
+  const frame = t.captureCharFrame()
+  expect(frame).toContain('Catppuccin Mocha theme')
+  // The icon set is on the same list: an appearance extension may carry both,
+  // and each is a thing to switch to.
+  expect(frame).toContain('Catppuccin Icons file icons')
+
+  // Esc is "keep what I have": the extension stays installed either way.
+  await pressEscape(t)
+  await settle(t)
+  expect(t.captureCharFrame()).not.toContain('Extension installed')
+  expect(JSON.parse(readFileSync(CONFIG_FILE, 'utf8')).theme).not.toBe('catppuccin-mocha')
+})
+
+test('a language extension raises no such offer', async () => {
+  const dir = fixture({ 'a.nim': 'proc main = discard\n' })
+  const t = await launch(dir, { extensionUpdates: true }, { height: 40 })
+
+  await runCommand(t, 'Check for extension updates')
+  await untilFrame(t, 'Extension market')
+  await openMarketRow(t, 'Nim')
+  await untilFrame(t, 'Extension available')
+  await settle(t)
+  t.mockInput.pressEnter()
+
+  await untilFrame(t, 'Installed Nim 1.0.0')
+  await settle(t, 200)
+  expect(t.captureCharFrame()).not.toContain('Extension installed')
 })

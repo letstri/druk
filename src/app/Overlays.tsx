@@ -41,6 +41,7 @@ import type { Workspace } from './workspace'
 
 type InstallServerPrompt = Extract<Prompt, { kind: 'installServer' }>
 type ReviewKindPrompt = Extract<Prompt, { kind: 'reviewKind' }>
+type ActivatePrompt = Extract<Prompt, { kind: 'activateExtension' }>
 type StashPickPrompt = Extract<Prompt, { kind: 'stashPick' }>
 type StashActionPrompt = Extract<Prompt, { kind: 'stashAction' }>
 type TagDeletePrompt = Extract<Prompt, { kind: 'tagDelete' }>
@@ -238,6 +239,13 @@ export function OverlayStack(props: { ctx: AppContext; commands: Accessor<Comman
     return ask?.kind === 'reviewKind' ? ask : null
   })
 
+  // A single appearance is the confirm modal below — there is nothing to choose
+  // between — so only a longer offer reaches this one.
+  const activation = createMemo<ActivatePrompt | null>(() => {
+    const ask = prompts.prompt()
+    return ask?.kind === 'activateExtension' && ask.choices.length > 1 ? ask : null
+  })
+
   /** One narrowing memo per picker prompt, so each `Show` keys its child on it. */
   const promptOf = <K extends NonNullable<Prompt>['kind']>(kind: K) =>
     createMemo<Extract<Prompt, { kind: K }> | null>(() => {
@@ -298,6 +306,19 @@ export function OverlayStack(props: { ctx: AppContext; commands: Accessor<Comman
               { id: 'both', label: 'Both changes, current first' },
             ]}
             onPick={prompts.chooseConflictSide}
+            onCancel={prompts.cancelPrompt}
+          />
+        )}
+      </Show>
+      <Show when={activation()}>
+        {(ask: () => ActivatePrompt) => (
+          <ChoiceModal
+            title="Extension installed"
+            message={`${ask().name} is installed. Use one of what it adds?${
+              ask().more > 0 ? ` ${ask().more} more are in the palette.` : ''
+            }`}
+            choices={ask().choices}
+            onPick={prompts.chooseActivation}
             onCancel={prompts.cancelPrompt}
           />
         )}

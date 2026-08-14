@@ -441,7 +441,13 @@ settings — the startup check and the registry URL — are on the settings page
 an extension market — `extensions/` **in this repository**, one folder per extension, served
 raw from `main`, so a merged pull request is installable without a druk release;
 the panel's `AVAILABLE` section installs one after a confirm that names the
-commands it would have druk spawn, an installed extension with a newer version in the
+commands it would have druk spawn, an extension that brought a theme or an icon
+set is offered it the moment it lands — installing a palette is not choosing one,
+and a theme sitting in a list nobody opens is a theme installed for nothing: one
+appearance is a yes/no, several are a list to pick from (Esc keeps what is in
+force), and whatever the config already names is left off it, since the upgrade
+path installs precisely the theme the config asks for and offering that is
+offering to do nothing — an installed extension with a newer version in the
 catalog is updated automatically by the startup check, the status bar saying so
 (never a preinstalled one, which is part of the binary and updates with druk itself —
 a disk copy of a built-in's id is skipped and reported rather than loaded; the confirm

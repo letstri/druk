@@ -276,6 +276,14 @@ export function createPromptHandlers(deps: {
     if (chosen) void lsp.install(p.id, p.name, p.install, chosen)
   }
 
+  /** An appearance picked from what a fresh install brought: apply it. */
+  const chooseActivation = (choice: string) => {
+    const p = prompt()
+    setPrompt(null)
+    if (p?.kind !== 'activateExtension') return
+    if (p.choices.some(candidate => candidate.id === choice)) market.activate(choice)
+  }
+
   /** Carry out whatever the open confirm prompt was asking about. */
   const confirmPrompt = () => {
     const p = prompt()
@@ -338,6 +346,10 @@ export function createPromptHandlers(deps: {
         return void lsp.uninstall(p.id)
       case 'installExtension':
         return market.accept(p.id)
+      // The one-appearance case answers here; two or more are a choice modal
+      // instead, and `confirmation` returns null for those.
+      case 'activateExtension':
+        return market.activate(p.choices[0]!.id)
       case 'uninstallExtension': {
         // The servers go first: removing the extension reloads the manifests,
         // and `lsp.uninstall` reads the spec it is about out of that registry —
@@ -531,6 +543,18 @@ export function createPromptHandlers(deps: {
           danger: false,
           message: `${p.name} is not installed. Download it into ${SERVER_ROOT}?`,
         }
+      // One appearance is a yes/no; several are a `ChoiceModal` in Overlays,
+      // which is why this returns null for them.
+      case 'activateExtension': {
+        const only = p.choices.length === 1 ? p.choices[0]! : null
+        if (!only) return null
+        return {
+          title: 'Extension installed',
+          verb: 'use it',
+          danger: false,
+          message: `${p.name} is installed. Use the ${only.label}?`,
+        }
+      }
       case 'installExtension':
         return {
           title: 'Extension available',
@@ -557,6 +581,7 @@ export function createPromptHandlers(deps: {
     submitPrompt,
     confirmPrompt,
     chooseInstallServer,
+    chooseActivation,
     chooseReviewKind,
     chooseConflictSide,
     chooseStash,
