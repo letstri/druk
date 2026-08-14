@@ -1,7 +1,7 @@
 {
   "id": "typescript",
   "name": "TypeScript",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "TypeScript, JavaScript and their React dialects, with typescript-language-server. A project on TypeScript 7 is served by its own `tsc --lsp` instead.",
   "languages": [
     {
@@ -9,7 +9,7 @@
       "label": "ts",
       "lineComment": "//",
       "grammar": {
-        "bundled": true
+        "vendored": "tsx"
       }
     },
     {
@@ -17,7 +17,7 @@
       "label": "js",
       "lineComment": "//",
       "grammar": {
-        "bundled": true
+        "vendored": "tsx"
       }
     },
     {

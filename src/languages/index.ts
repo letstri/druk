@@ -24,7 +24,11 @@ export interface Language {
   label?: string
   /**
    * Grammar shipped with OpenTUI — no wasm/query needed from us.
-   * Bundled today: javascript, typescript, markdown, zig.
+   * Bundled today: markdown, zig. Not typescript/javascript, deliberately:
+   * OpenTUI's bundled queries gate identifier captures behind `#lua-match?`
+   * predicates its worker never evaluates, so every identifier matched
+   * `@type` and `@constant` too and painted as a constant. The typescript
+   * extension points those filetypes at the vendored tsx grammar instead.
    */
   bundled?: boolean
   /** Path to the grammar wasm, when the grammar is vendored or an extension's own. */

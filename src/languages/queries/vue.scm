@@ -1,7 +1,10 @@
 (comment) @comment
 (tag_name) @tag
-[(attribute_name) (directive_name)] @attribute
-[(directive_argument) (directive_modifier)] @property
+; The argument and modifier are @attribute like the name: `:title` is a
+; directive_name of one character and a directive_argument holding the word, so
+; any split paints the `:` and the `title` in two colours — and `:title` beside
+; a plain `class` read as two kinds of thing where VS Code reads one.
+[(attribute_name) (directive_name) (directive_argument) (directive_modifier)] @attribute
 [(quoted_attribute_value) (attribute_value)] @string
 (interpolation) @embedded
 ["<" ">" "</" "/>"] @punctuation.bracket
