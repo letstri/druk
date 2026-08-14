@@ -266,6 +266,7 @@ export function OverlayStack(props: { ctx: AppContext; commands: Accessor<Comman
           <PromptModal
             title={title()}
             initialValue={prompts.promptValue()}
+            history={prompts.promptHistory()}
             onSubmit={prompts.submitPrompt}
             onCancel={() => prompts.setPrompt(null)}
           />

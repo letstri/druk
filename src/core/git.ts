@@ -1112,6 +1112,25 @@ export async function upstreamCommits(
     })
 }
 
+/** How far back the commit box's ↑ can reach. */
+const MESSAGE_LOG_CAP = 50
+
+/**
+ * Subjects of the last commits, newest first — the history the commit box walks
+ * with ↑/↓. Subjects rather than whole messages because the box is one line, and
+ * deduplicated because a log full of `wip` is a history that walks nowhere.
+ */
+export async function recentCommitMessages(cwd: string): Promise<string[]> {
+  const run = await gitAsync(cwd, ['log', '-n', String(MESSAGE_LOG_CAP), '--format=%s'], 5000)
+  if (run.status !== 0) return []
+  const seen = new Set<string>()
+  for (const line of run.stdout.split('\n')) {
+    const subject = line.trim()
+    if (subject.length > 0) seen.add(subject)
+  }
+  return [...seen]
+}
+
 export function inRepository(cwd: string): boolean {
   return git(cwd, ['rev-parse', '--is-inside-work-tree'], 3000).stdout?.trim() === 'true'
 }

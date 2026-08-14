@@ -694,13 +694,14 @@ export function App(props: {
                     iconTheme={settings.activeIconTheme()}
                     commitMessage={git.commitMessage()}
                     messageEditing={git.messageEditing()}
+                    hasMessageHistory={git.messageHistory().length > 0}
                     hasUpstream={git.upstream()?.name != null}
                     onFocus={() => panes.setFocus('tree')}
                     onActivate={actions.gitActivateRow}
                     onCollapseAll={actions.gitCollapseAll}
                     onToggleStage={actions.gitToggleStage}
                     onMessageFocus={actions.gitFocusMessage}
-                    onMessageInput={git.setCommitMessage}
+                    onMessageInput={git.typeMessage}
                     onCommit={actions.gitCommitBox}
                     onSync={actions.gitSync}
                   />

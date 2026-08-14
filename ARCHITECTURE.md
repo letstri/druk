@@ -65,6 +65,8 @@ scripts/
     git.ts           queries, mutations, and async branch-comparison metadata/blob reads
     repos.ts         which repositories the opened folder holds, and which one a path
                      is in — filesystem-only, so the tree may ask per row
+    messageHistory.ts one ↑/↓ step through past entries in a one-line field, draft
+                     included — the commit box and the commit prompt share it
     review.ts        review notes and their replies: the model, and the store
                      beside the config
     diff.ts          Myers line diff between two texts, emitted as a unified patch

@@ -86,6 +86,55 @@ test('the commit box keeps its message across Esc, and Enter needs one', async (
   expect(log).not.toContain('half a thought')
 })
 
+test('↑ in the commit box walks past subjects, ↓ comes back to the draft', async () => {
+  const dir = repo()
+  git(dir, 'commit', '--allow-empty', '-qm', 'second thoughts')
+  const t = await launch(dir)
+  await press(t, i => void i.pressKeys([TOGGLE]))
+
+  await press(t, i => void i.typeText('c'))
+  await press(t, i => void i.typeText('half a thought'))
+  await until(t, () => frame(t).includes('half a thought'))
+
+  await press(t, i => i.pressArrow('up'))
+  await until(t, () => frame(t).includes('second thoughts'))
+  await press(t, i => i.pressArrow('up'))
+  await until(t, () => frame(t).includes('init'))
+  // Walking forward again ends on what was being typed, not on an empty box.
+  await press(t, i => i.pressArrow('down'))
+  await until(t, () => frame(t).includes('second thoughts'))
+  await press(t, i => i.pressArrow('down'))
+  await until(t, () => frame(t).includes('half a thought'))
+})
+
+test('a recalled subject is committed as it stands', async () => {
+  const dir = repo()
+  git(dir, 'add', 'a.ts')
+  const t = await launch(dir)
+  await press(t, i => void i.pressKeys([TOGGLE]))
+
+  await press(t, i => void i.typeText('c'))
+  await press(t, i => i.pressArrow('up'))
+  await until(t, () => frame(t).includes('init'))
+  await press(t, i => i.pressEnter())
+
+  await until(t, () => {
+    const log = execFileSync('git', ['log', '--format=%s'], { cwd: dir }).toString()
+    return log.split('\n').filter(line => line === 'init').length === 2
+  })
+})
+
+test('the commit message prompt walks the same history', async () => {
+  const dir = repo()
+  git(dir, 'add', 'a.ts')
+  const t = await launch(dir)
+
+  await runCommand(t, 'Commit & push')
+  await until(t, () => frame(t).includes('↑↓ history'))
+  await press(t, i => i.pressArrow('up'))
+  await until(t, () => frame(t).includes('init'))
+})
+
 test('Commit & sync lands the commit on origin and pulls what it had', async () => {
   const { mine, origin } = behindWithEdit()
   const t = await launch(mine)

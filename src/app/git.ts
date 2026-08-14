@@ -17,12 +17,14 @@ import {
   pullAndPush,
   push,
   PUSH_REJECTED,
+  recentCommitMessages,
   statusEntriesAsync,
   statusMap,
   upstreamCommits,
   upstreamOf,
 } from '../core/git'
 import type { ChangeArea, GitResult, LineChange, StatusEntry, Upstream } from '../core/git'
+import { stepHistory } from '../core/messageHistory'
 import { discoverRepos, groupByRepo, repoOf } from '../core/repos'
 import type { CommitFile } from '../ui/CommitModal'
 import type { EditorBridge } from './editor'
@@ -94,6 +96,11 @@ export function createGit(
   const [commitMessage, setCommitMessage] = createSignal('')
   /** Whether the box owns the keyboard — a real input only while it does. */
   const [messageEditing, setMessageEditing] = createSignal(false)
+  /** Past commit subjects ↑ walks back through, newest first. */
+  const [messageHistory, setMessageHistory] = createSignal<string[]>([])
+  /** How far back the walk stands; -1 is the draft `messageDraft` holds. */
+  const [messageAt, setMessageAt] = createSignal(-1)
+  const [messageDraft, setMessageDraft] = createSignal('')
   /**
    * What every comparison is against: null is HEAD, and a ref name points the
    * whole editor at that branch instead — tree marks, gutter, the panel's list
@@ -188,6 +195,40 @@ export function createGit(
 
   const inRepo = () => repos().length > 0
 
+  /**
+   * Read the repository's recent subjects for ↑, and put the walk back at the
+   * draft. Asked for when a commit message field opens rather than kept fresh:
+   * the log only changes when a commit lands, and one that just landed is in the
+   * next answer anyway.
+   */
+  const loadMessageHistory = async () => {
+    setMessageAt(-1)
+    setMessageDraft('')
+    const repo = activeRepo()
+    setMessageHistory(repo === null ? [] : await recentCommitMessages(repo))
+  }
+
+  /** ↑ (`delta` 1, older) and ↓ (-1, newer) in the panel's commit box. */
+  const walkMessageHistory = (delta: number) => {
+    const step = stepHistory(messageHistory(), messageAt(), delta, commitMessage(), messageDraft())
+    if (!step) return
+    setMessageAt(step.at)
+    setMessageDraft(step.draft)
+    setCommitMessage(step.value)
+  }
+
+  /**
+   * What the box's own input does. Recalling sets the renderable's value, which
+   * makes it emit `input` straight back — so only a value that is *not* what the
+   * walk put there is someone typing, and typing is what ends the walk. Without
+   * that test every ↑ would cancel itself.
+   */
+  const typeMessage = (value: string) => {
+    setCommitMessage(value)
+    const at = messageAt()
+    if (at >= 0 && value !== messageHistory()[at]) setMessageAt(-1)
+  }
+
   const toggleCollapsed = (area: ChangeArea | CommitGroup, rel: string) =>
     setCollapsed(previous => {
       const next = new Set(previous)
@@ -260,6 +301,10 @@ export function createGit(
     setCommitMessage,
     messageEditing,
     setMessageEditing,
+    messageHistory,
+    loadMessageHistory,
+    walkMessageHistory,
+    typeMessage,
     diffBase,
     setDiffBase,
     changes,

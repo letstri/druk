@@ -215,6 +215,14 @@ export function installKeyboard(ctx: AppContext, actions: CommandActions) {
         case 'enter':
           actions.gitCommitBox()
           break
+        // The shell's history in a one-line field: ↑ walks back through past
+        // commit subjects, ↓ forward and out to whatever was being typed.
+        case 'up':
+          git.walkMessageHistory(1)
+          break
+        case 'down':
+          git.walkMessageHistory(-1)
+          break
         case 'escape':
           git.setMessageEditing(false)
           break

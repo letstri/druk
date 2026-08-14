@@ -409,6 +409,11 @@ export function createPromptHandlers(deps: {
     if (p?.kind === 'commitAmend') return p.subject
     return ''
   }
+  /** The prompts that are a commit message box, where ↑ walks past subjects. */
+  const promptHistory = () => {
+    const p = prompt()
+    return p?.kind === 'commit' || p?.kind === 'commitAmend' ? git.messageHistory() : undefined
+  }
 
   /**
    * What the confirm modal asks, per prompt kind. Narrowing on `p.kind` is what
@@ -592,6 +597,7 @@ export function createPromptHandlers(deps: {
     cancelPrompt,
     promptTitle,
     promptValue,
+    promptHistory,
     confirmation,
   }
 }

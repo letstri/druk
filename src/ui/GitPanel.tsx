@@ -58,6 +58,8 @@ export interface GitPanelProps {
   commitMessage: string
   /** Whether the box owns the keyboard — a real input only while it does. */
   messageEditing: boolean
+  /** Whether ↑ has anything to recall — what the placeholder offers. */
+  hasMessageHistory: boolean
   /** Whether the branch has an upstream — what makes Sync a sync, not a publish. */
   hasUpstream: boolean
   onFocus: () => void
@@ -210,7 +212,10 @@ export function GitPanel(props: GitPanelProps) {
             >
               <TextInput
                 value={props.commitMessage}
-                placeholder="Commit message"
+                // The empty box is the one place with room to say the key exists.
+                placeholder={
+                  props.hasMessageHistory ? 'Commit message (↑ history)' : 'Commit message'
+                }
                 onInput={props.onMessageInput}
               />
             </Show>

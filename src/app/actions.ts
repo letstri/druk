@@ -368,6 +368,8 @@ export function createCommands(ctx: AppContext) {
   const startCommit = (variant: CommitVariant) => {
     const repo = git.activeRepo()
     if (repo === null) return say(noRepository(git), 'warn')
+    // The message prompt is a commit box too, and ↑ walks the same history there.
+    void git.loadMessageHistory()
     const staged = stagedPaths(repo)
     if (staged.size > 0) return ctx.prompts.setPrompt({ kind: 'commit', paths: null, variant })
     // One repository's changes: a commit is one repository's, and offering
@@ -815,6 +817,7 @@ export function createCommands(ctx: AppContext) {
       if (repo === null) return say(noRepository(git), 'warn')
       const subject = lastCommitSubject(repo)
       if (!subject) return say('No commit to amend', 'warn')
+      void git.loadMessageHistory()
       ctx.prompts.setPrompt({ kind: 'commitAmend', subject, repo })
     },
     /**
@@ -828,6 +831,7 @@ export function createCommands(ctx: AppContext) {
       if (!git.staging()) return say('Comparing against a branch — nothing to commit here', 'warn')
       panes.showView('git')
       git.setMessageEditing(true)
+      void git.loadMessageHistory()
     },
     gitCommitBox: () => {
       const repo = git.activeRepo()

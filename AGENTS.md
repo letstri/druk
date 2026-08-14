@@ -128,6 +128,12 @@ folded or not. A commit box sits under the panel's
 header, VS Code's message field: `c` (or a click) puts the keyboard in it, Enter
 commits the index with its words — or, with nothing staged, offers to commit every
 change behind a confirm naming the count — Esc leaves the rows with the message kept,
+and ↑/↓ walk the repository's last fifty commit subjects the way a shell walks its
+history, ↓ coming back out to whatever was being typed (`stepHistory` in
+`src/core/messageHistory.ts` is the one step, shared with the message prompt
+`Commit…` opens; the log is read when a message field opens, and typing anything
+ends the walk — a recall *sets* the input's value, which makes it emit `input`
+straight back, so only a value that is not what the walk wrote counts as typing),
 and under it a `✓ Commit` button beside `⇅ sync` (with the ↑↓ counts; `⇡ publish` on
 a branch origin has never seen — one press pulls what origin has and pushes, `s` the
 same). Under the change list sit VS Code's sync sections — `Incoming` and `Outgoing`,
