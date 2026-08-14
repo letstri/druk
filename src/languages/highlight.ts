@@ -127,6 +127,18 @@ export function mixColors(base: string, tint: string, t: number): string {
 /** The Deprecated tag's span: crossed out, keeping its syntax colour. */
 export const DEPRECATED_GROUP = 'druk.problem.deprecated'
 
+/**
+ * A merge conflict's three parts. The two sides are tinted the way the diff view
+ * tints its own — ours is what the branch already had, theirs is what is coming
+ * in — and the marker lines themselves are painted loud, since they are the only
+ * rows that are not code and the only ones that have to go.
+ */
+export const CONFLICT_GROUPS = {
+  ours: 'druk.conflict.ours',
+  theirs: 'druk.conflict.theirs',
+  marker: 'druk.conflict.marker',
+} as const
+
 /** Shared style table used by every editor buffer (built from the active theme). */
 export function getSyntaxStyle(): SyntaxStyle {
   // Keyed on the painted theme: every theme's `keyword` (etc.) reuses the same
@@ -156,6 +168,19 @@ export function getSyntaxStyle(): SyntaxStyle {
       // The hatch a split diff pads a side with is glyphs, not a line color, so
       // its stroke is a capture group like any other painted span.
       [DIFF_FILLER]: { fg: mixColors(ui.solidBg, ui.dim, 0.55) },
+      // Backgrounds only, for the same reason the problem tints are: the code
+      // inside a conflict is still code and keeps the colours it was painted in.
+      // The same 0.14 the diff view blends its two sides at, so a conflict reads
+      // as the diff it is.
+      [CONFLICT_GROUPS.ours]: { bg: mixColors(ui.solidBg, ui.gitDeleted, 0.14) },
+      [CONFLICT_GROUPS.theirs]: { bg: mixColors(ui.solidBg, ui.gitAdded, 0.14) },
+      // The marker rows are the exception: they are not the file's text and the
+      // whole row is one span, so they take a foreground of their own.
+      [CONFLICT_GROUPS.marker]: {
+        fg: ui.dirty,
+        bg: mixColors(ui.solidBg, ui.dirty, 0.18),
+        bold: true,
+      },
     })
     registerStruckThrough(syntaxStyle, DEPRECATED_GROUP)
   }

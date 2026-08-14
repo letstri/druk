@@ -68,7 +68,6 @@ export function installKeyboard(ctx: AppContext, actions: CommandActions) {
     'tabs.close': () => {
       // A page is the frontmost "tab": close it before any file tab.
       if (workspace.page()) return workspace.setPage(null)
-      if (workspace.diff()) return workspace.setDiff(null)
       if (commitView.isOpen()) return commitView.close()
       if (comparison.detailOpen()) return comparison.closeDetail()
       if (workspace.activePath()) workspace.closeTab(workspace.activePath()!)
@@ -102,11 +101,18 @@ export function installKeyboard(ctx: AppContext, actions: CommandActions) {
     'view.focus': actions.toggleFocus,
     'git.diffFile': actions.gitDiffFile,
     'git.diffAll': actions.gitDiffAll,
+    'git.diffLayout': actions.toggleDiffLayout,
     'git.commit': actions.gitCommit,
     'git.stage': actions.gitToggleStage,
     'git.discard': actions.gitDiscard,
     'git.push': actions.gitPush,
     'git.compare': actions.gitCompareBranches,
+    'git.conflictResolve': actions.conflictResolve,
+    'git.conflictNext': actions.conflictNext,
+    'git.conflictPrev': actions.conflictPrev,
+    'git.acceptOurs': () => actions.conflictAccept('ours'),
+    'git.acceptTheirs': () => actions.conflictAccept('theirs'),
+    'git.acceptBoth': () => actions.conflictAccept('both'),
     'problems.list': actions.problemsList,
     'problems.detail': actions.problemsAtCursor,
     'problems.next': actions.problemsNext,
@@ -177,7 +183,6 @@ export function installKeyboard(ctx: AppContext, actions: CommandActions) {
       // focus to the tree here would take the key away before it ever arrives.
       // Same when the completion menu is open: Esc dismisses it in EditorPane.
       const pageUp =
-        workspace.diff() !== null ||
         workspace.page() !== null ||
         commitView.isOpen() ||
         comparison.detailOpen() ||
@@ -262,7 +267,7 @@ export function installKeyboard(ctx: AppContext, actions: CommandActions) {
           // Shift+Tab walks the tab strip above the sidebar, the way it walks
           // any other one; plain Tab keeps handing the keyboard to the editor.
           if (key.shift) panes.showView('files')
-          else if (workspace.activePath() || workspace.diff()) panes.setFocus('editor')
+          else if (workspace.activePath() || workspace.page()) panes.setFocus('editor')
           break
         case 'up':
           extensions.move(-1)
@@ -307,7 +312,7 @@ export function installKeyboard(ctx: AppContext, actions: CommandActions) {
           // Shift+Tab walks the tab strip above the sidebar, the way it walks any
           // other one; plain Tab keeps handing the keyboard to the editor.
           if (key.shift) panes.showView('extensions')
-          else if (workspace.activePath() || workspace.diff()) panes.setFocus('editor')
+          else if (workspace.activePath() || workspace.page()) panes.setFocus('editor')
           break
         // The cursor is the pager, as it is in the source-control panel: the
         // file the remark is about follows it into the editor slot.
@@ -384,6 +389,12 @@ export function installKeyboard(ctx: AppContext, actions: CommandActions) {
         actions.gitCompareBranches()
         return
       }
+      // Shift, because plain `s` here is sync. The changes page answers to `s`
+      // itself, but the panel is where the keyboard sits while it is read.
+      if (key.shift && k === 's') {
+        actions.toggleDiffLayout()
+        return
+      }
 
       const rows = git.rows()
       const at = Math.max(0, Math.min(git.gitCursor(), rows.length - 1))
@@ -396,7 +407,7 @@ export function installKeyboard(ctx: AppContext, actions: CommandActions) {
           // Shift+Tab walks the tab strip above the sidebar, the way it walks any
           // other one; plain Tab keeps handing the keyboard to the editor.
           if (key.shift) panes.showView('review')
-          else if (workspace.activePath() || workspace.diff() || workspace.page()) {
+          else if (workspace.activePath() || workspace.page()) {
             panes.setFocus('editor')
           }
           break
@@ -460,7 +471,6 @@ export function installKeyboard(ctx: AppContext, actions: CommandActions) {
           // diff, so it goes first.
           if (commitView.isOpen()) commitView.close()
           else if (workspace.page() === 'allChanges') workspace.setPage(null)
-          else if (workspace.diff()) workspace.setDiff(null)
           else panes.toggleGitView()
           break
       }
@@ -473,7 +483,7 @@ export function installKeyboard(ctx: AppContext, actions: CommandActions) {
         // Shift+Tab walks the tab strip above the sidebar (see the panel's copy).
         if (key.shift) panes.showView('git')
         // A page counts as an editor to hand focus to, file open or not.
-        else if (workspace.activePath() || workspace.diff() || workspace.page()) {
+        else if (workspace.activePath() || workspace.page()) {
           panes.setFocus('editor')
         }
         break

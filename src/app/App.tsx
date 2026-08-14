@@ -24,8 +24,6 @@ import { ui } from '../themes'
 import { ChangesView } from '../ui/ChangesView'
 import { ComparePanel } from '../ui/ComparePanel'
 import { ComparisonView } from '../ui/ComparisonView'
-import { DiffView } from '../ui/DiffView'
-import type { DiffFile } from '../ui/DiffView'
 import { EditorPane } from '../ui/EditorPane'
 import { ExtensionsPanel } from '../ui/ExtensionsPanel'
 import { FileTree } from '../ui/FileTree'
@@ -227,7 +225,6 @@ export function App(props: {
    * disagreement left the key belonging to a textarea that had stopped listening.
    */
   const editorCovered = () =>
-    workspace.diff() !== null ||
     workspace.page() !== null ||
     comparison.detailOpen() ||
     commitView.isOpen() ||
@@ -287,13 +284,13 @@ export function App(props: {
   // being compared against moving under it. `statusEntries` is the async fill
   // that `revision` only *starts* — a discard's bump would otherwise rebuild
   // the stacked page from the list that still held the file.
-  // `refreshDiff` rebuilds the stacked page and the one-file diff, and returns
-  // at once when neither is up.
+  // `refreshChanges` rebuilds the stacked page, and returns at once when it is
+  // not up.
   createEffect(
     on(
       () => [git.revision(), editor.reloadKey(), git.diffBase(), git.statusEntries()] as const,
       () => {
-        actions.refreshDiff()
+        actions.refreshChanges()
         comparison.refresh()
       },
     ),
@@ -397,11 +394,11 @@ export function App(props: {
   )
 
   /** The state of the strip's rendered-markdown button, or null when it has none.
-   * Keyed on the view rather than the path: the diff tab of a .md file is a diff,
-   * and its own page has nothing to render. */
+   * Keyed on the view rather than the path: a page over the editor slot has
+   * nothing to render. */
   const markdownTab = () => {
     const view = workspace.activeView()
-    if (!view || workspace.isDiffView(view) || !isMarkdownPath(view)) return null
+    if (!view || !isMarkdownPath(view)) return null
     return { rendered: view === workspace.renderedPath() }
   }
 
@@ -409,10 +406,6 @@ export function App(props: {
     comparison.closeDetail()
     panes.focusTree()
   }
-
-  /** The diff was opened from the source-control panel, and the panel is still
-   * there to go back to. */
-  const backToPanel = () => panes.sidebar() && panes.view() === 'git'
 
   onMount(() => {
     // A shortcut that did not take is invisible until the key is pressed and
@@ -578,25 +571,16 @@ export function App(props: {
       <Tabs
         tabs={workspace.views().map(id => ({
           id,
-          // The diff's own tab, marked as one: a file and its diff are two tabs
-          // for one path, and the strip has to say which is which. A markdown tab
-          // reading as the rendered document is still the one tab, so it is the
-          // same name with a mark rather than a second entry.
-          name: workspace.isDiffView(id)
-            ? `⇄ ${basename(id)}`
-            : id === workspace.renderedPath()
-              ? `¶ ${basename(id)}`
-              : basename(id),
+          // A markdown tab reading as the rendered document is still the one
+          // tab, so it is the same name with a mark rather than a second entry.
+          name: id === workspace.renderedPath() ? `¶ ${basename(id)}` : basename(id),
           dirty: workspace.buffers[id]?.dirty ?? false,
           preview: id === workspace.previewPath(),
-          // The diff tab's id is `diff:<path>`, so its diagnostics are the file's
-          // — but the diff is not what they are marks in, and the tab already
-          // carries a glyph of its own.
-          severity: workspace.isDiffView(id) ? null : tabSeverity(id),
-          // A diff or rendered-markdown tab spends the glyph slot on the mark
-          // that says which it is; only a plain file tab has it to spare.
+          severity: tabSeverity(id),
+          // A rendered-markdown tab spends the glyph slot on the mark that says
+          // which it is; only a plain file tab has it to spare.
           icon:
-            config.tabIcons && !workspace.isDiffView(id) && id !== workspace.renderedPath()
+            config.tabIcons && id !== workspace.renderedPath()
               ? iconFor(settings.activeIconTheme(), { name: basename(id), isDir: false })
               : null,
         }))}
@@ -680,7 +664,6 @@ export function App(props: {
                 onActivate={node => {
                   // Landing in a file is how a page closes — the tree stays
                   // interactive while one is up, like any other editor page.
-                  workspace.setDiff(null)
                   workspace.setPage(null)
                   // Opening a file is the end of browsing; leaving the mode on
                   // would put the preview back over it on the way to the tree.
@@ -810,6 +793,7 @@ export function App(props: {
             problems={problemLines()}
             problemRanges={problemRanges()}
             problemText={config.lspInline}
+            conflicts={workspace.mergeConflicts()}
             reviews={review.marks()}
             reviewText={config.reviewInline}
             // Only while the panel is showing: the card is a reading aid that
@@ -864,12 +848,7 @@ export function App(props: {
             width={dimensions().width - (panes.sidebar() ? settings.treeWidth() + 1 : 0)}
             height={dimensions().height - 2}
             focused={panes.focus() === 'editor'}
-            blocked={
-              overlays.overlay() ||
-              workspace.diff() !== null ||
-              workspace.page() !== null ||
-              comparison.detailOpen()
-            }
+            blocked={overlays.overlay() || workspace.page() !== null || comparison.detailOpen()}
             onFocus={() => panes.setFocus('editor')}
           />
           <Show when={workspace.renderedPath()}>
@@ -924,37 +903,17 @@ export function App(props: {
                 meta={actions.allChangesMeta()}
                 focusKey={rowSlotKey(git.cursorRow())}
                 title={git.diffBase() ? `Against ${git.diffBase()}` : 'Uncommitted'}
+                mode={config.diffView}
                 width={dimensions().width - (panes.sidebar() ? settings.treeWidth() + 1 : 0)}
                 focused={panes.focus() === 'editor'}
                 blocked={overlays.overlay()}
                 onFocus={() => panes.setFocus('editor')}
+                onToggleMode={settings.toggleDiffView}
+                staging={git.staging() && !comparison.active()}
+                onToggleStage={actions.gitToggleStageKey}
                 onClose={() => workspace.setPage(null)}
               />
             </box>
-          </Show>
-          <Show when={workspace.diff()}>
-            {(file: () => DiffFile) => (
-              <box position="absolute" top={0} left={0} width="100%" height="100%" zIndex={50}>
-                <DiffView
-                  file={file()}
-                  mode={config.diffView}
-                  width={dimensions().width - (panes.sidebar() ? settings.treeWidth() + 1 : 0)}
-                  focused={panes.focus() === 'editor'}
-                  blocked={overlays.overlay()}
-                  onFocus={() => panes.setFocus('editor')}
-                  onToggleMode={settings.toggleDiffView}
-                  escLabel={backToPanel() ? 'panel' : 'close'}
-                  onClose={() => {
-                    // The panel is the only thing that pages to the next change,
-                    // so Esc here gives the focus back to it rather than closing:
-                    // Tab into the diff would otherwise be a dead end, with the
-                    // arrows scrolling and nothing left that moves to another file.
-                    if (backToPanel()) panes.focusTree()
-                    else workspace.setDiff(null)
-                  }}
-                />
-              </box>
-            )}
           </Show>
           {/* Above every page: it is a look at another file, and it lasts only
               as long as the tree is being walked. */}
@@ -1037,7 +996,7 @@ export function App(props: {
         behind={git.upstream()?.behind ?? 0}
         changed={git.gitStatus().size}
         problems={problemCounts()}
-        focus={panes.focus()}
+        focus={panes.keyPane()}
         busy={status.busy()}
         onBranch={actions.gitSwitchBranch}
         onSync={actions.gitSync}

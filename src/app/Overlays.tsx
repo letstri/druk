@@ -152,7 +152,6 @@ export function createOverlays(deps: {
     setSearch(null)
     // A page gives way to anything that lands in a file — `openFile` closes it,
     // but a match in the file already open never calls it.
-    workspace.setDiff(null)
     workspace.setPage(null)
     if (match.path && match.path !== workspace.activePath()) workspace.openFile(match.path)
     editor.requestGoto(match.line, match.col)
@@ -250,6 +249,7 @@ export function OverlayStack(props: { ctx: AppContext; commands: Accessor<Comman
   const tagDelete = promptOf('tagDelete')
   const remoteRemove = promptOf('remoteRemove')
   const fileHistory = promptOf('fileHistory')
+  const conflictSide = promptOf('mergeConflict')
 
   return (
     <>
@@ -281,6 +281,23 @@ export function OverlayStack(props: { ctx: AppContext; commands: Accessor<Comman
             message={`What kind of remark is this, on ${basename(ask().path)}:${ask().line + 1}?`}
             choices={KIND_CHOICES}
             onPick={prompts.chooseReviewKind}
+            onCancel={prompts.cancelPrompt}
+          />
+        )}
+      </Show>
+      <Show when={conflictSide()}>
+        {(ask: () => Extract<Prompt, { kind: 'mergeConflict' }>) => (
+          <ChoiceModal
+            title="Merge conflict"
+            message={`Which side of the conflict on line ${ask().line + 1} should stay?`}
+            choices={[
+              // Named by the markers where git wrote a name, since "current" and
+              // "incoming" mean nothing until you know which branch each one is.
+              { id: 'ours', label: `Current change${ask().ours ? ` (${ask().ours})` : ''}` },
+              { id: 'theirs', label: `Incoming change${ask().theirs ? ` (${ask().theirs})` : ''}` },
+              { id: 'both', label: 'Both changes, current first' },
+            ]}
+            onPick={prompts.chooseConflictSide}
             onCancel={prompts.cancelPrompt}
           />
         )}
@@ -511,7 +528,6 @@ export function OverlayStack(props: { ctx: AppContext; commands: Accessor<Comman
           onPick={row => {
             overlays.setProblemsOpen(null)
             // `openFile` closes the page, but a problem in the open file skips it.
-            workspace.setDiff(null)
             workspace.setPage(null)
             if (row.path !== workspace.activePath()) workspace.openFile(row.path)
             editor.requestGoto(row.line, row.col)

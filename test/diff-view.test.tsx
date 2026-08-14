@@ -42,7 +42,8 @@ test('the diff shows deletions, additions and both line numbers', async () => {
   const dir = repo({ 'a.ts': 'one\ntwo\nthree\n' })
   writeFileSync(join(dir, 'a.ts'), 'one\nTWO\nthree\nfour\n')
 
-  const t = await launch(dir)
+  // Wide: the page's hints only spell the layout out when the row can afford it.
+  const t = await launch(dir, {}, { width: 130 })
   await openDiff(t)
   // The renderable assembles its panes on a queued microtask and renders async;
   // under a loaded parallel suite a single flush is not always enough.
@@ -103,16 +104,17 @@ test('"Show all changes" is a palette command', async () => {
   expect(t.captureCharFrame()).toContain('Show all changes')
 })
 
-test('Tab into the diff, then Tab switches to side-by-side and back', async () => {
+test('Tab into the page, then s switches to side-by-side and back', async () => {
   const dir = repo({ 'a.ts': 'one\ntwo\nthree\n' })
   writeFileSync(join(dir, 'a.ts'), 'one\nTWO\nthree\n')
 
-  const t = await launch(dir)
+  const t = await launch(dir, {}, { width: 130 })
   await openDiff(t)
-  // The first Tab leaves the panel — the page only owns the keyboard once it
-  // has the focus, which is what keeps the arrows paging the changes.
+  // Tab leaves the panel — the page only owns the keyboard once it has the
+  // focus, which is what keeps the arrows paging the changes. Tab is the file
+  // walk inside the page, so `s` is what flips the layout.
   await press(t, i => i.pressTab())
-  await press(t, i => i.pressTab())
+  await press(t, i => i.pressKey('s'))
 
   const frame = t.captureCharFrame()
   expect(frame).toContain('side-by-side')
@@ -120,7 +122,7 @@ test('Tab into the diff, then Tab switches to side-by-side and back', async () =
   expect(frame).toContain('- two')
   expect(frame).toContain('+ TWO')
 
-  await press(t, i => i.pressTab())
+  await press(t, i => i.pressKey('s'))
   expect(t.captureCharFrame()).not.toContain('side-by-side')
 })
 
@@ -132,15 +134,9 @@ test('an added file stays inline in split view — there is no side to compare',
   await openDiff(t)
   await untilFrame(t, '+ two')
 
-  const frame = t.captureCharFrame()
-  expect(frame).toContain('inline')
-  expect(frame).not.toContain('side-by-side')
-  // Nothing to toggle, so Tab is dead here rather than flipping the setting.
-  expect(frame).not.toContain('Tab layout')
-
-  await press(t, i => i.pressTab())
-  await press(t, i => i.pressTab())
-  expect(t.captureCharFrame()).not.toContain('side-by-side')
+  // The page says side-by-side, but a one-sided change is drawn inline all the
+  // same: there is no removed side to pad, so nothing is hatched.
+  expect(t.captureCharFrame()).not.toContain(HATCH.repeat(4))
 })
 
 test('split view hatches the rows it pads a side with', async () => {
@@ -191,47 +187,35 @@ test('the hatch fills the pane again when the diff is given more columns', async
   for (const line of hatched) expect(line).toMatch(new RegExp(`${HATCH} +\\d+ \\+ `))
 })
 
-test('the panel cursor pages the diff: ↓ to the next change, ↑ back', async () => {
+test('every change is on the page at once, whichever row the cursor is on', async () => {
   const dir = repo({ 'a.ts': 'alpha\n', 'b.ts': 'beta\n' })
   writeFileSync(join(dir, 'a.ts'), 'ALPHA\n')
   writeFileSync(join(dir, 'b.ts'), 'BETA\n')
 
-  const t = await launch(dir)
+  const t = await launch(dir, {}, { height: 40 })
   await openDiff(t)
-  expect(t.captureCharFrame()).toContain('+ ALPHA')
-
-  await press(t, i => i.pressArrow('down'))
-  let frame = t.captureCharFrame()
-  expect(frame).toContain('b.ts')
-  expect(frame).toContain('+ BETA')
-  expect(frame).not.toContain('+ ALPHA')
-
-  await press(t, i => i.pressArrow('up'))
-  frame = t.captureCharFrame()
-  expect(frame).toContain('+ ALPHA')
-  expect(frame).not.toContain('+ BETA')
-})
-
-test('Esc in the diff hands the focus back to the panel, which pages on', async () => {
-  const dir = repo({ 'a.ts': 'alpha\n', 'b.ts': 'beta\n' })
-  writeFileSync(join(dir, 'a.ts'), 'ALPHA\n')
-  writeFileSync(join(dir, 'b.ts'), 'BETA\n')
-
-  // Wide enough for the page's long hint spelling, which is what names the key.
-  const t = await launch(dir, {}, { width: 130 })
-  await openDiff(t)
-  await press(t, i => i.pressTab()) // into the page: the arrows scroll here now
-  expect(t.captureCharFrame()).toContain('Esc panel')
-
-  await pressEscape(t)
-  // The page stayed up, and the panel has the keyboard again.
-  expect(t.captureCharFrame()).toContain('+ ALPHA')
-  await press(t, i => i.pressArrow('down'))
+  await untilFrame(t, '+ ALPHA')
   expect(t.captureCharFrame()).toContain('+ BETA')
 
-  // Esc from the panel is still what closes the page.
+  await press(t, i => i.pressArrow('down'))
+  const frame = t.captureCharFrame()
+  expect(frame).toContain('+ ALPHA')
+  expect(frame).toContain('+ BETA')
+})
+
+test('Esc closes the page from inside it', async () => {
+  const dir = repo({ 'a.ts': 'alpha\n', 'b.ts': 'beta\n' })
+  writeFileSync(join(dir, 'a.ts'), 'ALPHA\n')
+  writeFileSync(join(dir, 'b.ts'), 'BETA\n')
+
+  const t = await launch(dir, {}, { width: 130, height: 40 })
+  await openDiff(t)
+  await untilFrame(t, '+ ALPHA')
+  await press(t, i => i.pressTab()) // into the page: the arrows scroll here now
+  expect(t.captureCharFrame()).toContain('Esc close')
+
   await pressEscape(t)
-  expect(t.captureCharFrame()).not.toContain('+ BETA')
+  await untilGone(t, '+ ALPHA')
 })
 
 test('with the sidebar hidden, Esc closes the diff — there is no panel to go back to', async () => {
@@ -286,10 +270,13 @@ test('the mouse wheel scrolls the diff', async () => {
   await openDiff(t)
   await untilFrame(t, '- line0')
 
-  await t.mockMouse.scroll(60, 10, 'down')
+  // A tick is a row, and the page opens with the patch a few rows down — one
+  // wheel event would leave the first line on screen. A flush per tick: the
+  // renderer drops events sent faster than its minimum scroll interval.
+  for (let n = 0; n < 6; n++) await t.mockMouse.scroll(60, 10, 'down')
   await untilGone(t, '- line0')
 
-  await t.mockMouse.scroll(60, 10, 'up')
+  for (let n = 0; n < 8; n++) await t.mockMouse.scroll(60, 10, 'up')
   await untilFrame(t, '- line0')
 })
 
@@ -353,7 +340,7 @@ test('the palette opens over the diff, and Ctrl+W closes the page', async () => 
   expect(frame.split('\n')[0]).toContain('a.ts')
 })
 
-test('a long path is cut from the left so the hints stay on screen', async () => {
+test('a long path is cut from the left so the file header stays on screen', async () => {
   const dir = tempDir('druk-diff-')
   const git = (...args: string[]) => execFileSync('git', args, { cwd: dir })
   git('init', '-q', '-b', 'main')
@@ -370,9 +357,11 @@ test('a long path is cut from the left so the hints stay on screen', async () =>
   const t = await launch(dir)
   await openDiff(t)
 
-  const headerRow = t.captureCharFrame().split('\n')[1]!
-  expect(headerRow).toContain('Esc') // hints survived
-  expect(headerRow).toContain('…') // the path gave way instead
+  const headerRow = t
+    .captureCharFrame()
+    .split('\n')
+    .find(row => row.includes('name.test.tsx'))!
+  expect(headerRow).toContain('…') // the path gave way to the row's width
   expect(headerRow).toContain('name.test.tsx') // and kept its tail
 })
 
@@ -486,9 +475,9 @@ test('a patch of thousands of rows goes plain even under the byte limit', async 
   expect(t.captureCharFrame()).not.toContain('first 10000 lines') // under the cut, over the color line
 })
 
-test('paging between a small and a huge change turns syntax off and back on', async () => {
-  // The panes are reused across the panel's cursor moves, so the plain gate has
-  // to reach the pane a highlighted change already configured — and let go again.
+test('a huge change and a small one stack, each gated on its own', async () => {
+  // One page, one `<diff>` per file: the plain-and-cut gate is per section, so a
+  // lock file next to a one-line change costs that change nothing.
   const dir = repo({ 'a.ts': 'const a = 1\n', 'package-lock.json': lock(i => `1.0.${i}`) })
   writeFileSync(join(dir, 'a.ts'), 'const a = 2\n')
   writeFileSync(
@@ -499,13 +488,9 @@ test('paging between a small and a huge change turns syntax off and back on', as
   const t = await launch(dir, {}, { width: 130 })
   await openDiff(t)
   await untilFrame(t, '+ const a = 2')
-  expect(t.captureCharFrame()).not.toContain('first 10000 lines')
-
-  await press(t, i => i.pressArrow('down'))
+  // The lock file's own header carries the cut; the small change above it is
+  // drawn in full.
   await untilFrame(t, 'first 10000 lines')
   await untilFrame(t, '"1.0.0"')
-
-  await press(t, i => i.pressArrow('up'))
-  await untilFrame(t, '+ const a = 2')
-  expect(t.captureCharFrame()).not.toContain('first 10000 lines')
+  expect(t.captureCharFrame()).toContain('+ const a = 2')
 })

@@ -38,9 +38,9 @@ export interface DiffViewProps {
   mode: DiffMode
   /**
    * `page` fills the editor slot and owns keys. `section` is one file in the
-   * all-changes scroll: as tall as its patch, always inline, no header (the
-   * parent draws those so they can stick and fold), silent on the keyboard —
-   * the parent scrolls and closes.
+   * all-changes scroll: as tall as its patch, no header (the parent draws those
+   * so they can stick and fold), silent on the keyboard — the parent scrolls,
+   * toggles the layout and closes.
    */
   variant?: 'page' | 'section'
   /** Columns the pane owns — the editor slot, not the terminal. */
@@ -459,7 +459,18 @@ export function DiffView(props: DiffViewProps) {
    */
   const oneSided = () => props.file.oldText === '' || props.file.newText === ''
   const section = () => props.variant === 'section'
-  const mode = (): DiffMode => (section() || oneSided() ? 'inline' : props.mode)
+  const mode = (): DiffMode => (oneSided() ? 'inline' : props.mode)
+
+  /**
+   * Rows a stacked section is drawn at. Split pairs each change block row for
+   * row and pads the shorter side, so it is taller than the unified patch it was
+   * measured from — a section given the patch's row count would have its tail
+   * cut off, the parent's scroll being the only one there is.
+   */
+  const sectionRows = () =>
+    mode() === 'split'
+      ? Math.max(1, paneLines(diff().patch, 'split').left.length)
+      : Math.max(1, diff().lines)
 
   /**
    * The rows split view pads a side with where the other side has more lines.
@@ -670,7 +681,7 @@ export function DiffView(props: DiffViewProps) {
           wrapMode="none"
           flexGrow={section() ? 0 : 1}
           flexShrink={section() ? 0 : undefined}
-          height={section() ? Math.max(1, diff().lines) : undefined}
+          height={section() ? sectionRows() : undefined}
           width="100%"
           fg={ui.text}
           lineNumberFg={ui.gutter}

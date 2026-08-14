@@ -6,7 +6,7 @@ import { MODE_LABELS } from '../editor/vim'
 import type { VimMode } from '../editor/vim'
 import { ui } from '../themes'
 import { useHover } from './hover'
-import type { Hint } from './keys'
+import type { Hint, KeyScope } from './keys'
 import { hintsFor } from './keys'
 import { SEVERITY_GLYPH } from './severity'
 import { cut } from './text'
@@ -31,7 +31,8 @@ export interface StatusBarProps {
   changed: number
   /** LSP diagnostics in the active file; hidden while both counts are zero. */
   problems?: { errors: number; warnings: number }
-  focus: 'tree' | 'editor'
+  /** The keymap that is live — the panel scopes bring their own footer hints. */
+  focus: KeyScope
   /** A long operation in flight; replaces the message while it runs. */
   busy: { label: string; done?: number; total?: number } | null
   /** What each group does when it is clicked — VS Code's status bar, where the

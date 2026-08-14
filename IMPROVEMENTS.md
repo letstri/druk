@@ -49,7 +49,7 @@ Claims re-checked against the tree (not just the previous doc):
 | Module sizes | Still exact: EditorPane 1044, vim 642, DiffView 573, SearchPanel 481, workspace 469, SettingsView 272 |
 | Project replace / find next / save all | Still absent as product features |
 | Test harness size | ~87 files under `test/` (was “~84+”) |
-| Mutations list | commit, undo, push, fetch, pull, stash, stash pop, diff file/all — matches doc |
+| Mutations list | commit, undo, push, fetch, pull, stash, stash pop, show all changes — matches doc |
 | Uncommitted delta | Sidebar tab strip only (`App`/`panes`/`FileTree`/`GitPanel` + new `SidebarTabs`) |
 
 ---
@@ -273,10 +273,10 @@ Effort: **S** &lt;1 day · **M** few days · **L** week+ · **XL** multi-week.
 | P5.2 | Stage / discard hunk from diff | L |
 | P5.3 | Blame on demand | M |
 | P5.4 | Branch checkout | M |
-| P5.5 | Conflict-marker nav | M |
+| P5.5 | ~~Conflict-marker nav~~ — shipped: markers tinted and gutter-marked, `Ctrl+Opt+J` walks them, `Ctrl+Opt+U` accepts ours/theirs/both at the caret | M |
 | P5.6 | Async status for large repos | M |
 
-Mutations already: commit, undo commit, push, fetch, pull, stash, stash pop, diff file/all.
+Mutations already: commit, undo commit, push, fetch, pull, stash, stash pop, show all changes.
 
 ### P6 — Search quality
 

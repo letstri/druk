@@ -97,6 +97,16 @@ export type Prompt =
    * pair is two prompt kinds rather than one modal that does both.
    */
   | { kind: 'reviewKind'; path: string; line: number; endLine: number }
+  /**
+   * Which side of the conflict at `line` to keep. A chooser rather than three
+   * chords: resolving is rare enough that three of the terminal's few remaining
+   * Ctrl+Opt letters would be spent on keys nobody has in their fingers, and the
+   * palette spells the three out for anyone who wants them bound.
+   *
+   * `ours` / `theirs` are the labels the markers carry, so the modal can say
+   * which branch each side is rather than "current" and "incoming".
+   */
+  | { kind: 'mergeConflict'; line: number; ours: string; theirs: string }
   | {
       kind: 'reviewNote'
       path: string

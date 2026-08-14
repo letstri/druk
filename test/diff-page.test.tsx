@@ -3,13 +3,22 @@ import { execFileSync } from 'node:child_process'
 import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-import { launch, openDiff, openFile, press, pressTimes, runCommand, untilFrame } from './helpers'
+import {
+  launch,
+  openDiff,
+  openFile,
+  press,
+  pressTimes,
+  runCommand,
+  untilFrame,
+  untilGone,
+} from './helpers'
 import type { Harness } from './helpers'
 import { tempDir } from './temp'
 
 /** A repository with two committed, then modified, files. */
 function repo() {
-  const dir = tempDir('druk-difftab-')
+  const dir = tempDir('druk-diffpage-')
   const git = (...args: string[]) => execFileSync('git', args, { cwd: dir })
   git('init', '-q', '-b', 'main')
   git('config', 'user.email', 'test@example.com')
@@ -25,52 +34,33 @@ function repo() {
 
 const tabRow = (t: Harness) => t.captureCharFrame().split('\n')[0]!
 
-test('the diff sits in the tab strip, marked as its own tab', async () => {
-  const t = await launch(repo())
+test('the panel cursor opens the stacked page, and it is no tab of its own', async () => {
+  const t = await launch(repo(), {}, { height: 40 })
   await openDiff(t)
-
-  expect(tabRow(t)).toContain('⇄ a.ts')
   await untilFrame(t, '+ ALPHA')
+
+  const frame = t.captureCharFrame()
+  // Every change at once, whichever row the cursor landed on.
+  expect(frame).toContain('+ BETA')
+  expect(tabRow(t)).not.toContain('a.ts')
 })
 
-test('opening a file from the tree closes the diff — it is a tab, not a layer', async () => {
-  const t = await launch(repo())
+test('opening a file from the tree closes the page — it is a layer, not a tab', async () => {
+  const t = await launch(repo(), {}, { height: 40 })
   await openDiff(t)
   await untilFrame(t, '+ ALPHA')
 
-  // Back to the file tree, then open a file with the keyboard: the page used to
-  // stay up over it, so the editor showed a diff of whatever was open before.
+  // Back to the file tree, then open a file with the keyboard.
   // Git → Review → Ext → Files: the strip is a cycle over the sidebar's views.
   await pressTimes(t, 3, i => i.pressTab({ shift: true }))
   await press(t, i => i.pressArrow('down'))
   await press(t, i => i.pressEnter())
-
-  const frame = t.captureCharFrame()
-  expect(frame).toContain('BETA') // the file the tree opened
-  expect(frame).not.toContain('+ ALPHA') // …and not the diff that was up
-  // The diff tab is still on the strip, as a file tab would be: switched away
-  // from, not closed.
-  expect(tabRow(t)).toContain('⇄ a.ts')
+  await untilGone(t, '+ ALPHA')
+  expect(t.captureCharFrame()).toContain('BETA') // the file the tree opened
 })
 
-test('"Next tab" walks off the diff tab onto the file and back', async () => {
-  const t = await launch(repo())
-  // A file tab first, so the strip holds a file and the diff.
-  await press(t, i => i.pressArrow('down'))
-  await press(t, i => i.pressEnter())
-  await openDiff(t)
-  await untilFrame(t, '+ ALPHA')
-
-  await runCommand(t, 'Next tab')
-  expect(t.captureCharFrame()).not.toContain('+ ALPHA') // the file, not the page
-  expect(tabRow(t)).toContain('⇄ a.ts') // and the diff tab is still open
-
-  await runCommand(t, 'Next tab')
-  await untilFrame(t, '+ ALPHA') // back onto the diff tab
-})
-
-test('the diff tab survives switching the sidebar back to the tree', async () => {
-  const t = await launch(repo())
+test('the page survives switching the sidebar back to the tree', async () => {
+  const t = await launch(repo(), {}, { height: 40 })
   await openDiff(t)
   await untilFrame(t, '+ ALPHA')
 
@@ -78,8 +68,7 @@ test('the diff tab survives switching the sidebar back to the tree', async () =>
   await pressTimes(t, 3, i => i.pressTab({ shift: true }))
   const frame = t.captureCharFrame()
   expect(frame).toContain('explorer') // the tree is back in the sidebar…
-  expect(frame).toContain('+ ALPHA') // …and the diff is still the open tab
-  expect(tabRow(t)).toContain('⇄ a.ts')
+  expect(frame).toContain('+ ALPHA') // …and the changes are still on screen
 })
 
 test('the settings page also gives way to a file being opened', async () => {

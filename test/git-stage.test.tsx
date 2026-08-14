@@ -165,27 +165,23 @@ test('with something staged, c commits exactly that and skips the file picker', 
   expect(out).not.toContain('c.ts')
 })
 
-test('a staged row diffs HEAD against the index, not against the working tree', async () => {
+test('a staged section diffs HEAD against the index, not against the working tree', async () => {
   const dir = repo()
   git(dir, 'add', 'a.ts')
   // Edited again after staging: the file is under both headings, and each side
-  // has a different diff to show.
+  // has a different diff to show — the page stacks both.
   writeFileSync(join(dir, 'a.ts'), 'alpha changed twice\n')
-  const t = await launch(dir)
+  const t = await launch(dir, {}, { height: 40 })
   await openPanel(t)
   await untilFrame(t, 'Staged Changes')
 
   // The staged row is the first change; ↓ against it counts as a landing.
   await press(t, i => i.pressArrow('down'))
   await press(t, i => i.pressArrow('up'))
-  await untilFrame(t, 'alpha changed')
-  const staged = frame(t)
-  expect(staged).toContain('alpha changed')
-  expect(staged).not.toContain('alpha changed twice')
-
-  // Down past the `Changes` heading to the unstaged copy of the same file.
-  await press(t, i => i.pressArrow('down'))
-  await press(t, i => i.pressArrow('down'))
   await untilFrame(t, 'alpha changed twice')
-  expect(frame(t)).toContain('alpha changed twice')
+  const rows = frame(t).split('\n')
+  // The staged side stops at the index's copy; the unstaged side is the edit on
+  // top of it. Only the second patch may carry the later text.
+  expect(rows.filter(row => row.includes('+ alpha changed twice')).length).toBe(1)
+  expect(rows.some(row => row.trimEnd().endsWith('+ alpha changed'))).toBe(true)
 })

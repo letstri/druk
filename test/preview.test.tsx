@@ -29,7 +29,7 @@ test('Space shows the file under the cursor without opening a tab', async () => 
   await press(t, input => input.pressKey(' '))
 
   await until(t, () => frame(t).includes('const a = 1'))
-  expect(frame(t)).toContain('preview')
+  expect(frame(t)).toContain('preview ·')
   // The whole point: no tab, so nothing was loaded into a buffer either.
   expect(strip(t)).not.toContain('a.ts')
 
@@ -55,7 +55,7 @@ test('Space again closes it, and Enter opens the file for real', async () => {
   await until(t, () => strip(t).includes('a.ts'))
   // Opening ends the browsing: back in the tree, the file's own tab stays up.
   await pressEscape(t)
-  expect(frame(t)).not.toContain('preview')
+  expect(frame(t)).not.toContain('preview ·')
 })
 
 test('the page keys scroll the preview while the tree keeps the arrows', async () => {
@@ -96,5 +96,5 @@ test('the palette turns it on from the editor, and Esc closes it', async () => {
   await until(t, () => frame(t).includes('preview'))
 
   await pressEscape(t)
-  expect(frame(t)).not.toContain('preview')
+  expect(frame(t)).not.toContain('preview ·')
 })

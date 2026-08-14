@@ -1,8 +1,12 @@
 import { basename } from 'node:path'
 
-import { createEffect, createSignal, on } from 'solid-js'
+import { createEffect, createMemo, createSignal, on } from 'solid-js'
 import { createStore, produce, unwrap } from 'solid-js/store'
 
+// Aliased: `resolveConflict` below is the *disk* conflict — a file changed under
+// a dirty buffer — and the two would read as one thing under one name.
+import { parseConflicts, resolveConflict as keepSide } from '../core/conflicts'
+import type { ConflictSide, MergeConflict } from '../core/conflicts'
 import { formatterFor, runFormatter } from '../core/format'
 import {
   BinaryFileError,
@@ -20,7 +24,6 @@ import { replaceMatch, replaceProject } from '../core/search'
 import type { Match, SearchOptions } from '../core/search'
 import { loadSession, saveSession } from '../core/session'
 import { trimTrailing } from '../editor/lines'
-import type { DiffFile } from '../ui/DiffView'
 import type { EditorBridge } from './editor'
 import type { Git } from './git'
 import type { Panes } from './panes'
@@ -142,29 +145,8 @@ export function createWorkspace(deps: {
    * which of the two the editor slot is showing, nothing more.
    */
   const [renderedPaths, setRenderedPaths] = createSignal<string[]>([])
-  /**
-   * The diff tab: its two texts as they read when it was opened, or null for no
-   * such tab. It is a tab like any other — the strip shows it, Ctrl+←/→ walks onto
-   * it — so opening a file switches away from it without closing it, and only
-   * `setDiff(null)` (Ctrl+W, Esc, or the change going away) takes it off the strip.
-   */
-  const [diffTab, setDiffTab] = createSignal<DiffFile | null>(null)
-  /** Whether the diff tab is the one on screen, rather than the active file. */
-  const [diffShown, setDiffShown] = createSignal(false)
-  /**
-   * The diff covering the editor slot, or null when a file is showing. Two states
-   * rather than one because the tab outlives its turn on screen; readers that ask
-   * "what is the editor slot showing" want this one.
-   */
-  const diff = () => (diffShown() ? diffTab() : null)
-  /** Open the diff tab and show it, or take it off the strip for null. */
-  const setDiff = (file: DiffFile | null) => {
-    setDiffTab(file)
-    setDiffShown(file !== null)
-  }
   /** The full-slot pages — settings, LSP status, all-changes — which cover the
-   * editor the same way the diff does. One at a time: each is a view of the
-   * editor slot. */
+   * editor slot. One at a time: each is a view of that slot. */
   const [page, setPage] = createSignal<'settings' | 'lspStatus' | 'allChanges' | null>(null)
   /** A file that would not open, shown over the editor until the next keypress. */
   const [notice, setNotice] = createSignal<{ name: string; reason: string } | null>(null)
@@ -210,9 +192,6 @@ export function createWorkspace(deps: {
 
   const openFile = (path: string, preview = false) => {
     setNotice(null)
-    // The file is what the editor slot shows now. The diff tab stays on the strip,
-    // as a file tab would — it is switched away from, not closed.
-    setDiffShown(false)
     setPage(null)
     // Images and PDFs get a viewer tab and no buffer — the door stays shut to a
     // FileBuffer for anything that is not text, which is what keeps "never written
@@ -308,7 +287,7 @@ export function createWorkspace(deps: {
 
   /**
    * The path the editor slot should render as markdown, or null for the text.
-   * The diff and the pages sit above this one, so it answers only for a file tab.
+   * The pages sit above this one, so it answers only for a file tab.
    */
   const renderedPath = () => {
     const path = activePath()
@@ -329,35 +308,17 @@ export function createWorkspace(deps: {
     say(rendered ? `Rendering ${basename(path)}` : `Source of ${basename(path)}`)
   }
 
-  /** The diff tab's id in the strip. Not a path: a file and its diff are two tabs
-   * naming one file. */
-  const diffTabId = () => (diffTab() ? `diff:${diffTab()!.path}` : null)
-
-  /** Every tab in strip order, the diff among them — what Ctrl+←/→ walks. */
-  const views = () => {
-    const id = diffTabId()
-    return id ? [...tabs(), id] : tabs()
-  }
+  /** Every tab in strip order — what Ctrl+←/→ walks. */
+  const views = () => tabs()
 
   /** Which tab is on screen. */
-  const activeView = () => (diffShown() ? diffTabId() : activePath())
+  const activeView = () => activePath()
 
-  /** True for the diff tab's id: the strip labels it, and closing it is not a
-   * file being closed. */
-  const isDiffView = (id: string) => id === diffTabId()
+  /** Show the tab `id` names. */
+  const showView = (id: string) => openFile(id)
 
-  /** Show the tab `id` names — a path, or the diff tab, which is already built. */
-  const showView = (id: string) => {
-    if (isDiffView(id)) {
-      setDiffShown(true)
-      setPage(null)
-      return panes.setFocus('editor')
-    }
-    openFile(id)
-  }
-
-  /** Close the tab `id` names, page or file. */
-  const closeView = (id: string) => (isDiffView(id) ? setDiff(null) : closeTab(id))
+  /** Close the tab `id` names. */
+  const closeView = (id: string) => closeTab(id)
 
   const switchTab = (delta: number) => {
     const list = views()
@@ -382,6 +343,44 @@ export function createWorkspace(deps: {
     pinTab(path)
     setBuffers(path, { content: next, dirty: true })
     editor.pushEdit(next)
+  }
+
+  /**
+   * The merge conflicts in the buffer on screen. One parse shared by the editor's
+   * highlighting, the conflict navigation and the accept commands — three readers
+   * that must agree on where a block starts, since one of them edits it.
+   *
+   * The buffer rather than the file: a conflict is resolved by rewriting text
+   * that may already be dirty, and it is the buffer the reader is looking at.
+   */
+  const mergeConflicts = createMemo<MergeConflict[]>(() =>
+    parseConflicts(activeBuffer()?.content ?? ''),
+  )
+
+  /** What each side is called once the markers naming it are gone. */
+  const SIDE_LABELS: Record<ConflictSide, string> = {
+    ours: 'current change',
+    theirs: 'incoming change',
+    both: 'both changes',
+  }
+
+  /**
+   * Keep one side of the conflict at `line` and drop the markers, as one
+   * undoable step — the caret is left where the block began, since the lines it
+   * was on are gone. Reports what it did, or why it did nothing: the chooser and
+   * the three direct commands both come through here, so the message is one.
+   */
+  const acceptConflict = (line: number, side: ConflictSide) => {
+    const path = activePath()
+    const buffer = path ? buffers[path] : undefined
+    if (!path || !buffer) return say('No file open', 'warn')
+    const conflict = mergeConflicts().find(one => line >= one.start && line <= one.end)
+    if (!conflict) return say('No merge conflict on this line', 'warn')
+    applyReplacement(path, keepSide(buffer.content, conflict, side))
+    editor.requestGoto(conflict.start, 0)
+    const left = mergeConflicts().length
+    const rest = left > 0 ? ` — ${left} conflict${left === 1 ? '' : 's'} left` : ''
+    say(`Kept the ${SIDE_LABELS[side]}${rest}`)
   }
 
   /**
@@ -960,7 +959,6 @@ export function createWorkspace(deps: {
         closeTab(path, true)
       }
     }
-    if (diffTab()?.path === path) setDiff(null)
     tree.refreshTree()
   }
 
@@ -1112,17 +1110,15 @@ export function createWorkspace(deps: {
     setNotice,
     conflict,
     setConflict,
+    mergeConflicts,
+    acceptConflict,
     activeBuffer,
     dirtyPaths,
-    diff,
-    diffTab,
-    setDiff,
     page,
     setPage,
     views,
     activeView,
     showView,
-    isDiffView,
     closeView,
     openFile,
     pinTab,

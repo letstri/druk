@@ -254,6 +254,15 @@ export function createPromptHandlers(deps: {
     setPrompt({ kind: 'reviewNote', path: p.path, line: p.line, endLine: p.endLine, noteKind })
   }
 
+  /** The side chosen: the buffer keeps it and the markers go. */
+  const chooseConflictSide = (side: string) => {
+    const p = prompt()
+    setPrompt(null)
+    if (p?.kind !== 'mergeConflict') return
+    if (side !== 'ours' && side !== 'theirs' && side !== 'both') return
+    workspace.acceptConflict(p.line, side)
+  }
+
   /**
    * Install a missing server with the manager picked from the choice modal.
    * Takes the id as the string the modal deals in and narrows it here, so the
@@ -549,6 +558,7 @@ export function createPromptHandlers(deps: {
     confirmPrompt,
     chooseInstallServer,
     chooseReviewKind,
+    chooseConflictSide,
     chooseStash,
     chooseStashAction,
     chooseTagDelete,

@@ -36,12 +36,8 @@ export function createNavigation(deps: {
 
   const current = () => stops()[at()]
 
-  /**
-   * A stop still worth going to: the file is on disk, or it is the diff tab the
-   * strip holds now — `isDiffView` answers for that one id alone, so a diff that
-   * has since been closed or replaced fails both halves.
-   */
-  const alive = (stop: Stop) => workspace.isDiffView(stop.id) || exists(stop.id)
+  /** A stop still worth going to: its file is still on disk. */
+  const alive = (stop: Stop) => exists(stop.id)
 
   const push = (stop: Stop) => {
     // What was ahead is the branch just left behind: as in a browser, going
@@ -107,9 +103,7 @@ export function createNavigation(deps: {
     }
     setAt(index)
     workspace.showView(stop.id)
-    // A diff tab has no caret of its own; a goto here would aim at the file
-    // behind it instead.
-    if (!workspace.isDiffView(stop.id)) editor.requestGoto(stop.line, stop.col)
+    editor.requestGoto(stop.line, stop.col)
     panes.setFocus('editor')
   }
 

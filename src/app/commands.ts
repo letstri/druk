@@ -9,6 +9,7 @@
  * To add a command: add an action to `CommandActions`, then an entry below. Set
  * `hint` when a keybinding also triggers it (keybindings live in App).
  */
+import type { ConflictSide } from '../core/conflicts'
 import { NOTE_KINDS, NOTE_LABELS } from '../core/review'
 import type { NoteKind } from '../core/review'
 import type { FoldOp } from '../editor/folds'
@@ -17,7 +18,7 @@ import { themeLabel, themeNames } from '../themes'
 import type { ThemeName } from '../themes'
 import type { ChangeSection, ChangesMeta } from '../ui/ChangesView'
 import type { Command } from '../ui/CommandPalette'
-import { ALT } from '../ui/keys'
+import { ALT, rebound } from '../ui/keys'
 
 export type { Command } from '../ui/CommandPalette'
 
@@ -82,26 +83,31 @@ export interface CommandActions {
   restartLsp: () => void
   uninstallServer: (id: string) => void
   lspStatus: () => void
+  conflictNext: () => void
+  conflictPrev: () => void
+  conflictResolve: () => void
+  conflictAccept: (side: ConflictSide) => void
   gitDiffFile: () => void
   gitDiffAll: () => void
+  toggleDiffLayout: () => void
   /** Not a command: the all-changes page reads this. */
   allChanges: () => ChangeSection[]
   allChangesMeta: () => ChangesMeta
   gitCompareBranches: () => void
   gitDiffBase: () => void
   gitDiffBaseReset: () => void
-  /** Not a command: the panel's cursor is what opens a diff, and this is it. */
-  showDiff: (path: string) => void
   /** Not commands: the source-control panel's cursor, moved and pressed. */
   gitMoveTo: (row: number) => void
   gitActivateRow: (row: number) => void
   gitOpenRow: (row: number) => void
   gitDiscard: () => void
   gitToggleStage: (at?: number) => void
+  /** Not a command: the changes page stages by section key, not by panel row. */
+  gitToggleStageKey: (key: string) => void
   /** Not a command: `App` runs it when the source-control panel opens. */
   gitLandOnFile: () => void
-  /** Not a command: `App` runs it when git or a buffer moves under an open diff. */
-  refreshDiff: () => void
+  /** Not a command: `App` runs it when git or a buffer moves under the changes page. */
+  refreshChanges: () => void
   gitCommit: () => void
   gitCommitAndPush: () => void
   gitCommitAndSync: () => void
@@ -224,14 +230,20 @@ export function buildCommands(actions: CommandActions, ctx: CommandContext): Com
       id: 'git',
       label: 'Git',
       children: [
-        // The one-file pager: it opens the source-control panel on this file, which
-        // is where the cursor pages through every other change.
+        // The pager: it opens the source-control panel on this file, which is
+        // where the cursor scrolls the changes page to every other change.
         { id: 'git.diffFile', label: 'Diff current file', run: actions.gitDiffFile },
         {
           id: 'git.diffAll',
           label: 'Show all changes',
           hint: 'a in source control',
           run: actions.gitDiffAll,
+        },
+        {
+          id: 'git.diffLayout',
+          label: 'Toggle diff layout (inline / side-by-side)',
+          hint: 'S in source control',
+          run: actions.toggleDiffLayout,
         },
         {
           id: 'git.stage',
@@ -245,6 +257,38 @@ export function buildCommands(actions: CommandActions, ctx: CommandContext): Com
           hint: 'd in source control',
           run: actions.gitDiscard,
         },
+        // The conflict commands. Spelled out one side at a time as well as
+        // behind the chooser, the way the review note's four kinds are: a
+        // reader who always takes theirs wants a key for it, and the palette
+        // is where a key is claimed.
+        {
+          id: 'git.conflictResolve',
+          label: 'Resolve conflict at cursor…',
+          hint: `Ctrl+${ALT}+U`,
+          run: actions.conflictResolve,
+        },
+        {
+          id: 'git.acceptOurs',
+          label: 'Accept current change (ours)',
+          run: () => actions.conflictAccept('ours'),
+        },
+        {
+          id: 'git.acceptTheirs',
+          label: 'Accept incoming change (theirs)',
+          run: () => actions.conflictAccept('theirs'),
+        },
+        {
+          id: 'git.acceptBoth',
+          label: 'Accept both changes',
+          run: () => actions.conflictAccept('both'),
+        },
+        {
+          id: 'git.conflictNext',
+          label: 'Next conflict',
+          hint: `Ctrl+${ALT}+J`,
+          run: actions.conflictNext,
+        },
+        { id: 'git.conflictPrev', label: 'Previous conflict', run: actions.conflictPrev },
         // What the whole editor compares against — the panel names the branch
         // while one is picked, so the pair reads as a mode you are in or out of.
         { id: 'git.diffBase', label: 'Compare against branch…', run: actions.gitDiffBase },
@@ -612,4 +656,31 @@ export function buildCommands(actions: CommandActions, ctx: CommandContext): Com
     { id: 'help', label: 'Keyboard shortcuts', run: actions.showHelp },
     { id: 'quit', label: 'Quit', hint: 'Ctrl+Q', run: actions.quit },
   ]
+}
+
+/**
+ * The tree with the keymap laid over it. A rebound command's hint says the
+ * user's own chord instead of the hand-written one the table was born with —
+ * '' once they unbound it, where a hint would advertise a dead key — and every
+ * leaf reports its id as it runs, which is what lets the status bar name the
+ * key that would have done it. The tip goes out before `run`, so an operation
+ * with something of its own to say wins the message slot.
+ */
+export function withKeymap(commands: Command[], ran: (id: string) => void): Command[] {
+  return commands.map(command => {
+    if (command.children) return { ...command, children: withKeymap(command.children, ran) }
+    const key = rebound(command.id)
+    const hint = key === null ? command.hint : key || undefined
+    const run = command.run
+    return {
+      ...command,
+      hint,
+      run:
+        run &&
+        (() => {
+          ran(command.id)
+          run()
+        }),
+    }
+  })
 }

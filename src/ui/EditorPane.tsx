@@ -5,6 +5,8 @@ import { createEffect, createMemo, createSignal, For, Index, on, onCleanup, Show
 
 import { copyToClipboard, readClipboard } from '../core/clipboard'
 import type { CursorStyle } from '../core/config'
+import { covers } from '../core/conflicts'
+import type { MergeConflict } from '../core/conflicts'
 import type { LineChange } from '../core/git'
 import { secondary } from '../core/keybindings'
 import { changeRows } from '../editor/changes'
@@ -30,6 +32,7 @@ import { lineRangeAt, wordRangeAt } from '../editor/words'
 import { commentPrefix } from '../languages'
 import {
   computeHighlights,
+  CONFLICT_GROUPS,
   getSyntaxStyle,
   mixColors,
   segmentsIn,
@@ -110,6 +113,8 @@ export interface EditorPaneProps {
   }[]
   /** Also draw each problem's message after the end of its line. */
   problemText: boolean
+  /** Merge conflicts in this buffer: the two sides tinted, the markers picked out. */
+  conflicts: readonly MergeConflict[]
   /**
    * Review remarks on lines of this file: the notes written here and the pull
    * request's comments. A gutter mark each, and the text after the line when
@@ -201,6 +206,11 @@ const RESOLVE_TIMEOUT_MS = 300
 const INFO_DEBOUNCE_MS = 120
 
 const SIGN_GLYPH: Record<LineChange, string> = { added: '▎', modified: '▎', deleted: '▁' }
+
+/** A conflict's gutter mark. Deliberately not the git bar: every line of a
+ * conflict is modified, and a block that looked like ordinary edits would say
+ * nothing about being the thing blocking the merge. */
+const CONFLICT_GLYPH = '┃'
 
 /** Read at paint time: `ui` is a store, so a table built at module scope freezes. */
 const CHANGE_COLORS: Record<LineChange, () => string> = {
@@ -613,6 +623,14 @@ export function EditorPane(props: EditorPaneProps) {
   const displayGitLines = createMemo(() => toDisplay(props.gitLines))
   const displayProblems = createMemo(() => toDisplay(props.problems))
   const displayReviews = createMemo(() => toDisplay(props.reviews))
+  /** Every line of every conflict, so the gutter can mark the whole block. */
+  const displayConflicts = createMemo(() => {
+    const lines = new Map<number, true>()
+    for (const conflict of props.conflicts) {
+      for (let line = conflict.start; line <= conflict.end; line++) lines.set(line, true)
+    }
+    return toDisplay(lines)
+  })
   /**
    * Scroll position of the textarea, mirrored so the scrollbar can react to it.
    * Three signals rather than one object: a single `{top, height, total}` gets a
@@ -1238,9 +1256,16 @@ export function EditorPane(props: EditorPaneProps) {
         beforeColor: reviewColor(mark.draft),
       })
     }
-    // Last of the three: a broken line is worth more than a remark about it.
+    // Then a broken line, which is worth more than a remark about it.
     for (const [line, problem] of displayProblems()) {
       signs.set(line, { before: '●', beforeColor: SEVERITY_COLOR[problem.severity]() })
+    }
+    // Last of all: inside a conflict every line is "modified" and most of them
+    // are a diagnostic too, and neither of those is what the reader has to deal
+    // with first. One glyph down the whole block, so its extent is readable from
+    // the gutter alone.
+    for (const [line] of displayConflicts()) {
+      signs.set(line, { before: CONFLICT_GLYPH, beforeColor: ui.dirty })
     }
     // The sign column only widens the gutter while a sign exists, so the first
     // mark or diagnostic used to shift the whole file one column right — and
@@ -1459,6 +1484,40 @@ export function EditorPane(props: EditorPaneProps) {
     }
   }
 
+  /**
+   * Tint `line` as part of whichever conflict covers it. Whole rows rather than
+   * spans: a conflict is a range of *lines* git wrote, and a side tinted only as
+   * far as its longest token would leave the block's shape unreadable.
+   *
+   * Priority above the diagnostics' own: a merge conflict is not valid code, so
+   * every server in the file reports on it, and the errors it earns would
+   * otherwise paint over the one thing that explains them.
+   */
+  const markConflict = (row: number, line: number) => {
+    if (!editor || props.conflicts.length === 0) return
+    const conflict = props.conflicts.find(one => covers(one, line))
+    if (!conflict) return
+    const marker =
+      line === conflict.start ||
+      line === conflict.separator ||
+      line === conflict.end ||
+      line === conflict.base
+    const group = marker
+      ? CONFLICT_GROUPS.marker
+      : line < (conflict.base ?? conflict.separator)
+        ? CONFLICT_GROUPS.ours
+        : CONFLICT_GROUPS.theirs
+    const styleId = styleIdForGroup(group)
+    if (styleId == null) return
+    const text = parsedLine(line) ?? lineTextAt(row)
+    // Past the end of the text as well: a tint that stopped at the last character
+    // would leave the block's blank lines untinted and its edge ragged.
+    editor.addHighlight(
+      row,
+      inCells({ start: 0, end: Math.max(text.length, 1), styleId, priority: 110 }, text),
+    )
+  }
+
   /** Keep the viewport (plus overscan) highlighted, touching only what changed. */
   const applyWindow = (force = false) => {
     if (!editor) return
@@ -1488,6 +1547,7 @@ export function EditorPane(props: EditorPaneProps) {
         for (const segment of segments) editor.addHighlight(row, inCells(segment, text))
       }
       markProblems(row, line)
+      markConflict(row, line)
     }
   }
 
@@ -2409,6 +2469,16 @@ export function EditorPane(props: EditorPaneProps) {
   createEffect(
     on(
       () => props.problemRanges,
+      () => applyWindow(true),
+      { defer: true },
+    ),
+  )
+
+  // Resolving one conflict moves every later one, so the whole window is
+  // repainted rather than the lines the edit touched.
+  createEffect(
+    on(
+      () => props.conflicts,
       () => applyWindow(true),
       { defer: true },
     ),

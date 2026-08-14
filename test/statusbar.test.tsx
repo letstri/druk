@@ -84,22 +84,22 @@ describe('the status bar', () => {
 })
 
 describe('the footer hints', () => {
-  test('the tree advertises the palette and the key peek, nothing else', async () => {
+  test('the tree advertises the global pair first, then its own keys', async () => {
     const row = bar(await launch(fixture({ 'a.ts': 'x\n' })))
     expect(row).toContain('F1 commands')
     expect(row).toContain('Ctrl+K keys')
-    expect(row).not.toContain('new file')
+    expect(row).toContain('Space preview')
   })
 
-  test('the editor shows the same two', async () => {
+  test('the editor swaps the tree keys for its own', async () => {
     const t = await launch(fixture({ 'a.ts': 'x\n' }))
     await openFirst(t, 'a.ts')
     const row = bar(t)
 
     expect(row).toContain('F1 commands')
     expect(row).toContain('Ctrl+K keys')
-    expect(row).not.toContain('save')
-    expect(row).not.toContain('find')
+    expect(row).toContain('Ctrl+F find')
+    expect(row).not.toContain('Space preview')
   })
 })
 

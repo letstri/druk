@@ -98,7 +98,21 @@ git marks in tree/gutter/status bar plus a source-control panel in the sidebar
 headings, `Staged Changes` and `Changes` — and, mid-merge, `Merge Changes` above both,
 where every unmerged path sits as one row whatever porcelain's two columns say, Space
 (git add) marks it resolved into Staged Changes, and Enter opens the file at its first
-`<<<<<<<` marker — and Space is what moves a row between them —
+`<<<<<<<` marker — and Space is what moves a row between them.
+The conflict itself is resolved in the editor, not by a git command: `parseConflicts`
+(`src/core/conflicts.ts`) is the one reader of the markers, and the buffer is what it
+parses — a conflict is resolved by rewriting text that may already be dirty, so
+`git checkout --ours` would throw those edits away. Each block's two sides are tinted
+the colours the diff view uses (`CONFLICT_GROUPS` in `src/languages/highlight.ts`, a
+background-only style over the syntax, and the marker rows painted loud), the whole
+block wears one gutter mark of its own — every line of a conflict is "modified" and
+most of them are a diagnostic too, so it outranks both — `Ctrl+Opt+J` walks to the
+next one (palette → Git → Next / Previous conflict, wrapping as the problems do), and
+`Ctrl+Opt+U` opens a chooser over the block the caret is in: current (ours), incoming
+(theirs), or both, each also spelled out in the palette for anyone who wants one
+bound, the way the review note's four kinds are. Acting on the caret's block alone is
+deliberate: a file's other conflict is off screen as often as not, and resolving one
+unasked is not a thing the eye can catch —
 `+`/`−` drawn on the cursor's row alone for a file or folder, a terminal having no
 hover to hide a button behind, and always on the `Staged Changes` / `Changes` /
 `Merge Changes` heading (that is VS Code's `+` on a group header, so every file
@@ -147,21 +161,36 @@ strokes are written into the pane's own content — and a big change draws plain
 header saying so: the renderable applies syntax as one native edit per span, and a
 package-lock-sized document feeds it millions, minutes of frozen editor, so color
 stops past a megabyte of sides or a thousand patch rows, and past ten thousand rows
-the patch itself is cut with the header keeping the change's true counts) for whichever change the panel's cursor is
-on — the arrows page through
-them and Enter opens the changed file itself over the diff (a folder row folds
-instead), the panel is the only way in, and the diff is a tab of its own in the strip
-(`⇄ name`), so opening a file switches away from it instead of leaving it on top — palette
-→ Git → Show all changes (`a` in the panel) covers the editor slot with every change
-stacked as sections, Cursor's Changes page: a summary header and one block per file,
-always inline, a rule between files and a two-row header (path, then +/− and whether
-it is new/deleted/renamed) that sticks to the top of the scroll until the next file's
-header pushes it off; Tab into the page lights the current file's header (a cell of
-accent on the left and the selection fill), Tab / Shift+Tab walk the headers, and a click or ←/→ folds that one; while
-that page is up the panel's arrows scroll to the file under the cursor rather than
-replacing it with a one-file diff (a file past the stacked-row cap is kept so that
-landing is not empty), the header says how many were left out, the page goes when the
-last change does, and Esc closes it — a
+the patch itself is cut with the header keeping the change's true counts) — one page
+holding *every* change, Cursor's Changes page: a summary header and one block per
+file, a rule between files and a two-row header (path, then +/− and whether it is
+new/deleted/renamed) that sticks to the top of the scroll until the next file's
+header pushes it off. There is no one-file diff and no diff tab: landing the panel's
+cursor on any change opens that page and scrolls to it (as does palette → Git → Show
+all changes, `a` in the panel), Enter opens the changed file itself over it (a folder
+row folds instead), and opening a file closes it — it is a layer over the editor
+slot, not a tab in the strip. Tab into the page lights the current file's header (a
+cell of accent on the left and the selection fill), Tab / Shift+Tab walk the headers,
+a click or ←/→ folds one, `+`/`−` at the right of a header stages or unstages that
+file (Space does the same from the keyboard, PgDn and Ctrl+D being the page keys; the
+button is drawn on the selected header and under the pointer only, as the panel draws
+its own on the cursor's row alone, and its handler stops the row's, a press on `+`
+not being a press on the header that folds it), and landing on a file — with the panel's cursor or with Tab
+inside the page — puts that file at the *top*, always, even when it was already on
+screen: a move that scrolls nothing reads as a key that did nothing, and where a
+change starts is what was being asked for. `s` in the page — `S` in the panel, where
+plain `s` is sync, and palette → Git → Toggle diff layout — flips the whole page
+between inline and side-by-side, Tab being spent on the file walk; the hints name
+whichever of the two the keyboard can reach from where it is, and the flip puts the
+file being read back at the top — split pads every change block row for row, so the
+sections all change height and a kept scroll offset would land somewhere else. That
+re-anchor is re-applied over the next few frames rather than once: the scrollbox
+clamps an offset against the height it still has and the new heights arrive a layout
+pass later, so a single shot lands short and the page visibly jumps and comes back. A
+wheel or a key inside that window cancels the hold, the reader outranking it. A
+file past the stacked-row cap is kept when the cursor lands on it, so landing is not
+empty; the header says how many were left out, the page goes when the last change
+does, and Esc closes it — a
 comparison base that points marks, gutter, panel and diff at another branch instead of
 HEAD (palette → Git → Compare against branch…), branch comparison against the
 repository's default branch or any selected base (palette → Git → Compare branches, or
@@ -615,8 +644,9 @@ dependency rule, and recipes for the extension points:
 | previewable value | `preview` + `restore` on the palette `Command` (`src/app/commands.ts`) or on a row's `select` (`src/ui/SettingsView.tsx`) — `preview` paints while the selection sits on the value, `restore` runs when the list is torn down, so it must put back what the config says rather than remember what it replaced |
 | setting | `src/core/config.ts` (`Config`, `DEFAULTS`, `VALIDATORS` — one validator per key, since the project file is read key by key) + a row in `src/app/settings.ts` (`specs`, with the `key` it edits) so the settings page shows it — the page windows its rows to the terminal height, so a test that asserts on a late row needs a tall terminal or arrow keys to reach it (the wheel moves that window too, leaving the selection where the keyboard left it — a test wheeling it needs a flush per tick, OpenTUI's scroll acceleration dropping events sent faster than its minimum interval) |
 | editor-slot page | `workspace.page` union in `src/app/workspace.ts`, a `Show` in `App.tsx` over the editor column (zIndex 60), and a view that takes `width` / `focused` / `blocked` / `onClose` — Settings, LSP status, and all-changes (`ChangesView`, whose `ChangeSection` the controller imports) |
-| command | `src/app/commands.ts` + bind it in `src/app/actions.ts`; the implementation goes in the controller that owns the state (`workspace.ts`, `fileOps.ts`, `git.ts`, …) |
+| command | `src/app/commands.ts` + bind it in `src/app/actions.ts`; the implementation goes in the controller that owns the state (`workspace.ts`, `fileOps.ts`, `git.ts`, …). `withKeymap` (`commands.ts`) lays the keymap over the built tree: a rebound command's palette `hint` is replaced by the user's own chord, and every leaf run from the palette names its key in the status bar (`keyTip` in `src/ui/keys.ts`) — so a hand-written `hint` only has to be right for the defaults |
 | keybinding | a row in `BINDABLE` (`src/app/keymap.ts`) plus a handler under the same id in `src/app/keyboard.ts` — or, for an editor-only key, `src/ui/EditorPane.tsx` — advertised in `src/ui/keys.ts` (feeds the footer hints, help overlay, Ctrl+K peek and the welcome screen), with the row's `ids` naming the commands it spells out |
+| footer hint | `hint` on the key's row in `src/ui/keys.ts`, scoped to any `KeyScope` — or, for a panel letter the help table lists as one combined row, an entry in `PANEL_HINTS` there. Ranked, and the footer cuts from the tail, so a hint's rank is its survival on a narrow terminal. The status bar reads `panes.keyPane()`, so a panel's hints replace the tree's while it shows |
 | git error message | a row in `KNOWN` in `src/core/git.ts`, with the git output it matches pinned in `test/git.test.tsx` |
 | terminal progress | the one status slot (`src/app/status.ts`) — a git mutation, bulk file op or install occupies it. A background operation takes it with `claimBusy`, which hands back the release and refuses to hand back anything else: an install that finds the slot taken runs without it rather than clearing a bulk delete's counter, since that would idle the bar mid-rewrite *and* reopen `whileFree` for a second op. `setBusy` is for updating a count already claimed. `reportProgress` (`src/core/progress.ts`) writes OSC 9;4 so Ghostty, WezTerm, iTerm2, kitty, Windows Terminal and recent VTE draw their own loader; an unsupported terminal is a no-op, and an exit hook puts the indicator out where `onCleanup` never runs |
 | market extension | a folder under `extensions/` holding `extension.json`, then `bun run extensions` to regenerate `extensions/index.json` — `test/extensions-repo.test.ts` fails when the committed index is stale, and bumping the manifest `version` is what makes installed copies see an update |

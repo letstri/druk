@@ -430,20 +430,6 @@ export function GitPanel(props: GitPanelProps) {
           />
         </scrollbox>
       </Show>
-      <Show when={props.inRepo}>
-        <box height={1} backgroundColor={ui.sidebarBg} paddingLeft={1}>
-          <text
-            fg={ui.faint}
-            bg={ui.sidebarBg}
-            wrapMode="none"
-            content={
-              props.staging
-                ? 'space stage · d discard · c commit · p push · s sync · B compare'
-                : '↑↓ diff · →← fold · d discard · c commit · p push · B compare'
-            }
-          />
-        </box>
-      </Show>
     </box>
   )
 }

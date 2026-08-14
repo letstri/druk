@@ -14,7 +14,7 @@ import {
   diffStatusColor,
   diffStatusLabel,
 } from './DiffView'
-import type { DiffFile, DiffFileStatus } from './DiffView'
+import type { DiffFile, DiffFileStatus, DiffMode } from './DiffView'
 import { useHoverKey } from './hover'
 import { cut } from './text'
 import { useKeys } from './useKeys'
@@ -61,10 +61,17 @@ export interface ChangesViewProps {
   focusKey: string | null
   /** `Uncommitted`, or the branch the list is against. */
   title: string
+  /** Inline or side-by-side, for every section at once — `diffView`. */
+  mode: DiffMode
   width: number
   focused: boolean
   blocked: boolean
   onFocus: () => void
+  onToggleMode: () => void
+  /** Stage or unstage one file — its `+`/`−`, and Space on its header. */
+  onToggleStage: (key: string) => void
+  /** False against a comparison base, where there is no index to stage into. */
+  staging: boolean
   onClose: () => void
 }
 
@@ -92,6 +99,14 @@ const HEADER_MARK = 1
 
 /** Frames the first reveal waits for the stack to lay out — half a second. */
 const REVEAL_TRIES = 30
+
+/**
+ * Frames a re-anchor keeps re-applying itself after the layout flips. The
+ * scrollbox clamps an offset against the height it still has, and the sections'
+ * new heights land a layout pass later — one shot at it either overshoots or is
+ * cut short, and the reader watches the page jump and come back.
+ */
+const HOLD_FRAMES = 6
 
 /**
  * One frame. The renderables' positions are written by the layout pass, which
@@ -177,12 +192,16 @@ interface FileHeaderProps {
   part: 'full' | 'meta'
   hovered: boolean
   selected: boolean
+  /** Draw the stage button at all — off against a comparison base. */
+  staging: boolean
   onToggle: () => void
+  onStage: () => void
   onEnter: () => void
   onLeave: () => void
 }
 
 function FileHeader(props: FileHeaderProps) {
+  const stageHover = useHoverKey<string>()
   const bg = () => (props.selected ? ui.treeSelectedBg : props.hovered ? ui.hoverBg : ui.solidBarBg)
   const mark = () => (props.selected ? ui.accent : bg())
   const label = () => diffStatusLabel(props.section.status)
@@ -193,7 +212,10 @@ function FileHeader(props: FileHeaderProps) {
     const word = label()
     const right = word ? ` ${word} ` : ''
     const prefix = ` ${chevron()} ${diffMark(props.section.status)} `
-    const room = Math.max(8, textWidth() - prefix.length - right.length)
+    // The stage button's two columns are held whether or not it is drawn: the
+    // path would otherwise grow and shrink as the selection walked past.
+    const button = props.staging ? 2 : 0
+    const room = Math.max(8, textWidth() - prefix.length - right.length - button)
     return cutPath(displayRel(props.section), room)
   }
   const meta = () => cut(headerMeta(props.section), textWidth())
@@ -225,6 +247,31 @@ function FileHeader(props: FileHeaderProps) {
             {(word: Accessor<string>) => (
               <text wrapMode="none" fg={color()} bg={bg()} flexShrink={0} content={` ${word()} `} />
             )}
+          </Show>
+          {/* Staged files unstage, everything else stages — the panel's `+`/`−`,
+              on the file the reader is looking at. Drawn on the selected header
+              and under the pointer only, as the panel draws it on the cursor's
+              row alone: a terminal has no hover to hide a button behind. Its own
+              handler, and it runs before the row's — pressing `+` is not
+              pressing the row, which would fold the file away. */}
+          <Show when={props.staging && (props.selected || props.hovered)}>
+            <box
+              flexShrink={0}
+              backgroundColor={stageHover.hovered('stage') ? ui.hoverBg : bg()}
+              onMouseDown={event => {
+                event.stopPropagation()
+                props.onStage()
+              }}
+              onMouseOver={() => stageHover.enter('stage')}
+              onMouseOut={() => stageHover.leave('stage')}
+            >
+              <text
+                wrapMode="none"
+                fg={ui.accent}
+                bg={stageHover.hovered('stage') ? ui.hoverBg : bg()}
+                content={`${props.section.area === 'staged' ? '−' : '+'} `}
+              />
+            </box>
           </Show>
         </box>
       </Show>
@@ -266,9 +313,11 @@ export function ChangesView(props: ChangesViewProps) {
   const headers = new Map<string, LaidOut>()
   let revealTimer: ReturnType<typeof setTimeout> | undefined
   let layoutTimer: ReturnType<typeof setTimeout> | undefined
+  let modeTimer: ReturnType<typeof setTimeout> | undefined
   onCleanup(() => {
     clearTimeout(revealTimer)
     clearTimeout(layoutTimer)
+    clearTimeout(modeTimer)
   })
 
   const syncScroll = () => {
@@ -316,24 +365,29 @@ export function ChangesView(props: ChangesViewProps) {
   }
 
   const scroll = (delta: number) => {
+    // A hold re-applies its offset for a few frames; a reader scrolling inside
+    // that window must win, or the page would pull itself back under them.
+    clearTimeout(modeTimer)
     if (box) box.scrollTop = Math.max(0, box.scrollTop + delta)
     syncScroll()
   }
   const scrollTo = (row: number) => {
+    clearTimeout(modeTimer)
     if (box) box.scrollTop = Math.max(0, row)
     syncScroll()
   }
 
+  /**
+   * Put a file at the top of the page. Always, even when it is already on
+   * screen: moving onto a change and having the page hold still reads as a key
+   * that did nothing, and where a change *starts* is what the reader was asking
+   * for. Both pagers land here — the panel's cursor and Tab inside the page.
+   */
   const reveal = (key: string) => {
     const host = box
     const el = anchors.get(key)
     if (!host || !el) return
-    const top = el.y - host.y + host.scrollTop
-    const view = host.viewport?.height ?? host.height
-    if (top < host.scrollTop) host.scrollTop = top
-    else if (top + el.height > host.scrollTop + view) {
-      host.scrollTop = Math.max(0, top + el.height - view)
-    }
+    host.scrollTop = el.y - host.y + host.scrollTop
     syncScroll()
   }
 
@@ -380,6 +434,53 @@ export function ChangesView(props: ChangesViewProps) {
 
   const isSelected = (key: string) => selectedKey() === key
 
+  /** The file the reader is on: the header Tab lit, else the panel cursor's. */
+  const anchorKey = () => {
+    const keys = props.sections.map(section => section.key)
+    const picked = pickedKey()
+    if (picked && keys.includes(picked)) return picked
+    if (props.focusKey && keys.includes(props.focusKey)) return props.focusKey
+    return keys[currentIndex()] ?? null
+  }
+
+  /**
+   * Hold a file at the top of the page across a relayout. Applied at once and
+   * again over the next few frames: the first attempt runs before the new
+   * heights exist and is clamped to the old ones, and only a later one lands —
+   * re-applying an offset that is already right costs nothing and is what keeps
+   * the wrong frame from being one the reader sees.
+   */
+  const holdAt = (key: string) => {
+    clearTimeout(modeTimer)
+    let tries = HOLD_FRAMES
+    const apply = () => {
+      reveal(key)
+      remeasure()
+      if (--tries <= 0) return
+      // The first retry is a macrotask, not a frame: when the reconciler has
+      // already applied the new heights there is nothing to wait for, and the
+      // sooner the offset is right the fewer frames can show it wrong.
+      modeTimer = setTimeout(apply, tries === HOLD_FRAMES - 1 ? 0 : LAYOUT_FRAME / 2)
+    }
+    apply()
+  }
+
+  /**
+   * Split pairs each change block row for row and pads the shorter side, so
+   * every section changes height when the layout flips — a scroll offset kept
+   * across that lands on a different file.
+   */
+  createEffect(
+    on(
+      () => props.mode,
+      () => {
+        const key = anchorKey()
+        if (key) holdAt(key)
+      },
+      { defer: true },
+    ),
+  )
+
   const moveSelection = (delta: number) => {
     const keys = props.sections.map(section => section.key)
     if (keys.length === 0) return
@@ -406,8 +507,11 @@ export function ChangesView(props: ChangesViewProps) {
           const el = anchors.get(key)
           const first = props.sections[0]?.key === key
           // y stays 0 until layout; treating that as ready scrolled a later
-          // file to the top of the stack on first open.
-          const ready = el && box && el.height > 0 && (first || el.y > 0)
+          // file to the top of the stack on first open. Not `y > 0`: a section
+          // scrolled off the top of the page has a negative y, and waiting for
+          // it to turn positive is waiting forever — which is a click on a file
+          // above the one on screen scrolling nowhere.
+          const ready = el && box && el.height > 0 && (first || el.y !== 0)
           if (ready) {
             reveal(key)
             return
@@ -428,7 +532,7 @@ export function ChangesView(props: ChangesViewProps) {
     if (k === 'up' || k === 'k') scroll(-1)
     else if (k === 'down' || k === 'j') scroll(1)
     else if (k === 'pageup' || (key.ctrl && k === 'u')) scroll(-page())
-    else if (k === 'pagedown' || k === 'space' || (key.ctrl && k === 'd')) scroll(page())
+    else if (k === 'pagedown' || (key.ctrl && k === 'd')) scroll(page())
     else if (k === 'end' || (k === 'g' && key.shift)) scrollTo(Number.MAX_SAFE_INTEGER)
     else if (k === 'home' || k === 'g') scrollTo(0)
     else if (k === 'left' || k === 'h') {
@@ -438,7 +542,16 @@ export function ChangesView(props: ChangesViewProps) {
       const sel = selectedKey()
       if (sel) setFold(sel, false)
     } else if (k === 'tab') moveSelection(key.shift ? -1 : 1)
-    else if (k === 'escape' || k === 'q') props.onClose()
+    // Tab already walks the file headers here, so the layout gets the two keys
+    // the one-file page also answered to.
+    else if (k === 's' || k === 'd') props.onToggleMode()
+    // Space is the panel's stage key, and it means the same here rather than
+    // paging: PgDn and Ctrl+D already page, and nothing else on this side of
+    // Tab could stage the file being read.
+    else if (k === 'space') {
+      const sel = selectedKey()
+      if (sel) props.onToggleStage(sel)
+    } else if (k === 'escape' || k === 'q') props.onClose()
     else return
     key.preventDefault()
   })
@@ -446,8 +559,16 @@ export function ChangesView(props: ChangesViewProps) {
   const summary = () => changesSummary(props.title, props.sections.length, props.meta)
 
   const hints = () => {
-    const full = ' ↑↓ scroll · Tab file · ← fold · Esc close '
+    const layout = props.mode === 'inline' ? 'inline' : 'side-by-side'
+    // The page answers to `s`; the panel, which holds the keyboard until Tab is
+    // pressed, answers to `S` — plain `s` is sync there. Naming the key that
+    // works from where the keyboard actually is, is the whole point of a hint.
+    const key = props.focused ? 's' : 'S'
+    const stage = props.staging ? ' · Space stage' : ''
+    const full = ` ${layout} · ${key} layout${stage} · ↑↓ scroll · Tab file · ← fold · Esc close `
     if (full.length + 28 <= props.width) return full
+    const short = ` ${layout} · ${key} · Tab · ← fold · Esc close `
+    if (short.length + 28 <= props.width) return short
     return ' Tab · ← fold · Esc close '
   }
 
@@ -533,6 +654,11 @@ export function ChangesView(props: ChangesViewProps) {
                         part="full"
                         hovered={hover.hovered(section.key)}
                         selected={isSelected(section.key)}
+                        staging={props.staging}
+                        onStage={() => {
+                          setPickedKey(section.key)
+                          props.onToggleStage(section.key)
+                        }}
                         onToggle={() => {
                           setPickedKey(section.key)
                           toggleFold(section.key)
@@ -545,7 +671,7 @@ export function ChangesView(props: ChangesViewProps) {
                       {(file: Accessor<DiffFile>) => (
                         <DiffView
                           file={file()}
-                          mode="inline"
+                          mode={props.mode}
                           variant="section"
                           width={props.width}
                           focused={false}
@@ -577,6 +703,11 @@ export function ChangesView(props: ChangesViewProps) {
                   part={pin().clipped > 0 ? 'meta' : 'full'}
                   hovered={hover.hovered(pin().section.key)}
                   selected={isSelected(pin().section.key)}
+                  staging={props.staging}
+                  onStage={() => {
+                    setPickedKey(pin().section.key)
+                    props.onToggleStage(pin().section.key)
+                  }}
                   onToggle={() => {
                     setPickedKey(pin().section.key)
                     toggleFold(pin().section.key)

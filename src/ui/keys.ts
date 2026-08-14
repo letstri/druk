@@ -37,7 +37,7 @@ export interface KeyInfo {
   ids?: string[]
   /** Footer advertisement: which pane shows it, as what, in what order.
    * `key` overrides the display key where the full spelling is too wide. */
-  hint?: { pane: Pane | 'all'; label: string; rank: number; key?: string }
+  hint?: { pane: KeyScope | 'all'; label: string; rank: number; key?: string }
   /** Row on the empty-editor welcome screen. Same `key` override as `hint`. */
   welcome?: { label: string; rank: number; key?: string }
 }
@@ -69,6 +69,9 @@ export const KEYS: KeyInfo[] = [
     section: 'General',
     where: 'all',
     ids: ['open'],
+    // Late rank on purpose: in the panels, the panel's own keys are the ones
+    // nobody knows, and the footer cuts from the tail when room runs out.
+    hint: { pane: 'all', label: 'open', rank: 8, key: 'Ctrl+P' },
     welcome: { label: 'Open a file by name', rank: 1, key: 'Ctrl+P' },
   },
   { key: 'Ctrl+G', label: 'Go to line', section: 'General', where: 'all', ids: ['goto'] },
@@ -141,6 +144,7 @@ export const KEYS: KeyInfo[] = [
     section: 'Search & replace',
     where: 'editor',
     ids: ['find.file'],
+    hint: { pane: 'editor', label: 'find', rank: 3 },
   },
   {
     key: 'Ctrl+R',
@@ -231,9 +235,22 @@ export const KEYS: KeyInfo[] = [
     label: 'Preview file, no tab · scroll it',
     section: 'File tree',
     where: 'tree',
+    hint: { pane: 'tree', label: 'preview', rank: 3, key: 'Space' },
   },
-  { key: 'a / A', label: 'New file / folder (in tree)', section: 'File tree', where: 'tree' },
-  { key: 'r / d', label: 'Rename / delete (in tree)', section: 'File tree', where: 'tree' },
+  {
+    key: 'a / A',
+    label: 'New file / folder (in tree)',
+    section: 'File tree',
+    where: 'tree',
+    hint: { pane: 'tree', label: 'new', rank: 4, key: 'a' },
+  },
+  {
+    key: 'r / d',
+    label: 'Rename / delete (in tree)',
+    section: 'File tree',
+    where: 'tree',
+    hint: { pane: 'tree', label: 'rename', rank: 5, key: 'r' },
+  },
   {
     key: 'x / c / p',
     label: 'Cut / copy / paste here (in tree)',
@@ -266,6 +283,15 @@ export const KEYS: KeyInfo[] = [
     label: 'Stage/commit/discard/push/sync/branch/compare/back',
     section: 'Source control',
     where: 'git',
+  },
+  // One row for the three, as the source-control keys are: the help table only
+  // just fits a 70-row terminal and a wrapped label costs it a second row.
+  {
+    key: `Ctrl+${ALT}+U / J`,
+    label: 'Resolve conflict · next one',
+    section: 'Source control',
+    where: 'editor',
+    ids: ['git.conflictResolve', 'git.conflictNext'],
   },
 
   // One row for the pair, and short labels, as the source-control rows are: the
@@ -369,6 +395,27 @@ export { setOverrides as setKeyOverrides }
  */
 export const chordFor = (id: string): string => overrides()[id]?.key ?? ''
 
+/**
+ * What the status bar says after a command ran the slow way — from the palette,
+ * where the key that would have done it is learnable at the one moment it is
+ * wanted. '' for a command with no key, which callers say nothing for.
+ */
+export const keyTip = (id: string): string => {
+  const override = overrides()[id]
+  return override?.key ? `${override.key} — ${override.label}` : ''
+}
+
+/**
+ * The chord the palette should print for a bindable command: the user's own
+ * spelling once they rebound it — '' when they unbound it — and null while the
+ * default stands, where the palette's hand-written hint is the better text
+ * ("Ctrl+F then Tab" says more than a chord column can).
+ */
+export const rebound = (id: string): string | null => {
+  const override = overrides()[id]
+  return override?.changed ? override.key : null
+}
+
 const UNBOUND = '—'
 
 /**
@@ -454,18 +501,42 @@ export interface Hint {
   label: string
   /** Command the hint's key runs, so a click on it does what the key does. */
   id?: string
+  rank: number
 }
 
+/**
+ * Footer hints for the panel scopes, whose keys the help table lists as one
+ * combined row per panel — a row a hint cannot borrow, since it advertises one
+ * key with one word. Single letters only alive inside the panel, so none of
+ * them is bindable and none needs the override treatment.
+ */
+const PANEL_HINTS: (Hint & { pane: KeyScope })[] = [
+  { pane: 'git', key: 'Space', label: 'stage', rank: 2 },
+  { pane: 'git', key: 'c', label: 'commit', rank: 3 },
+  { pane: 'git', key: 'a', label: 'diff', rank: 4 },
+  { pane: 'git', key: 'd', label: 'discard', rank: 5 },
+  { pane: 'git', key: 's', label: 'sync', rank: 6 },
+  { pane: 'git', key: 'B', label: 'compare', rank: 7 },
+  { pane: 'review', key: 'r', label: 'reply', rank: 2 },
+  { pane: 'review', key: 'Bksp', label: 'drop', rank: 3 },
+  { pane: 'extensions', key: '/', label: 'find', rank: 2 },
+  { pane: 'extensions', key: 'Enter', label: 'install', rank: 3 },
+  { pane: 'extensions', key: 'u', label: 'update', rank: 4 },
+]
+
 /** Footer hints for `pane`, most useful first. */
-export function hintsFor(pane: Pane): Hint[] {
-  return entries()
+export function hintsFor(pane: KeyScope): Hint[] {
+  const fromTable = entries()
     .filter(info => info.hint && (info.hint.pane === pane || info.hint.pane === 'all'))
-    .toSorted((a, b) => a.hint!.rank - b.hint!.rank)
     .map(info => ({
       key: shortKey(info, info.hint!.key),
       label: info.hint!.label,
       id: info.ids?.[0],
+      rank: info.hint!.rank,
     }))
+  return [...fromTable, ...PANEL_HINTS.filter(hint => hint.pane === pane)].toSorted(
+    (a, b) => a.rank - b.rank,
+  )
 }
 
 /** Rows for the welcome screen, most useful first. */

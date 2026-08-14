@@ -115,11 +115,22 @@ export const BINDABLE: Bindable[] = [
   { id: 'view.focus', label: 'Focus tree / editor', defaults: [] },
   { id: 'git.diffFile', label: 'Diff current file', defaults: [] },
   { id: 'git.diffAll', label: 'Show all changes', defaults: [] },
+  { id: 'git.diffLayout', label: 'Toggle diff layout', defaults: [] },
   { id: 'git.commit', label: 'Commit…', defaults: [] },
   { id: 'git.stage', label: 'Stage / unstage selection', defaults: [] },
   { id: 'git.discard', label: 'Discard changes', defaults: [] },
   { id: 'git.push', label: 'Push', defaults: [] },
   { id: 'git.compare', label: 'Compare branches', defaults: [] },
+  // U for "unmerged", and one of the six Ctrl+Opt letters still free. The
+  // chooser gets the chord rather than the three sides: resolving is rare, and
+  // three keys nobody has in their fingers would be three letters spent.
+  { id: 'git.conflictResolve', label: 'Resolve conflict at cursor', defaults: [`Ctrl+${ALT}+U`] },
+  // J as in vim's down, since the next conflict is the one below.
+  { id: 'git.conflictNext', label: 'Next conflict', defaults: [`Ctrl+${ALT}+J`] },
+  { id: 'git.conflictPrev', label: 'Previous conflict', defaults: [] },
+  { id: 'git.acceptOurs', label: 'Accept current change (ours)', defaults: [] },
+  { id: 'git.acceptTheirs', label: 'Accept incoming change (theirs)', defaults: [] },
+  { id: 'git.acceptBoth', label: 'Accept both changes', defaults: [] },
   // A for annotate: R is the panel, and the note is the thing pressed far more often.
   { id: 'review.note', label: 'Note this line for a review', defaults: [`Ctrl+${ALT}+A`] },
   { id: 'problems.list', label: 'List problems', defaults: [] },

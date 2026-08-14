@@ -59,8 +59,8 @@ test('the cursor opens the diff for the file it lands on', async () => {
   const shown = frame(t)
   expect(shown).toContain('alpha changed')
   expect(shown).toContain('+1 −1')
-  // The keyboard stays in the panel: the arrows are the pager, not the scroll.
-  expect(shown).toContain('space stage')
+  // The keyboard stays in the panel: the status bar advertises the panel's keys.
+  expect(shown).toContain('Space stage')
 })
 
 test('Enter opens the changed file itself, over the diff the cursor showed', async () => {
