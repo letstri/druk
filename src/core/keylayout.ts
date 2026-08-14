@@ -39,6 +39,28 @@ for (const [us, foreign] of ROWS) {
   }
 }
 
+/**
+ * What a key prints with Caps Lock on.
+ *
+ * A terminal speaking the kitty protocol reports Caps Lock as a modifier bit and
+ * sends the key's own, lowercase code — `CSI 97;65u` for a caps-locked A. The
+ * uppercase character reaches the app only through the protocol's *associated
+ * text*, which is a flag of its own that not every terminal implements, so
+ * without this the lock does nothing at all and letters type lowercase.
+ *
+ * Idempotent, which is what lets it run over every key: a terminal that did send
+ * the text already produced this character. Shift reverses the lock, as it does
+ * on the OS side, so a caps-locked Shift+A is `a` either way.
+ */
+export function capsChar(char: string, shift: boolean): string {
+  if (char.length !== 1) return char
+  const upper = char.toUpperCase()
+  const lower = char.toLowerCase()
+  // Not a letter — a digit or a symbol is what its own key says, lock or not.
+  if (upper === lower || upper.length !== 1 || lower.length !== 1) return char
+  return shift ? lower : upper
+}
+
 /** The US name of the key `key` is on, or its own name when it is one already. */
 export function latinKey(key: { name: string; baseCode?: number }): string {
   const name = key.name

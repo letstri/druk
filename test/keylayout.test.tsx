@@ -2,7 +2,8 @@ import { describe, expect, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-import { latinKey } from '../src/core/keylayout'
+import { capsChar, latinKey } from '../src/core/keylayout'
+import type { Harness } from './helpers'
 import { fixture, launch, openFile, press, settle } from './helpers'
 
 describe('a non-Latin layout', () => {
@@ -81,5 +82,48 @@ describe('a non-Latin layout', () => {
     await press(t, i => i.pressKey('ш'))
     await press(t, i => i.pressKey('ф'))
     expect(t.captureCharFrame()).toContain('ф')
+  })
+})
+
+/**
+ * A caps-locked key as the kitty protocol reports it *without* the associated-text
+ * flag: the key's own codepoint, and the lock as a modifier (64, sent one-based).
+ * mockInput has no Caps Lock, so the sequence goes in as bytes.
+ */
+const capsKey = (t: Harness, char: string, shift = false) => {
+  const mods = 1 + 64 + (shift ? 1 : 0)
+  t.renderer.stdin.emit('data', Buffer.from(`\x1B[${char.codePointAt(0)};${mods}u`))
+}
+
+describe('Caps Lock', () => {
+  test('locks a letter and is reversed by Shift', () => {
+    expect(capsChar('a', false)).toBe('A')
+    expect(capsChar('a', true)).toBe('a')
+    // Already uppercase: the terminal reported the text, so this changes nothing.
+    expect(capsChar('A', false)).toBe('A')
+    expect(capsChar('ф', false)).toBe('Ф')
+  })
+
+  test('leaves everything that is not a letter alone', () => {
+    expect(capsChar('1', false)).toBe('1')
+    expect(capsChar('!', true)).toBe('!')
+    expect(capsChar('\x1B', false)).toBe('\x1B')
+  })
+
+  test('typing with the lock on types uppercase', async () => {
+    const t = await launch(fixture({ 'a.ts': 'x\n' }), {}, {}, { kittyKeyboard: true })
+    await openFile(t, 'a.ts')
+    capsKey(t, 'a')
+    capsKey(t, 'b', true)
+    await settle(t)
+    expect(t.captureCharFrame()).toContain('Ab')
+  })
+
+  test("a panel's bare letter still runs its command", async () => {
+    const t = await launch(fixture({ 'a.ts': 'x\n' }), {}, {}, { kittyKeyboard: true })
+    await press(t, i => i.pressArrow('down'))
+    capsKey(t, 'r')
+    await settle(t)
+    expect(t.captureCharFrame()).toContain('Rename to')
   })
 })

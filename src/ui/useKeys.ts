@@ -1,7 +1,7 @@
 import type { KeyEvent } from '@opentui/core'
 import { useKeyboard } from '@opentui/solid'
 
-import { latinKey } from '../core/keylayout'
+import { capsChar, latinKey } from '../core/keylayout'
 
 /**
  * Every key handler in druk subscribes through here rather than OpenTUI's
@@ -19,9 +19,20 @@ import { latinKey } from '../core/keylayout'
  * is handed to the handler *beside* the event as `latin`. A handler switching on
  * a command reads `latin`; one consuming text reads `key.name`/`key.sequence`.
  * Getting that wrong is a Ukrainian layout typing `ф` and renaming a file.
+ *
+ * Caps Lock is applied to the *character* alone, for the reason in
+ * `core/keylayout.ts`. The key's name is left lowercase on purpose: every bare
+ * letter druk answers to is a command, and a lock meant for typing must not take
+ * the tree's `r` or vim's `d` away — the same rule that keeps them working on a
+ * Cyrillic layout.
  */
 export function useKeys(handler: (key: KeyEvent, latin: string) => void) {
   useKeyboard((key: KeyEvent) => {
+    // Before the textarea reads it: this runs as a global handler, which the
+    // renderer emits ahead of the focused renderable's own.
+    if (key.capsLock && !key.ctrl && !key.meta && key.sequence) {
+      key.sequence = capsChar(key.sequence, key.shift)
+    }
     const latin = latinKey(key)
     if (key.ctrl || key.meta) key.name = latin
     handler(key, latin)
