@@ -65,8 +65,7 @@ export function CommitModal(props: CommitModalProps) {
       prev.size > 0 ? new Set<string>() : new Set(props.files.map(file => file.path)),
     )
 
-  useKeys((key: KeyEvent) => {
-    const k = key.name
+  useKeys((key: KeyEvent, k: string) => {
     if (k === 'up') {
       key.preventDefault()
       move(-1)

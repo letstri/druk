@@ -102,12 +102,11 @@ export function SettingsView(props: SettingsViewProps) {
     else row.cycle(1)
   }
 
-  useKeys((key: KeyEvent) => {
+  useKeys((key: KeyEvent, k: string) => {
     // A page, not a modal: keys count only when this pane holds the focus, and
     // a chord the global keymap already claimed is not ours to reuse. The value
     // list owns the keyboard while open — j/k must type into its filter.
     if (props.blocked || !props.focused || key.defaultPrevented || picking() || editing()) return
-    const k = key.name
     const count = Math.max(1, rows().length)
     // While the filter field is up every printable key belongs to it — only the
     // keys it has no use for are still the page's, and Esc backs out of the

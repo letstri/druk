@@ -2404,13 +2404,17 @@ export function EditorPane(props: EditorPaneProps) {
     if (handleTyping(editor, key, props.tabSize)) key.preventDefault()
   })
 
-  useKeys((key: KeyEvent) => {
+  useKeys((key: KeyEvent, latin: string) => {
     if (key.defaultPrevented) return
     if (props.blocked || !props.vim || !editor || !props.focused) return
     const before = vimState.mode
+    // The US name of the key, as `handleVimKey` reads it — a Cyrillic layout
+    // otherwise leaves `d` unrecognised here and the operator rewrites a line
+    // the buffer only has folded.
+    const command = key.shift && /^[a-z]$/.test(latin) ? latin.toUpperCase() : latin
     // Same reason as the typing handler: an operator about to rewrite a folded
     // anchor needs the block open first.
-    if (folded() && vimState.mode !== 'insert' && VIM_EDITS.has(key.sequence ?? '')) {
+    if (folded() && vimState.mode !== 'insert' && VIM_EDITS.has(command)) {
       releaseFoldForEdit()
     }
     const stepped = { undo: () => stepHistory('undo'), redo: () => stepHistory('redo') }

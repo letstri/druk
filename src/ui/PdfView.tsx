@@ -2,7 +2,7 @@ import { basename } from 'node:path'
 
 import { RGBA } from '@opentui/core'
 import type { BoxRenderable, KeyEvent, OptimizedBuffer } from '@opentui/core'
-import { useKeyboard, useRenderer } from '@opentui/solid'
+import { useRenderer } from '@opentui/solid'
 import { createEffect, createMemo, createSignal, on, onCleanup, Show } from 'solid-js'
 
 import { errorMessage } from '../core/errors'
@@ -11,6 +11,7 @@ import type { CellImage } from '../core/image'
 import { centerPdfPan, clampPdfPan, openPdf, stepPdfZoom } from '../core/pdf'
 import type { PdfFile, PdfPan } from '../core/pdf'
 import { ui } from '../themes'
+import { useKeys } from './useKeys'
 
 export interface PdfViewProps {
   path: string | null
@@ -225,9 +226,8 @@ export function PdfView(props: PdfViewProps) {
     renderer.requestRender()
   }
 
-  useKeyboard((key: KeyEvent) => {
+  useKeys((key: KeyEvent, name: string) => {
     if (!props.path || props.blocked || !props.focused || key.defaultPrevented) return
-    const name = key.name
     if (name === 'pageup' || name === 'k') movePage(-1)
     else if (name === 'pagedown' || name === 'j' || name === 'space') movePage(1)
     else if (name === '+' || name === '=') setZoom(current => stepPdfZoom(current, 1))

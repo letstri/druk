@@ -38,11 +38,11 @@ export function ComparisonView(props: ComparisonViewProps) {
   /** The one case `DiffView` can draw, and the one it owns the keyboard for. */
   const text = () => (props.content?.binary === false ? props.content : null)
 
-  useKeys((key: KeyEvent) => {
+  useKeys((key: KeyEvent, k: string) => {
     if (props.blocked || !props.focused || key.defaultPrevented || text()) return
-    if (props.commit && (key.name === 'left' || key.name === 'right')) {
-      props.onMoveFile(key.name === 'left' ? -1 : 1)
-    } else if (key.name === 'escape' || key.name === 'q') {
+    if (props.commit && (k === 'left' || k === 'right')) {
+      props.onMoveFile(k === 'left' ? -1 : 1)
+    } else if (k === 'escape' || k === 'q') {
       props.onClose()
     } else return
     key.preventDefault()

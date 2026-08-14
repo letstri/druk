@@ -1,5 +1,7 @@
 import type { KeyEvent, TextareaRenderable } from '@opentui/core'
 
+import { latinKey } from '../core/keylayout'
+
 export type VimMode = 'normal' | 'insert' | 'visual'
 
 type VisualKind = 'char' | 'line'
@@ -363,9 +365,13 @@ export function handleVimKey(
 }
 
 function dispatch(editor: Editor, key: KeyEvent, state: VimState, actions: VimActions): boolean {
+  // Every command below is a place on the keyboard, not a letter: with a
+  // Cyrillic layout up `dd` arrives as `вв` and normal mode would go dead.
+  // Insert mode is the exception and returns before this is ever read.
+  const pressed = latinKey(key)
   // Shifted letters arrive as the lowercase name plus `shift`, so restore the
   // uppercase form the commands below are written against (A, O, G, …).
-  const k = key.shift && /^[a-z]$/.test(key.name) ? key.name.toUpperCase() : key.name
+  const k = key.shift && /^[a-z]$/.test(pressed) ? pressed.toUpperCase() : pressed
   if (state.mode === 'insert') {
     if (k === 'escape') {
       state.mode = 'normal'

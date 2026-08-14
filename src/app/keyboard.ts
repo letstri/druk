@@ -123,9 +123,11 @@ export function installKeyboard(ctx: AppContext, actions: CommandActions) {
     'quit': prompts.quit,
   }
 
-  useKeys((key: KeyEvent) => {
-    const k = key.name
-
+  // Nothing here consumes a keystroke as text — the commit box and the extensions
+  // search are real inputs that get their characters elsewhere, and the branches
+  // below only claim the keys those fields have no use for. So every switch reads
+  // the US name of the key rather than the letter the layout printed.
+  useKeys((key: KeyEvent, k: string) => {
     // Overlays own their keys (handled inside their own components).
     if (overlays.help()) {
       if (k === 'escape') overlays.setHelp(false)

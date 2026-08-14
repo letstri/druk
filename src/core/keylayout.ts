@@ -7,8 +7,14 @@
  * rather than a letter, so the character is translated back before anything
  * compares it — the same thing VS Code and JetBrains do.
  *
- * Only chords holding Ctrl are translated (`useKeys` is where that is decided):
- * without it the character *is* what the user meant to type.
+ * A chord is renamed in place; a bare letter cannot be, since the panels spend
+ * bare letters on commands while the editor and every filter field spend the same
+ * keystroke on the character it prints — `useKeys` hands that one to the handler
+ * alongside the event instead, and each handler picks the reading it needs.
+ *
+ * A key whose foreign layout prints ASCII is left alone, so it answers to the
+ * name the layout gave it: `/` is unreachable on a Ukrainian layout (the key
+ * prints `.`) unless the terminal speaks the kitty protocol and sends a base code.
  */
 
 /**

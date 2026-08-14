@@ -526,9 +526,8 @@ export function ChangesView(props: ChangesViewProps) {
 
   const page = () => Math.max(1, dimensions().height - 3)
 
-  useKeys((key: KeyEvent) => {
+  useKeys((key: KeyEvent, k: string) => {
     if (props.blocked || !props.focused || key.defaultPrevented) return
-    const k = key.name
     if (k === 'up' || k === 'k') scroll(-1)
     else if (k === 'down' || k === 'j') scroll(1)
     else if (k === 'pageup' || (key.ctrl && k === 'u')) scroll(-page())

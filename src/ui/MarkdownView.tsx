@@ -85,11 +85,10 @@ export function MarkdownView(props: MarkdownViewProps) {
   /** Rows a page spans — the pane is the editor slot: tabs, header, status bar off. */
   const page = () => Math.max(1, dimensions().height - 3)
 
-  useKeys((key: KeyEvent) => {
+  useKeys((key: KeyEvent, k: string) => {
     // A page, not a modal: keys count only when this pane holds the focus, and
     // a chord the global keymap already claimed is not ours to reuse.
     if (props.blocked || !props.focused || key.defaultPrevented) return
-    const k = key.name
     if (k === 'up' || k === 'k') scroll(-1)
     else if (k === 'down' || k === 'j') scroll(1)
     else if (k === 'pageup' || (key.ctrl && k === 'u')) scroll(-page())

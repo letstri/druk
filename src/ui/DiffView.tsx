@@ -570,12 +570,11 @@ export function DiffView(props: DiffViewProps) {
   /** Rows a page spans — the pane is the editor slot: tabs, header, status bar off. */
   const page = () => Math.max(1, dimensions().height - 3)
 
-  useKeys((key: KeyEvent) => {
+  useKeys((key: KeyEvent, k: string) => {
     // A page, not a modal: keys count only when this pane holds the focus, and
     // a chord the global keymap already claimed is not ours to reuse. A section
     // in the all-changes scroll does not own the keyboard at all.
     if (section() || props.blocked || !props.focused || key.defaultPrevented) return
-    const k = key.name
     // The arrows scroll here and page through the changes in the source-control
     // panel — one pane owns each meaning, so neither has to be a chord.
     if (k === 'up' || k === 'k') scroll(-1)

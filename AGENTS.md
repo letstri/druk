@@ -667,8 +667,27 @@ dependency rule, and recipes for the extension points:
 | git command | run it in `git.activeRepo()`, never in `rootDir` — the opened folder may hold several repositories and be none itself. A mutation goes through `gitOp`, which refuses when no repository is picked and *hands the chosen one to the callback*; an operation offered for a particular row pins `options.repo` so a later refresh cannot redirect it. A query asks `git.repoFor(path)` for the repository of the path it is about. A path passed after `--` is a *pathspec*, so it goes through `literal()` (`src/core/git.ts`) — `[`, `*` and `?` are glob metacharacters there, and `git clean -f -- '[id].tsx'` deletes `i.tsx` as well. Which repositories exist is `discoverRepos` (`src/core/repos.ts`), refreshed in `wireGitEffects` |
 
 Key handlers subscribe through `useKeys` (`src/ui/useKeys.ts`), never OpenTUI's
-`useKeyboard` directly: it renames a Ctrl chord to the US key the character sits on, so
-a shortcut still fires with a Cyrillic layout up (`src/core/keylayout.ts`).
+`useKeyboard` directly: a shortcut is a *place on the keyboard*, not the letter the
+current layout prints, so with a Ukrainian or Russian layout up Ctrl+ф still saves
+(`src/core/keylayout.ts`, which reads the kitty protocol's base code when the terminal
+sends one and falls back to a Cyrillic table when it does not). The handler is called
+as `(key, latin)`, and which of the two it reads is the whole rule:
+
+- **A switch on a command reads `latin`.** Every bare-letter key in druk is a command —
+  the tree's `r`/`a`/`d`, the git panel's `c`/`s`/`p`/`b`, the extensions panel's `u`,
+  the diff page's `s`, vim's whole normal mode — and none of them can be renamed in
+  place, because the same keystroke is a *character* in the editor, the commit box and
+  every filter field. Reading `key.name` there is what makes a non-Latin layout type `ф`
+  and rename a file.
+- **A handler consuming text reads `key.name` / `key.sequence`.** Typing is the letter
+  the layout printed, not the key it sits on.
+- Only a chord holding Ctrl or Cmd is renamed *in place*, which the handlers after it
+  and the textarea's own handling see as well; the translation is idempotent, so which
+  one gets there first does not matter.
+
+A key whose foreign layout prints ASCII keeps that name — `/` has no Ukrainian
+spelling (the key prints `.`), so the panels' filter key needs a terminal that speaks
+the kitty protocol. `test/keylayout.test.tsx` covers both readings.
 
 Anything clickable tints under the pointer: `useHover` (`src/ui/hover.ts`) wired to
 `onMouseOver`/`onMouseOut` on the element's box — the events bubble, so one pair on a

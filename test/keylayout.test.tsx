@@ -52,4 +52,34 @@ describe('a non-Latin layout', () => {
     await press(t, i => i.pressKey('ф'))
     expect(t.captureCharFrame()).toContain('ф')
   })
+
+  // The panels spend bare letters on commands, which no chord translation reaches.
+  test("a panel's bare letter runs its command", async () => {
+    const t = await launch(fixture({ 'a.ts': 'const a = 1\n' }), {}, {}, { kittyKeyboard: true })
+    await press(t, i => i.pressArrow('down'))
+    // к is the Ukrainian key at R, which renames the tree's selection.
+    await press(t, i => i.pressKey('к'))
+    expect(t.captureCharFrame()).toContain('Rename to')
+  })
+
+  test('vim normal mode answers to the keys, not the letters', async () => {
+    const dir = fixture({ 'a.ts': 'one\ntwo\nthree\n' })
+    const t = await launch(dir, { vim: true }, {}, { kittyKeyboard: true })
+    await openFile(t, 'a.ts')
+    // в is the Ukrainian key at D: `dd` deletes the line the caret is on.
+    await press(t, i => i.pressKey('в'))
+    await press(t, i => i.pressKey('в'))
+    await press(t, i => i.pressKey('і', { ctrl: true }))
+    await settle(t, 100)
+    expect(readFileSync(join(dir, 'a.ts'), 'utf8')).toBe('two\nthree\n')
+  })
+
+  test('vim insert mode still types Cyrillic', async () => {
+    const t = await launch(fixture({ 'a.ts': 'one\n' }), { vim: true }, {}, { kittyKeyboard: true })
+    await openFile(t, 'a.ts')
+    // ш is the Ukrainian key at I, which enters insert mode; ф then types.
+    await press(t, i => i.pressKey('ш'))
+    await press(t, i => i.pressKey('ф'))
+    expect(t.captureCharFrame()).toContain('ф')
+  })
 })
