@@ -715,18 +715,18 @@ export function wireLspEffects(deps: { lsp: Lsp; settings: Settings; workspace: 
       // Read here, in the tracked run — these are the captured values.
       const text = buffer.content
       const dirty = buffer.dirty
-      let known = synced.get(path)
+      const known = synced.get(path)
 
-      // Any of the entry's servers gone — one failed to spawn, or crashed — and
-      // the whole entry is forgotten. Forgetting it is what lets the document
-      // reach a replacement: the very file whose opening triggered the install
-      // offer is synced to the *dead* client, so without this the generation
-      // bump after an install re-opens every document except the one that asked
-      // for the server.
+      // A dead server — one that failed to spawn, or crashed — is dropped from
+      // the entry alone, never the whole entry: re-opening the document into
+      // the survivors is refused ("can't open already open document"), and the
+      // edit that triggered this very run went out with that refused didOpen —
+      // so a linter dying beside a language server left the language server
+      // answering completions against a buffer one edit behind. The entry is
+      // kept even when every client is gone: the replacement path below is what
+      // re-opens the document once an install brings a server back.
       if (known?.clients.some(client => client.dead())) {
-        pendingEdits.delete(path)
-        synced.delete(path)
-        known = undefined
+        known.clients = known.clients.filter(client => !client.dead())
       }
 
       if (!known) {
@@ -739,6 +739,20 @@ export function wireLspEffects(deps: { lsp: Lsp; settings: Settings; workspace: 
         }
         synced.set(path, { clients, text, dirty })
         continue
+      }
+
+      // A server spawned after the entry was made — installed mid-session, with
+      // the generation bump re-running this effect — is the one client the
+      // document must still reach. It alone gets the didOpen, with the text the
+      // entry's other servers already hold, so one edit stream serves them all.
+      const fresh = lsp.clientsFor(path).filter(client => !known.clients.includes(client))
+      if (fresh.length > 0) {
+        const filetype = filetypeForPath(path) ?? 'plaintext'
+        for (const client of fresh) {
+          client.openDocument(path, filetype, known.text)
+          client.pullDiagnostics(path)
+        }
+        known.clients.push(...fresh)
       }
 
       if (text !== known.text) {
