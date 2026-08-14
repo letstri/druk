@@ -11,6 +11,7 @@ loadMarketExtensions()
 
 const HYBRID = join(import.meta.dir, 'fixtures', 'hybrid-lsp.ts')
 const TSSERVER = join(import.meta.dir, 'fixtures', 'tsserver-lsp.ts')
+const SYNC = join(import.meta.dir, 'fixtures', 'sync-lsp.ts')
 
 /** Two servers and a relay between them cross process boundaries twice. */
 const LSP_WAIT = 15_000
@@ -84,6 +85,35 @@ test('a tsserver/request nobody can answer is still answered', async () => {
 
   await press(t, input => void input.typeText('hy'))
   await untilFrame(t, 'hybrid:null', LSP_WAIT)
+}, 30_000)
+
+test('an edit still reaches the live server after a sibling dies', async () => {
+  const dir = fixture({ 'a.vue': SFC })
+  const t = await launch(
+    dir,
+    {
+      lsp: true,
+      lspServers: {
+        // A healthy server that refuses a duplicate didOpen, the way real ones
+        // do — beside a sibling whose binary is missing, the shape of a linter
+        // extension installed without its linter. The dead client used to make
+        // the first edit *re-open* the document instead of syncing it: the
+        // live server refused the didOpen, kept its stale text, and answered
+        // every completion one edit behind.
+        'vue': [process.execPath, SYNC],
+        'vue-typescript': ['druk-no-such-server'],
+      },
+    },
+    {},
+    { openFile: join(dir, 'a.vue') },
+  )
+
+  // The death is what arms the bug, so it must land before the edit does.
+  await untilFrame(t, 'not installed', LSP_WAIT)
+  await press(t, input => void input.typeText('ab'))
+  // The label names the word at the cursor as the server sees it, and how many
+  // didOpens it took: stale text or a second didOpen would spell differently.
+  await untilFrame(t, 'abSync1', LSP_WAIT)
 }, 30_000)
 
 test('the item resolved is the one the answering server holds', async () => {

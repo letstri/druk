@@ -54,7 +54,24 @@ describe('vue highlighting', () => {
 
   test('paints the template', async () => {
     expect(await painted('tag')).toContain('div')
-    expect(await painted('property')).toContain('class')
+    // The sigil and the argument merge into one attribute-coloured span, the
+    // way VS Code paints the whole of `:class` — split, the argument half took
+    // whatever a theme gives `property`, plain text in several of them.
+    expect(await painted('attribute')).toContain(':class')
+    expect(await painted('attribute')).toContain('v-for')
+    expect(await painted('attribute')).toContain('stop')
+  })
+
+  // Identifiers in an expression are variables, not constants. They were
+  // injected as the *bundled* typescript grammar once, whose query gates its
+  // identifier captures behind `#lua-match?` predicates the worker never
+  // evaluates — so every identifier also matched `@type` and `@constant`, and
+  // the last of those painted the lot.
+  test('paints a template expression identifier as a variable', async () => {
+    const variables = await painted('variable')
+    expect(variables).toContain('tone')
+    expect(variables).toContain('items')
+    expect(await painted('constant')).not.toContain('tone')
   })
 
   // The whole point: the vue grammar reads a block body as one raw_text token,
@@ -75,20 +92,20 @@ describe('vue highlighting', () => {
   // `(interpolation) @embedded` covers the braces and everything between them,
   // so the injected capture has to be the one that wins the expression.
   test('paints the expression inside an interpolation', async () => {
-    expect(await painted('variable.member')).toContain('value')
+    expect(await painted('property')).toContain('value')
   })
 
   // A directive's value is an expression the whole of the template's logic is
   // written in, and the outer `@string` covers it — so the injection has to win
   // it the way the interpolation's does.
   test('paints directive values as the expressions they are', async () => {
-    expect(await painted('keyword.operator')).toContain('in')
+    expect(await painted('keyword')).toContain('in')
     expect(await painted('number')).toContain('0')
     expect(await painted('operator')).toContain('>')
-    expect(await painted('variable.member')).toContain('length')
+    expect(await painted('property')).toContain('length')
     expect(await painted('function')).toContain('shout')
     // An object literal inside the value, whose own parts are painted apart.
-    expect(await painted('variable.member')).toContain('width')
+    expect(await painted('property')).toContain('width')
     expect(await painted('operator')).toContain('+')
   })
 

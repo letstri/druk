@@ -78,6 +78,19 @@ describe('tsx highlighting', () => {
     expect(painted('data-slot', 'attribute')).toBe(true)
   })
 
+  // `.ts` and `.js` go through the same vendored grammar as `.tsx` now, on
+  // purpose: OpenTUI's bundled typescript query gates its identifier captures
+  // behind `#lua-match?` predicates the parser worker never evaluates, so every
+  // lowercase identifier also matched `@type` and `@constant` — and the last of
+  // those painted every identifier in the file as a constant.
+  test('a plain .ts identifier paints as a variable, not a constant', async () => {
+    const source = 'const title = other\n'
+    const parsed = await parseHighlights(source, 'typescript')
+    const painted = paintedAs(source, parsed)
+    expect(painted('title', 'variable')).toBe(true)
+    expect(painted('other', 'variable')).toBe(true)
+  })
+
   test('a theme listing none of the newer root scopes still paints them', () => {
     registerTheme('spartan', {
       name: 'Spartan',
