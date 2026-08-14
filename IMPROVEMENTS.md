@@ -46,7 +46,7 @@ Claims re-checked against the tree (not just the previous doc):
 | ARCHITECTURE git still read-only | **True** — lines ~45 and ~319–322 still lie |
 | Tree-only hide undocument | **Mostly false** — ARCHITECTURE is explicit; README table says “file tree” |
 | `file:line:col` | Still true — `resolveTarget` regex accepts col, `Target` has no `col`, `App` calls `requestGoto(line, 0)` |
-| Module sizes | Still exact: EditorPane 1044, vim 642, DiffView 573, SearchPanel 481, workspace 469, SettingsView 272 |
+| Module sizes | Still exact: EditorPane 1044, vim 802, DiffView 573, SearchPanel 481, workspace 469, SettingsView 272 |
 | Project replace / find next / save all | Still absent as product features |
 | Test harness size | ~87 files under `test/` (was “~84+”) |
 | Mutations list | commit, undo, push, fetch, pull, stash, stash pop, diff file/all — matches doc |
@@ -123,7 +123,7 @@ Shipped on `main`. Remaining image work is product polish, not “land the featu
 | File | ~Lines | Suggested split |
 | --- | --- | --- |
 | `ui/EditorPane.tsx` | 1044 | highlight, scrollbar, clipboard gate, vim/typing |
-| `editor/vim.ts` | 642 | motions / operators / text objects |
+| `editor/vim.ts` | 802 | motions / operators / text objects |
 | `ui/DiffView.tsx` | 573 | layout / highlight / nav |
 | `ui/SearchPanel.tsx` | 481 | model / keyboard / render |
 | `app/workspace.ts` | 469 | open-close-save / disk sync / session |
@@ -250,9 +250,12 @@ Effort: **S** &lt;1 day · **M** few days · **L** week+ · **XL** multi-week.
 
 | Priority | Ops |
 | --- | --- |
-| High | `f`/`t`/`F`/`T` `;` `,` · `%` · `*`/`#` · `/` `?` `n` `N` · `.` · `iw`/`aw`/`i"`/`a"` |
+| High | `%` · `*`/`#` · `/` `?` `n` `N` · `.` · `iw`/`aw`/`i"`/`a"` |
 | Medium | Marks, jump list, `Ctrl-d/u`, named registers |
 | Low | Visual block, macros, `:` |
+
+`f`/`t`/`F`/`T` and the `;` `,` that repeat them are shipped — `editor/vim.ts`,
+tests in `test/vim-find.test.tsx`.
 
 ### P4 — Navigation & workspace
 
@@ -352,7 +355,7 @@ Mutations already: commit, undo commit, push, fetch, pull, stash, stash pop, dif
 - Bracket matching  
 - Select all matches  
 - EditorConfig  
-- Vim f/t + search + `.`  
+- Vim search + `.`  
 
 ### v2.0 — Language awareness
 
@@ -410,7 +413,7 @@ Add / extend for:
 6. **Split EditorPane**.  
 7. **Async git / search** for monorepos.  
 8. **Select all matches** + find next/prev.  
-9. **Vim f/t + `/` + `.`**.  
+9. **Vim `/` + `.`**.  
 10. **Homebrew tap** + optional search-ignore policy.
 
 ---

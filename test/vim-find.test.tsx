@@ -130,4 +130,38 @@ describe('vim character search', () => {
     await type(t, '$p')
     expect(await save(t, file)).toBe('const a = fn(one, two);a = fn(one,\nsecond line\n')
   })
+
+  test('dT deletes back to the character, keeping it', async () => {
+    const { t, file } = await vimEditor(LINE)
+    await type(t, '$dT(')
+    expect(await save(t, file)).toBe('const a = fn(;\nsecond line\n')
+  })
+
+  test('a count reaches the repeat', async () => {
+    const { t } = await vimEditor(LINE)
+    await type(t, 'fo2;')
+    expect(at(t)).toBe('Ln 1, Col 21')
+  })
+
+  test('the repeat extends a visual selection', async () => {
+    const { t, file } = await vimEditor(LINE)
+    await type(t, 'vfo;d')
+    expect(await save(t, file)).toBe('ne, two);\nsecond line\n')
+  })
+
+  test('t against the character beside the caret is a motion that failed', async () => {
+    const { t, file } = await vimEditor('a,b\n')
+    // Vim moves nowhere here, and a motion that did not move takes its operator
+    // with it — the caret's own character is not the operator's to eat.
+    await type(t, 'dt,')
+    expect(await save(t, file)).toBe('a,b\n')
+  })
+
+  test('the character searched for is the one the layout printed', async () => {
+    // With a Cyrillic layout up, `ф` sits on the `a` key: a search reading the
+    // key's place rather than its character would land on the `a` at col 5.
+    const { t } = await vimEditor('let a = ф\n')
+    await type(t, 'fф')
+    expect(at(t)).toBe('Ln 1, Col 9')
+  })
 })

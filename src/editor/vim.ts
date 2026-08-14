@@ -251,7 +251,11 @@ function findTarget(
   for (let i = forward ? cursor + 1 + skip : cursor - 1 - skip; forward ? i <= to : i >= from;) {
     if (text[i] === char && --left === 0) {
       if (kind === 'f' || kind === 'F') return i
-      return kind === 't' ? i - 1 : i + 1
+      const target = kind === 't' ? i - 1 : i + 1
+      // `t` against the character already next to the caret is a motion that
+      // moves nowhere, which vim counts as a failure — so `dt,` with the comma
+      // right there deletes nothing rather than the character under the caret.
+      return target === cursor ? null : target
     }
     i += forward ? 1 : -1
   }
@@ -492,8 +496,12 @@ function dispatch(editor: Editor, key: KeyEvent, state: VimState, actions: VimAc
     state.count = ''
     // Escape, an arrow, a chord: nothing that is not a character to look for.
     if (key.ctrl || k.length !== 1) return true
-    state.lastFind = { kind, char: k }
-    runFind(editor, state, kind, k, Math.max(1, Number.parseInt(digits || '1', 10)), false, op)
+    // The character searched for is *text*, so it is the one the layout printed
+    // and not the key's place on the keyboard: with a Cyrillic layout up `fф`
+    // looks for a `ф`, where `k` is the `a` that key prints on a US board.
+    const char = key.sequence.length === 1 ? key.sequence : key.name
+    state.lastFind = { kind, char }
+    runFind(editor, state, kind, char, Math.max(1, Number.parseInt(digits || '1', 10)), false, op)
     return true
   }
 
