@@ -1067,16 +1067,36 @@ export function createWorkspace(deps: {
     setRenderedPaths(prev => prev.map(remap))
   }
 
+  /** The buffer the user has just left, through the clash-safe autoSave. */
+  const autoSaveLeft = (path: string) => {
+    if (!config.autoSaveOnBlur) return
+    // A closing tab lands here too — by now it is gone from tabs() and its
+    // edits were saved or knowingly discarded; it must not be resurrected.
+    if (!tabs().includes(path)) return
+    if (!buffers[path]?.dirty) return
+    if (autoSave(path) === 'skipped') say(`${CLASH_CHANGED}${basename(path)}`, 'warn')
+  }
+
   createEffect(
     on(
       activePath,
       (_next, prev) => {
-        if (!prev || !config.autoSaveOnBlur) return
-        // A closing tab lands here too — by now it is gone from tabs() and its
-        // edits were saved or knowingly discarded; it must not be resurrected.
-        if (!tabs().includes(prev)) return
-        if (!buffers[prev]?.dirty) return
-        if (autoSave(prev) === 'skipped') say(`${CLASH_CHANGED}${basename(prev)}`, 'warn')
+        if (prev) autoSaveLeft(prev)
+      },
+      { defer: true },
+    ),
+  )
+
+  // Leaving the editor for the sidebar is a blur like any other — clicking the
+  // file tree or tabbing to the git panel is the user putting the file down, and
+  // waiting for the *next* tab switch to write it is what loses the edit.
+  createEffect(
+    on(
+      panes.focus,
+      (next, prev) => {
+        if (next === 'editor' || prev !== 'editor') return
+        const path = activePath()
+        if (path) autoSaveLeft(path)
       },
       { defer: true },
     ),

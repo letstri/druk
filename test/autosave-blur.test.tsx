@@ -77,6 +77,22 @@ test('the last dirty tab is still saved by blur', async () => {
   expect(t.captureCharFrame()).toContain('Saved b.ts')
 })
 
+test('leaving the editor for the sidebar saves the buffer', async () => {
+  const { t, file } = await edited({ autoSaveOnBlur: true })
+  await pressEscape(t)
+
+  expect(readFileSync(file, 'utf8')).toBe('EDITconst a = 1\n')
+  expect(t.captureCharFrame()).toContain('Saved a.ts')
+})
+
+test('off: leaving the editor leaves the buffer dirty', async () => {
+  const { t, file } = await edited({ autoSaveOnBlur: false })
+  await pressEscape(t)
+
+  expect(readFileSync(file, 'utf8')).toBe('const a = 1\n')
+  expect(t.captureCharFrame()).toContain('unsaved')
+})
+
 test('a buffer whose file changed on disk is skipped, not clobbered', async () => {
   const { t, file } = await edited({ autoSaveOnBlur: true })
   writeFileSync(file, 'theirs from outside\n')

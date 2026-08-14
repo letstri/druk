@@ -158,7 +158,8 @@ export interface Config {
    * `["oxfmt"]`. An empty array disables its entry.
    */
   formatters: Record<string, string[]>
-  /** Save every dirty buffer when the terminal window loses focus. */
+  /** Save every dirty buffer when the terminal window loses focus, and the file
+   * being left when the keyboard moves to another tab or out of the editor. */
   autoSaveOnBlur: boolean
   /** How the diff view renders: one column of +/- rows, or two side by side. */
   diffView: 'inline' | 'split'

@@ -790,7 +790,7 @@ export function createSettings(deps: {
     {
       section: 'Editor',
       key: 'autoSaveOnBlur',
-      label: 'Auto-save on tab switch and terminal blur',
+      label: 'Auto-save on focus change and terminal blur',
       value: onOff(view().autoSaveOnBlur),
       cycle: toggleAutoSave,
     },
