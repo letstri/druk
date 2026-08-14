@@ -1,12 +1,12 @@
 import { expect, test } from 'bun:test'
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { CONFLICT_GROUPS, getSyntaxStyle, styleIdForGroup } from '../src/languages/highlight'
 import { fixture, launch, openFile, press, pressTimes, runCommand, until } from './helpers'
 import type { Harness } from './helpers'
+import { tempDir } from './temp'
 
 const CONFLICTED = [
   'const a = 1',
@@ -156,7 +156,7 @@ test('resolving one conflict leaves the other, and says how many are left', asyn
 })
 
 test('a real merge conflict resolves from the panel through to a commit', async () => {
-  const dir = mkdtempSync(join(tmpdir(), 'druk-merge-'))
+  const dir = tempDir('druk-merge-')
   const git = (...args: string[]) => execFileSync('git', args, { cwd: dir })
   git('init', '-q', '-b', 'main')
   git('config', 'user.email', 't@e.com')

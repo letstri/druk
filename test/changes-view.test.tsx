@@ -1,7 +1,6 @@
 import { expect, test } from 'bun:test'
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { ui } from '../src/themes'
@@ -16,6 +15,7 @@ import {
   untilGone,
 } from './helpers'
 import type { Harness } from './helpers'
+import { tempDir } from './temp'
 
 interface Frame {
   lines: { spans: { text: string; bg?: { buffer: Uint8Array } }[] }[]
@@ -45,7 +45,7 @@ const rowsWith = (t: Harness, text: string) =>
 
 /** A real repository with committed files. */
 function repo(files: Record<string, string>) {
-  const dir = mkdtempSync(join(tmpdir(), 'druk-changes-'))
+  const dir = tempDir('druk-changes-')
   const git = (...args: string[]) => execFileSync('git', args, { cwd: dir })
   git('init', '-q', '-b', 'main')
   git('config', 'user.email', 'test@example.com')
@@ -150,7 +150,7 @@ test('a path staged and then edited is two sections', async () => {
 })
 
 test('Enter on an Incoming commit closes the page so the commit is visible', async () => {
-  const base = mkdtempSync(join(tmpdir(), 'druk-changes-sync-'))
+  const base = tempDir('druk-changes-sync-')
   const origin = join(base, 'origin.git')
   execFileSync('git', ['init', '-q', '--bare', '-b', 'main', origin])
   const mine = join(base, 'mine')
