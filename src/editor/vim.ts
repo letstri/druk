@@ -4,6 +4,9 @@ export type VimMode = 'normal' | 'insert' | 'visual'
 
 type VisualKind = 'char' | 'line'
 
+/** The four character searches: to a character or up against it, either way. */
+type FindKind = 'f' | 'F' | 't' | 'T'
+
 export const MODE_LABELS: Record<VimMode, string> = {
   normal: 'NORMAL',
   insert: 'INSERT',
@@ -23,6 +26,12 @@ export interface VimState {
   pendingTobj: 'i' | 'a' | null // text object prefix (i = inner, a = a/an)
   /** Operator to apply after the text object is resolved; '' in visual mode. */
   textObjOp: '' | 'd' | 'c' | 'y'
+  /** A character search waiting for the character to search for. */
+  pendingFind: FindKind | null
+  /** Operator to apply once that character arrives; '' for a bare motion. */
+  findOp: '' | 'd' | 'c' | 'y'
+  /** What `;` repeats and `,` reverses. */
+  lastFind: { kind: FindKind; char: string } | null
 }
 
 export function initialVimState(): VimState {
@@ -36,6 +45,9 @@ export function initialVimState(): VimState {
     visualKind: 'char',
     pendingTobj: null,
     textObjOp: '',
+    pendingFind: null,
+    findOp: '',
+    lastFind: null,
   }
 }
 
@@ -87,7 +99,12 @@ const MOTION_KEYS = new Set([
   'G',
   '{',
   '}',
+  ';',
+  ',',
 ])
+
+const FIND_KEYS = new Set(['f', 'F', 't', 'T'])
+const OPPOSITE: Record<FindKind, FindKind> = { f: 'F', F: 'f', t: 'T', T: 't' }
 
 /** Motions shared by normal and visual mode. Returns true if `k` was a motion. */
 function motion(editor: Editor, k: string, state: VimState, count: number, counted: boolean) {
@@ -140,6 +157,22 @@ function motion(editor: Editor, k: string, state: VimState, count: number, count
     case '}':
       moveParagraphDown(editor, count)
       return true
+    case ';':
+    case ',': {
+      const last = state.lastFind
+      if (last) {
+        runFind(
+          editor,
+          state,
+          k === ';' ? last.kind : OPPOSITE[last.kind],
+          last.char,
+          count,
+          true,
+          '',
+        )
+      }
+      return true
+    }
     default:
       return false
   }
@@ -193,6 +226,78 @@ function lineStart(text: string, offset: number): number {
 function lineEnd(text: string, offset: number): number {
   const idx = text.indexOf('\n', offset)
   return idx >= 0 ? Math.max(0, idx - 1) : text.length - 1
+}
+
+/**
+ * Where `f`/`t` and their backward pair land, or null when this line does not
+ * hold the character. The search never leaves the line — vim's does not either,
+ * which is what makes `dt)` safe to press without looking.
+ */
+function findTarget(
+  text: string,
+  cursor: number,
+  kind: FindKind,
+  char: string,
+  count: number,
+  repeat: boolean,
+): number | null {
+  const forward = kind === 'f' || kind === 't'
+  const from = lineStart(text, cursor)
+  const to = lineEnd(text, cursor)
+  // `t` leaves the caret resting against its character, so a repeat would find
+  // that same one and never move. Vim steps over it; `;` is for the next one.
+  const skip = repeat && (kind === 't' || kind === 'T') ? 1 : 0
+  let left = count
+  for (let i = forward ? cursor + 1 + skip : cursor - 1 - skip; forward ? i <= to : i >= from;) {
+    if (text[i] === char && --left === 0) {
+      if (kind === 'f' || kind === 'F') return i
+      return kind === 't' ? i - 1 : i + 1
+    }
+    i += forward ? 1 : -1
+  }
+  return null
+}
+
+/**
+ * Move to a character search's landing place, or apply `op` over the ground it
+ * covers. A line without the character is a motion that fails, and a failed
+ * motion takes its operator down with it: `dt,` where there is no comma deletes
+ * nothing rather than falling back to something else.
+ */
+function runFind(
+  editor: Editor,
+  state: VimState,
+  kind: FindKind,
+  char: string,
+  count: number,
+  repeat: boolean,
+  op: '' | 'd' | 'c' | 'y',
+): void {
+  const cursor = editor.cursorOffset
+  const target = findTarget(editor.plainText, cursor, kind, char, count, repeat)
+  if (target === null) return
+  // As every motion here does: a move with a selection live collapses it.
+  if (state.mode === 'visual') editor.clearSelection()
+  if (!op) {
+    editor.cursorOffset = target
+    return
+  }
+  // Forward searches take the character they land on and backward ones leave
+  // the one the cursor is on — which is what makes `df,` eat the comma, `dt,`
+  // stop before it, and `dF,` keep the character being deleted back from.
+  const forward = kind === 'f' || kind === 't'
+  const start = forward ? cursor : target
+  const end = forward ? target : cursor - 1
+  if (end < start) return
+  editor.setSelectionInclusive(start, end)
+  yankSelection(editor, state)
+  if (op === 'y') {
+    editor.clearSelection()
+    editor.cursorOffset = start
+    return
+  }
+  editor.deleteSelection()
+  state.mode = op === 'c' ? 'insert' : 'normal'
 }
 
 function moveParagraphUp(editor: Editor, count: number): void {
@@ -375,6 +480,23 @@ function dispatch(editor: Editor, key: KeyEvent, state: VimState, actions: VimAc
     return false
   }
 
+  // The character a pending f/F/t/T is waiting for, taken before anything below
+  // can read it as something else: `f5` searches for a 5 rather than counting to
+  // one, and `fd` is a search, not the start of a delete.
+  if (state.pendingFind) {
+    const kind = state.pendingFind
+    const op = state.findOp
+    const digits = state.count
+    state.pendingFind = null
+    state.findOp = ''
+    state.count = ''
+    // Escape, an arrow, a chord: nothing that is not a character to look for.
+    if (key.ctrl || k.length !== 1) return true
+    state.lastFind = { kind, char: k }
+    runFind(editor, state, kind, k, Math.max(1, Number.parseInt(digits || '1', 10)), false, op)
+    return true
+  }
+
   if (key.ctrl) {
     if (k === 'r') {
       actions.redo()
@@ -416,6 +538,30 @@ function dispatch(editor: Editor, key: KeyEvent, state: VimState, actions: VimAc
       state.pendingTobj = k
       state.count = digits // the text object target still needs it
       return true
+    }
+
+    // `dt)` and friends: the operator waits for the search, which waits for its
+    // character. `d;` repeats the last search under a new operator.
+    if (op === 'd' || op === 'c' || op === 'y') {
+      if (FIND_KEYS.has(k)) {
+        state.pendingFind = k as FindKind
+        state.findOp = op
+        state.count = digits
+        return true
+      }
+      if ((k === ';' || k === ',') && state.lastFind) {
+        const last = state.lastFind
+        runFind(
+          editor,
+          state,
+          k === ';' ? last.kind : OPPOSITE[last.kind],
+          last.char,
+          count,
+          true,
+          op,
+        )
+        return true
+      }
     }
 
     if (op === 'g') {
@@ -483,6 +629,14 @@ function dispatch(editor: Editor, key: KeyEvent, state: VimState, actions: VimAc
     // bracket key into a text object instead of a motion.
     state.pendingTobj = null
     state.textObjOp = ''
+  }
+
+  // Before the motions and the mode switches, in both modes: the search takes
+  // the next key whatever it is, and `f` is a normal-mode command of its own.
+  if (FIND_KEYS.has(k)) {
+    state.pendingFind = k as FindKind
+    state.count = digits // the character still needs it: `3fx`
+    return true
   }
 
   // Motions run before the mode switches below so visual mode extends the selection.
