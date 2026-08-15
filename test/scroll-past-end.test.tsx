@@ -1,9 +1,13 @@
 import { describe, expect, test } from 'bun:test'
+import { join } from 'node:path'
 
-import { fixture, launch, openFile, press, settle } from './helpers'
+import { fixture, launch, openFile, press, settle, untilFrame } from './helpers'
 import type { Harness } from './helpers'
 
 const long = `${Array.from({ length: 400 }, (_, index) => `line ${index}`).join('\n')}\n`
+
+/** Publishes and clears one diagnostic on a timer, the way a busy server does. */
+const TICK = join(import.meta.dir, 'fixtures', 'tick-lsp.ts')
 
 /** First line number in the gutter, i.e. where the viewport sits. */
 function topLine(t: Harness): number {
@@ -64,6 +68,25 @@ describe('scrolling past the last line', () => {
     // Full again: the row above the status bar carries a line of the file.
     expect(frame.split('\n').at(-3)).toContain('line ')
   })
+
+  test('a diagnostic coming and going leaves the view where it was', async () => {
+    const dir = fixture({ 'a.ts': `oops\n${long}` })
+    const t = await launch(dir, {
+      lsp: true,
+      lspServers: { typescript: [process.execPath, TICK] },
+    })
+    await openFile(t, 'a.ts')
+    await press(t, input => input.pressKey('b', { ctrl: true }))
+    await untilFrame(t, '● 1', 15_000)
+    const top = await scrollToBottom(t)
+    expect(top).toBeGreaterThan(395)
+
+    // The server publishes and clears the same error on a timer, which is what
+    // adds and removes the problem track beside the scrollbar — a one-column
+    // resize of the pane, and one that used to re-clamp the viewport.
+    await settle(t, 600)
+    expect(topLine(t)).toBe(top)
+  }, 30_000)
 
   test('a file that fits the pane stays put', async () => {
     const t = await openAlone('tiny.ts', 'one\ntwo\nthree\n')

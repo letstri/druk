@@ -339,6 +339,12 @@ const SCROLL_MARGIN = 0.2
  * comes through here, so this one hook covers them all. It answers with the
  * margin's keeper: the caret may leave the tail without scrolling, so the
  * viewport has to be watched for its way back rather than waited on here.
+ *
+ * A resize is hooked too, because `setViewportSize` re-clamps the offset to the
+ * last screenful and the pane resizes on its own: the marks beside the
+ * scrollbar are a column that exists only while the file has something to put
+ * in it, so the first diagnostic a language server publishes narrows the editor
+ * by one and used to drop the reader back to the end of the file.
  */
 export function allowScrollPastEnd(el: TextareaRenderable, active: () => boolean) {
   const view = el.editorView
@@ -352,9 +358,12 @@ export function allowScrollPastEnd(el: TextareaRenderable, active: () => boolean
     view.setScrollMargin(wanted)
   }
 
-  // `handleScroll` is protected, and this is a subclass's override without the
-  // subclass — same as `ignoreScrollOutsideBounds` above.
-  const host = el as unknown as { handleScroll: (event: ScrollEvent) => void }
+  // `handleScroll` and `onResize` are protected, and these are a subclass's
+  // overrides without the subclass — same as `ignoreScrollOutsideBounds` above.
+  const host = el as unknown as {
+    handleScroll: (event: ScrollEvent) => void
+    onResize: (width: number, height: number) => void
+  }
   const handle = host.handleScroll.bind(host)
   host.handleScroll = (event: ScrollEvent) => {
     const scroll = event.scroll
@@ -372,6 +381,23 @@ export function allowScrollPastEnd(el: TextareaRenderable, active: () => boolean
     if (next === port.offsetY) return
     setMargin(pastEnd(next, rows, port.height) ? 0 : SCROLL_MARGIN)
     view.setViewport(port.offsetX, next, port.width, port.height, true)
+    el.requestRender()
+  }
+
+  const resize = host.onResize.bind(host)
+  host.onResize = (width: number, height: number) => {
+    const port = view.getViewport()
+    const wanted = port.offsetY
+    const was = active() && pastEnd(wanted, view.getTotalVirtualLineCount(), port.height)
+    resize(width, height)
+    if (!was) return
+    const next = view.getViewport()
+    // Rewrapped by a width change, so the row that was at the top may no longer
+    // exist — the offset is put back as far as the file now reaches.
+    const offset = Math.min(wanted, Math.max(0, view.getTotalVirtualLineCount() - 1))
+    if (next.offsetY === offset) return
+    setMargin(0)
+    view.setViewport(next.offsetX, offset, next.width, next.height, true)
     el.requestRender()
   }
 
