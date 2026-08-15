@@ -78,6 +78,26 @@ describe('tsx highlighting', () => {
     expect(painted('data-slot', 'attribute')).toBe(true)
   })
 
+  // A dotted tag is one `member_expression`, whose halves the generic
+  // `(identifier)` / `(property_identifier)` rules capture as well — and an inner
+  // capture is painted after the span containing it, so naming the whole name @tag
+  // left `<Slider.Root>` painted as a variable and a property.
+  test('a dotted tag name paints as a tag on both sides of the dot', async () => {
+    const source =
+      'const A = () => (\n  <Slider.Root>\n    <Radix.Slider.Thumb />\n  </Slider.Root>\n)\n'
+    const parsed = await parseHighlights(source, 'typescriptreact')
+    const painted = paintedAs(source, parsed)
+
+    // The delimiters carry the tag's own style, so `<` and `>` merge into the
+    // neighbouring run; the dot stays punctuation, as it is anywhere else.
+    expect(painted('<Slider', 'tag')).toBe(true)
+    expect(painted('Root>', 'tag')).toBe(true)
+    expect(painted('</Slider', 'tag')).toBe(true)
+    expect(painted('<Radix', 'tag')).toBe(true)
+    expect(painted('Slider', 'tag')).toBe(true)
+    expect(painted('Thumb', 'tag')).toBe(true)
+  })
+
   // `.ts` and `.js` go through the same vendored grammar as `.tsx` now, on
   // purpose: OpenTUI's bundled typescript query gates its identifier captures
   // behind `#lua-match?` predicates the parser worker never evaluates, so every

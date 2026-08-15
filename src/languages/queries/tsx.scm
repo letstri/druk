@@ -59,6 +59,17 @@
 (jsx_opening_element name: (member_expression) @tag)
 (jsx_closing_element name: (member_expression) @tag)
 (jsx_self_closing_element name: (member_expression) @tag)
+; A dotted tag (`<Slider.Root>`) is one `member_expression`, and the broad
+; `(identifier)` and `(property_identifier)` rules above capture its halves as well.
+; Captures are painted innermost-last rather than by query order, so @tag over the
+; whole span loses every character back to @variable and @property: each half has to
+; be named itself. The three-deep form (`<A.B.C>`) is the same rule one level down.
+(jsx_opening_element name: (member_expression object: (identifier) @tag property: (property_identifier) @tag))
+(jsx_closing_element name: (member_expression object: (identifier) @tag property: (property_identifier) @tag))
+(jsx_self_closing_element name: (member_expression object: (identifier) @tag property: (property_identifier) @tag))
+(jsx_opening_element name: (member_expression object: (member_expression object: (identifier) @tag property: (property_identifier) @tag) property: (property_identifier) @tag))
+(jsx_closing_element name: (member_expression object: (member_expression object: (identifier) @tag property: (property_identifier) @tag) property: (property_identifier) @tag))
+(jsx_self_closing_element name: (member_expression object: (member_expression object: (identifier) @tag property: (property_identifier) @tag) property: (property_identifier) @tag))
 (jsx_attribute (property_identifier) @attribute)
 (jsx_namespace_name (identifier) @attribute)
 ; The angle brackets belong to the tag, not to the comparison operators they share a
