@@ -2869,6 +2869,8 @@ export function EditorPane(props: EditorPaneProps) {
               <CompletionMenu
                 matches={matches()}
                 selected={menuSelected()}
+                detail={menuInfo()?.detail ?? ''}
+                filetype={props.filetype}
                 layout={at().layout}
                 top={at().top}
                 left={at().left}

@@ -1,10 +1,13 @@
-import { createMemo, For, Index, Show } from 'solid-js'
+import { TextAttributes } from '@opentui/core'
+import { createEffect, createMemo, createSignal, For, Index, on, onCleanup, Show } from 'solid-js'
 
+import { computeHighlights, segmentsIn, STALE, styleForId } from '../languages/highlight'
+import type { Highlighted } from '../languages/highlight'
 import { isDeprecated, kindInfo, kindName, matchRuns } from '../lsp/completion'
 import type { KindGroup, Match } from '../lsp/completion'
-import { ui } from '../themes'
+import { paintedTheme, ui } from '../themes'
 import { DESC_MAX, ROW_CHROME, SIG_MAX, signatureOf } from './completionLayout'
-import type { MenuLayout } from './completionLayout'
+import type { MenuLayout, SignatureLine } from './completionLayout'
 import { windowAround } from './list'
 import { cut } from './text'
 
@@ -13,9 +16,20 @@ export interface CompletionMenuProps {
   selected: number
   /** Size and detail rows, computed once by EditorPane so placement agrees. */
   layout: MenuLayout
+  /** The selected item's flattened signature — what the panel's colours come from. */
+  detail: string
+  /** The open file's language, to parse that signature as. */
+  filetype?: string
   /** Placement inside the pane box, already flipped/clamped by EditorPane. */
   top: number
   left: number
+}
+
+/** A run of the signature painted as one `<text>`. */
+interface Span {
+  text: string
+  fg: string
+  attributes: number
 }
 
 /** Read at paint time: `ui` is a store, a module-scope table would freeze a theme. */
@@ -43,7 +57,68 @@ export function CompletionMenu(props: CompletionMenuProps) {
   const inner = () => props.layout.width - 2
   /** Reserved rows the current item did not fill; drawn blank so nothing moves. */
   const filler = () =>
-    props.layout.panelRows - props.layout.signature.length - props.layout.documentation.length
+    props.layout.panelRows -
+    props.layout.signature.length -
+    props.layout.documentation.length -
+    (props.layout.origin ? 1 : 0)
+
+  /**
+   * The selected item's signature parsed as code, so the panel reads as the
+   * declaration it is rather than as a paragraph. The whole flattened signature
+   * is parsed at once — one short line, and the layout kept each row's offset
+   * into it, so a wrapped signature colours as the thing it was before wrapping.
+   */
+  const [parsed, setParsed] = createSignal<Highlighted | null>(null)
+  createEffect(
+    on([() => props.detail, () => props.filetype], ([detail, filetype]) => {
+      setParsed(null)
+      if (!detail || !filetype) return
+      let dropped = false
+      onCleanup(() => {
+        dropped = true
+      })
+      void (async () => {
+        const doc = await computeHighlights(detail, filetype, 2, () => dropped)
+        if (!dropped && doc !== STALE) setParsed(doc)
+      })()
+    }),
+  )
+  const captures = createMemo(() => {
+    const doc = parsed()
+    return doc ? segmentsIn(doc, 0, 0) : []
+  })
+
+  /**
+   * One signature row as coloured pieces. Offsets are into the flattened
+   * signature, so a capture is sliced to the part of it this row holds; the
+   * ellipsis `capped` wrote over the last character rides along with it.
+   */
+  const painted = (line: SignatureLine): Span[] => {
+    // Read so the pieces are rebuilt on a theme switch: a segment's style id
+    // belongs to the table the previous theme built.
+    paintedTheme()
+    const out: Span[] = []
+    const plain = ui.text
+    let col = 0
+    for (const segment of captures()) {
+      const start = Math.max(segment.start - line.start, col)
+      const end = Math.min(segment.end - line.start, line.text.length)
+      if (end <= start) continue
+      const style = styleForId(segment.styleId)
+      const fg = typeof style?.fg === 'string' ? style.fg : undefined
+      if (!style || !fg) continue
+      if (start > col) out.push({ text: line.text.slice(col, start), fg: plain, attributes: 0 })
+      out.push({
+        text: line.text.slice(start, end),
+        fg,
+        attributes:
+          (style.bold ? TextAttributes.BOLD : 0) | (style.italic ? TextAttributes.ITALIC : 0),
+      })
+      col = end
+    }
+    if (col < line.text.length) out.push({ text: line.text.slice(col), fg: plain, attributes: 0 })
+    return out
+  }
 
   const kind = () =>
     cut(kindName(props.matches[props.selected]?.item.kind), Math.max(0, inner() - 12))
@@ -170,11 +245,36 @@ export function CompletionMenu(props: CompletionMenuProps) {
             content={'─'.repeat(Math.max(0, inner()))}
           />
           <Index each={props.layout.signature}>
-            {line => <text fg={ui.text} bg={ui.panelBg} wrapMode="none" content={` ${line()}`} />}
+            {line => (
+              <box flexDirection="row" backgroundColor={ui.panelBg}>
+                <text fg={ui.text} bg={ui.panelBg} flexShrink={0} content=" " />
+                <For each={painted(line())}>
+                  {span => (
+                    <text
+                      fg={span.fg}
+                      bg={ui.panelBg}
+                      flexShrink={0}
+                      wrapMode="none"
+                      attributes={span.attributes}
+                      content={span.text}
+                    />
+                  )}
+                </For>
+                <box flexGrow={1} backgroundColor={ui.panelBg} />
+              </box>
+            )}
           </Index>
           <Index each={props.layout.documentation}>
             {line => <text fg={ui.dim} bg={ui.panelBg} wrapMode="none" content={` ${line()}`} />}
           </Index>
+          <Show when={props.layout.origin}>
+            <text
+              fg={ui.faint}
+              bg={ui.panelBg}
+              wrapMode="none"
+              content={` ${props.layout.origin}`}
+            />
+          </Show>
           <box height={Math.max(0, filler())} backgroundColor={ui.panelBg} />
         </Show>
       </Show>

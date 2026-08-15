@@ -9,6 +9,7 @@ import {
   pressEscape,
   runCommand,
   settle,
+  spansOf,
   untilFrame,
   untilGone,
 } from './helpers'
@@ -78,6 +79,29 @@ test('the menu draws the origin, the kind and the resolved documentation', async
   await press(t, input => input.pressArrow('down'))
   await untilGone(t, 'Alpha greets the caller.', LSP_WAIT)
   expect(t.captureCharFrame()).toContain('variable')
+}, 30_000)
+
+test('the panel paints the signature as code and names where the symbol comes from', async () => {
+  const t = await readyEditor()
+
+  await press(t, input => void input.typeText('druk'))
+  await untilFrame(t, '() => void', LSP_WAIT)
+
+  // The signature is a declaration, not a sentence: the panel parses it as the
+  // open file's language, so the arrow and the type are not one flat run.
+  const spans = spansOf(t, '() => void')
+  const colorOf = (text: string) => spans.find(span => span.text === text)?.fg
+  expect(colorOf('void')).toBeDefined()
+  expect(colorOf('()')).toBeDefined()
+  expect(colorOf('void')).not.toBe(colorOf('()'))
+
+  // The origin is drawn into a row the panel would otherwise leave blank — the
+  // list row cuts it, and on a narrow menu drops it altogether.
+  const rows = t
+    .captureCharFrame()
+    .split('\n')
+    .filter(row => row.includes('druk/alpha'))
+  expect(rows.length).toBe(2)
 }, 30_000)
 
 test('typing more filters the list; Escape dismisses it', async () => {

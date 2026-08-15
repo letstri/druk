@@ -373,7 +373,16 @@ takes it (`Tab accepts` — dropped rather than cut on a row too narrow for it, 
 the only place that says so while the menu covers the footer) and its
 place in the list, and a panel carries that item's full signature and documentation,
 markdown flattened for a terminal, fetched with `completionItem/resolve` once
-the selection has rested a moment and cached per item; the panel's rows are
+the selection has rested a moment and cached per item; the signature is painted
+as code in the open file's language — the whole flattened string is parsed at
+once and each wrapped row keeps its offset into it (`SignatureLine` in
+`src/ui/completionLayout.ts`), which is only sound because `itemInfo` collapsed
+the whitespace, a row break then costing exactly the one space it replaces — and
+it takes whatever rows the documentation leaves rather than a fixed three, since
+a panel that draws blank filler under a one-line doc comment while the signature
+ends in an ellipsis has spent reserved rows on nothing; where the symbol comes
+from goes into a row that would have been blank, never displacing docs. The
+panel's rows are
 reserved rather than measured, so the box is one size for as long as it is open
 — an item's docs change on every keystroke and a box that fitted itself to them
 would jump under the cursor — and a pane too short for both drops the panel and

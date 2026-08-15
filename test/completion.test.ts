@@ -288,6 +288,7 @@ describe('layoutMenu', () => {
   const info = {
     detail: '(a: number) => void',
     documentation: 'Does a thing.',
+    source: '',
     deprecated: false,
   }
 
@@ -301,9 +302,45 @@ describe('layoutMenu', () => {
 
   test('the panel holds the resolved lines, and the box never wraps a signature thin', () => {
     const layout = layoutMenu(many, info, roomy, true)
-    expect(layout.signature).toEqual(['(a: number) => void'])
+    expect(layout.signature).toEqual([{ text: '(a: number) => void', start: 0 }])
     expect(layout.documentation).toEqual(['Does a thing.'])
     expect(layout.width).toBeGreaterThanOrEqual(56)
+  })
+
+  test('a wrapped signature keeps each row offset into the string it was cut from', () => {
+    // The panel paints from those offsets: the highlighter parses the signature
+    // as one line, and a row of it is a slice of that line's captures.
+    const long = 'const draw: <Value extends number>(props: Props<Value>) => Element'
+    const layout = layoutMenu(many, { ...info, detail: long }, { width: 40, height: 40 }, true)
+    expect(layout.signature.length).toBeGreaterThan(1)
+    for (const line of layout.signature) {
+      expect(long.slice(line.start, line.start + line.text.length)).toBe(line.text)
+    }
+  })
+
+  test('the signature grows into the rows the documentation left blank', () => {
+    // Capped at three regardless, a generic ended in an ellipsis while the panel
+    // drew four blank rows under a one-line doc comment.
+    const wordy = { ...info, detail: 'word '.repeat(60).trim() }
+    const layout = layoutMenu(many, wordy, roomy, true)
+    expect(layout.signature.length).toBe(6)
+    expect(layout.signature.at(-1)!.text).not.toContain('…')
+    // Long docs win the space back: the signature never starves them.
+    const both = layoutMenu(many, { ...wordy, documentation: 'doc. '.repeat(200) }, roomy, true)
+    expect(both.signature.length).toBe(3)
+    expect(both.documentation.length).toBe(both.panelRows - 3)
+  })
+
+  test('the origin only fills a row the panel would have drawn blank', () => {
+    const spare = layoutMenu(many, { ...info, source: 'druk/alpha' }, roomy, true)
+    expect(spare.origin).toBe('druk/alpha')
+    const full = layoutMenu(
+      many,
+      { ...info, documentation: 'doc. '.repeat(200), source: 'druk/alpha' },
+      roomy,
+      true,
+    )
+    expect(full.origin).toBe('')
   })
 
   test('the box is the same size whatever the selected item resolved to', () => {
@@ -313,7 +350,7 @@ describe('layoutMenu', () => {
     const filled = layoutMenu(many, info, roomy, true)
     const wordy = layoutMenu(
       many,
-      { detail: 'x '.repeat(200), documentation: 'y '.repeat(400), deprecated: false },
+      { detail: 'x '.repeat(200), documentation: 'y '.repeat(400), source: '', deprecated: false },
       roomy,
       true,
     )

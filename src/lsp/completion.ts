@@ -399,6 +399,8 @@ export function plainMarkup(doc: string | MarkupContent | undefined): string {
 export interface ItemInfo {
   detail: string
   documentation: string
+  /** Where the symbol comes from — the module a row shows cut, if it shows it at all. */
+  source: string
   deprecated: boolean
 }
 
@@ -406,9 +408,13 @@ export function itemInfo(item: CompletionItem): ItemInfo {
   const detail = item.detail ?? item.labelDetails?.detail ?? ''
   return {
     // Servers send the signature with the newlines they format it over; the
-    // panel wraps it itself, so they are only extra blank rows here.
+    // panel wraps it itself, so they are only extra blank rows here. The single
+    // spaces left behind are what let the panel colour it: the highlighter parses
+    // this string and the panel slices the spans onto the rows it wrapped into,
+    // which only lines up while a break costs exactly one character.
     detail: detail.replaceAll(/\s+/g, ' ').trim(),
     documentation: plainMarkup(item.documentation),
+    source: item.labelDetails?.description ?? '',
     deprecated: isDeprecated(item),
   }
 }
