@@ -64,7 +64,11 @@ otherwise read from the very edge of the terminal; `allowScrollPastEnd` in
 `src/ui/EditorPane.tsx` rewrites the renderable's `handleScroll` for it, and has
 to drag the caret along and drop the scroll margin while it is out there, the
 renderer keeping the caret on screen being what would otherwise pull the view
-straight back),
+straight back; it rewrites `onResize` as well, since `setViewportSize` re-clamps
+the offset to the last screenful and the pane resizes on its own — the marks
+beside the scrollbar are a column that exists only while the file has something
+to put in it, so a language server publishing its first diagnostic narrows the
+editor by one and dropped the reader back to the end of the file),
 selecting a word by double-click and a line by triple-click (OpenTUI has no such
 event, so both are counted from consecutive mouse-downs at one cell, the way the
 file tree already counts its own; a line terminator is not a token, so a click
