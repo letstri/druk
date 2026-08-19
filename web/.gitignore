@@ -1,6 +1,7 @@
 node_modules/
 dist/
 .output/
+.vercel/
 .nitro/
 .tanstack/
 src/routeTree.gen.ts

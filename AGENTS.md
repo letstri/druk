@@ -509,7 +509,14 @@ Adding a language, a server or a theme is therefore a JSON file and a
 `web/` is the landing page — a TanStack Start (React, Vite) app, separate from the
 editor and from its Solid/OpenTUI toolchain; nothing in `src/` may import from it.
 `cd web && bun install && bun run dev` serves it on :3000, `bun run build` prerenders
-the one route to static HTML in `web/dist/`. The page is styled as a terminal session
+the one route and hands the result to Nitro, which writes the layout of whichever host
+it is building on — `.output/` locally, `.vercel/output/` on Vercel. The `nitro()` plugin
+in `vite.config.ts` is what makes deployment work at all: Start on its own writes
+`dist/client` and `dist/server`, and Vercel serves `dist/`, so the site 404s without it.
+Two constraints on that plugin list live here rather than in the file: `viteReact()` must
+come *after* `tanstackStart()`, and `nitro()` last. A build rewrites `vite.config.ts` from
+an AST and drops its comments, so a note written in there does not survive.
+The page is styled as a terminal session
 (GitHub Dark, druk's default theme); the editor mock in `src/routes/index.tsx` is
 aligned text — every sidebar cell must come out `SB` columns wide (`pad()` for plain
 rows, hand-balanced spans for styled ones), or the gutter column breaks.
