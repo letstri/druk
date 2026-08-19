@@ -1,4 +1,7 @@
 {
+  // web/ is the landing page: React with the DOM lib, not Solid over OpenTUI. With no
+  // exclude, tsc takes every file under the root and checks it against these options.
+  "exclude": ["web", "node_modules", "dist"],
   "compilerOptions": {
     // Environment setup & latest features
     "lib": ["ESNext"],
