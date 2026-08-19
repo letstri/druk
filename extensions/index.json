@@ -1,6 +1,22 @@
 {
   "extensions": [
     {
+      "id": "0x96f",
+      "name": "0x96f",
+      "version": "1.0.0",
+      "description": "A simple and pleasant dark theme",
+      "provides": {
+        "themes": [
+          "0x96f"
+        ],
+        "icons": [],
+        "filetypes": []
+      },
+      "categories": [
+        "theme"
+      ]
+    },
+    {
       "id": "ayu",
       "name": "Ayu",
       "version": "1.1.0",
