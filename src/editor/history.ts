@@ -34,7 +34,11 @@ export class History {
 
     // A pause ends the burst: whatever was pending becomes its own undo step.
     if (this.pending && now - this.lastEditAt > BURST_MS) this.commit()
-    if (!this.pending) this.pending = this.current
+    // The step keeps the *incoming* edit's cursor, not `current`'s: `current.cursor`
+    // is where the caret sat before the edit that produced it, one edit stale — and
+    // for a file's first burst it is the offset the buffer was opened at, so undoing
+    // a character typed at line 500 dropped the caret at the top of the file.
+    if (!this.pending) this.pending = { content: this.current.content, cursor: next.cursor }
 
     this.current = next
     this.lastEditAt = now
