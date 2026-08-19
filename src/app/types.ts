@@ -12,6 +12,12 @@ export type Focus = 'tree' | 'editor'
 export interface FileBuffer {
   /** Always LF and never BOM-prefixed — see `TextEncoding` for why. */
   content: string
+  /**
+   * The content this buffer was last in sync with disk at — what a load or a save
+   * put in `content`. `dirty` is `content !== saved`, so undoing back to the file's
+   * own text clears the mark rather than leaving a `●` over nothing to write.
+   */
+  saved: string
   dirty: boolean
   /** Disk mtime this buffer was last in sync with; used to detect outside edits. */
   mtime: number

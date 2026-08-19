@@ -50,7 +50,7 @@ const unreadableReason = (e: unknown) =>
 /** A clean buffer for a file on disk. Throws whatever reading it throws. */
 const loadBuffer = (path: string): FileBuffer => {
   const { text, encoding } = readTextFile(path)
-  return { content: text, dirty: false, mtime: mtimeOf(path), encoding }
+  return { content: text, saved: text, dirty: false, mtime: mtimeOf(path), encoding }
 }
 
 /**
@@ -327,6 +327,15 @@ export function createWorkspace(deps: {
     showView(list[(at + delta + list.length) % list.length]!)
   }
 
+  /**
+   * Take edited text into a buffer. Dirtiness is `content !== saved`, never a flag
+   * an edit sets: undoing back to the loaded text leaves a buffer that is what the
+   * file holds, and a `●` on it offers to save nothing.
+   */
+  const setContent = (path: string, text: string) => {
+    setBuffers(path, { content: text, dirty: text !== buffers[path]!.saved })
+  }
+
   const onEditorChange = (text: string) => {
     const path = activePath()
     // No buffer means a viewer tab — creating one here would hand its bytes to the
@@ -334,14 +343,14 @@ export function createWorkspace(deps: {
     // that makes the invariant hold rather than depend on that.
     if (!path || !buffers[path] || buffers[path].content === text) return
     pinTab(path)
-    setBuffers(path, { content: text, dirty: true })
+    setContent(path, text)
   }
 
   /** Put replaced text into the buffer. The tab is pinned first: an edited preview
    * tab must never be recycled out from under the edit. */
   const applyReplacement = (path: string, next: string) => {
     pinTab(path)
-    setBuffers(path, { content: next, dirty: true })
+    setContent(path, next)
     editor.pushEdit(next)
   }
 
@@ -473,6 +482,7 @@ export function createWorkspace(deps: {
         } else {
           setBuffers(path, {
             content,
+            saved: content,
             dirty: false,
             mtime: mtimeOf(path),
             encoding,
@@ -589,7 +599,7 @@ export function createWorkspace(deps: {
       say(`Save failed: ${err}`, 'error')
       return false
     }
-    setBuffers(path, { content: final, dirty: false, mtime: mtimeOf(path) })
+    setBuffers(path, { content: final, saved: final, dirty: false, mtime: mtimeOf(path) })
     const runFormat = opts?.runFormat ?? config.formatOnSave
     // Spawned before anything else this save does: the formatter is the longest
     // thing on the path between Ctrl+S and the reformatted text, and every line
@@ -863,6 +873,7 @@ export function createWorkspace(deps: {
       clearFormatState(c.path)
       setBuffers(c.path, {
         content: c.disk,
+        saved: c.disk,
         dirty: false,
         mtime: mtimeOf(c.path),
         encoding: c.encoding,
@@ -973,7 +984,7 @@ export function createWorkspace(deps: {
       const next = replaceMatch(open, match, replacement)
       if (next === null) return say('That match is gone', 'warn')
       pinTab(match.path)
-      setBuffers(match.path, { content: next, dirty: true })
+      setContent(match.path, next)
       if (match.path === activePath()) editor.pushEdit(next)
       return
     }
@@ -1014,7 +1025,7 @@ export function createWorkspace(deps: {
         continue
       }
       pinTab(file.path)
-      setBuffers(file.path, { content: file.content, dirty: true })
+      setContent(file.path, file.content)
       // Any other buffer is updated in the store alone: pushEdit targets the
       // active editor, and would paint this file's text over the one on screen.
       if (file.path === active) editor.pushEdit(file.content)

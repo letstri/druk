@@ -35,6 +35,15 @@ describe('undo and redo', () => {
     expect(readFileSync(join(dir, 'a.ts'), 'utf8')).toBe('start\n')
   })
 
+  test('undoing back to the file drops the unsaved mark', async () => {
+    const t = await openedFile(fixture({ 'a.ts': 'start\n' }))
+    await press(t, input => void input.typeText('junk'))
+    expect(t.captureCharFrame()).toContain('unsaved')
+
+    await press(t, input => input.pressKey('z', { ctrl: true }))
+    expect(t.captureCharFrame()).not.toContain('unsaved')
+  })
+
   test('Ctrl+Z with nothing to undo leaves the buffer alone', async () => {
     const t = await openedFile(fixture({ 'a.ts': 'start\n' }))
     await press(t, input => input.pressKey('z', { ctrl: true }))
