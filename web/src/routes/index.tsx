@@ -144,7 +144,8 @@ const ROWS: MockRow[] = [
       ['', '(path: '],
       ['t', 'string'],
       ['', ') { '],
-      ['d', '⋯ 24 lines  Ctrl+Opt+E'],
+      ['d', '⋯ 24 lines'],
+      ['wide d', '  Ctrl+Opt+E'],
     ],
   },
   { side: side('     workspace.ts', ['g-mod', 'M']), num: ' 43', code: [] },
@@ -183,7 +184,8 @@ const ROWS: MockRow[] = [
     code: [
       ['f', '  autosave'],
       ['', '(folded)  '],
-      ['w', "▲ 'autosave' is deprecated  Ctrl+Opt+I"],
+      ['w', "▲ 'autosave' is deprecated"],
+      ['wide w', '  Ctrl+Opt+I'],
     ],
   },
   {
@@ -217,11 +219,11 @@ function Row({ row }: { row: MockRow }) {
   const gutter = row.git === 'add' ? 'g-add' : row.git === 'mod' ? 'g-mod' : 'gh'
   return (
     <div className={row.cursor ? 'cursor-line' : undefined}>
-      <span className="d">
+      <span className="side d">
         <Spans spans={row.side} />
         {' '.repeat(Math.max(0, SB - width(row.side)))}
       </span>
-      <span className="gh">│</span>
+      <span className="side gh">│</span>
       <span className="n">{row.num ?? '   '}</span>
       <span className={gutter}>{row.git ? '▎' : ' '}</span>
       <span className="d">{`${row.fold ?? ' '} `}</span>
@@ -236,11 +238,11 @@ function EditorMock() {
     <div className="editor" aria-label="druk editing its own source">
       <pre>
         <div className="tabs">
-          {'  ← →  ‹7  '}
+          <span className="wide">{'  ← →  ‹7  '}</span>
           <span className="tab-active">{' ● workspace.ts × '}</span>
           {'  '}
           <span className="w">{'▲ editor.ts'}</span>
-          {'    git.ts    panes.ts'}
+          <span className="wide">{'    git.ts    panes.ts'}</span>
         </div>
         <div>
           {ROWS.map((row, i) => (
@@ -254,7 +256,7 @@ function EditorMock() {
             {'  '}
             <span className="w">▲ 2</span>
             {'   '}
-            <span className="d">{'F1 commands  Ctrl+K keys  Space preview  Ctrl+P open'}</span>
+            <span className="wide d">{'F1 commands  Ctrl+K keys  Space preview  Ctrl+P open'}</span>
           </span>
           <span className="d">
             {'Ln 46, Col 41  '}

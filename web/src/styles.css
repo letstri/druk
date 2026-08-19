@@ -31,6 +31,8 @@
 
 html {
   background: var(--bg);
+  /* iOS inflates text in a page it thinks is desktop-width; the mock is that wide. */
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
@@ -62,7 +64,7 @@ a:focus-visible {
 }
 
 .term {
-  max-width: 66rem;
+  max-width: 58rem;
   margin: 0 auto;
   padding: 3rem 1.5rem 5rem;
 }
@@ -133,6 +135,10 @@ h1.comment {
   border: 1px solid var(--border);
   border-radius: 6px;
   background: var(--bg);
+  /* The frame is the window: sized to the longest row, not to the column, so it
+     does not read as a terminal with a third of its width empty. */
+  width: max-content;
+  max-width: 100%;
   overflow-x: auto;
   animation: rise 0.5s ease-out both;
   animation-delay: 0.15s;
@@ -147,9 +153,9 @@ h1.comment {
 
 .editor pre {
   font-family: var(--mono);
-  font-size: 13px;
-  line-height: 1.45;
-  min-width: 60rem;
+  font-size: 12px;
+  line-height: 1.5;
+  min-width: max-content;
 }
 
 .editor .tabs {
@@ -166,6 +172,8 @@ h1.comment {
 .editor .status {
   display: flex;
   justify-content: space-between;
+  /* The frame is max-content wide, so without this the two halves meet. */
+  gap: 4ch;
   background: var(--bg-deep);
   border-top: 1px solid var(--border);
   color: var(--dim);
@@ -247,10 +255,13 @@ h1.comment {
   color: var(--fg);
   background: none;
   border: none;
-  padding: 0.15rem 0;
+  padding: 0.15rem 0 0.15rem 2ch;
   cursor: pointer;
   white-space: pre-wrap;
-  word-break: break-all;
+  /* A URL has no break points, so the tail of one wraps; the hanging indent is
+     what keeps that tail from reading as a second command. */
+  text-indent: -2ch;
+  overflow-wrap: anywhere;
 }
 
 .cmd .ps1 {
@@ -278,9 +289,43 @@ h1.comment {
 @media (max-width: 640px) {
   body {
     font-size: 13px;
+    line-height: 1.55;
   }
 
   .term {
-    padding: 2rem 1rem 4rem;
+    padding: 1.75rem 1rem 3rem;
+  }
+
+  .section {
+    margin-top: 2.5rem;
+  }
+
+  /* The sidebar is 24 of the mock's ~87 columns and none of its story — dropped
+     here so the code, its diagnostics and the status bar get the screen. */
+  .side,
+  .wide {
+    display: none;
+  }
+
+  .editor pre {
+    font-size: clamp(9px, 2.55vw, 12px);
+  }
+
+  .feat {
+    padding-left: 2ch;
+    text-indent: -1ch;
+  }
+
+  /* The note is a second sentence on one line at desktop width; here it would
+     wrap into the margin, so it gets a line of its own. */
+  .cmd .comment,
+  .cmd .copied {
+    display: block;
+    text-indent: 0;
+  }
+
+  .prompt {
+    padding-left: 2ch;
+    text-indent: -2ch;
   }
 }
