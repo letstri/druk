@@ -1,0 +1,139 @@
+{
+  "id": "0x96f",
+  "name": "0x96f",
+  "version": "1.0.0",
+  "description": "A simple and pleasant dark theme",
+  "themes": [
+    {
+      "id": "0x96f",
+      "name": "0x96f",
+      "ui": {
+        "bg": "#262427",
+        "panelBg": "#1C1B1C",
+        "barBg": "#1C1B1C",
+        "statusBg": "#49CAE4",
+        "statusFg": "#262427",
+        "text": "#FCFCFC",
+        "dim": "#BCBCBC",
+        "faint": "#545452",
+        "accent": "#49CAE4",
+        "activeTabFg": "#FCFCFC",
+        "inactiveTabFg": "#A6A6A5",
+        "treeSelectedBg": "#353035",
+        "treeFocusBg": "#252025",
+        "dirty": "#FFD271",
+        "error": "#FF7272",
+        "folder": "#FCFCFC",
+        "cursor": "#FFBD3E",
+        "scrollbar": "#686368",
+        "gutter": "#A6A6A5",
+        "currentLine": "#333032",
+        "indentGuide": "#404040",
+        "gitAdded": "#BCDF59",
+        "gitModified": "#49CAE4",
+        "gitDeleted": "#FF7272"
+      },
+      "syntax": {
+        "comment": {
+          "fg": "#757075",
+          "italic": true
+        },
+        "keyword": {
+          "fg": "#FF8787"
+        },
+        "string": {
+          "fg": "#FFD271"
+        },
+        "number": {
+          "fg": "#AEA3E6"
+        },
+        "boolean": {
+          "fg": "#AEE8F4"
+        },
+        "constant": {
+          "fg": "#FC9D6F"
+        },
+        "function": {
+          "fg": "#C6E472"
+        },
+        "constructor": {
+          "fg": "#FF8787"
+        },
+        "type": {
+          "fg": "#AEE8F4"
+        },
+        "namespace": {
+          "fg": "#AEE8F4"
+        },
+        "variable": {
+          "fg": "#FCFCFC"
+        },
+        "variable.builtin": {
+          "fg": "#AEE8F4"
+        },
+        "variable.member": {
+          "fg": "#FCFCFC"
+        },
+        "property": {
+          "fg": "#C6E472"
+        },
+        "attribute": {
+          "fg": "#FC9D6F"
+        },
+        "tag": {
+          "fg": "#64D2E8"
+        },
+        "operator": {
+          "fg": "#AEE8F4"
+        },
+        "punctuation": {
+          "fg": "#FCFCFC"
+        },
+        "punctuation.special": {
+          "fg": "#FFD271"
+        },
+        "label": {
+          "fg": "#C6E472"
+        },
+        "escape": {
+          "fg": "#FFD271"
+        },
+        "embedded": {
+          "fg": "#FCFCFC"
+        },
+        "error": {
+          "fg": "#FF7272"
+        },
+        "markup.heading": {
+          "fg": "#FFD271",
+          "bold": true
+        },
+        "markup.strong": {
+          "fg": "#FF8787",
+          "bold": true
+        },
+        "markup.italic": {
+          "fg": "#FC9D6F",
+          "italic": true
+        },
+        "markup.raw": {
+          "fg": "#C6E472"
+        },
+        "markup.link": {
+          "fg": "#64D2E8"
+        },
+        "markup.link.url": {
+          "fg": "#64D2E8",
+          "underline": true
+        },
+        "markup.list": {
+          "fg": "#FFD271"
+        },
+        "markup.quote": {
+          "fg": "#757075",
+          "italic": true
+        }
+      }
+    }
+  ]
+}
