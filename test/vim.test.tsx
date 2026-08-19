@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
 
 import { press, pressEscape, settle } from './helpers'
+import type { Harness } from './helpers'
 import { at, save, type, vimEditor } from './vim-harness'
 
 describe('vim mode basics', () => {
@@ -25,7 +26,7 @@ describe('vim mode basics', () => {
 
   test('normal mode swallows unknown keys instead of typing them', async () => {
     const { t, file } = await vimEditor()
-    await press(t, i => void i.typeText('zzz')) // no such command — must not reach the buffer
+    await press(t, i => void i.typeText('qqq')) // no such command — must not reach the buffer
     await press(t, i => i.pressKey('i'))
     await press(t, i => void i.typeText('X'))
     await press(t, i => i.pressKey('s', { ctrl: true }))
@@ -246,5 +247,41 @@ describe('normal-mode edits', () => {
     await press(t, i => i.pressKey('r', { ctrl: true }))
     await settle(t)
     expect(await save(t, file)).toBe('two\nthree\n')
+  })
+})
+
+describe('viewport', () => {
+  const long = `${Array.from({ length: 200 }, (_, i) => `line ${i}`).join('\n')}\n`
+  const shown = (t: Harness) =>
+    t
+      .captureCharFrame()
+      .split('\n')
+      .flatMap(row => row.match(/line \d+/) ?? [])
+
+  test('zz puts the cursor line in the middle of the window', async () => {
+    const { t } = await vimEditor(long)
+    await type(t, '100G')
+    expect(at(t)).toBe('Ln 100, Col 1')
+    const before = shown(t)
+    expect(before).toContain('line 99')
+    // G reveals the line by the smallest scroll, so it sits near the bottom.
+    expect(before[0]).not.toBe('line 90')
+
+    await type(t, 'zz')
+    expect(at(t)).toBe('Ln 100, Col 1')
+    const after = shown(t)
+    expect(after[0]).toBe('line 90')
+    const mid = after.indexOf('line 99')
+    expect(Math.abs(mid - Math.floor(after.length / 2))).toBeLessThanOrEqual(1)
+    expect(t.captureCharFrame()).not.toContain('●')
+  })
+
+  test('a count with zz jumps to that line and centres it', async () => {
+    const { t } = await vimEditor(long)
+    await type(t, '50zz')
+    expect(at(t)).toBe('Ln 50, Col 1')
+    const lines = shown(t)
+    expect(lines[0]).toBe('line 40')
+    expect(lines).toContain('line 49')
   })
 })
