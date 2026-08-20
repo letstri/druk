@@ -604,6 +604,17 @@ notices. Six things about that are easy to break:
   AVX2-only on purpose — brew cannot tell bottles apart by CPU feature, and two same-arch
   debs would be a coin flip — so those users are one `curl | bash` away instead. No darwin
   baseline: every Mac running a macOS Bun supports has AVX2.
+- **The Windows baseline build primes Bun's compiler cache first.** `bun build --compile`
+  downloads the Bun matching the target it is asked for, and on Windows it cannot unpack
+  the baseline one — "Failed to extract executable … The download may be incomplete",
+  every time ([oven-sh/bun#28327](https://github.com/oven-sh/bun/issues/28327)). The
+  workflow fetches that artifact itself and drops it at
+  `$BUN_INSTALL/install/cache/bun-<target>-v<version>`, which is a bare executable and not
+  a directory; the build then finds it and skips the download. Deleting that step brings
+  the failure straight back, and it is not a retry away — two runs failed on it
+  identically. Read the version from `bun --version` rather than pinning it: setup-bun
+  installs the latest, and a stale name would leave the cache unprimed and the download
+  attempted again.
 - **The GitHub release is uploaded before npm.** One package is published, `druk`, and it
   holds no binary: `bin/binary.mjs` fetches the archive for the machine from the release.
   Publishing npm first would leave a window where an install finds no asset.

@@ -62,6 +62,32 @@ jobs:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
+      # `bun build --compile` fetches the Bun that matches the target it is asked
+      # for, and on Windows it cannot unpack the baseline one: every attempt ends
+      # in "Failed to extract executable ... The download may be incomplete"
+      # (oven-sh/bun#28327). It is not flaky — two runs of this workflow failed
+      # here identically. Fetching the same artifact and dropping it where bun
+      # keeps its compile targets makes the build find it and skip the download.
+      # The cache entry is the bare executable named for the target and the bun
+      # running, so the version is read rather than pinned; a bun that fixes this
+      # simply finds the file already there. No checksum: this is bun's own
+      # release over TLS from the origin bun itself downloads from, and a sum
+      # fetched from that same origin would verify nothing.
+      - name: Prime the baseline compiler
+        if: matrix.target == 'windows-x64-baseline'
+        shell: pwsh
+        run: |
+          $version = (bun --version).Trim()
+          $root = if ($env:BUN_INSTALL) { $env:BUN_INSTALL } else { "$env:USERPROFILE\.bun" }
+          $cache = Join-Path $root 'install\cache'
+          New-Item -ItemType Directory -Force -Path $cache | Out-Null
+          $cached = Join-Path $cache "bun-windows-x64-baseline-v$version"
+          Invoke-WebRequest -UseBasicParsing -OutFile baseline.zip `
+            "https://github.com/oven-sh/bun/releases/download/bun-v$version/bun-windows-x64-baseline.zip"
+          Expand-Archive -LiteralPath baseline.zip -DestinationPath baseline -Force
+          Move-Item -Force 'baseline\bun-windows-x64-baseline\bun.exe' $cached
+          Remove-Item -Recurse -Force baseline.zip, baseline
+          Write-Host "primed $cached"
       - run: bun run build ${{ matrix.target }}
       - uses: actions/upload-artifact@v7
         with:
