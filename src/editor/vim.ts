@@ -57,10 +57,14 @@ export function initialVimState(): VimState {
  * Undo and redo belong to the editor pane, not the buffer: it keeps a history of
  * whole typing bursts and replaces the text wholesale, which resets the buffer's
  * own. Calling `editor.undo()` here would step a history that is always empty.
+ *
+ * Centering (`zz`) is the same split: wrapping, the scroll-past-end clamp and
+ * the visual-row map all live on the pane, and `scrollY` is read-only.
  */
 export interface VimActions {
   undo: () => void
   redo: () => void
+  centerLine: () => void
 }
 
 type Editor = TextareaRenderable
@@ -586,6 +590,15 @@ function dispatch(editor: Editor, key: KeyEvent, state: VimState, actions: VimAc
       }
       return true
     }
+    if (op === 'z') {
+      // `zz` redraws with the caret's line in the middle; a count is that line,
+      // the way `5G` is — vim's `[count]zz`.
+      if (k === 'z') {
+        if (digits) editor.gotoLine(count - 1)
+        actions.centerLine()
+      }
+      return true
+    }
     if (k === op) {
       // dd / yy / cc — linewise
       if (op === 'd') deleteLine(editor, state, count)
@@ -656,6 +669,14 @@ function dispatch(editor: Editor, key: KeyEvent, state: VimState, actions: VimAc
   // Motions run before the mode switches below so visual mode extends the selection.
   if (motion(editor, k, state, count, digits !== '')) {
     if (state.mode === 'visual') markVisual(editor, state)
+    return true
+  }
+
+  // Ahead of the visual/normal split so `zz` still recentres while a selection
+  // is live — it is a viewport command, not an operator on the text.
+  if (k === 'z') {
+    state.pending = 'z'
+    state.count = digits
     return true
   }
 

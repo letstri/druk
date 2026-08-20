@@ -262,7 +262,7 @@ instead of breaking startup.
 | `cursorStyle` | `"block"` | `block`, `line` or `underline` — the caret's shape, which vim mode overrides while it is on, since there the shape is what tells normal from insert |
 | `wrap` | `true` | set `false` to keep each line on one row — the tail of a long line is then reached by moving the cursor into it (palette → View → Toggle word wrap) |
 | `scrollPastEnd` | `true` | scroll on past the last line, until it is the only one left on screen — set `false` to stop with it at the bottom (settings → Editor → Scroll past end) |
-| `vim` | `false` | normal / insert / visual modes, `hjkl w b 0 $ gg G`, `f t F T` + `;` `,`, counts, `i a o`, `x dd dw cw`, `v` + `d y c`, `yy p P`, `u` / `Ctrl+R` |
+| `vim` | `false` | normal / insert / visual modes, `hjkl w b 0 $ gg G`, `f t F T` + `;` `,`, `zz`, counts, `i a o`, `x dd dw cw`, `v` + `d y c`, `yy p P`, `u` / `Ctrl+R` |
 | `sidebarWidth` | `"auto"` | a quarter of the window, or pin 15–80 columns |
 | `sidebarPosition` | `"left"` | `left` or `right` — which side of the editor the Files / Git / Extensions sidebar sits on (palette → View → Toggle sidebar position) |
 | `trimOnSave` | `false` | on save: strip trailing spaces and end the file with one newline |

@@ -2443,7 +2443,16 @@ export function EditorPane(props: EditorPaneProps) {
     if (folded() && vimState.mode !== 'insert' && VIM_EDITS.has(command)) {
       releaseFoldForEdit()
     }
-    const stepped = { undo: () => stepHistory('undo'), redo: () => stepHistory('redo') }
+    const stepped = {
+      undo: () => stepHistory('undo'),
+      redo: () => stepHistory('redo'),
+      centerLine: () => {
+        if (!editor) return
+        const row = rowAtLine(editor.logicalCursor.row)
+        const height = editor.height || editor.editorView.getViewport().height
+        if (height > 0) scrollToRow(row - Math.floor(height / 2))
+      },
+    }
     if (handleVimKey(editor, key, vimState, stepped)) key.preventDefault()
     if (vimState.mode !== before) {
       setVimMode(vimState.mode)
