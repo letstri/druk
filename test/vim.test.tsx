@@ -284,4 +284,24 @@ describe('viewport', () => {
     expect(lines[0]).toBe('line 40')
     expect(lines).toContain('line 49')
   })
+
+  test('zz recentres with a selection live, and the selection survives', async () => {
+    const { t, file } = await vimEditor(long)
+    await type(t, '100G')
+    await type(t, 'vjj')
+    await type(t, 'zz')
+    expect(shown(t)[0]).toBe('line 92') // the caret is on line 102 after vjj
+    // The viewport moved; the selection is still the one `v` started.
+    await type(t, 'd')
+    expect(await save(t, file)).toContain('line 98\nine 101\n')
+  })
+
+  test('zz near the top of the file scrolls nothing and moves no caret', async () => {
+    const { t } = await vimEditor(long)
+    await type(t, 'gg')
+    const before = shown(t)
+    await type(t, 'zz')
+    expect(at(t)).toBe('Ln 1, Col 1')
+    expect(shown(t)).toEqual(before)
+  })
 })
