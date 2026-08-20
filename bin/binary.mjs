@@ -39,13 +39,53 @@ export const version = pkg.version
 const SUPPORTED = new Set(['darwin-arm64', 'darwin-x64', 'linux-arm64', 'linux-x64', 'windows-x64'])
 export const supported = SUPPORTED.has(target)
 
-const asset = `druk-${target}.${platform === 'linux' ? 'tar.gz' : 'zip'}`
+/**
+ * Bun's default x64 builds are compiled for AVX2 and die with an illegal instruction on
+ * a pre-2013 CPU (issue #99), so the release carries a `-baseline` variant for these
+ * two targets. Not darwin: every Mac running a macOS Bun supports has AVX2.
+ */
+const BASELINE_TARGETS = new Set(['linux-x64', 'windows-x64'])
+
+/** Whether this cpuinfo describes a CPU that needs the baseline build. */
+export function wantsBaseline(cpuinfo) {
+  return !/\bavx2\b/.test(cpuinfo)
+}
+
+/**
+ * The AVX2 test that can run before anything is downloaded. Only Linux exposes CPU
+ * flags to read (node has no API for them); on Windows the probe in fetchBinary is
+ * what catches an old CPU, at the cost of one wasted download.
+ */
+function detectBaseline() {
+  // The escape hatch when detection guesses wrong — and the only way a test on an
+  // arm64 machine can exercise the baseline path at all.
+  const forced = process.env.DRUK_CPU_BASELINE
+  if (forced === '1') return true
+  if (forced === '0' || !BASELINE_TARGETS.has(target)) return false
+  if (platform !== 'linux') return false
+  try {
+    return wantsBaseline(readFileSync('/proc/cpuinfo', 'utf8'))
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Whether a spawnSync result is the illegal-instruction crash. Windows has no
+ * signals: STATUS_ILLEGAL_INSTRUCTION (0xC000001D) comes back as the exit code,
+ * unsigned or sign-extended depending on who reports it.
+ */
+export function illegalInstruction({ signal, status }) {
+  return signal === 'SIGILL' || status === 3221225501 || status === -1073741795
+}
+
+const assetFor = baseline =>
+  `druk-${target}${baseline ? '-baseline' : ''}.${platform === 'linux' ? 'tar.gz' : 'zip'}`
 const repo =
   pkg.repository?.url?.replace(/^git\+/, '').replace(/\.git$/, '') ??
   'https://github.com/letstri/druk'
 /** `DRUK_DOWNLOAD_BASE` points the fetch at a mirror, for networks that cannot reach GitHub. */
 const base = process.env.DRUK_DOWNLOAD_BASE ?? `${repo}/releases/download/v${version}`
-const url = `${base}/${asset}`
 
 /**
  * Where the binary may live, best first: beside the shim, then a per-user cache.
@@ -63,6 +103,25 @@ export function findBinary() {
   return existsSync(local) ? local : null
 }
 
+/** Download and unpack one release asset into its own temp directory. */
+async function download(asset, signal) {
+  const temp = join(tmpdir(), `druk-${version}-${asset}-${process.pid}`)
+  try {
+    const response = await fetch(`${base}/${asset}`, { redirect: 'follow', signal })
+    if (!response.ok) return null
+    mkdirSync(temp, { recursive: true })
+    const archive = join(temp, asset)
+    writeFileSync(archive, Buffer.from(await response.arrayBuffer()))
+    if (!unpack(archive, temp)) return null
+    const unpacked = join(temp, exe)
+    if (!existsSync(unpacked)) return null
+    if (platform !== 'windows') chmodSync(unpacked, 0o755)
+    return { temp, unpacked }
+  } catch {
+    return null
+  }
+}
+
 /**
  * Download and unpack the release asset. Returns the path, or null if it could not.
  * `timeout` (ms) bounds the whole download — headers and body both, since a stalled
@@ -70,19 +129,29 @@ export function findBinary() {
  */
 export async function fetchBinary({ timeout } = {}) {
   if (!supported) return null
-  const temp = join(tmpdir(), `druk-${version}-${process.pid}`)
+  const temps = []
   try {
     const signal = timeout ? AbortSignal.timeout(timeout) : undefined
-    const response = await fetch(url, { redirect: 'follow', signal })
-    if (!response.ok) return null
-    mkdirSync(temp, { recursive: true })
-    const archive = join(temp, asset)
-    writeFileSync(archive, Buffer.from(await response.arrayBuffer()))
-    if (!unpack(archive, temp)) return null
+    const baseline = detectBaseline()
+    let got = await download(assetFor(baseline), signal)
+    if (!got) return null
+    temps.push(got.temp)
 
-    const unpacked = join(temp, exe)
-    if (!existsSync(unpacked)) return null
-    if (platform !== 'windows') chmodSync(unpacked, 0o755)
+    // The one detection that works everywhere: run what arrived. A pre-AVX2 CPU
+    // Linux detection missed — or Windows, which offers no flags to read — crashes
+    // here instead of on the user's first launch, and the baseline build replaces
+    // it. Any other probe failure installs anyway: a strange postinstall sandbox
+    // must not turn into a failed install over a check that is only advisory.
+    if (!baseline && BASELINE_TARGETS.has(target)) {
+      const probe = spawnSync(got.unpacked, ['--version'], { stdio: 'pipe', windowsHide: true })
+      if (illegalInstruction(probe)) {
+        const fallback = await download(assetFor(true), signal)
+        if (fallback) {
+          temps.push(fallback.temp)
+          got = fallback
+        }
+      }
+    }
 
     for (const destination of [inPackage, inCache]) {
       // Copy beside the destination, then rename into place. Renaming straight from
@@ -92,7 +161,7 @@ export async function fetchBinary({ timeout } = {}) {
       const partial = `${destination}.partial`
       try {
         mkdirSync(dirname(destination), { recursive: true })
-        copyFileSync(unpacked, partial)
+        copyFileSync(got.unpacked, partial)
         if (platform !== 'windows') chmodSync(partial, 0o755)
         renameSync(partial, destination)
         return destination
@@ -105,7 +174,7 @@ export async function fetchBinary({ timeout } = {}) {
   } catch {
     return null
   } finally {
-    rmSync(temp, { recursive: true, force: true })
+    for (const temp of temps) rmSync(temp, { recursive: true, force: true })
   }
 }
 

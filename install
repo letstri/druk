@@ -109,6 +109,21 @@ else
         ;;
     esac
 
+    # Bun's default x64 builds need AVX2 and die with "illegal hardware instruction"
+    # on a pre-2013 CPU (issue #99); the release carries a baseline build for those.
+    # MSYS/MINGW expose /proc/cpuinfo too, so one probe covers Linux and Windows;
+    # DRUK_CPU_BASELINE=1/0 overrides it either way.
+    case "$target" in
+      linux-x64|windows-x64)
+        if [ "${DRUK_CPU_BASELINE:-}" = "1" ]; then
+            target="$target-baseline"
+        elif [ "${DRUK_CPU_BASELINE:-}" != "0" ] && [ -r /proc/cpuinfo ] \
+            && ! grep -qw avx2 /proc/cpuinfo; then
+            target="$target-baseline"
+        fi
+      ;;
+    esac
+
     if [ "$os" = "linux" ]; then
         archive_ext=".tar.gz"
         if ! command -v tar >/dev/null 2>&1; then

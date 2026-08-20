@@ -37,7 +37,9 @@ const ALL_TARGETS: TargetName[] = [
   'darwin-x64',
   'linux-arm64',
   'linux-x64',
+  'linux-x64-baseline',
   'windows-x64',
+  'windows-x64-baseline',
 ]
 
 const requested = process.argv.slice(2).filter(arg => !arg.startsWith('-'))

@@ -50,6 +50,13 @@ jobs:
             os: ubuntu-latest
           - target: windows-x64
             os: windows-latest
+          # Same runners as their AVX2 siblings — a baseline build wants the same
+          # @opentui/core-<platform> package, so this is the one cross-compile that
+          # works. For CPUs without AVX2, which Bun's default x64 builds require.
+          - target: linux-x64-baseline
+            os: ubuntu-latest
+          - target: windows-x64-baseline
+            os: windows-latest
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7

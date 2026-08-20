@@ -591,7 +591,19 @@ notices. Six things about that are easy to break:
   whose `preload` fails to resolve and kills startup. `build.ts` turns that off.
 - **Cross-compiling needs the target's `@opentui/core-<platform>` package**, and
   `bun install` fetches the host's alone. That is why the release workflow uses one native
-  runner per platform instead of five `--target` flags on one machine.
+  runner per platform instead of five `--target` flags on one machine. The exception is
+  the two `-baseline` targets, which want the same package as their AVX2 siblings and so
+  build on the same runners.
+- **x64 ships twice.** Bun's default x64 builds require AVX2 and die at startup with
+  "illegal hardware instruction" on a pre-2013 CPU ([#99](https://github.com/letstri/druk/issues/99)),
+  so `linux-x64-baseline` and `windows-x64-baseline` archives ride every release. The npm
+  shim picks by reading `/proc/cpuinfo` on Linux, and everywhere else by running the
+  downloaded binary's `--version` and refetching on SIGILL — Windows offers no CPU flags
+  to read; the install script greps `/proc/cpuinfo` (MSYS exposes it too), and
+  `DRUK_CPU_BASELINE=1/0` overrides both. Homebrew bottles and the deb/rpm packages stay
+  AVX2-only on purpose — brew cannot tell bottles apart by CPU feature, and two same-arch
+  debs would be a coin flip — so those users are one `curl | bash` away instead. No darwin
+  baseline: every Mac running a macOS Bun supports has AVX2.
 - **The GitHub release is uploaded before npm.** One package is published, `druk`, and it
   holds no binary: `bin/binary.mjs` fetches the archive for the machine from the release.
   Publishing npm first would leave a window where an install finds no asset.

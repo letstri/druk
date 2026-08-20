@@ -17,6 +17,14 @@ const TARGETS = {
   'linux-arm64': 'bun-linux-arm64',
   'linux-x64': 'bun-linux-x64',
   'windows-x64': 'bun-windows-x64',
+  // Bun's default x64 builds are compiled for AVX2, so on a pre-2013 CPU (Sandy/Ivy
+  // Bridge) they die at startup with "illegal hardware instruction" — issue #99. The
+  // baseline variants target Nehalem and run anywhere; the npm shim and the install
+  // script pick them on machines without avx2. No darwin pair: every Mac that runs a
+  // macOS Bun supports has AVX2 (the 2013 Mac Pro is the lone exception, and Homebrew
+  // cannot tell bottles apart by CPU feature anyway).
+  'linux-x64-baseline': 'bun-linux-x64-baseline',
+  'windows-x64-baseline': 'bun-windows-x64-baseline',
 } as const
 
 export type TargetName = keyof typeof TARGETS
