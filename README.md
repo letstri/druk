@@ -137,6 +137,16 @@ Every shortcut works in a stock terminal — nothing to configure. The line comm
 also in the palette (`F1`). Some terminals (macOS Terminal.app among them) cannot
 send `Ctrl+/` at all — that is why *Toggle comment* also answers to `Ctrl+L`.
 
+### Non-English keyboard layouts
+
+druk accepts the text produced by your keyboard layout, including characters
+entered with Option (`⌥`) on macOS, dead keys and input methods (IMEs). Terminals
+using the kitty keyboard protocol are asked to include that text with key events;
+ordinary UTF-8 input works too. Ctrl shortcuts and Alt navigation keep their bindings.
+
+Your terminal must pass the resulting text through. On macOS, configuring Option
+solely as a Meta key can prevent character entry.
+
 ## Markdown
 
 `Ctrl+Opt+M` reads a `.md` file as the document it is — headings, lists, tables, links,

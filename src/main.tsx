@@ -59,18 +59,18 @@ export async function main(target: Target): Promise<void> {
        * when event types are on. That is what the tooltip peek watches for
        * (src/ui/tooltip.ts).
        *
-       * Neither costs the existing key handling anything. Releases are emitted
-       * as `keyrelease`, which nothing but the peek listens to, and a key
-       * arriving as `CSI <code> u` is parsed back to the same name and text —
-       * `test/keylayout.test.tsx` drives the whole editor through that encoding,
-       * Cyrillic included. A terminal with no kitty protocol ignores the request
-       * and sends what it always did, so the peek is simply not there.
+       * `reportText` must accompany `allKeysAsEscapes`: the key code alone loses
+       * what Option, dead keys and an IME produce. OpenTUI decodes that text into
+       * sequence; useKeys lets it through even when Option is still reported.
+       * Releases go to `keyrelease`, which only the peek listens to. A terminal
+       * without the protocol keeps sending its ordinary UTF-8 text and chords.
        */
       useKittyKeyboard: {
         disambiguate: true,
         alternateKeys: true,
         events: true,
         allKeysAsEscapes: true,
+        reportText: true,
       },
       // Without motion reporting the terminal never hands drags to the app, so every
       // click-drag paints the terminal's own selection over the UI instead.

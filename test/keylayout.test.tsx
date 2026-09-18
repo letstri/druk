@@ -1,10 +1,10 @@
 import { describe, expect, test } from 'bun:test'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { capsChar, latinKey } from '../src/core/keylayout'
 import type { Harness } from './helpers'
-import { fixture, launch, openFile, press, settle } from './helpers'
+import { fixture, launch, openFile, press, pressEscape, settle, until } from './helpers'
 
 describe('a non-Latin layout', () => {
   test('a Cyrillic character names the US key it sits on', () => {
@@ -125,5 +125,114 @@ describe('Caps Lock', () => {
     capsKey(t, 'r')
     await settle(t)
     expect(t.captureCharFrame()).toContain('Rename to')
+  })
+})
+
+async function send(t: Harness, bytes: string) {
+  t.renderer.stdin.emit('data', Buffer.from(bytes))
+  await settle(t)
+}
+
+describe('layout text', () => {
+  test.each([
+    ['German Option+L', '\x1B[108;3;64u', '@'],
+    ['Option+Shift', '\x1B[55;4;92u', '\\'],
+    ['AltGr text with its consumed modifiers removed', '\x1B[64;1;64u', '@'],
+    ['a pure text event', '\x1B[0;;229u', 'å'],
+    ['a composed letter', '\x1B[110;1;241u', 'ñ'],
+    ['a dead key committed with Space', '\x1B[32;1;126u', '~'],
+    ['multiple code points', '\x1B[0;;101:769:128578u', 'e\u0301🙂'],
+    ['text that spells a named key', '\x1B[0;;114:101:116:117:114:110u', 'return'],
+    ['text already composed with Caps Lock', '\x1B[101;65;233u', 'é'],
+    ['a non-Latin layout', '\x1B[945::97;1;945u', 'α'],
+    ['legacy UTF-8', '@~ñåéα🙂', '@~ñåéα🙂'],
+  ])('%s is saved exactly as the terminal produced it', async (_label, bytes, expected) => {
+    const dir = fixture({ 'a.txt': '' })
+    const t = await launch(dir, {}, {}, { kittyKeyboard: true })
+    await openFile(t, 'a.txt')
+    await send(t, bytes)
+    await press(t, i => i.pressKey('s', { ctrl: true }))
+    await until(t, () => readFileSync(join(dir, 'a.txt'), 'utf8') === expected)
+  })
+
+  test('an Option dead-key press waits for the committed text', async () => {
+    const dir = fixture({ 'a.txt': '' })
+    const t = await launch(dir, {}, {}, { kittyKeyboard: true })
+    await openFile(t, 'a.txt')
+    await send(t, '\x1B[110;3u')
+    expect(t.captureCharFrame()).not.toContain('unsaved')
+    await send(t, '\x1B[32;1;126u\x1B[110;3u\x1B[110;1;241u')
+    await press(t, i => i.pressKey('s', { ctrl: true }))
+    await until(t, () => readFileSync(join(dir, 'a.txt'), 'utf8') === '~ñ')
+  })
+
+  test('text reaches search and file-name inputs', async () => {
+    const dir = fixture({ 'a.txt': '@~\n' })
+    const t = await launch(dir, {}, {}, { kittyKeyboard: true })
+    await openFile(t, 'a.txt')
+    await press(t, i => i.pressKey('f', { ctrl: true }))
+    await send(t, '\x1B[108;3;64u\x1B[32;1;126u')
+    await until(t, () => t.captureCharFrame().includes('1 of 1'))
+    await pressEscape(t)
+    await press(t, i => i.pressKey('n', { ctrl: true }))
+    await send(t, '\x1B[108;3;64u\x1B[32;1;126u')
+    expect(t.captureCharFrame()).toContain('@~')
+    await press(t, i => i.pressEnter())
+    await until(t, () => existsSync(join(dir, '@~')))
+  })
+
+  test('Option text still uses bracket pairing and undo', async () => {
+    const dir = fixture({ 'a.txt': '' })
+    const t = await launch(dir, {}, {}, { kittyKeyboard: true })
+    await openFile(t, 'a.txt')
+    await send(t, '\x1B[53;3;91u')
+    expect(t.captureCharFrame()).toContain('[]')
+    await send(t, '\x1B[54;3;93u\x1B[108;3;64u')
+    expect(t.captureCharFrame()).toContain('[]@')
+    await press(t, i => i.pressKey('z', { ctrl: true }))
+    await press(t, i => i.pressKey('s', { ctrl: true }))
+    expect(readFileSync(join(dir, 'a.txt'), 'utf8')).toBe('')
+    await press(t, i => i.pressKey('y', { ctrl: true }))
+    await press(t, i => i.pressKey('s', { ctrl: true }))
+    expect(readFileSync(join(dir, 'a.txt'), 'utf8')).toBe('[]@')
+  })
+
+  test('Ctrl+Option shortcuts keep their key even when text is attached', async () => {
+    const t = await launch(fixture({ 'a.txt': '' }), {}, {}, { kittyKeyboard: true })
+    await send(t, '\x1B[112;7;960u')
+    expect(t.captureCharFrame()).toContain('Commands')
+    await pressEscape(t)
+    await send(t, '\x1B[112;5;112u')
+    expect(t.captureCharFrame()).toContain('Open file')
+  })
+
+  test('Option arrows still move lines and Shift+Option arrows duplicate them', async () => {
+    const dir = fixture({ 'a.txt': 'one\ntwo\n' })
+    const t = await launch(dir, {}, {}, { kittyKeyboard: true })
+    await openFile(t, 'a.txt')
+    await send(t, '\x1B[1;3B')
+    await send(t, '\x1B[1;4A')
+    await press(t, i => i.pressKey('s', { ctrl: true }))
+    await until(t, () => readFileSync(join(dir, 'a.txt'), 'utf8') === 'two\none\none\n')
+  })
+
+  test('release events never insert text and repeats insert it once per event', async () => {
+    const dir = fixture({ 'a.txt': '' })
+    const t = await launch(dir, {}, {}, { kittyKeyboard: true })
+    await openFile(t, 'a.txt')
+    await send(t, '\x1B[108;3:1;64u\x1B[108;3:2;64u\x1B[108;3:3;64u')
+    await press(t, i => i.pressKey('s', { ctrl: true }))
+    await until(t, () => readFileSync(join(dir, 'a.txt'), 'utf8') === '@@')
+  })
+
+  test('vim insert mode accepts Option and composed text', async () => {
+    const dir = fixture({ 'a.txt': '' })
+    const t = await launch(dir, { vim: true }, {}, { kittyKeyboard: true })
+    await openFile(t, 'a.txt')
+    await press(t, i => i.pressKey('i'))
+    await send(t, '\x1B[108;3;64u\x1B[32;1;126u')
+    await pressEscape(t)
+    await press(t, i => i.pressKey('s', { ctrl: true }))
+    await until(t, () => readFileSync(join(dir, 'a.txt'), 'utf8') === '@~')
   })
 })

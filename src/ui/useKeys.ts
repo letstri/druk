@@ -28,9 +28,25 @@ import { capsChar, latinKey } from '../core/keylayout'
  */
 export function useKeys(handler: (key: KeyEvent, latin: string) => void) {
   useKeyboard((key: KeyEvent) => {
+    // OpenTUI puts both associated text and its fallback from the key code in
+    // sequence. Only the former proves Option produced text: clearing Alt on the
+    // fallback would turn navigation and dead-key presses into typed letters.
+    const hasText = key.source === 'kitty' && /^[\d:]+;[\d:]*;\d[\d:]*u$/.test(key.raw.slice(2))
+    if (hasText && !key.ctrl && !key.super && !key.hyper && (!key.meta || key.option)) {
+      key.meta = false
+      key.option = false
+      // The final key of a composition can be Space; leaving that name in place
+      // makes the native input insert a space instead of the committed text.
+      key.name =
+        key.sequence === ' '
+          ? 'space'
+          : [...key.sequence].length === 1
+            ? key.sequence.toLowerCase()
+            : ''
+    }
     // Before the textarea reads it: this runs as a global handler, which the
     // renderer emits ahead of the focused renderable's own.
-    if (key.capsLock && !key.ctrl && !key.meta && key.sequence) {
+    if (!hasText && key.capsLock && !key.ctrl && !key.meta && key.sequence) {
       key.sequence = capsChar(key.sequence, key.shift)
     }
     const latin = latinKey(key)
