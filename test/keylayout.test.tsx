@@ -128,6 +128,10 @@ describe('Caps Lock', () => {
   })
 })
 
+/**
+ * Exercise layout text the mock keyboard cannot encode. Flush before the next
+ * key so a following save reads the edited buffer rather than its previous state.
+ */
 async function send(t: Harness, bytes: string) {
   t.renderer.stdin.emit('data', Buffer.from(bytes))
   await settle(t)
