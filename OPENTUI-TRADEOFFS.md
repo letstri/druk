@@ -166,10 +166,15 @@ rediscovered.
   gap anywhere in the layout and wheeling the file tree scrolls the editor again.
 
 ### A18. Layout-aware keyboard
-- **Custom**: `useKeys` (`src/ui/useKeys.ts`) over `core/keylayout.ts` (74 lines).
-- **Native**: `useKeyboard` hands over the key as the layout printed it.
+- **Custom**: `useKeys` (`src/ui/useKeys.ts`) over `core/keylayout.ts`, including
+  recognising explicit associated text in `key.raw` before normalising Option events.
+- **Native**: `reportText` requests layout text and the parser decodes it into
+  `key.sequence`, but exposes no distinction from its key-code fallback. The native
+  input rejects text with Alt still set and treats a Space key as a literal space,
+  even when it committed a dead key's different text.
 - **Degrades**: with a Ukrainian or Russian layout up, every shortcut in druk is dead
-  (Ctrl+ф does not save), and Caps Lock under the kitty protocol types lowercase.
+  (Ctrl+ф does not save), Caps Lock without associated text types lowercase, and
+  Option symbols and dead-key compositions can be lost or replaced by a space.
 
 ## B. No native path at all — removal is deleting the feature
 

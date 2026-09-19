@@ -59,18 +59,16 @@ export async function main(target: Target): Promise<void> {
        * when event types are on. That is what the tooltip peek watches for
        * (src/ui/tooltip.ts).
        *
-       * Neither costs the existing key handling anything. Releases are emitted
-       * as `keyrelease`, which nothing but the peek listens to, and a key
-       * arriving as `CSI <code> u` is parsed back to the same name and text —
-       * `test/keylayout.test.tsx` drives the whole editor through that encoding,
-       * Cyrillic included. A terminal with no kitty protocol ignores the request
-       * and sends what it always did, so the peek is simply not there.
+       * `reportText` goes with them: a key code alone loses what Option, a dead
+       * key or an IME produced. Releases go to `keyrelease`, which only the peek
+       * listens to, and a terminal without the protocol sends what it always did.
        */
       useKittyKeyboard: {
         disambiguate: true,
         alternateKeys: true,
         events: true,
         allKeysAsEscapes: true,
+        reportText: true,
       },
       // Without motion reporting the terminal never hands drags to the app, so every
       // click-drag paints the terminal's own selection over the UI instead.

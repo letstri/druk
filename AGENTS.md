@@ -830,20 +830,34 @@ as `(key, latin)`, and which of the two it reads is the whole rule:
   and rename a file.
 - **A handler consuming text reads `key.name` / `key.sequence`.** Typing is the letter
   the layout printed, not the key it sits on.
+- **Request associated text alongside `allKeysAsEscapes`** (`reportText` in
+  `main.tsx`). Key codes alone cannot represent Option symbols, dead-key composition
+  or IME commits. `useKeys` recognises the explicit text field in the raw kitty
+  event — OpenTUI puts both that text and its key-code fallback in `sequence`, with
+  no separate flag. A control character is never that text — the protocol forbids
+  one in the field, and a terminal sending `\r` anyway would have its Enter
+  renamed out of existence. Only text without Ctrl or a standalone Meta clears
+  Option/Alt. Its name follows the text too, since a dead key committed with Space
+  would otherwise insert a space. Multi-codepoint text gets no key name, or an IME
+  committing `return` could trigger Enter. Never clear modifiers from a key-code
+  fallback: Alt navigation and a dead key awaiting composition need them.
 - Only a chord holding Ctrl or Cmd is renamed *in place*, which the handlers after it
   and the textarea's own handling see as well; the translation is idempotent, so which
   one gets there first does not matter.
 - **Caps Lock is applied to `key.sequence` and never to the name** (`capsChar` in
   `keylayout.ts`, from `useKeys`). Under the kitty protocol a terminal reports the lock
   as a modifier bit and sends the key's own lowercase code, so the uppercase character
-  arrives only through the associated-text flag druk does not ask for — without this the
-  lock types lowercase. Leaving the *name* alone is what keeps a lock meant for typing
+  arrives only through associated text, which some terminals omit — without this the
+  lock types lowercase. Explicit associated text is already composed and must not be
+  case-converted again. Leaving the *name* lowercase is what keeps a lock meant for typing
   from taking the tree's `r` or vim's `d` away, the same rule the layout translation
   follows. Idempotent both ways, so a terminal that did send the text loses nothing.
 
 A key whose foreign layout prints ASCII keeps that name — `/` has no Ukrainian
 spelling (the key prints `.`), so the panels' filter key needs a terminal that speaks
-the kitty protocol. `test/keylayout.test.tsx` covers both readings.
+the kitty protocol. `test/keylayout.test.tsx` covers both readings, Option text and
+composition through raw terminal bytes. Physical keyboard input, OS composition
+and terminal encoding still need a manual check.
 
 Anything clickable tints under the pointer: `useHover` (`src/ui/hover.ts`) wired to
 `onMouseOver`/`onMouseOut` on the element's box — the events bubble, so one pair on a
