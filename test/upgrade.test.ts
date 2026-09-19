@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 
 import { HELP } from '../src/core/cli'
-import { detectInstall, runUpgrade, upgradeCommand } from '../src/core/upgrade'
+import { detectInstall, runUpgrade, upgradeCommand, withSpinner } from '../src/core/upgrade'
 
 const HOME = '/Users/dev'
 const detect = (execPath: string, scriptPath = '') => detectInstall(execPath, scriptPath, HOME)
@@ -115,5 +115,27 @@ describe('a system package install', () => {
     const written: string[] = []
     await runUpgrade(text => written.push(text), { execPath: '/usr/bin/druk', arch: 'arm64' })
     expect(written.join('')).toContain('arm64 .deb or aarch64 .rpm')
+  })
+})
+
+describe('the loader', () => {
+  test('redraws over its own line and leaves the cursor back on', async () => {
+    const written: string[] = []
+    const result = await withSpinner(
+      text => written.push(text),
+      'npm install -g druk@latest',
+      async () => {
+        await new Promise(resolve => setTimeout(resolve, 200))
+        return 'done'
+      },
+    )
+    const output = written.join('')
+
+    expect(result).toBe('done')
+    expect(output).toContain('\x1B[?25l') // cursor hidden while it spins
+    // Every frame clears the line first, so nothing of the previous one survives.
+    expect(written.filter(text => text.startsWith('\r\x1B[2K')).length).toBeGreaterThan(1)
+    expect(output).toContain('npm install -g druk@latest')
+    expect(output.endsWith('\r\x1B[2K\x1B[?25h')).toBe(true) // and the line is left clean
   })
 })

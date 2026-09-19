@@ -92,10 +92,41 @@ const DESCRIPTION: Record<InstallKind, (install: Install) => string> = {
 const packageNames = (arch: string) =>
   arch === 'arm64' ? 'the arm64 .deb or aarch64 .rpm' : 'the amd64 .deb or x86_64 .rpm'
 
+const SPINNER = [...'⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏']
+
 /**
- * Run the upgrade, with the child's output going straight to the terminal — the
- * package managers and brew both report progress, and hiding it behind a spinner
- * of our own would only make a slow step look like a hang.
+ * One writer on the line. npm, pnpm and brew each redraw a spinner of their own
+ * with cursor moves and carriage returns, which on a wrapped or resized terminal
+ * is the flicker this replaces — and the cursor is parked out of the way, since a
+ * blinking block trailing the frames reads as part of them. The elapsed seconds
+ * are what keep a slow install from looking like a hang, which is why the child's
+ * output used to be inherited instead.
+ */
+export async function withSpinner<T>(
+  write: (text: string) => void,
+  label: string,
+  run: () => Promise<T>,
+): Promise<T> {
+  const started = Date.now()
+  let frame = 0
+  const draw = () => {
+    const seconds = Math.round((Date.now() - started) / 1000)
+    write(`\r\x1B[2K${SPINNER[frame++ % SPINNER.length]} ${label}  ${seconds}s`)
+  }
+  write('\x1B[?25l')
+  draw()
+  const tick = setInterval(draw, 80)
+  try {
+    return await run()
+  } finally {
+    clearInterval(tick)
+    write('\r\x1B[2K\x1B[?25h')
+  }
+}
+
+/**
+ * Run the upgrade behind druk's own loader, with the child's output held back and
+ * printed only when it failed — where it is the whole explanation.
  *
  * Returns the exit code to leave with.
  */
@@ -123,14 +154,33 @@ export async function runUpgrade(
   }
 
   const command = upgradeCommand(install)
+  // No loader where nothing can redraw a line: a pipe or a log file keeps the
+  // child's own output, which is what a CI run or a `> update.log` is for.
+  const live = process.stdout.isTTY === true
 
-  write(`${DESCRIPTION[install.kind](install)}\n$ ${command}\n\n`)
+  write(`${DESCRIPTION[install.kind](install)}\n$ ${command}\n${live ? '' : '\n'}`)
   try {
     // No `sh` on Windows, where druk ships too.
     const shell = process.platform === 'win32' ? ['cmd', '/c'] : ['sh', '-c']
-    const child = Bun.spawn([...shell, command], { stdout: 'inherit', stderr: 'inherit' })
-    const code = await child.exited
-    if (code !== 0) write(`\ndruk: update failed (exit ${code})\n`)
+    const child = Bun.spawn([...shell, command], {
+      stdout: live ? 'pipe' : 'inherit',
+      stderr: live ? 'pipe' : 'inherit',
+    })
+    // Both pipes drained together: a child that fills one while we read the other
+    // blocks forever, which is a hang the loader would happily spin through.
+    const run = async () => {
+      const [out, err] = child.stdout
+        ? await Promise.all([new Response(child.stdout).text(), new Response(child.stderr).text()])
+        : ['', '']
+      return { code: await child.exited, output: `${out}${err}` }
+    }
+    const { code, output } = live ? await withSpinner(write, command, run) : await run()
+    if (code === 0) {
+      if (live) write('✓ Updated.\n')
+    } else {
+      if (output.trim()) write(`${output.trimEnd()}\n`)
+      write(`\ndruk: update failed (exit ${code})\n`)
+    }
     return code
   } catch (error) {
     // No shell to run it with. Report the command so it can be run by hand,
