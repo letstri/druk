@@ -834,11 +834,13 @@ as `(key, latin)`, and which of the two it reads is the whole rule:
   `main.tsx`). Key codes alone cannot represent Option symbols, dead-key composition
   or IME commits. `useKeys` recognises the explicit text field in the raw kitty
   event — OpenTUI puts both that text and its key-code fallback in `sequence`, with
-  no separate flag. Only explicit text without Ctrl, Super, Hyper or standalone
-  Meta clears Option/Alt. Its name follows the text too, since a dead key committed
-  with Space would otherwise insert a space. Multi-codepoint text gets no key name,
-  or an IME committing `return` could trigger Enter. Never clear modifiers from a
-  key-code fallback: Alt navigation and a dead key awaiting composition need them.
+  no separate flag. A control character is never that text — the protocol forbids
+  one in the field, and a terminal sending `\r` anyway would have its Enter
+  renamed out of existence. Only text without Ctrl or a standalone Meta clears
+  Option/Alt. Its name follows the text too, since a dead key committed with Space
+  would otherwise insert a space. Multi-codepoint text gets no key name, or an IME
+  committing `return` could trigger Enter. Never clear modifiers from a key-code
+  fallback: Alt navigation and a dead key awaiting composition need them.
 - Only a chord holding Ctrl or Cmd is renamed *in place*, which the handlers after it
   and the textarea's own handling see as well; the translation is idempotent, so which
   one gets there first does not matter.

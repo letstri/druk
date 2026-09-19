@@ -59,11 +59,9 @@ export async function main(target: Target): Promise<void> {
        * when event types are on. That is what the tooltip peek watches for
        * (src/ui/tooltip.ts).
        *
-       * `reportText` must accompany `allKeysAsEscapes`: the key code alone loses
-       * what Option, dead keys and an IME produce. OpenTUI decodes that text into
-       * sequence; useKeys lets it through even when Option is still reported.
-       * Releases go to `keyrelease`, which only the peek listens to. A terminal
-       * without the protocol keeps sending its ordinary UTF-8 text and chords.
+       * `reportText` goes with them: a key code alone loses what Option, a dead
+       * key or an IME produced. Releases go to `keyrelease`, which only the peek
+       * listens to, and a terminal without the protocol sends what it always did.
        */
       useKittyKeyboard: {
         disambiguate: true,

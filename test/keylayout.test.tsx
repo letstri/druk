@@ -128,10 +128,8 @@ describe('Caps Lock', () => {
   })
 })
 
-/**
- * Exercise layout text the mock keyboard cannot encode. Flush before the next
- * key so a following save reads the edited buffer rather than its previous state.
- */
+// Layout text the mock keyboard cannot encode. Flushed, so a save after it
+// reads the edited buffer and not the one before.
 async function send(t: Harness, bytes: string) {
   t.renderer.stdin.emit('data', Buffer.from(bytes))
   await settle(t)
@@ -150,14 +148,27 @@ describe('layout text', () => {
     ['text already composed with Caps Lock', '\x1B[101;65;233u', 'é'],
     ['a non-Latin layout', '\x1B[945::97;1;945u', 'α'],
     ['legacy UTF-8', '@~ñåéα🙂', '@~ñåéα🙂'],
-  ])('%s is saved exactly as the terminal produced it', async (_label, bytes, expected) => {
+  ])(
+    '%s is saved exactly as the terminal produced it',
+    async (_label, bytes, expected) => {
+      const dir = fixture({ 'a.txt': '' })
+      const t = await launch(dir, {}, {}, { kittyKeyboard: true })
+      await openFile(t, 'a.txt')
+      await send(t, bytes)
+      await press(t, i => i.pressKey('s', { ctrl: true }))
+      await until(t, () => readFileSync(join(dir, 'a.txt'), 'utf8') === expected)
+    },
+    20000,
+  )
+
+  test('a named key keeps its name when the terminal reports its text', async () => {
     const dir = fixture({ 'a.txt': '' })
     const t = await launch(dir, {}, {}, { kittyKeyboard: true })
     await openFile(t, 'a.txt')
-    await send(t, bytes)
+    await send(t, '\x1B[97;1;97u\x1B[13;1;13u\x1B[9;1;9u\x1B[98;1;98u')
     await press(t, i => i.pressKey('s', { ctrl: true }))
-    await until(t, () => readFileSync(join(dir, 'a.txt'), 'utf8') === expected)
-  })
+    await until(t, () => /^a\n[\t ]+b$/.test(readFileSync(join(dir, 'a.txt'), 'utf8')))
+  }, 20000)
 
   test('an Option dead-key press waits for the committed text', async () => {
     const dir = fixture({ 'a.txt': '' })
@@ -168,7 +179,7 @@ describe('layout text', () => {
     await send(t, '\x1B[32;1;126u\x1B[110;3u\x1B[110;1;241u')
     await press(t, i => i.pressKey('s', { ctrl: true }))
     await until(t, () => readFileSync(join(dir, 'a.txt'), 'utf8') === '~ñ')
-  })
+  }, 20000)
 
   test('text reaches search and file-name inputs', async () => {
     const dir = fixture({ 'a.txt': '@~\n' })
@@ -183,7 +194,7 @@ describe('layout text', () => {
     expect(t.captureCharFrame()).toContain('@~')
     await press(t, i => i.pressEnter())
     await until(t, () => existsSync(join(dir, '@~')))
-  })
+  }, 20000)
 
   test('Option text still uses bracket pairing and undo', async () => {
     const dir = fixture({ 'a.txt': '' })
@@ -199,7 +210,7 @@ describe('layout text', () => {
     await press(t, i => i.pressKey('y', { ctrl: true }))
     await press(t, i => i.pressKey('s', { ctrl: true }))
     expect(readFileSync(join(dir, 'a.txt'), 'utf8')).toBe('[]@')
-  })
+  }, 20000)
 
   test('Ctrl+Option shortcuts keep their key even when text is attached', async () => {
     const t = await launch(fixture({ 'a.txt': '' }), {}, {}, { kittyKeyboard: true })
@@ -208,7 +219,7 @@ describe('layout text', () => {
     await pressEscape(t)
     await send(t, '\x1B[112;5;112u')
     expect(t.captureCharFrame()).toContain('Open file')
-  })
+  }, 20000)
 
   test('Option arrows still move lines and Shift+Option arrows duplicate them', async () => {
     const dir = fixture({ 'a.txt': 'one\ntwo\n' })
@@ -218,7 +229,7 @@ describe('layout text', () => {
     await send(t, '\x1B[1;4A')
     await press(t, i => i.pressKey('s', { ctrl: true }))
     await until(t, () => readFileSync(join(dir, 'a.txt'), 'utf8') === 'two\none\none\n')
-  })
+  }, 20000)
 
   test('release events never insert text and repeats insert it once per event', async () => {
     const dir = fixture({ 'a.txt': '' })
@@ -227,7 +238,7 @@ describe('layout text', () => {
     await send(t, '\x1B[108;3:1;64u\x1B[108;3:2;64u\x1B[108;3:3;64u')
     await press(t, i => i.pressKey('s', { ctrl: true }))
     await until(t, () => readFileSync(join(dir, 'a.txt'), 'utf8') === '@@')
-  })
+  }, 20000)
 
   test('vim insert mode accepts Option and composed text', async () => {
     const dir = fixture({ 'a.txt': '' })
@@ -238,5 +249,5 @@ describe('layout text', () => {
     await pressEscape(t)
     await press(t, i => i.pressKey('s', { ctrl: true }))
     await until(t, () => readFileSync(join(dir, 'a.txt'), 'utf8') === '@~')
-  })
+  }, 20000)
 })

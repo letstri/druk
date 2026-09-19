@@ -28,21 +28,23 @@ import { capsChar, latinKey } from '../core/keylayout'
  */
 export function useKeys(handler: (key: KeyEvent, latin: string) => void) {
   useKeyboard((key: KeyEvent) => {
-    // OpenTUI puts both associated text and its fallback from the key code in
-    // sequence. Only the former proves Option produced text: clearing Alt on the
-    // fallback would turn navigation and dead-key presses into typed letters.
-    const hasText = key.source === 'kitty' && /^[\d:]+;[\d:]*;\d[\d:]*u$/.test(key.raw.slice(2))
-    if (hasText && !key.ctrl && !key.super && !key.hyper && (!key.meta || key.option)) {
+    // OpenTUI puts the terminal's associated text and its own key-code fallback
+    // both in `sequence`, so only the raw event tells them apart — and clearing
+    // Alt on a fallback types a letter out of a dead key or an Alt chord. A
+    // control character is never that text; taking one renames `return` to \r.
+    const text = key.sequence
+    const hasText =
+      key.source === 'kitty' &&
+      /^[\d:]+;[\d:]*;\d[\d:]*u$/.test(key.raw.slice(2)) &&
+      text >= ' ' &&
+      text !== '\u007F'
+    // `meta` is Alt *or* Meta, so meta without option is a real Meta chord.
+    if (hasText && !key.ctrl && (!key.meta || key.option)) {
       key.meta = false
       key.option = false
-      // The final key of a composition can be Space; leaving that name in place
-      // makes the native input insert a space instead of the committed text.
-      key.name =
-        key.sequence === ' '
-          ? 'space'
-          : [...key.sequence].length === 1
-            ? key.sequence.toLowerCase()
-            : ''
+      // A composition commits on Space, whose name would insert one instead;
+      // an IME commit is no key at all, or its text could spell `return`.
+      key.name = [...text].length > 1 ? '' : text === ' ' ? 'space' : text.toLowerCase()
     }
     // Before the textarea reads it: this runs as a global handler, which the
     // renderer emits ahead of the focused renderable's own.
