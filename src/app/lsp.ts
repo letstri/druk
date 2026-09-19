@@ -374,8 +374,12 @@ export function createLsp(deps: {
     if (resolved.length === 0) {
       // No extension names a server for this language. druk ships none itself, so
       // this is the normal state for a language whose extension is not installed —
-      // the market decides whether that is worth an offer.
-      if (filetype) onNoServer?.(filetype)
+      // the market decides whether that is worth an offer. A server the user
+      // turned off (an empty `lspServers` command) is registered but resolves to
+      // nothing, and that is an answer, not a gap: offering an extension there
+      // asks again for what was just declined.
+      const registered = filetype && serverSpecs().some(spec => spec.filetypes.includes(filetype))
+      if (filetype && !registered) onNoServer?.(filetype)
       return []
     }
     return resolved.map(spawnFor).filter(client => client !== null)

@@ -34,6 +34,15 @@ const GO_EXTENSION = {
   languageServers: [{ id: 'go', command: ['druk-no-such-gopls'], filetypes: ['go'] }],
 }
 
+/** A linter: it serves Go without being the Go extension. */
+const GOLINT_EXTENSION = {
+  id: 'golint',
+  name: 'GoLint',
+  version: '1.0.0',
+  description: 'lint diagnostics beside whatever server is serving the file',
+  languageServers: [{ id: 'golint', command: ['druk-no-such-golint'], filetypes: ['go'] }],
+}
+
 /** A language druk knows nothing about: no grammar, no extension, no server. */
 const NIM_EXTENSION = {
   id: 'nim',
@@ -139,6 +148,7 @@ beforeEach(() => {
     requested.push(String(url))
     const manifests: Record<string, unknown> = {
       go: GO_EXTENSION,
+      golint: GOLINT_EXTENSION,
       nim: NIM_EXTENSION,
       vesper: VESPER_EXTENSION,
       catppuccin: CATPPUCCIN_EXTENSION,
@@ -191,6 +201,55 @@ test('a file whose language has no server offers the extension, and installs it'
   expect(JSON.parse(readFileSync(join(EXTENSIONS_DIR, 'go', 'extension.json'), 'utf8'))).toEqual(
     GO_EXTENSION,
   )
+})
+
+test('a linter serving the language is not the extension offered for it', async () => {
+  // Both claim `go`, and the catalog is alphabetical, so the lint-only one is
+  // first — the offer has to be the extension that *is* the language.
+  catalog = {
+    extensions: [
+      {
+        id: 'golint',
+        name: 'GoLint',
+        version: '1.0.0',
+        description: 'lint diagnostics beside whatever server is serving the file',
+        provides: { themes: [], icons: [], filetypes: ['go'] },
+        categories: ['lsp'],
+      },
+      { ...INDEX.extensions[0], categories: ['language', 'lsp'] },
+    ],
+  }
+  const dir = fixture({ 'main.go': 'package main\n' })
+  const t = await launch(dir, { lsp: true, extensionUpdates: true })
+  await openFile(t, 'main.go')
+
+  await untilFrame(t, 'No language server')
+  expect(t.captureCharFrame()).toContain('Install Go?')
+})
+
+test('a server the user turned off raises no offer', async () => {
+  // An empty command disables that server. Nothing is missing — offering another
+  // extension would re-ask what was just answered.
+  catalog = {
+    extensions: [
+      {
+        id: 'golint',
+        name: 'GoLint',
+        version: '1.0.0',
+        description: 'lint diagnostics',
+        provides: { themes: [], icons: [], filetypes: ['go'] },
+        categories: ['lsp'],
+      },
+    ],
+  }
+  install(GO_EXTENSION)
+  const dir = fixture({ 'main.go': 'package main\n' })
+  loadExtensions(dir)
+  const t = await launch(dir, { lsp: true, extensionUpdates: true, lspServers: { go: [] } })
+  await openFile(t, 'main.go')
+  await settle(t, 200)
+
+  expect(t.captureCharFrame()).not.toContain('No language server')
 })
 
 test('declining is remembered, and asks again for no other file of that language', async () => {

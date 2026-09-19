@@ -347,7 +347,12 @@ export function createMarket(deps: {
     asked.add(filetype)
     void (async () => {
       await ready()
-      const found = catalog().find(extension => extension.provides.filetypes.includes(filetype))
+      const serving = catalog().filter(extension => extension.provides.filetypes.includes(filetype))
+      // A linter claims the filetype too — eslint and oxlint each claim six — and
+      // catalog order is alphabetical, so the first match for `vue` is ESLint.
+      // The answer to "no language server for X" is the extension that *is* X.
+      const found =
+        serving.find(extension => extension.categories.includes('language')) ?? serving[0]
       if (!found || declined.has(found.id)) return
       if (extensions().some(extension => extension.id === found.id)) return
       declined.add(found.id) // asked is asked, whatever the answer turns out to be
