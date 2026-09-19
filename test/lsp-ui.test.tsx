@@ -107,8 +107,8 @@ test('the problems list carries the rule, the path and the whole message', async
   expect(t.captureCharFrame()).toContain('warning · src/deep/a.ts:1:')
 }, 30_000)
 
-test('the inline note is what broke, and the whole of it is one chord away', async () => {
-  const dir = fixture({ 'a.ts': 'const a = 1\n' })
+test('the inline note is what broke, and the card under the line says the rest', async () => {
+  const dir = fixture({ 'a.ts': 'const a = 1\nconst b = 2\n' })
   const t = await launch(
     dir,
     { lsp: true, lspServers: { typescript: [process.execPath, FAKE], eslint: [], oxlint: [] } },
@@ -118,37 +118,41 @@ test('the inline note is what broke, and the whole of it is one chord away', asy
 
   await press(t, input => void input.typeText('nag'))
   await untilFrame(t, '▲ 1', LSP_WAIT)
-  // The server's advice is dropped from the row beside the code — an ellipsis
-  // says there is more, and the chord that shows the rest is named on the row
-  // the caret is on, which is the only way to find a key nobody has been told.
+  // The caret's line is the one the card is under, so the cut row is read from a
+  // line the caret has left: the server's advice is dropped there, an ellipsis
+  // says there is more, and the chord goes with the caret rather than being
+  // repeated down the file.
+  await press(t, input => input.pressArrow('down'))
   const row = t
     .captureCharFrame()
     .split('\n')
     .find(line => line.includes('nagconst'))
   expect(row).toContain('this is a very wordy diagnostic…')
   expect(row).not.toContain('real servers append')
-  expect(row).toContain(`Ctrl+${ALT}+I`)
+  expect(row).not.toContain(`Ctrl+${ALT}+I`)
+  await runCommand(t, 'Show problem at cursor')
+  await untilFrame(t, 'No problem on this line', LSP_WAIT)
 
+  // Back on the line, the whole message is on screen — advice included — and
+  // the row above the card no longer says the half of it that fitted.
+  await press(t, input => input.pressArrow('up'))
+  await untilFrame(t, 'real servers append', LSP_WAIT)
+  const framed = t.captureCharFrame()
+  expect(framed).toContain('list is never enough to read one')
+  expect(framed).toContain('▲ warning')
+  expect(framed.split('\n').find(line => line.includes('nagconst'))).not.toContain(
+    'this is a very wordy',
+  )
+
+  // The modal is still there for the pane with no room for a card.
   await runCommand(t, 'Show problem at cursor')
   await untilFrame(t, 'Problem at cursor', LSP_WAIT)
   expect(t.captureCharFrame()).toContain('list is never enough to read one')
-
-  // A line with nothing on it says so rather than opening an empty modal — and
-  // the hint goes with the caret, so it is not repeated down the whole file.
   await pressEscape(t)
   await untilGone(t, 'Problem at cursor')
-  await press(t, input => input.pressArrow('down'))
-  expect(
-    t
-      .captureCharFrame()
-      .split('\n')
-      .find(line => line.includes('nagconst')),
-  ).not.toContain(`Ctrl+${ALT}+I`)
-  await runCommand(t, 'Show problem at cursor')
-  await untilFrame(t, 'No problem on this line', LSP_WAIT)
 }, 30_000)
 
-test('a message only the width shortened gets the hint too', async () => {
+test('a message only the width shortened is spelled out in the card', async () => {
   const dir = fixture({ 'a.ts': 'const a = 1\n' })
   // Wide enough for the note to be drawn, narrow enough for it to be cut: the
   // message carries no advice, so nothing but the terminal shortens it.
@@ -160,13 +164,32 @@ test('a message only the width shortened gets the hint too', async () => {
   )
 
   await press(t, input => void input.typeText('huh'))
-  await untilFrame(t, 'Cannot find module', LSP_WAIT)
-  const row = t
-    .captureCharFrame()
-    .split('\n')
-    .find(line => line.includes('huhconst'))
-  expect(row).toContain('…')
-  expect(row).toContain(`Ctrl+${ALT}+I`)
+  await untilFrame(t, 'corresponding type declarations', LSP_WAIT)
+  expect(t.captureCharFrame()).toContain('● error')
+}, 30_000)
+
+test('a message longer than the cards used to hold is on screen whole', async () => {
+  const dir = fixture({ 'a.ts': 'const a = 1\n' })
+  const t = await launch(
+    dir,
+    { lsp: true, lspServers: { typescript: [process.execPath, FAKE], eslint: [], oxlint: [] } },
+    { width: 90, height: 34 },
+    { openFile: join(dir, 'a.ts') },
+  )
+
+  // Seven rows of message at this width: the card takes what half the pane can
+  // give rather than a fixed eight lines, so the tail is on screen too.
+  await press(t, input => void input.typeText('wall'))
+  await untilFrame(t, 'Argument of type', LSP_WAIT)
+  expect(t.captureCharFrame()).toContain('who will read that far')
+
+  // The modal behind it reserves the rows the message needs rather than four,
+  // which is what puts the advice at the end of it on screen at all. Its block
+  // is still capped — `DETAIL_LINES` — since the rows come out of the list; the
+  // card is where a message of any length is read.
+  await runCommand(t, 'Show problem at cursor')
+  await untilFrame(t, 'Problem at cursor', LSP_WAIT)
+  expect(t.captureCharFrame()).toContain('three paragraphs suggesting')
 }, 30_000)
 
 test('the settings page shows the LSP rows and the master toggle flips', async () => {

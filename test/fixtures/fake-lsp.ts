@@ -30,6 +30,13 @@ const NAG = `this is a very wordy diagnostic help: real servers append the rule 
  */
 const NOT_FOUND = `Cannot find module '@fake/core' or its corresponding type declarations`
 
+/**
+ * A wall of a message, the shape rustc and TypeScript's overload errors send:
+ * longer than the four rows the problems modal used to reserve, so the card and
+ * that block both have to grow to hold the whole of it.
+ */
+const WALL = `Argument of type '{ alpha: number; beta: string; gamma: boolean; delta: number[]; epsilon: Record<string, unknown> }' is not assignable to parameter of type 'Options'. Object literal may only specify known properties, and 'epsilon' does not exist in type 'Options'. Consider changing the shape of the object, widening the parameter, or declaring the property on the interface the call site expects, which is the fix a real server spends three paragraphs suggesting to anybody who will read that far.`
+
 const publish = (uri: string, text: string) => {
   const diagnostics: Diagnostic[] = []
   const lines = text.split('\n')
@@ -76,6 +83,16 @@ const publish = (uri: string, text: string) => {
         tags: [2],
         message: 'this whole block is deprecated',
         source: 'fake',
+      })
+    }
+    const wall = lines[line]!.indexOf('wall')
+    if (wall >= 0) {
+      diagnostics.push({
+        range: { start: { line, character: wall }, end: { line, character: wall + 4 } },
+        severity: 1,
+        message: WALL,
+        source: 'fake',
+        code: 2345,
       })
     }
     const nag = lines[line]!.indexOf('nag')

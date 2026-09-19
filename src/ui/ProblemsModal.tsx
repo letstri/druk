@@ -22,8 +22,8 @@ export interface ProblemsModalProps {
   onCancel: () => void
 }
 
-/** Rows of the selected problem's whole message under the list. */
-const DETAIL_LINES = 4
+/** Most rows the selected problem's whole message may take under the list. */
+const DETAIL_LINES = 10
 
 /** `eslint(import/no-cycle)` — whichever half the server sent. */
 const origin = (problem: Problem): string =>
@@ -48,11 +48,27 @@ export function ProblemsModal(props: ProblemsModalProps) {
   const [index, setIndex] = createSignal(0)
 
   const width = () => modalWidth(dimensions().width, 0.7, 64, 120)
-  /** The border, the heading, the detail block, the blanks and the key hints. */
-  const visibleRows = () =>
-    Math.min(listRows(dimensions().height, 12 + DETAIL_LINES, 24), props.problems.length)
   /** Columns inside the border, less the selection bar and the severity glyph. */
   const room = () => width() - PAD * 2 - 4
+  /**
+   * Rows the detail block reserves: as tall as the wordiest message in the list,
+   * capped. Fixed for as long as the list is up rather than sized to whatever is
+   * selected, or the rows above it would jump on every ↑↓. Estimated from the
+   * length instead of wrapping each message: a project's worth of diagnostics
+   * would be wrapped on open for four rows of answer.
+   */
+  const detailRows = createMemo(() => {
+    const longest = props.problems.reduce((most, p) => Math.max(most, oneLine(p.message).length), 0)
+    // The rows come out of the list, which keeps three of its own whatever
+    // happens, so an unbounded block on a short window is a modal taller than
+    // the screen — and this is the one place a whole message has to fit.
+    const spare = Math.max(1, dimensions().height - 18)
+    return Math.max(1, Math.min(DETAIL_LINES, spare, Math.ceil(longest / room())))
+  })
+
+  /** The border, the heading, the detail block, the blanks and the key hints. */
+  const visibleRows = () =>
+    Math.min(listRows(dimensions().height, 12 + detailRows(), 24), props.problems.length)
 
   const selected = () => Math.min(index(), Math.max(0, props.problems.length - 1))
   const current = () => props.problems[selected()]
@@ -85,18 +101,6 @@ export function ProblemsModal(props: ProblemsModalProps) {
   })
 
   const view = createMemo(() => windowAround(props.problems, selected(), visibleRows()))
-
-  /**
-   * Rows the detail block reserves: as tall as the wordiest message in the list,
-   * capped. Fixed for as long as the list is up rather than sized to whatever is
-   * selected, or the rows above it would jump on every ↑↓. Estimated from the
-   * length instead of wrapping each message: a project's worth of diagnostics
-   * would be wrapped on open for four rows of answer.
-   */
-  const detailRows = createMemo(() => {
-    const longest = props.problems.reduce((most, p) => Math.max(most, oneLine(p.message).length), 0)
-    return Math.max(1, Math.min(DETAIL_LINES, Math.ceil(longest / room())))
-  })
 
   useListKeys({
     count: () => props.problems.length,

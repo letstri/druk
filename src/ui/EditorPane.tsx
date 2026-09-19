@@ -58,7 +58,7 @@ import { layoutMenu } from './completionLayout'
 import { CompletionMenu } from './CompletionMenu'
 import { useHover } from './hover'
 import { chordFor } from './keys'
-import { SEVERITY_COLOR } from './severity'
+import { SEVERITY_COLOR, SEVERITY_GLYPH } from './severity'
 import { cut, wrapText } from './text'
 import { useKeys } from './useKeys'
 import { Welcome } from './Welcome'
@@ -789,6 +789,25 @@ export function EditorPane(props: EditorPaneProps) {
   const [wrapKey, setWrapKey] = createSignal(0)
 
   /**
+   * First and last visual row of buffer line `row`, or null when the line is
+   * off screen. Wrapping is what makes these two numbers: a note goes after the
+   * last of them, a box under it.
+   */
+  const rowSpan = (row: number): { first: number; last: number } | null => {
+    const el = editorEl()
+    if (!el) return null
+    const top = viewTop()
+    const height = viewHeight() || el.height
+    const { sources } = lineLayout()
+    const first = rowAtLine(row)
+    if (sources[first] !== row) return null
+    let last = first
+    while (sources[last + 1] === row) last++
+    if (last < top || last >= top + height) return null
+    return { first, last }
+  }
+
+  /**
    * Where a note after buffer line `row` would go, or null when the line is off
    * screen or the pane has no room left for one. Positions come from
    * `lineInfo`: the note sits on the line's *last* visual row (wrapping), after
@@ -796,21 +815,74 @@ export function EditorPane(props: EditorPaneProps) {
    */
   const noteSlot = (row: number): { top: number; left: number; room: number } | null => {
     const el = editorEl()
-    if (!el || !host) return null
-    const top = viewTop()
-    const height = viewHeight() || el.height
-    const { sources, widths } = lineLayout()
-    const first = rowAtLine(row)
-    if (sources[first] !== row) return null
-    let lastRow = first
-    while (sources[lastRow + 1] === row) lastRow++
-    if (lastRow < top || lastRow >= top + height) return null
-
-    const left = el.x - host.x + 1 + (widths[lastRow] ?? 0) + 2
+    const span = rowSpan(row)
+    if (!el || !host || !span) return null
+    const left = el.x - host.x + 1 + (lineLayout().widths[span.last] ?? 0) + 2
     const room = host.width - left - 2
     if (room < 8) return null
-    return { top: el.y - host.y + (lastRow - top), left, room }
+    return { top: el.y - host.y + (span.last - viewTop()), left, room }
   }
+
+  /**
+   * The caret's diagnostic in full, in a box under its line — the whole of what
+   * the note after the code could only start, without the trip to the modal.
+   *
+   * Only where that note was cut: a message the row said all of is one the card
+   * would say twice. And only ever the caret's line — a box under every problem
+   * in the file would leave no code on screen.
+   *
+   * It covers the lines under it rather than opening a gap the way the review
+   * card does. A gap is rows the file does not have, and the one rule that keeps
+   * those harmless is that they cannot be typed into — true of the review card,
+   * whose gap only exists while the panel holds the keyboard, and false here,
+   * where the caret is in the buffer by definition.
+   */
+  const problemCard = createMemo(() => {
+    wrapKey()
+    void props.content
+    const el = editorEl()
+    // The review card owns the rows under its own line; two boxes over one
+    // screen read as a fight, and the panel's reader asked for theirs.
+    if (!props.problemText || !el || !host || cardGap()) return null
+    const problem = displayProblems().get(cursorRow())
+    const span = rowSpan(cursorRow())
+    if (!problem || !span) return null
+    // Two columns of border and one of padding either side.
+    const room = host.width - 4
+    if (room < 12) return null
+    const flat = problem.message.replaceAll(/\s+/g, ' ').trim()
+    const noteLeft = el.x - host.x + 1 + (lineLayout().widths[span.last] ?? 0) + 2
+    if (flat.length <= host.width - noteLeft - 2) return null
+
+    const top = viewTop()
+    const height = viewHeight() || el.height
+    const below = top + height - (span.last + 1)
+    const above = span.first - top
+    const wrapped = wrapText(flat, room)
+    // Borders included — the box is drawn over rows, not between them. Half the
+    // pane is the ceiling rather than `CARD_LINES`: a server's message runs to
+    // twenty rows as easily as two, and this is the surface that has to hold the
+    // whole of one — but a box over the whole pane is a file nobody can see.
+    const rows = Math.min(
+      wrapped.length + 2,
+      Math.max(below, above),
+      Math.max(3, Math.floor(height / 2)),
+    )
+    if (rows < 3) return null
+    const lines = wrapped.slice(0, rows - 2)
+    if (wrapped.length > lines.length) {
+      lines[lines.length - 1] = `… ${wrapped.length - lines.length + 1} more lines`
+    }
+    return {
+      /** Buffer row of the line itself, as `displayProblems` keys its marks. */
+      row: cursorRow(),
+      top: el.y - host.y + (below >= rows ? span.last + 1 : span.first - rows) - top,
+      width: host.width,
+      color: SEVERITY_COLOR[problem.severity](),
+      heading: ` ${SEVERITY_GLYPH[problem.severity]} ${problem.severity} `,
+      lines,
+    }
+  })
 
   /**
    * Where the card is drawn: over the blank rows `cardGap` opened under its
@@ -931,7 +1003,11 @@ export function EditorPane(props: EditorPaneProps) {
     // it. Nothing to advertise when the command has been unbound.
     const chord = chordFor('problems.detail')
     if (props.problemText) {
+      // The card under the line spells this one out in full; the row would be
+      // the same sentence cut short, directly above it.
+      const carded = problemCard()?.row
       for (const [row, problem] of displayProblems()) {
+        if (row === carded) continue
         // What broke, not how to fix it: the whole of it is a keystroke away,
         // and a row of a server's advice says nothing about this line.
         const said = headline(problem.message)
@@ -2840,6 +2916,32 @@ export function EditorPane(props: EditorPaneProps) {
                       content={line.text}
                     />
                   )}
+                </For>
+              </box>
+            )}
+          </Show>
+          {/* The whole of the caret's diagnostic, under its line. Below the
+              review card, which is asked for and so outranks it, and above the
+              inline notes it covers. */}
+          <Show when={problemCard()}>
+            {(card: () => NonNullable<ReturnType<typeof problemCard>>) => (
+              <box
+                position="absolute"
+                top={card().top}
+                left={0}
+                width={card().width}
+                zIndex={19}
+                flexDirection="column"
+                backgroundColor={ui.panelBg}
+                paddingLeft={1}
+                paddingRight={1}
+                border
+                borderStyle="rounded"
+                borderColor={card().color}
+                title={card().heading}
+              >
+                <For each={card().lines}>
+                  {line => <text fg={ui.text} bg={ui.panelBg} wrapMode="none" content={line} />}
                 </For>
               </box>
             )}

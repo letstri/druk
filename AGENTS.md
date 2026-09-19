@@ -334,10 +334,25 @@ and warnings only, left of the git track and deliberately a different glyph —
 inline message text after the line — what broke and not how to fix it, since a
 server appends its advice to the same sentence (`help:`, `note:`, a second
 paragraph) and that half is the longer one, so the row carries `headline()`'s
-part of it and an ellipsis where there is more; `Ctrl+Opt+I`, palette → Problems →
-Show problem at cursor reads the whole of it, the same modal as the list over the
-cursor's line alone, which is what a terminal has instead of a hover — and the
-chord is drawn dim after the note *on the caret's row alone*, since a key nobody
+part of it and an ellipsis where there is more; the rest of it is under the
+*caret's* line, in a bordered card (`problemCard` in `src/ui/EditorPane.tsx`) —
+the whole message wrapped to the pane, taking as many rows as it needs up to half
+of one, since a server's sentence runs to twenty rows as easily as two and this
+is the surface that has to hold the whole of it — drawn only where
+the row was cut, so a message the line said in full is never said twice, and
+suppressing the row's own note while it is up. That is what a terminal has
+instead of a hover, and it is the caret's line alone: a card under every problem
+in the file would leave no code on screen. Unlike the review card it *covers* the
+rows under it rather than opening a gap — a gap is rows the file does not have,
+and those are only safe while the editor has given up the keyboard, which is
+never true of the line the caret is standing on. It flips above the line where
+the pane has no room below. `Ctrl+Opt+I`, palette → Problems →
+Show problem at cursor still reads it as the modal the list uses,
+over the cursor's line alone — the fallback for a pane too short or too narrow
+for a card, whose detail block reserves the rows its longest message needs up to
+`DETAIL_LINES`, those rows coming out of the list, so it is the card and not the
+modal that holds a message of any length — and where the chord is drawn dim after
+the note *on the caret's row alone*, since a key nobody
 has been told about is a key nobody presses, and the same hint down every line
 would be noise (`chordFor` in `src/ui/keys.ts` reads the spelling in force, so a
 rebind renames the hint and unbinding it removes one) — status-bar
