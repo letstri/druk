@@ -391,10 +391,9 @@ test('Tab walks the files and puts the one it lands on at the top', async () => 
   await press(t, i => i.pressTab()) // out of the panel, into the page
   await press(t, i => i.pressTab()) // onto b.ts
   await untilFrame(t, '▾ M b.ts')
-  // Rows 0-1 are the tab strip and the page header; row 2 is the rule that
-  // separates one file from the last, so a file scrolled to the top of the page
-  // has its own header on row 3.
-  expect(rowOf(t, '▾ M b.ts')).toBe(3)
+  // Rows 0-1 are the tab strip and the page header, so a file scrolled to the
+  // top of the page has its own header on row 2.
+  expect(rowOf(t, '▾ M b.ts')).toBe(2)
 })
 
 test('Shift+S in the panel flips the page to side-by-side', async () => {
@@ -424,11 +423,11 @@ test('flipping the layout keeps the file being read at the top', async () => {
   await untilFrame(t, '▾ M a.ts')
   await press(t, i => i.pressArrow('down')) // onto b.ts, which goes to the top
   await untilFrame(t, '▾ M b.ts')
-  expect(rowOf(t, '▾ M b.ts')).toBe(3)
+  expect(rowOf(t, '▾ M b.ts')).toBe(2)
 
   await press(t, i => i.pressKey('s', { shift: true }))
   await untilFrame(t, 'side-by-side')
-  expect(rowOf(t, '▾ M b.ts')).toBe(3)
+  expect(rowOf(t, '▾ M b.ts')).toBe(2)
 })
 
 test('flipping the layout holds where the wheel left the page, not the panel cursor', async () => {

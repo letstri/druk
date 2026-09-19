@@ -601,8 +601,6 @@ export function ChangesView(props: ChangesViewProps) {
     return ` ${cut(summary(), room)}`
   }
 
-  const rule = () => '─'.repeat(inner())
-
   return (
     <box
       width="100%"
@@ -658,16 +656,6 @@ export function ChangesView(props: ChangesViewProps) {
                     flexShrink={0}
                     flexDirection="column"
                   >
-                    {/* A blank row on solidBg is invisible — it reads as an empty
-                        line of the diff. The rule is what separates one file from
-                        the next. */}
-                    <text
-                      wrapMode="none"
-                      fg={ui.border}
-                      bg={ui.solidBg}
-                      flexShrink={0}
-                      content={rule()}
-                    />
                     <box
                       ref={(el: LaidOut) => {
                         if (el) headers.set(section.key, el)

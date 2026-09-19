@@ -187,7 +187,7 @@ package-lock-sized document feeds it millions, minutes of frozen editor, so colo
 stops past a megabyte of sides or a thousand patch rows, and past ten thousand rows
 the patch itself is cut with the header keeping the change's true counts) — one page
 holding *every* change, Cursor's Changes page: a summary header and one block per
-file, a rule between files and a two-row header (path, then +/− and whether it is
+file, each under a two-row header (path, then +/− and whether it is
 new/deleted/renamed) that sticks to the top of the scroll until the next file's
 header pushes it off. There is no one-file diff: landing the panel's
 cursor on any change opens that page and scrolls to it (as does palette → Git → Show
