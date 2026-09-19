@@ -36,8 +36,8 @@ export function useKeys(handler: (key: KeyEvent, latin: string) => void) {
     const hasText =
       key.source === 'kitty' &&
       /^[\d:]+;[\d:]*;\d[\d:]*u$/.test(key.raw.slice(2)) &&
-      text >= ' ' &&
-      text !== '\u007F'
+      text.length > 0 &&
+      !/\p{Cc}/u.test(text)
     // `meta` is Alt *or* Meta, so meta without option is a real Meta chord.
     if (hasText && !key.ctrl && (!key.meta || key.option)) {
       key.meta = false

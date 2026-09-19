@@ -165,9 +165,12 @@ describe('layout text', () => {
     const dir = fixture({ 'a.txt': '' })
     const t = await launch(dir, {}, {}, { kittyKeyboard: true })
     await openFile(t, 'a.txt')
-    await send(t, '\x1B[97;1;97u\x1B[13;1;13u\x1B[9;1;9u\x1B[98;1;98u')
+    // A control anywhere in the text disqualifies it — after the first code
+    // point and in the C1 range alike — so all three Enters stay Enter.
+    await send(t, '\x1B[97;1;97u\x1B[13;1;13u\x1B[13;1;13:97u\x1B[13;1;133u')
+    await send(t, '\x1B[9;1;9u\x1B[98;1;98u')
     await press(t, i => i.pressKey('s', { ctrl: true }))
-    await until(t, () => /^a\n[\t ]+b$/.test(readFileSync(join(dir, 'a.txt'), 'utf8')))
+    await until(t, () => /^a\n\n\n[\t ]+b$/.test(readFileSync(join(dir, 'a.txt'), 'utf8')))
   }, 20000)
 
   test('an Option dead-key press waits for the committed text', async () => {
