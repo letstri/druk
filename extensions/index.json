@@ -685,6 +685,23 @@
       ]
     },
     {
+      "id": "r",
+      "name": "R",
+      "version": "1.0.0",
+      "description": "R highlighting and the languageserver R package - the language of statistics and data analysis, its .R scripts and .Rprofile.",
+      "provides": {
+        "themes": [],
+        "icons": [],
+        "filetypes": [
+          "r"
+        ]
+      },
+      "categories": [
+        "language",
+        "lsp"
+      ]
+    },
+    {
       "id": "relentless",
       "name": "Relentless",
       "version": "1.0.0",
