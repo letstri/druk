@@ -61,7 +61,7 @@
         },
         {
           "group": "comment",
-          "re": "(?<=^(?:[^\"'#\\n]|\"(?:[^\"\\\\\\n]|\\\\.)*\"|'(?:[^'\\\\\\n]|\\\\.)*')*)#[^\\n]*",
+          "re": "(?<=^(?:[^\"'`#\\n]|\"(?:[^\"\\\\\\n]|\\\\.)*\"|'(?:[^'\\\\\\n]|\\\\.)*'|`[^`\\n]*`)*)#[^\\n]*",
           "flags": "gm"
         }
       ]
@@ -70,7 +70,7 @@
   "languageServers": [
     {
       "id": "r",
-      "command": ["R", "--no-echo", "-e", "languageserver::run()"],
+      "command": ["R", "--no-echo", "--no-init-file", "-e", "languageserver::run()"],
       "filetypes": ["r"],
       "install": {
         "kind": "manual",
