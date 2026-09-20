@@ -133,9 +133,11 @@ next one (palette → Git → Next / Previous conflict, wrapping as the problems
 bound, the way the review note's four kinds are. Acting on the caret's block alone is
 deliberate: a file's other conflict is off screen as often as not, and resolving one
 unasked is not a thing the eye can catch —
-`+`/`−` drawn on the cursor's row alone for a file or folder, a terminal having no
-hover to hide a button behind, and always on the `Staged Changes` / `Changes` /
-`Merge Changes` heading (that is VS Code's `+` on a group header, so every file
+`+`/`−` drawn on the cursor's row and under the pointer for a file or folder — the
+changes page's rule — over a cell held open on every stageable row, since a glyph
+appearing where there was nothing shoves that row's status mark two columns over
+and the list dances as the cursor walks it; and always on the `Staged Changes` /
+`Changes` / `Merge Changes` heading (that is VS Code's `+` on a group header, so every file
 under it is staged or unstaged at once without walking onto the heading first). A
 path staged and then edited again is a row under *each* heading, which is
 what git reports and what makes staging the rest of it a thing to do, and the two

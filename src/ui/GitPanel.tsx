@@ -309,13 +309,9 @@ export function GitPanel(props: GitPanelProps) {
                     )}
                   </Show>
                   {/* The `+` handler stops the row's: pressing it must not fold the heading. */}
-                  <Show
-                    when={
-                      props.staging &&
-                      !isCommitRow(row) &&
-                      (row.kind === 'section' || index() === cursor())
-                    }
-                  >
+                  {/* The cell is held open for every stageable row: drawing the glyph in
+                      place of nothing would shove the status mark two columns over. */}
+                  <Show when={props.staging && !isCommitRow(row)}>
                     <box
                       flexShrink={0}
                       backgroundColor={stageHover.hovered(index()) ? ui.hoverBg : bg()}
@@ -329,7 +325,13 @@ export function GitPanel(props: GitPanelProps) {
                       <text
                         fg={ui.accent}
                         bg={stageHover.hovered(index()) ? ui.hoverBg : bg()}
-                        content={`${stageGlyph(row)} `}
+                        content={
+                          row.kind === 'section' ||
+                          index() === cursor() ||
+                          rowHover.hovered(index())
+                            ? `${stageGlyph(row)} `
+                            : '  '
+                        }
                       />
                     </box>
                   </Show>

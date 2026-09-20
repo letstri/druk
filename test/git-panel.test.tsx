@@ -169,3 +169,29 @@ test('the panel draws file icons in the glyph column', async () => {
   expect(open).toContain('¶ notes.md')
   expect(open).toContain('▾ src')
 })
+
+test('the status mark holds its column as the cursor walks onto a row', async () => {
+  const dir = fixture({ 'a.ts': 'alpha\n', 'b.ts': 'beta\n' })
+  initRepo(dir)
+  git(dir, 'add', '.')
+  git(dir, 'commit', '-qm', 'init')
+  writeFileSync(join(dir, 'a.ts'), 'alpha changed\n')
+  writeFileSync(join(dir, 'b.ts'), 'beta changed\n')
+
+  const t = await launch(dir)
+  await press(t, i => void i.pressKeys([TOGGLE]))
+  const markColumn = () =>
+    frame(t)
+      .split('\n')
+      .find(row => row.includes('b.ts'))
+      ?.indexOf('M')
+
+  const resting = markColumn()
+  expect(resting).toBeGreaterThan(0)
+
+  // Down twice: past the heading and a.ts, onto b.ts, where the `+` is drawn.
+  await press(t, i => i.pressArrow('down'))
+  await press(t, i => i.pressArrow('down'))
+  expect(frame(t)).toContain('M +')
+  expect(markColumn()).toBe(resting)
+})
