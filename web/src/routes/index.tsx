@@ -6,6 +6,9 @@ import { copyText } from '../lib/clipboard'
 
 export const Route = createFileRoute('/')({
   component: Home,
+  head: () => ({
+    links: [{ rel: 'canonical', href: 'https://druk.letstri.dev/' }],
+  }),
 })
 
 const GITHUB = 'https://github.com/letstri/druk'
