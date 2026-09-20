@@ -48,7 +48,7 @@ test('a tinted side keeps the colours its code was painted in', async () => {
   expect(inside?.fg).toBe(outside?.fg)
   expect(inside?.bg).not.toBe(outside?.bg)
   // Past bun's 5s default: the wait above is for a cold grammar load.
-}, 20000)
+}, 60000)
 
 test('the gutter marks the block and nothing either side of it', async () => {
   const t = await launch(conflicted())

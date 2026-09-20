@@ -99,9 +99,12 @@ export async function openFile(t: Harness, name: string) {
   await settle(t)
 }
 
+// scripts/test.ts raises this when files run concurrently.
+const SLOW = Number(process.env.DRUK_TEST_SLOW) || 1
+
 export async function until(t: Harness, cond: () => boolean, timeoutMs = 4000) {
   const started = Date.now()
-  while (!cond() && Date.now() - started < timeoutMs) await settle(t, 15)
+  while (!cond() && Date.now() - started < timeoutMs * SLOW) await settle(t, 15)
   expect(cond()).toBe(true)
 }
 

@@ -752,11 +752,18 @@ that are why a preview build's card still points at production.
   now includes `test`: bare `bun test` runs the whole suite in one process, where the
   files interfere — ~140 tests fail on leaked stdin/signal state that separate processes
   would isolate (`--isolate`'s fresh global is not enough). `bun run test` goes through
-  `scripts/test.ts`, which runs each file in its own process, sequentially. Not
+  `scripts/test.ts`, which runs each file in its own process, half the cores at a time
+  (`DRUK_TEST_JOBS` overrides, 1 for a sequential run) — ~110s against ~480s one at a
+  time, a test process spending ~0.7s of its life on the Solid preload alone. Not
   `--parallel`: its concurrent workers can busy-spin at 100% CPU forever on macOS ARM
   (oven-sh/bun#27766, still present in 1.3.14) — the spin is synchronous, so bun's own
-  per-test timeout never fires and only SIGKILL ends the worker. One bun process at a
-  time has never triggered it; the script's per-file cap is a backstop.
+  per-test timeout never fires and only SIGKILL ends the worker. Separate processes are
+  not that bug; the script's per-file cap is a backstop either way. Concurrency is what
+  the harness's `DRUK_TEST_SLOW` is for: files running together starve each other's
+  renderer and tree-sitter threads, so `until()` stretches every wall-clock deadline by
+  that factor, and the runner raises bun's per-test timeout to 60s. Both go to the
+  children through `spawn`'s own `env` — `Bun.spawn` snapshots the environment at startup,
+  so a mutated `process.env` never reaches them.
 
 ```bash
 bun install
@@ -769,7 +776,7 @@ bun run release          # package dist/ for npm + release archives (--publish t
 bun run formula          # Homebrew formula for those archives, into dist/release/druk.rb
 bun run packages         # .deb/.rpm from the linux binaries, into dist/release/ (needs nfpm)
 bun run extensions          # regenerate extensions/index.json — the market's catalog
-bun run test             # unit + UI, one file per process, sequential (~4 min)
+bun run test             # unit + UI, one file per process, half the cores at a time (~2 min)
 bun test test/foo.tsx    # a single file, where the flag buys nothing
 bun run check            # check-types + lint + format + test — the one to run
 ```
