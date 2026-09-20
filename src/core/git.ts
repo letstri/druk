@@ -1277,6 +1277,47 @@ export function listRemotes(cwd: string): Remote[] {
   return remotes
 }
 
+// A remote's web root: the scp-like form git prints for SSH has no scheme to parse.
+function webRoot(remote: string): URL | null {
+  const clean = remote
+    .trim()
+    .replace(/\/+$/, '')
+    .replace(/\.git$/, '')
+  if (!clean) return null
+  const scp = /^(?:[^@/]+@)?([^/:]+):(?!\/)(.+)$/.exec(clean)
+  if (scp) return new URL(`https://${scp[1]}/${scp[2]}`)
+  if (!/^[a-z][\w+.-]*:\/\//i.test(clean)) return null
+  let url: URL
+  try {
+    url = new URL(clean)
+  } catch {
+    return null
+  }
+  if (!url.hostname) return null
+  const web = url.protocol === 'http:' ? 'http:' : 'https:'
+  // An ssh port is not the web one; an http(s) remote's is.
+  const port = url.protocol === 'http:' || url.protocol === 'https:' ? url.port : ''
+  return new URL(`${web}//${url.hostname}${port ? `:${port}` : ''}${url.pathname}`)
+}
+
+export function forgeCommitUrl(remote: string, oid: string): string | null {
+  const root = webRoot(remote)
+  if (!root || root.pathname === '/') return null
+  const host = root.hostname
+  const path = host.includes('bitbucket')
+    ? 'commits'
+    : host.includes('gitlab')
+      ? '-/commit'
+      : 'commit'
+  return `${root.toString().replace(/\/$/, '')}/${path}/${oid}`
+}
+
+export function commitUrl(cwd: string, oid: string): string | null {
+  const remotes = listRemotes(cwd)
+  const remote = remotes.find(entry => entry.name === 'origin') ?? remotes[0]
+  return remote ? forgeCommitUrl(remote.url, oid) : null
+}
+
 export function addRemote(cwd: string, name: string, url: string): Promise<GitResult> {
   return mutate(cwd, ['remote', 'add', '--', name, url])
 }
@@ -1300,6 +1341,62 @@ export function fileHistory(cwd: string, relPath: string): { oid: string; subjec
       return split < 0
         ? { oid: line, subject: '' }
         : { oid: line.slice(0, split), subject: line.slice(split + 1) }
+    })
+}
+
+export interface GraphCommit {
+  oid: string
+  shortOid: string
+  subject: string
+  refs: string[]
+  author: string
+  date: string
+}
+
+// A row with no commit is one of git's own connector lines (`|\`, `|/`).
+export interface GraphRow {
+  graph: string
+  commit: GraphCommit | null
+}
+
+const GRAPH_CAP = 500
+
+// A unit separator, not NUL: argv is NUL-terminated, so `%x00` would truncate the format.
+const FIELD = '\x1F'
+
+export async function commitGraph(cwd: string): Promise<GraphRow[]> {
+  const run = await gitAsync(cwd, [
+    'log',
+    '--graph',
+    '--all',
+    '--date-order',
+    '--decorate=short',
+    '--date=short',
+    '-n',
+    String(GRAPH_CAP),
+    `--format=${FIELD}%H${FIELD}%h${FIELD}%s${FIELD}%D${FIELD}%an${FIELD}%ad`,
+  ])
+  if (run.status !== 0) return []
+  return run.stdout
+    .split('\n')
+    .filter(line => line.trim().length > 0)
+    .map(line => {
+      const at = line.indexOf(FIELD)
+      if (at < 0) return { graph: line, commit: null }
+      const [oid = '', shortOid = '', subject = '', refs = '', author = '', date = ''] = line
+        .slice(at + 1)
+        .split(FIELD)
+      return {
+        graph: line.slice(0, at),
+        commit: {
+          oid,
+          shortOid,
+          subject,
+          refs: refs ? refs.split(', ') : [],
+          author,
+          date,
+        },
+      }
     })
 }
 

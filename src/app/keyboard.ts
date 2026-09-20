@@ -90,6 +90,8 @@ export function installKeyboard(ctx: AppContext, actions: CommandActions) {
     'git.discard': actions.gitDiscard,
     'git.push': actions.gitPush,
     'git.compare': actions.gitCompareBranches,
+    'git.graph': actions.gitCommitGraph,
+    'git.openCommitWeb': actions.openCommitOnWeb,
     'git.conflictResolve': actions.conflictResolve,
     'git.conflictNext': actions.conflictNext,
     'git.conflictPrev': actions.conflictPrev,
@@ -381,6 +383,9 @@ export function installKeyboard(ctx: AppContext, actions: CommandActions) {
         case 'a':
           actions.gitDiffAll()
           break
+        case 'g':
+          actions.gitCommitGraph()
+          break
         case 'b':
           actions.gitSwitchBranch()
           break
@@ -392,7 +397,11 @@ export function installKeyboard(ctx: AppContext, actions: CommandActions) {
           break
         case 'escape':
           // A page this panel opened first, or the panel would go and leave it behind.
-          if (workspace.page() === 'commit' || workspace.page() === 'allChanges') {
+          if (
+            workspace.page() === 'commit' ||
+            workspace.page() === 'allChanges' ||
+            workspace.page() === 'graph'
+          ) {
             workspace.closePage()
           } else panes.toggleView('git')
           break

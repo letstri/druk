@@ -87,6 +87,9 @@ export interface CommandActions {
   allChanges: () => ChangeSection[]
   allChangesMeta: () => ChangesMeta
   gitCompareBranches: () => void
+  gitCommitGraph: () => void
+  openCommitOnWeb: () => void
+  openGraphCommit: () => void
   gitDiffBase: () => void
   gitDiffBaseReset: () => void
   gitMoveTo: (row: number) => void
@@ -289,6 +292,18 @@ export function buildCommands(actions: CommandActions, ctx: CommandContext): Com
         { id: 'git.commitPush', label: 'Commit & push…', run: actions.gitCommitAndPush },
         { id: 'git.commitSync', label: 'Commit & sync…', run: actions.gitCommitAndSync },
         { id: 'git.commitAmend', label: 'Commit (amend)…', run: actions.gitCommitAmend },
+        {
+          id: 'git.graph',
+          label: 'Commit graph',
+          hint: 'g in source control',
+          run: actions.gitCommitGraph,
+        },
+        {
+          id: 'git.openCommitWeb',
+          label: 'Open commit on remote',
+          hint: 'o in the commit graph',
+          run: actions.openCommitOnWeb,
+        },
         { id: 'git.stash', label: 'Stash changes', run: actions.gitStash },
         { id: 'git.stashPop', label: 'Stash pop', run: actions.gitStashPop },
         { id: 'git.stashList', label: 'Stashes…', run: actions.gitStashList },

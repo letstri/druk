@@ -81,6 +81,8 @@ export const BINDABLE: Bindable[] = [
   { id: 'git.discard', label: 'Discard changes', defaults: [] },
   { id: 'git.push', label: 'Push', defaults: [] },
   { id: 'git.compare', label: 'Compare branches', defaults: [] },
+  { id: 'git.graph', label: 'Commit graph', defaults: [] },
+  { id: 'git.openCommitWeb', label: 'Open commit on remote', defaults: [] },
   { id: 'git.conflictResolve', label: 'Resolve conflict at cursor', defaults: [`Ctrl+${ALT}+U`] },
   { id: 'git.conflictNext', label: 'Next conflict', defaults: [`Ctrl+${ALT}+J`] },
   { id: 'git.conflictPrev', label: 'Previous conflict', defaults: [] },

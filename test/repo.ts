@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process'
 
-const git = (dir: string, ...args: string[]) => execFileSync('git', args, { cwd: dir })
+export const git = (dir: string, ...args: string[]) => execFileSync('git', args, { cwd: dir })
 
 // `commit.gpgsign` off: signing globally, the first commit would wait on a passphrase.
 export function initRepo(dir: string): string {

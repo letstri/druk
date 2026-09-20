@@ -29,9 +29,27 @@ function enlargeThumb(box: ScrollBoxRenderable) {
     Math.min(slider.height * 2, Math.max(size(), MIN_THUMB_ROWS * 2))
 }
 
+// Frames a scroll keeps re-trying: a list that mounts scrolled has no height for a pass or two.
+const TRIES = 6
+
+// One frame: the layout pass writes the content height later than any macrotask.
+const LAYOUT_FRAME = 16
+
 // The scrollbox emits no scroll event; every way it moves goes through its scrollbar, which does.
 export function followScroll(el: ScrollBoxRenderable, moved: (top: number) => void) {
   el.verticalScrollBar.on('change', () => moved(el.scrollTop))
+}
+
+// A list that mounts scrolled clamps to zero until the layout pass has given it a content height.
+export function restoreScroll(el: ScrollBoxRenderable, top: number): () => void {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  let tries = 0
+  const apply = () => {
+    el.scrollTop = top
+    if (el.scrollTop !== top && ++tries < TRIES) timer = setTimeout(apply, LAYOUT_FRAME)
+  }
+  apply()
+  return () => clearTimeout(timer)
 }
 
 // `viewportCulling` still builds culled rows, and the Zig core stops a few thousand in.
@@ -56,7 +74,8 @@ export function createScrollList(total: () => number) {
 
   const reveal = (row: number) => {
     if (pending) clearTimeout(pending)
-    pending = setTimeout(() => {
+    let attempts = 0
+    const tryReveal = () => {
       pending = null
       if (!box) return
       const height = box.viewport.height
@@ -64,7 +83,11 @@ export function createScrollList(total: () => number) {
       else if (row >= box.scrollTop + height) box.scrollTop = row - height + 1
       // Read it back: the box clamps to its own extent, and the wrong slice renders otherwise.
       setScrollTop(box.scrollTop)
-    }, 0)
+      const landed = height > 0 && row >= box.scrollTop && row < box.scrollTop + height
+      // A list mounting scrolled has no content height yet, so the offset clamps to zero.
+      if (!landed && ++attempts < TRIES) pending = setTimeout(tryReveal, LAYOUT_FRAME)
+    }
+    pending = setTimeout(tryReveal, 0)
   }
 
   const ref = (el: ScrollBoxRenderable) => {

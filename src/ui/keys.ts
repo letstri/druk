@@ -419,10 +419,10 @@ export interface Hint {
 const PANEL_HINTS: (Hint & { pane: KeyScope })[] = [
   { pane: 'git', key: 'Space', label: 'stage', rank: 2 },
   { pane: 'git', key: 'c', label: 'commit', rank: 3 },
-  { pane: 'git', key: 'a', label: 'diff', rank: 4 },
   { pane: 'git', key: 'd', label: 'discard', rank: 5 },
   { pane: 'git', key: 's', label: 'sync', rank: 6 },
   { pane: 'git', key: 'B', label: 'compare', rank: 7 },
+  { pane: 'git', key: 'g', label: 'graph', rank: 8 },
   { pane: 'review', key: 'r', label: 'reply', rank: 2 },
   { pane: 'review', key: 'Bksp', label: 'drop', rank: 3 },
   { pane: 'extensions', key: '/', label: 'find', rank: 2 },

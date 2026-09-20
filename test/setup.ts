@@ -10,6 +10,9 @@ process.env.DRUK_PROGRESS = '0'
 
 process.env.DRUK_ICON_FALLBACK = '0'
 
+// No test may hand a URL to the desktop: a fixture's commit is a 404 in a real browser tab.
+process.env.DRUK_BROWSER = 'off'
+
 process.env.XDG_DATA_HOME = tempDir('druk-test-data-')
 
 process.env.XDG_CACHE_HOME = tempDir('druk-test-cache-')

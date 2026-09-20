@@ -1,4 +1,5 @@
 import type { Branches } from './branches'
+import type { CommitGraph } from './commitGraph'
 import type { CommitView } from './commitView'
 import type { Comparison } from './comparison'
 import type { EditorBridge } from './editor'
@@ -36,6 +37,7 @@ export interface AppContext {
   review: Review
   branches: Branches
   commitView: CommitView
+  commitGraph: CommitGraph
   comparison: Comparison
   workspace: Workspace
   workspaces: Workspaces

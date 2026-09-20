@@ -2,6 +2,7 @@ import { basename, dirname, relative } from 'node:path'
 
 import { createMemo, createSignal } from 'solid-js'
 
+import { openInBrowser } from '../core/browser'
 import { ancestorDirs, changesFor, rowArea, rowRel } from '../core/changeTree'
 import type { Change, CommitGroup } from '../core/changeTree'
 import { conflictFrom, parseConflicts } from '../core/conflicts'
@@ -10,6 +11,7 @@ import { readFile } from '../core/fs'
 import type { TreeNode } from '../core/fs'
 import {
   blobTexts,
+  commitUrl,
   discardTarget,
   fetchRemote,
   fileHistory,
@@ -676,6 +678,32 @@ export function createCommands(ctx: AppContext) {
       const had = allChangesMeta().total > 0
       rebuildAllChanges()
       if (had && git.changes().length === 0) workspace.closePage('allChanges')
+    },
+    gitCommitGraph: () => {
+      const repo = git.activeRepo()
+      if (repo === null) return say(noRepository(git), 'warn')
+      ctx.commitGraph.open(repo)
+      panes.setFocus('editor')
+    },
+    openCommitOnWeb: () => {
+      const repo = git.activeRepo()
+      if (repo === null) return say(noRepository(git), 'warn')
+      const oid = ctx.commitGraph.selected()?.oid ?? ctx.commitView.commit()?.commit.oid
+      if (!oid) return say('Select a commit in the graph first', 'warn')
+      const url = commitUrl(repo, oid)
+      if (!url) return say('No remote to open this commit on', 'warn')
+      // The URL itself is forty characters of hash: the forge and the short oid say the same thing.
+      const where = `${oid.slice(0, 7)} on ${new URL(url).host}`
+      void openInBrowser(url).then(opened => {
+        if (opened) return say(`Opened ${where}`)
+        // No browser to hand it to — over SSH there should not be one — so the link is copied instead.
+        fileOps.copyLink(url)
+        say(`Copied the link to ${where}`)
+      })
+    },
+    openGraphCommit: () => {
+      const commit = ctx.commitGraph.selected()
+      if (commit) openCommitRow(commit.oid)
     },
     gitDiffBase: () => ctx.branches.open('diffBase'),
     gitDiffBaseReset: () => {

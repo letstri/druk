@@ -160,6 +160,12 @@ export function createFileOps(deps: {
     say(`Copied ${text}`)
   }
 
+  // Both routes, as copyPath does: OSC 52 is what reaches the machine an SSH session is really on.
+  const copyLink = (url: string) => {
+    copyToClipboard(url)
+    renderer.copyToClipboardOSC52(url)
+  }
+
   const cancelTake = () => {
     const cancelled = clipboard().mode === 'cut' ? 'Move' : 'Copy'
     setClipboard({ paths: [], mode: 'cut' })
@@ -206,6 +212,7 @@ export function createFileOps(deps: {
     copyAllInto,
     takeForPaste,
     copyPath,
+    copyLink,
     paste,
     cancelTake,
     deleteTargets,

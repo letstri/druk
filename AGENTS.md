@@ -161,6 +161,38 @@ comparison's detail page (`ComparisonView`) reused without a comparison, files p
 with ←/→ (`createCommitView` in `src/app/commitView.ts`). An empty heading is not
 drawn, and
 none of it exists against a comparison base, where there is no index to speak of),
+a commit graph over the editor slot (`g` in the panel, palette → Git → Commit graph) —
+every ref's history to a cap of five hundred commits, with the lanes, the short hash,
+the refs pointing at each commit (`(HEAD -> main, origin/main)`, which is where local
+and remote branch labels come from) and the author and date where the terminal is wide
+enough; ↑↓ walks it, stepping over the rows that are only git's connector art, and
+Enter opens the commit on the page the sync sections already use. The lanes are
+`git log --graph`'s own output rather than lanes druk assigns: git already answers
+this question, and the row is split at the first unit separator of the format, what
+comes before it being the art and what follows the commit's fields
+(`commitGraph` in `src/core/git.ts`). What druk does to that art is draw it:
+`laneSpans` (`src/ui/graphLanes.ts`) maps git's ASCII onto box drawing (`●│╱╲`) and
+colours each lane by its column — a diagonal counting as the lane it reaches for
+rather than the one it leaves, so a branch keeps one colour as it moves across — and
+`refChips` there turns `%D` into labels by kind, local, remote, tag and the one HEAD
+points at (drawn bold), a chip being dropped whole rather than cut, since half a
+branch name names nothing. The page is a *tab*, so it unmounts whenever a commit is
+read over it: the offset lives on the controller and `restoreScroll`
+(`src/ui/list.ts`) puts it back, re-applying over the next frames because a list that
+mounts scrolled has no content height yet and the box clamps the offset to zero —
+which is the same trap `reveal` retries through. `o` there (palette → Git → Open
+commit on remote, which also reads the commit page when the graph is not up) opens
+the commit on whatever forge the repository's remote names: `forgeCommitUrl`
+(`src/core/git.ts`) turns a remote into a web URL — the scp-like SSH spelling git
+prints has no scheme for `URL` to parse, an ssh port is not the web one while an
+http(s) one is, and the path is `/-/commit/` on a gitlab host and `/commits/` on a
+bitbucket one — and `openInBrowser` (`src/core/browser.ts`) hands it to the desktop.
+`DRUK_BROWSER=off` stops that, and a session with no opener — an SSH one, where the
+browser would be on the wrong machine — copies the link over OSC 52 instead, which is
+also why `test/setup.ts` sets that variable: a fixture's commit hash is a 404 in a
+real browser tab. The status bar says `Opened 083864c on github.com` rather than the
+URL, forty characters of which are a hash nobody reads, and the page's keys are in
+the footer as well (`graphHints` in `App.tsx`, beside the changes page's),
 for however many repositories the
 opened folder holds: a folder that only *contains* checkouts (`~/code`, a folder of
 worktrees) is scanned `gitScanDepth` levels down and every repository found is queried

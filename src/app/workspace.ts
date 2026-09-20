@@ -33,7 +33,7 @@ import type { Conflict, DiskSync, FileBuffer, Prompt } from './types'
 export const CLASH_CHANGED = 'Changed on disk with unsaved edits: '
 export const CLASH_DELETED = 'Deleted on disk with unsaved edits: '
 
-export type PageKind = 'settings' | 'lspStatus' | 'allChanges' | 'commit' | 'compare'
+export type PageKind = 'settings' | 'lspStatus' | 'allChanges' | 'commit' | 'compare' | 'graph'
 
 // A scheme no path can carry is what keeps page ids apart from file paths.
 const PAGE_PREFIX = 'druk://'
@@ -49,6 +49,7 @@ export const PAGE_TITLES: Record<PageKind, string> = {
   allChanges: 'Changes',
   commit: 'Commit',
   compare: 'Comparison',
+  graph: 'Commit graph',
 }
 
 const unreadableReason = (e: unknown) =>

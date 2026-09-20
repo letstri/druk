@@ -24,6 +24,7 @@ import type { ProblemSeverity } from '../lsp/protocol'
 import { servers as serverSpecs } from '../lsp/servers'
 import { ui } from '../themes'
 import { ChangesView } from '../ui/ChangesView'
+import { CommitGraphView } from '../ui/CommitGraphView'
 import { ComparePanel } from '../ui/ComparePanel'
 import { ComparisonView } from '../ui/ComparisonView'
 import { EditorPane } from '../ui/EditorPane'
@@ -47,6 +48,7 @@ import { TooltipLayer } from '../ui/TooltipLayer'
 import { createCommands } from './actions'
 import { createBranches } from './branches'
 import { rowSlotKey } from './changeSections'
+import { createCommitGraph } from './commitGraph'
 import { createCommitView } from './commitView'
 import { createComparison } from './comparison'
 import type { AppContext } from './context'
@@ -178,11 +180,18 @@ export function App(props: {
   })
   const branches = createBranches({ status, git, gitOp, prompts: promptState })
   const commitView = createCommitView({ status })
+  const commitGraph = createCommitGraph()
   workspace.onPageClose('commit', commitView.close)
+  workspace.onPageClose('graph', commitGraph.close)
   workspace.onPageClose('compare', comparison.closeDetail)
   createEffect(
     on(commitView.isOpen, open =>
       open ? workspace.openPage('commit') : workspace.closePage('commit'),
+    ),
+  )
+  createEffect(
+    on(commitGraph.active, open =>
+      open ? workspace.openPage('graph') : workspace.closePage('graph'),
     ),
   )
   createEffect(
@@ -249,6 +258,7 @@ export function App(props: {
     review,
     branches,
     commitView,
+    commitGraph,
     comparison,
     workspace,
     workspaces,
@@ -370,6 +380,15 @@ export function App(props: {
     return [
       { key: 'Tab', label: 'file', rank: 4 },
       { key: 'Enter', label: 'open', rank: 5 },
+      { key: 'Esc', label: panes.sidebar() ? 'sidebar' : 'close', rank: 6 },
+    ]
+  }
+
+  const graphHints = (): Hint[] => {
+    if (workspace.page() !== 'graph' || panes.focus() !== 'editor') return []
+    return [
+      { key: 'Enter', label: 'details', rank: 4 },
+      { key: 'o', label: 'remote', rank: 5, id: 'git.openCommitWeb' },
       { key: 'Esc', label: panes.sidebar() ? 'sidebar' : 'close', rank: 6 },
     ]
   }
@@ -885,6 +904,27 @@ export function App(props: {
                 />
               </box>
             </Show>
+            <Show when={workspace.page() === 'graph'}>
+              <box position="absolute" top={0} left={0} width="100%" height="100%" zIndex={55}>
+                <CommitGraphView
+                  rows={commitGraph.rows()}
+                  cursor={commitGraph.cursor()}
+                  loading={commitGraph.loading()}
+                  scrollTop={commitGraph.scrollTop()}
+                  width={slotWidth()}
+                  focused={panes.focus() === 'editor'}
+                  blocked={overlays.overlay()}
+                  escLabel={panes.sidebar() ? 'sidebar' : 'close'}
+                  onFocus={() => panes.setFocus('editor')}
+                  onScroll={commitGraph.setScrollTop}
+                  onMove={commitGraph.move}
+                  onMoveTo={commitGraph.moveTo}
+                  onOpen={actions.openGraphCommit}
+                  onOpenWeb={actions.openCommitOnWeb}
+                  onClose={() => (panes.sidebar() ? panes.showView('git') : commitGraph.close())}
+                />
+              </box>
+            </Show>
             <Show when={workspace.page() === 'commit'}>
               <box position="absolute" top={0} left={0} width="100%" height="100%" zIndex={55}>
                 <ComparisonView
@@ -931,7 +971,7 @@ export function App(props: {
         problems={problemCounts()}
         focus={panes.keyPane()}
         pathUnderCursor={panes.keyPane() === 'editor' && pathUnderCursor()}
-        extraHints={changesHints()}
+        extraHints={[...changesHints(), ...graphHints()]}
         busy={status.busy()}
         onBranch={actions.gitSwitchBranch}
         onSync={actions.gitSync}
