@@ -740,12 +740,16 @@
       "id": "r",
       "name": "R",
       "version": "1.0.0",
-      "description": "R highlighting and the languageserver R package - the language of statistics and data analysis, its .R scripts and .Rprofile.",
+      "description": "R highlighting and the languageserver R package — the language of statistics and data analysis, its .R scripts and .Rprofile.",
       "provides": {
         "themes": [],
         "icons": [],
         "filetypes": [
           "r"
+        ],
+        "extensions": [
+          ".r",
+          ".rprofile"
         ]
       },
       "categories": [

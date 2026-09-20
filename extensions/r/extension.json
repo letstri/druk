@@ -2,7 +2,7 @@
   "id": "r",
   "name": "R",
   "version": "1.0.0",
-  "description": "R highlighting and the languageserver R package - the language of statistics and data analysis, its .R scripts and .Rprofile.",
+  "description": "R highlighting and the languageserver R package — the language of statistics and data analysis, its .R scripts and .Rprofile.",
   "languages": [
     {
       "id": "r",
@@ -11,43 +11,53 @@
       "patterns": [
         {
           "group": "variable",
-          "re": "`[^`\\n]*`"
+          "re": "`[^`\\n]*`",
+          "flags": "g"
         },
         {
           "group": "boolean",
-          "re": "\\b(?:TRUE|FALSE)\\b"
+          "re": "\\b(?:TRUE|FALSE)\\b",
+          "flags": "g"
         },
         {
           "group": "constant",
-          "re": "\\b(?:NULL|NA|NA_integer_|NA_real_|NA_character_|NA_complex_|Inf|NaN)\\b|\\.\\.\\.|\\.\\.\\d+"
+          "re": "\\b(?:NULL|NA|NA_integer_|NA_real_|NA_character_|NA_complex_|Inf|NaN)\\b|\\.\\.\\.|\\.\\.\\d+",
+          "flags": "g"
         },
         {
           "group": "namespace",
-          "re": "\\b[A-Za-z.][A-Za-z0-9._]*(?=:::?)"
+          "re": "\\b[A-Za-z.][A-Za-z0-9._]*(?=:::?)",
+          "flags": "g"
         },
         {
           "group": "property",
-          "re": "(?<=[$@])[A-Za-z.][A-Za-z0-9._]*"
+          "re": "(?<=[$@])[A-Za-z.][A-Za-z0-9._]*",
+          "flags": "g"
         },
         {
           "group": "function",
-          "re": "\\b[A-Za-z.][A-Za-z0-9._]*(?=\\s*\\()"
+          "re": "\\b[A-Za-z.][A-Za-z0-9._]*(?=\\s*\\()",
+          "flags": "g"
         },
         {
           "group": "keyword",
-          "re": "\\b(?:if|else|for|while|repeat|function|return|break|next|in)\\b"
+          "re": "\\b(?:if|else|for|while|repeat|function|return|break|next|in)\\b",
+          "flags": "g"
         },
         {
           "group": "operator",
-          "re": "%[^%\\n]*%|<<-|->>|<-|->|\\|>|\\*\\*|[-+*/^<>=!&|~?:$@]"
+          "re": "%[^%\\n]*%|<<-|->>|<-|->|\\|>|\\*\\*|[-+*/^<>=!&|~?:$@]",
+          "flags": "g"
         },
         {
           "group": "number",
-          "re": "\\b0[xX][0-9a-fA-F]+L?\\b|\\b\\d+(?:\\.\\d*)?(?:[eE][+-]?\\d+)?[Li]?\\b|\\.\\d+(?:[eE][+-]?\\d+)?[Li]?"
+          "re": "\\b0[xX][0-9a-fA-F]+L?\\b|\\b\\d+(?:\\.\\d*)?(?:[eE][+-]?\\d+)?[Li]?\\b|\\.\\d+(?:[eE][+-]?\\d+)?[Li]?",
+          "flags": "g"
         },
         {
           "group": "string",
-          "re": "\"(?:[^\"\\\\\\n]|\\\\.)*\"|'(?:[^'\\\\\\n]|\\\\.)*'"
+          "re": "\"(?:[^\"\\\\\\n]|\\\\.)*\"|'(?:[^'\\\\\\n]|\\\\.)*'",
+          "flags": "g"
         },
         {
           "group": "comment",
@@ -60,7 +70,7 @@
   "languageServers": [
     {
       "id": "r",
-      "command": ["R", "--no-echo", "--no-init-file", "-e", "languageserver::run()"],
+      "command": ["R", "--no-echo", "-e", "languageserver::run()"],
       "filetypes": ["r"],
       "install": {
         "kind": "manual",
