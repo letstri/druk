@@ -12,7 +12,6 @@ import { useKeys } from './useKeys'
 export interface PromptModalProps {
   title: string
   initialValue: string
-  /** Past answers ↑ walks back through, newest first — commit subjects, so far. */
   history?: string[]
   onSubmit: (value: string) => void
   onCancel: () => void
@@ -21,7 +20,7 @@ export interface PromptModalProps {
 export function PromptModal(props: PromptModalProps) {
   const dimensions = useTerminalDimensions()
   const [value, setValue] = createSignal(props.initialValue)
-  /** How far back ↑ has walked; -1 is the draft `draft` holds. */
+  // -1: not walking history; `draft` then holds what was typed.
   const [at, setAt] = createSignal(-1)
   const [draft, setDraft] = createSignal('')
 
@@ -36,8 +35,7 @@ export function PromptModal(props: PromptModalProps) {
     setValue(step.value)
   }
 
-  /** A recall sets the input's value, which emits `input` back: only a value
-   * that is not what the walk wrote is typing, and typing ends the walk. */
+  // A recall sets the value, emitting `input` back: only a value the walk did not write is typing.
   const input = (next: string) => {
     setValue(next)
     const walked = at()
@@ -45,8 +43,6 @@ export function PromptModal(props: PromptModalProps) {
   }
 
   useKeys((key: KeyEvent) => {
-    // Solid applies focus synchronously; without this the submitting key also
-    // reaches whatever the modal focuses next.
     if (key.name === 'return' || key.name === 'enter') {
       key.preventDefault()
       props.onSubmit(value())

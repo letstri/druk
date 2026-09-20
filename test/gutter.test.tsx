@@ -11,6 +11,6 @@ test('line numbers past 99 are not truncated', async () => {
   await pressTimes(t, 120, i => i.pressArrow('down'))
 
   const frame = t.captureCharFrame()
-  expect(frame).toContain('120 line 120') // gutter and content stay aligned
-  expect(frame).not.toContain('unsaved') // scrolling must not modify the buffer
+  expect(frame).toContain('120 line 120')
+  expect(frame).not.toContain('unsaved')
 })

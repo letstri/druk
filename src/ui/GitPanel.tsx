@@ -13,89 +13,50 @@ import { cut } from './text'
 import { TextInput } from './TextInput'
 import { useTooltip } from './tooltip'
 
-/** `Show`'s `when` takes a value, not a predicate: these hand it the narrowed row
- * (or nothing) so the block inside needs no cast. */
+// `Show`'s `when` takes a value, not a predicate: these hand it the narrowed row.
 const dirRow = (row: ChangeRow) => (row.kind === 'dir' ? row : undefined)
 const fileRow = (row: ChangeRow) => (row.kind === 'file' ? row : undefined)
 const sectionRow = (row: ChangeRow) => (row.kind === 'section' ? row : undefined)
 const commitSectionRow = (row: ChangeRow) => (row.kind === 'commitSection' ? row : undefined)
 
-/** Rows that stand for a commit rather than a change — no icon, no stage control. */
 const isCommitRow = (row: ChangeRow) => row.kind === 'commit' || row.kind === 'commitSection'
 
-/**
- * The name an icon theme is keyed by. A folder row's label is a *joined* chain
- * (`src/app` is one row), and the files sit under its last segment, so that is
- * the folder the glyph is about; a file row's label is the whole rel path in
- * flat view, where the theme's whole-name rules (`package.json`) only match the
- * basename.
- */
+// Icon themes key whole-name rules (`package.json`) on a basename, not a joined path.
 const iconName = (row: ChangeRow): string =>
   (row.kind === 'file' ? row.change.rel : row.label).split('/').pop() ?? row.label
 
-/** `+` puts a row in the index, `−` takes it back out — VS Code's two buttons. */
 const stageGlyph = (row: ChangeRow) => (rowArea(row) === 'staged' ? '−' : '+')
 
 export interface GitPanelProps {
-  /** Repository the header is about, when the folder holds more than one. */
   repo: string | null
   branch: string | null
-  /** Commits ahead of / behind the upstream, for the header. */
   ahead: number
   behind: number
-  /** Every row the panel draws — folder rows included in tree view. */
   rows: ChangeRow[]
-  /** Branch the list is against, or null for HEAD and the working tree. */
   base: string | null
-  /** Whether the index is in play at all — false against a comparison base. */
   staging: boolean
-  /** Row under the cursor; may point past the end after a commit shrinks the list. */
+  // May point past the end after a commit shrinks the list.
   cursor: number
   focused: boolean
   width: number
   inRepo: boolean
-  /** `iconTheme`: the glyph column, or `'none'` for the tree's plain arrow. */
   iconTheme: string
-  /** The commit box's text — held above the panel so it outlives a re-render. */
   commitMessage: string
-  /** Whether the box owns the keyboard — a real input only while it does. */
   messageEditing: boolean
-  /** Whether ↑ has anything to recall — what the placeholder offers. */
   hasMessageHistory: boolean
-  /** Whether the branch has an upstream — what makes Sync a sync, not a publish. */
   hasUpstream: boolean
   onFocus: () => void
-  /** A row clicked: move the cursor there, and diff it or fold it. */
   onActivate: (index: number) => void
-  /** The header's ▴: fold every folder at once. */
   onCollapseAll: () => void
-  /** A row's `+`/`−`: stage or unstage whatever that row stands for. */
   onToggleStage: (index: number) => void
-  /** The message row clicked: put the keyboard in the box. */
   onMessageFocus: () => void
   onMessageInput: (value: string) => void
-  /** The ✓ Commit button, and Enter in the box. */
   onCommit: () => void
-  /** The ⇅/⇡ button: pull what origin has then push — or publish the branch. */
   onSync: () => void
 }
 
-/**
- * The sidebar's source-control view — VS Code's left-hand git panel, sized down:
- * the changed files under the branch, the cursor paging the diff beside it,
- * `a` for every file at once, `c` to commit, `p` to push. Keys are handled in
- * `app/keyboard.ts` beside the tree's, so this renders and reports clicks,
- * nothing more.
- */
 export function GitPanel(props: GitPanelProps) {
-  /**
-   * A memo, not a plain function: `rows` is a fresh array on every git refresh,
-   * and reading its length is what makes the reveal below a dependent of it. As
-   * a function that effect re-runs on every refresh — a save, a watcher event —
-   * and yanks a list the mouse scrolled away back to the cursor. The value is
-   * unchanged, so a memo simply does not notify (the tree's `selectedRow` is the
-   * same fix).
-   */
+  // A memo, not a function: `rows` is a fresh array per refresh and would yank a scrolled list.
   const cursor = createMemo(() => Math.max(0, Math.min(props.cursor, props.rows.length - 1)))
 
   const list = createScrollList(() => props.rows.length)
@@ -107,19 +68,12 @@ export function GitPanel(props: GitPanelProps) {
   const rowHover = useHoverKey<number>()
   const stageHover = useHoverKey<number>()
 
-  /**
-   * Change lists are usually shorter than the panel, but `git status` after a big
-   * refactor is not — and against a comparison base every file the branch touches
-   * is a row. A cursor below the fold reads as no cursor at all.
-   */
   createEffect(on(cursor, row => list.reveal(row)))
 
   const headline = () => {
     if (!props.inRepo) return 'not a git repository'
     const arrows =
       (props.ahead > 0 ? ` ↑${props.ahead}` : '') + (props.behind > 0 ? ` ↓${props.behind}` : '')
-    // With several repositories open the branch alone says nothing about whose
-    // branch it is — and none is picked until a file or a change is landed on.
     if (props.repo) return `${props.repo}/${props.branch ?? 'no branch'}${arrows}`
     return props.branch ? `${props.branch}${arrows}` : 'no branch'
   }
@@ -134,13 +88,8 @@ export function GitPanel(props: GitPanelProps) {
       flexBasis={0}
       onMouseDown={() => props.onFocus()}
     >
-      {/* VS Code's title row. What the list is *against* rides on its right:
-          the branch normally, and the base while one is set — against another
-          branch every file it touches is marked, which reads as a broken tree
-          until you know why, so that fact outranks the branch's name. */}
+      {/* A comparison base outranks the branch: every file it touches is marked. */}
       <PanelHeader title="Source control" width={props.width} focused={props.focused}>
-        {/* Only tree view has folders to fold, and only while one is open: the
-            flat list draws no folder rows at all. */}
         <Show when={props.rows.some(row => row.kind === 'dir' && !row.collapsed)}>
           <box
             ref={collapse.ref}
@@ -168,9 +117,6 @@ export function GitPanel(props: GitPanelProps) {
           )}
         />
       </PanelHeader>
-      {/* VS Code's commit box: the message field over the change list, with the
-          ✓ Commit button and Sync under it. Only while the index is in play —
-          against a comparison base there is nothing a commit could be about. */}
       <Show when={props.inRepo && props.staging}>
         <box
           height={1}
@@ -201,7 +147,6 @@ export function GitPanel(props: GitPanelProps) {
             >
               <TextInput
                 value={props.commitMessage}
-                // The empty box is the one place with room to say the key exists.
                 placeholder={
                   props.hasMessageHistory ? 'Commit message (↑ history)' : 'Commit message'
                 }
@@ -226,7 +171,6 @@ export function GitPanel(props: GitPanelProps) {
             />
           </box>
           <box flexGrow={1} backgroundColor={ui.sidebarBg} />
-          {/* Sync only means something on a branch; publish is its no-upstream turn. */}
           <Show when={props.branch}>
             <box
               flexShrink={0}
@@ -273,14 +217,6 @@ export function GitPanel(props: GitPanelProps) {
             {(row, at) => {
               const index = () => list.window().start + at()
               const bg = () => rowBg(index() === cursor(), props.focused, rowHover.hovered(index()))
-              /**
-               * The icon takes the folder arrow's column, as it does in the tree:
-               * the open and shut forms are what keep a folded row readable, and a
-               * file row — which has no arrow — spends the same single column, so
-               * the two views line their names up whether icons are on or off.
-               */
-              // A heading is not a file, so it takes the arrow itself rather
-              // than an icon theme's folder glyph.
               const icon = () =>
                 row.kind === 'section' || isCommitRow(row)
                   ? null
@@ -291,8 +227,6 @@ export function GitPanel(props: GitPanelProps) {
                     })
               const arrow = () =>
                 row.kind !== 'file' && row.kind !== 'commit' && row.collapsed ? '▸' : '▾'
-              // A commit row wears its direction — what a pull brings in, what a
-              // push would send — where a file wears its icon.
               const glyph = () =>
                 icon()?.glyph ??
                 (row.kind === 'file'
@@ -308,17 +242,12 @@ export function GitPanel(props: GitPanelProps) {
                   height={1}
                   flexDirection="row"
                   backgroundColor={bg()}
-                  // Deliberately not stopped: the panel's own handler runs after
-                  // this one and focuses it, which is where the keyboard belongs —
-                  // the arrows page the diff from here.
+                  // Not stopped: the panel's own handler runs after this and focuses it.
                   onMouseDown={() => props.onActivate(index())}
                   onMouseOver={() => rowHover.enter(index())}
                   onMouseOut={() => rowHover.leave(index())}
                 >
-                  {/* Indent and glyph never give, as in the tree: shrinking them
-                      slid every row's marks a column left. The name is the only
-                      thing allowed to give. Two spaces a level and no rules —
-                      the tree beside it indents the same way. */}
+                  {/* Indent and glyph never give, as in the tree: shrinking them slides the marks. */}
                   <text
                     fg={ui.faint}
                     bg={bg()}
@@ -339,10 +268,6 @@ export function GitPanel(props: GitPanelProps) {
                       }
                     />
                   </box>
-                  {/* A heading always says how many are under it — that count is
-                      what a group heading is *for*. A folder says so only while
-                      it is shut, so the row keeps its files' worth of
-                      information with them out of sight. */}
                   <Show when={sectionRow(row)}>
                     {(section: () => SectionRow) => (
                       <text
@@ -383,13 +308,7 @@ export function GitPanel(props: GitPanelProps) {
                       />
                     )}
                   </Show>
-                  {/* The stage control. A heading always wears one — that is how
-                      every file under it is staged or unstaged at once, and a
-                      list of headings is not a column of `+`. A file or folder
-                      still only has it on the cursor's row: a terminal has no
-                      hover to hide a button behind. Its own handler, and it
-                      runs before the row's — pressing `+` is not pressing the
-                      row, which would fold a heading. */}
+                  {/* The `+` handler stops the row's: pressing it must not fold the heading. */}
                   <Show
                     when={
                       props.staging &&

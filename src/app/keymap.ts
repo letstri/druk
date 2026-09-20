@@ -1,17 +1,3 @@
-/**
- * The global keymap: which commands a key can run, what key each one has by
- * default, and what the `keybindings` setting does to that.
- *
- * `BINDABLE` is the whole list — a command not in it cannot be bound, and one in
- * it without a handler in `keyboard.ts` would be a dead key (`test/keymap.test.ts`
- * checks both directions). Ids match the palette's, so a rebound command shows the
- * same name in both places.
- *
- * Resolution is deliberate about clashes, since two commands cannot share a chord:
- * a custom binding beats a built-in default (that is what rebinding is for), and
- * between two custom bindings the one listed first here keeps the key while the
- * other is left unbound. Every loss is reported rather than applied quietly.
- */
 import type { KeyEvent } from '@opentui/core'
 
 import { bindingProblem, chordId, formatChord, matchesChord, parseChord } from '../core/keybindings'
@@ -19,22 +5,13 @@ import type { Chord } from '../core/keybindings'
 import { ALT } from '../ui/keys'
 
 export interface Bindable {
-  /** Command id — the palette's, where the command has an entry there. */
   id: string
   label: string
-  /** Chords in force out of the box, in the spelling the help table advertises. */
   defaults: string[]
-  /**
-   * Chords that also work but are not advertised: the spellings a terminal needs
-   * that no one would look for in a menu. A custom binding replaces these too.
-   */
   also?: string[]
 }
 
-/**
- * Everything the global keymap can run. The order is the precedence two custom
- * bindings on one chord are settled by, so the keys most people press stay first.
- */
+// Every id needs a handler in `keyboard.ts`; order is the precedence between two custom bindings.
 export const BINDABLE: Bindable[] = [
   { id: 'palette', label: 'Command palette', defaults: ['F1', `Ctrl+${ALT}+P`] },
   { id: 'peek', label: 'Peek at every key', defaults: ['Ctrl+K'] },
@@ -46,7 +23,8 @@ export const BINDABLE: Bindable[] = [
   { id: 'goto.definition', label: 'Go to definition', defaults: ['F12'] },
   { id: 'goto.file', label: 'Open file under cursor', defaults: [`Ctrl+${ALT}+O`] },
   { id: 'find.file', label: 'Find in current file', defaults: ['Ctrl+F'] },
-  { id: 'find.project', label: 'Find in project', defaults: ['Ctrl+R'], also: [`Ctrl+${ALT}+F`] },
+  // Ctrl+R is vim's redo, which takes it back in normal mode — so it cannot be the advertised one.
+  { id: 'find.project', label: 'Find in project', defaults: [`Ctrl+${ALT}+F`], also: ['Ctrl+R'] },
   { id: 'find.replace', label: 'Replace in current file', defaults: [] },
   { id: 'find.replaceProject', label: 'Replace in project', defaults: [] },
   { id: 'file.new', label: 'New file', defaults: ['Ctrl+N'] },
@@ -56,10 +34,7 @@ export const BINDABLE: Bindable[] = [
   { id: 'tabs.close', label: 'Close tab', defaults: ['Ctrl+W'] },
   { id: 'tabs.reopen', label: 'Reopen closed tab', defaults: [`Ctrl+${ALT}+T`] },
   { id: 'tabs.switch', label: 'Switch to open tab', defaults: ['Ctrl+T'], also: ['Ctrl+↑'] },
-  // macOS binds plain Ctrl+arrows to Mission Control, so the advertised spelling is
-  // the one that reaches us — and it arrives as a bare ctrl+arrow on Terminal.app,
-  // hence both forms. MacBooks have no page keys, which is why they are not the
-  // advertised spelling either.
+  // Terminal.app delivers the Opt form as a bare ctrl+arrow, and macOS takes plain Ctrl+arrows.
   {
     id: 'tabs.prev',
     label: 'Previous tab',
@@ -72,25 +47,12 @@ export const BINDABLE: Bindable[] = [
     defaults: [`Ctrl+${ALT}+→`],
     also: ['Ctrl+→', 'Ctrl+PgDn'],
   },
-  // Undo and redo for where you have been, which is what the pair is next to on
-  // the keyboard — Ctrl+Opt+←/→ already walks the strip, and the arrows every
-  // other editor uses for this are Alt+←/→, which the textarea needs for words.
   { id: 'nav.back', label: 'Go back', defaults: [`Ctrl+${ALT}+Z`] },
   { id: 'nav.forward', label: 'Go forward', defaults: [`Ctrl+${ALT}+Y`] },
   { id: 'tabs.closeOthers', label: 'Close other tabs', defaults: [] },
   { id: 'tabs.closeAll', label: 'Close all tabs', defaults: [] },
-  // B for beginning: Ctrl+A is select-all, Ctrl+E is the textarea's line-end,
-  // and Ctrl+Opt+E already unfolds. Ctrl+Shift+E is the same byte as Ctrl+E.
   { id: 'editor.lineStart', label: 'Go to beginning of line', defaults: [`Ctrl+${ALT}+B`] },
-  // Shrink and expand, since the bracket pair every GUI editor uses for this is
-  // Ctrl+Shift+[ / ] — a shifted Ctrl chord no terminal can deliver, and Ctrl+[
-  // is the Escape byte anyway. C, the other obvious letter, is Copy path.
-  // D for delete, since Ctrl+Shift+K — every GUI editor's chord for this — is a
-  // shifted Ctrl chord no terminal can deliver.
   { id: 'editor.deleteLine', label: 'Delete line', defaults: [`Ctrl+${ALT}+D`] },
-  // Shift+Alt+F is VS Code's Format Document, but Shift and Opt collapse to one
-  // modifier here (keybindings.ts), and Ctrl+Opt+F is already Find in project.
-  // L matches IntelliJ's Reformat and is otherwise free.
   { id: 'editor.format', label: 'Format document', defaults: [`Ctrl+${ALT}+L`] },
   { id: 'editor.formatOpen', label: 'Format open files', defaults: [] },
   { id: 'editor.fold', label: 'Fold block at cursor', defaults: [`Ctrl+${ALT}+S`] },
@@ -109,8 +71,6 @@ export const BINDABLE: Bindable[] = [
   },
   { id: 'view.wrap', label: 'Toggle word wrap', defaults: [] },
   { id: 'view.sidebarPosition', label: 'Toggle sidebar position', defaults: [] },
-  // No default chord: the key for this is Space in the tree, which the global
-  // keymap cannot hold — a bare key here would be typing the editor never sees.
   { id: 'view.preview', label: 'Preview file (no tab)', defaults: [] },
   { id: 'view.focus', label: 'Focus tree / editor', defaults: [] },
   { id: 'git.diffFile', label: 'Diff current file', defaults: [] },
@@ -121,24 +81,18 @@ export const BINDABLE: Bindable[] = [
   { id: 'git.discard', label: 'Discard changes', defaults: [] },
   { id: 'git.push', label: 'Push', defaults: [] },
   { id: 'git.compare', label: 'Compare branches', defaults: [] },
-  // U for "unmerged", and one of the six Ctrl+Opt letters still free. The
-  // chooser gets the chord rather than the three sides: resolving is rare, and
-  // three keys nobody has in their fingers would be three letters spent.
   { id: 'git.conflictResolve', label: 'Resolve conflict at cursor', defaults: [`Ctrl+${ALT}+U`] },
-  // J as in vim's down, since the next conflict is the one below.
   { id: 'git.conflictNext', label: 'Next conflict', defaults: [`Ctrl+${ALT}+J`] },
   { id: 'git.conflictPrev', label: 'Previous conflict', defaults: [] },
   { id: 'git.acceptOurs', label: 'Accept current change (ours)', defaults: [] },
   { id: 'git.acceptTheirs', label: 'Accept incoming change (theirs)', defaults: [] },
   { id: 'git.acceptBoth', label: 'Accept both changes', defaults: [] },
-  // A for annotate: R is the panel, and the note is the thing pressed far more often.
   { id: 'review.note', label: 'Note this line for a review', defaults: [`Ctrl+${ALT}+A`] },
   { id: 'problems.list', label: 'List problems', defaults: [] },
-  // I for inspect: a terminal has no hover, so this chord is the only way to read
-  // the whole of a diagnostic the inline note beside the line had to shorten.
   { id: 'problems.detail', label: 'Show problem at cursor', defaults: [`Ctrl+${ALT}+I`] },
-  { id: 'problems.next', label: 'Next problem', defaults: [] },
-  { id: 'problems.prev', label: 'Previous problem', defaults: [] },
+  { id: 'problems.next', label: 'Next problem', defaults: ['F8'] },
+  // Shift and Opt are one bucket in `secondary`, so this answers to VS Code's Shift+F8 as well.
+  { id: 'problems.prev', label: 'Previous problem', defaults: [`${ALT}+F8`] },
   { id: 'problems.restart', label: 'Restart language servers', defaults: [] },
   { id: 'workspace.switch', label: 'Switch workspace…', defaults: [`Ctrl+${ALT}+W`] },
   { id: 'workspace.open', label: 'Open folder…', defaults: [] },
@@ -147,24 +101,18 @@ export const BINDABLE: Bindable[] = [
   { id: 'quit', label: 'Quit', defaults: ['Ctrl+Q'] },
 ]
 
-/** Values that mean "this command has no key at all". */
 const UNBOUND_WORDS = new Set(['none', 'off', 'unbound', '-'])
 
 export const isUnbound = (value: string): boolean => UNBOUND_WORDS.has(value.trim().toLowerCase())
 
-/** One chord two commands wanted, and which of them ended up with it. */
-export interface Conflict {
+interface Conflict {
   key: string
-  /** Label of the command that keeps the chord. */
   winner: string
-  /** Label of the command that lost it. */
   loser: string
-  /** The loser's own custom binding was thrown out, rather than a default losing. */
   rejected: boolean
 }
 
-/** A `keybindings` value that is not a chord, or not one a shortcut may have. */
-export interface InvalidBinding {
+interface InvalidBinding {
   id: string
   label: string
   value: string
@@ -172,31 +120,21 @@ export interface InvalidBinding {
 }
 
 export interface Keymap {
-  /** Chords in force, per command id. Empty for a command with no key. */
   chords: Map<string, Chord[]>
-  /** What the command's keys spell out for a menu; '' when it has none. */
   display: Map<string, string>
-  /** Ids the user has bound by hand — the ones a page marks as customised. */
   custom: Set<string>
   conflicts: Conflict[]
-  /** Refused values; the command keeps its default, so this is a warning, not state. */
   invalid: InvalidBinding[]
 }
 
 const chordsOf = (spellings: string[]): Chord[] =>
   spellings.map(parseChord).filter((chord): chord is Chord => chord !== null)
 
-/** The spelling a command advertises out of the box. */
 export const defaultDisplay = (spec: Bindable): string =>
   chordsOf(spec.defaults)
     .map(chord => formatChord(chord, ALT))
     .join(' · ')
 
-/**
- * The keymap `custom` produces — command id → the chord spelling it takes over,
- * as the `keybindings` setting holds it. An unparseable value is reported and the
- * default kept: a hand-edited config must not cost the editor a key.
- */
 export function resolveKeymap(custom: Record<string, string>): Keymap {
   const chords = new Map<string, Chord[]>()
   const display = new Map<string, string>()
@@ -227,8 +165,7 @@ export function resolveKeymap(custom: Record<string, string>): Keymap {
       chords.set(spec.id, chordsOf([...spec.defaults, ...(spec.also ?? [])]))
   }
 
-  // Custom bindings claim their chords first, so a rebind takes the key from
-  // whatever default held it; between two of them, BINDABLE order decides.
+  // Custom bindings claim first, so a rebind takes the key from the default holding it.
   const owner = new Map<string, Bindable>()
   for (const pass of [true, false]) {
     for (const spec of BINDABLE) {
@@ -253,8 +190,6 @@ export function resolveKeymap(custom: Record<string, string>): Keymap {
   }
 
   for (const spec of BINDABLE) {
-    // Advertised chords only: the extra spellings exist so a terminal that sends
-    // something else still works, and listing them in a menu would only confuse.
     const advertised = new Set(chordsOf(spec.defaults).map(chordId))
     const shown = (chords.get(spec.id) ?? []).filter(
       chord => customIds.has(spec.id) || advertised.has(chordId(chord)),
@@ -265,7 +200,6 @@ export function resolveKeymap(custom: Record<string, string>): Keymap {
   return { chords, display, custom: customIds, conflicts, invalid }
 }
 
-/** The command `key` runs, or null when nothing is bound to it. */
 export function matchKeymap(keymap: Keymap, key: KeyEvent): string | null {
   for (const [id, chords] of keymap.chords) {
     if (chords.some(chord => matchesChord(chord, key))) return id
@@ -273,10 +207,6 @@ export function matchKeymap(keymap: Keymap, key: KeyEvent): string | null {
   return null
 }
 
-/**
- * The command already holding `chord` by the user's own choice, if any — what makes
- * a rebind onto it a clash worth refusing rather than a default worth taking.
- */
 export function customHolder(keymap: Keymap, chord: Chord, except: string): Bindable | null {
   for (const spec of BINDABLE) {
     if (spec.id === except || !keymap.custom.has(spec.id)) continue
@@ -287,7 +217,6 @@ export function customHolder(keymap: Keymap, chord: Chord, except: string): Bind
   return null
 }
 
-/** What the help table, the peek strip and the footer hints should say now. */
 export function keyOverrides(
   keymap: Keymap,
 ): Record<string, { key: string; label: string; changed: boolean }> {

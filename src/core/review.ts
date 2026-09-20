@@ -1,21 +1,3 @@
-/**
- * Review notes: the remarks made while reading code, and where they are kept.
- *
- * A note is a line, a kind and a sentence — nothing else, because the whole
- * point is that writing one costs a keystroke and a line of typing. An answer
- * to one is another note carrying its `parent`, so a conversation is a list of
- * notes and never a note that grew a field. They are
- * kept beside the config rather than in the project, keyed by project path, as
- * `sessions.json` is: a draft remark is personal scratch, and a `.druk/` file
- * would land in somebody's commit the first time they staged everything.
- *
- * druk is not the file's only writer: the kinds are documented by what each
- * means to an agent, and an agent holding up its end edits `review.json` while
- * druk has it open. Everything below is shaped by that — writes land by
- * rename, an unreadable file is set aside rather than rewritten from nothing,
- * and a save merges with what another writer put there instead of clobbering
- * it.
- */
 import fs from 'node:fs'
 import { basename, dirname, join } from 'node:path'
 
@@ -24,14 +6,8 @@ import { watchPath } from './fs'
 
 const NOTES_FILE = join(dirname(CONFIG_FILE), 'review.json')
 
-/** Projects remembered before the least recently touched are dropped. */
 const MAX_PROJECTS = 20
 
-/**
- * What a remark is. The four are the ones a reviewer actually separates: a
- * defect, a change worth considering, a question, and a plain observation —
- * and an agent reading the export treats each differently.
- */
 export const NOTE_KINDS = ['issue', 'suggestion', 'question', 'note'] as const
 export type NoteKind = (typeof NOTE_KINDS)[number]
 
@@ -43,26 +19,15 @@ export const NOTE_LABELS: Record<NoteKind, string> = {
 }
 
 export interface ReviewNote {
-  /** Stable across a rewrite of the list — what a delete addresses. */
   id: string
-  /** Absolute path, so a note survives the tree being reopened elsewhere. */
   path: string
-  /** 0-based, as every line number in druk is. */
   line: number
-  /** Last line of the span; equal to `line` for a note on one line. */
   endLine: number
   kind: NoteKind
   body: string
-  /** Epoch ms — the order notes were written in, which is the order they read in. */
   at: number
-  /**
-   * The note this one answers, making the two a thread. A reply is a note of
-   * its own rather than a field on the one it answers, and that is what keeps
-   * the merge below simple: an answer *appends*, so no writer ever has to
-   * change a note somebody else may be changing at the same moment.
-   */
+  // A reply is a note of its own: an answer only ever appends, so two writers cannot clash.
   parent?: string
-  /** Who wrote it. Absent means the person at the keyboard — druk sets no name. */
   author?: string
 }
 
@@ -92,12 +57,7 @@ function parseNote(raw: unknown): ReviewNote | null {
 
 type NotesFile = Record<string, { notes: unknown; touchedAt?: number }>
 
-/**
- * The whole file: `{}` for a missing one, `null` for one that exists but does
- * not read as an object. The two must stay apart — treating an unreadable
- * file as empty means rewriting it from nothing, which wipes every project's
- * notes the moment a torn or foreign write is caught mid-read.
- */
+// `{}` missing vs `null` unreadable must stay apart: treating unreadable as empty wipes the file.
 function readAll(file: string): NotesFile | null {
   let raw: string
   try {
@@ -120,29 +80,18 @@ const notesOf = (entry: NotesFile[string] | undefined): ReviewNote[] =>
     ? entry.notes.map(parseNote).filter((note): note is ReviewNote => note !== null)
     : []
 
-/**
- * This project's notes, or `null` for a file that exists but cannot be read.
- * The caller decides what that means: "no notes" at startup, "not now" on a
- * reload that may have caught another writer mid-file.
- */
 export function readNotes(rootDir: string, file = NOTES_FILE): ReviewNote[] | null {
   const all = readAll(file)
   return all === null ? null : notesOf(all[rootDir])
 }
 
-/** This project's notes. Anything unreadable means "no notes", never an error. */
 export function loadNotes(rootDir: string, file = NOTES_FILE): ReviewNote[] {
   return readNotes(rootDir, file) ?? []
 }
 
 export interface SaveOptions {
-  /**
-   * Ids this session has accounted for — loaded at startup, created here, or
-   * adopted from a watch event. A file-side note outside the set was written
-   * by another process while this one held its stale copy, so it is kept; one
-   * inside the set but absent from `notes` was removed here, and stays gone.
-   * Every id in `notes` must already be in the set, or a save can double it.
-   */
+  // Ids this session accounted for: a file-side note outside the set is another writer's, and kept.
+  // Every id in `notes` must already be in the set, or a save doubles it.
   seen?: ReadonlySet<string>
   now?: number
   file?: string
@@ -153,40 +102,34 @@ export function saveNotes(rootDir: string, notes: ReviewNote[], options: SaveOpt
   try {
     let all = readAll(file)
     if (all === null) {
-      // Somebody's data either way — set it aside where a human can recover
-      // it, and only then start fresh.
       try {
         fs.renameSync(file, `${file}.corrupt-${now}`)
       } catch {
-        // the rename failing leaves only writing over it
+        // best-effort
       }
       all = {}
     }
 
     const held = notesOf(all[rootDir])
     const byId = new Map(held.map(note => [note.id, note]))
-    // The file's copy wins for an id both sides hold: druk never changes a
-    // note after creating it, so any difference is another writer's newer
-    // intent. The entry goes only when the *merged* list is empty — druk's
-    // list alone being empty may just be a clear racing an external add.
+    // The file's copy wins an id both sides hold: druk never changes a note after creating it.
     const merged = seen
       ? [
           ...notes.map(note => byId.get(note.id) ?? note),
           ...held.filter(note => !seen.has(note.id)),
         ]
       : notes
+    // `merged`, not `notes`: druk's own list going empty may be a clear racing an external add.
     if (merged.length === 0) delete all[rootDir]
     else all[rootDir] = { notes: merged, touchedAt: now }
 
-    // A writer that omits touchedAt gets this save's clock, not epoch zero —
-    // sorting it to the bottom would make it the trim's first casualty.
+    // A writer that omits touchedAt gets this save's clock: epoch zero would be trimmed first.
     const trimmed = Object.entries(all)
       .toSorted((a, b) => (b[1].touchedAt ?? now) - (a[1].touchedAt ?? now))
       .slice(0, MAX_PROJECTS)
 
     fs.mkdirSync(dirname(file), { recursive: true })
-    // Written beside and renamed into place, so a reader in another process
-    // can never catch half a file.
+    // Renamed into place: a reader in another process never catches half a file.
     const tmp = `${file}.${process.pid}.tmp`
     fs.writeFileSync(tmp, `${JSON.stringify(Object.fromEntries(trimmed), null, 2)}\n`)
     try {
@@ -195,33 +138,28 @@ export function saveNotes(rootDir: string, notes: ReviewNote[], options: SaveOpt
       try {
         fs.unlinkSync(tmp)
       } catch {
-        // the temp file outliving the failure is noise, not damage
+        // best-effort
       }
       throw error
     }
   } catch {
-    // best-effort — losing a draft note is never worth interrupting the editor
+    // best-effort
   }
 }
 
-/**
- * Report writes to the notes file. The watch is on the directory, not the
- * file: saves land by rename, which strands a watcher bound to the replaced
- * file's inode, and only the directory sees the file's first-ever creation.
- * Returns a stop function; best-effort, as every watcher here is.
- */
+// The directory, not the file: a rename-based save strands a watcher bound to the old inode.
 export function watchNotes(onChange: () => void, file = NOTES_FILE): () => void {
   let timer: ReturnType<typeof setTimeout> | null = null
   const name = basename(file)
   try {
     fs.mkdirSync(dirname(file), { recursive: true })
   } catch {
-    // best-effort: the notes just go unwatched
+    // best-effort
   }
   const watcher = watchPath(dirname(file), {}, (_event, filename) => {
     if (filename && filename.toString() !== name) return
     if (timer) clearTimeout(timer)
-    timer = setTimeout(onChange, 80) // coalesce bursts, as watchTree does
+    timer = setTimeout(onChange, 80) // coalesce bursts
   })
   return () => {
     if (timer) clearTimeout(timer)

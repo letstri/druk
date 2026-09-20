@@ -10,7 +10,6 @@ test('yaml keys, values and comments get distinct styles', async () => {
   const segs = await allSegments(YAML, 'yaml')
   const ss = getSyntaxStyle()
   const lines = YAML.split('\n')
-  /** Style covering the first occurrence of `needle`, by line and column. */
   const styleOf = (needle: string) => {
     for (const [line, text] of lines.entries()) {
       const col = text.indexOf(needle)
@@ -32,7 +31,5 @@ test('a .yaml file opens and reports its filetype', async () => {
   await press(t, i => i.pressEnter())
   const frame = t.captureCharFrame()
   expect(frame).toContain('autoInstallPeers')
-  // The status bar, not the tab — 'config.yaml' up there matches 'yaml' on its own.
-  // The frame ends with a newline, so the bar is the last row but one.
   expect(frame.split('\n').at(-2)).toContain('yaml')
 })

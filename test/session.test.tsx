@@ -10,12 +10,12 @@ test('reopening a project restores tabs, active file and expanded folders', asyn
   const dir = fixture(PROJECT)
 
   const first = await launch(dir)
-  await press(first, i => i.pressArrow('down')) // src/
+  await press(first, i => i.pressArrow('down'))
   await press(first, i => i.pressEnter())
-  await press(first, i => i.pressArrow('down')) // src/main.ts
+  await press(first, i => i.pressArrow('down'))
   await press(first, i => i.pressEnter())
   await pressEscape(first)
-  await press(first, i => i.pressArrow('down')) // notes.md
+  await press(first, i => i.pressArrow('down'))
   await press(first, i => i.pressEnter())
 
   const second = await launch(dir)

@@ -1,14 +1,4 @@
-/**
- * Grammar wasm + highlight query for every language we vendor ourselves, imported as
- * files so the paths survive `bun build --compile`.
- *
- * These have to be static `with { type: 'file' }` imports: Bun only embeds assets it
- * can see at build time, so a computed specifier (`tree-sitter-wasms/out/${name}.wasm`)
- * leaves the standalone binary with no grammars at all and every file renders
- * unhighlighted. In a normal run the imports are plain absolute paths.
- *
- * Adding a language means adding two imports and an entry here — see ./index.ts.
- */
+// Static `with { type: 'file' }` imports only: Bun embeds nothing a computed specifier hides.
 import bashWasm from 'tree-sitter-wasms/out/tree-sitter-bash.wasm' with { type: 'file' }
 import cWasm from 'tree-sitter-wasms/out/tree-sitter-c.wasm' with { type: 'file' }
 import csharpWasm from 'tree-sitter-wasms/out/tree-sitter-c_sharp.wasm' with { type: 'file' }
@@ -57,10 +47,9 @@ import tomlQuery from './queries/toml.scm' with { type: 'file' }
 import tsxQuery from './queries/tsx.scm' with { type: 'file' }
 import vueQuery from './queries/vue.scm' with { type: 'file' }
 
-export interface Grammar {
-  /** Absolute path to the grammar wasm. */
+// Both absolute paths.
+interface Grammar {
   wasm: string
-  /** Absolute path to the highlight query. */
   query: string
 }
 

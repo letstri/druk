@@ -13,10 +13,6 @@ interface Span {
   bg?: { buffer: Record<string, number> }
 }
 
-/**
- * Alpha of the background behind `text`, 0–255. Unpainted is 0 — the cell keeps
- * whatever the terminal itself is showing, which is what `transparent` buys.
- */
 function bgAlpha(t: Harness, text: string): number {
   const lines = (t.captureSpans() as unknown as { lines: { spans: Span[] }[] }).lines
   for (const line of lines) {
@@ -26,8 +22,7 @@ function bgAlpha(t: Harness, text: string): number {
   throw new Error(`no span showing ${JSON.stringify(text)}`)
 }
 
-// The theme store is module-global and outlives a harness, so a file that turns
-// transparency on has to turn it back off for whatever runs next.
+// The theme store is module-global and outlives a harness.
 afterAll(() => {
   setTransparency(false)
   setTheme('dark')
@@ -47,8 +42,6 @@ test('transparency leaves the editor unpainted, and off paints it', async () => 
 })
 
 test('transparency never empties a floating panel', async () => {
-  // Painted whatever the setting says: the editor would read straight through
-  // an unpainted palette.
   const t = await launch(fixture({ 'a.ts': 'const a = 1\n' }), { transparent: true })
   await openFile(t, 'a.ts')
   await openPalette(t)
@@ -63,16 +56,12 @@ test('the settings page toggles transparency, and a launch starts from its own c
   await toggleSetting(t, 'Transparent')
   expect(bgAlpha(t, 'const')).toBe(0)
 
-  // The theme store outlives a harness, so a launch that says "off" has to undo
-  // what the one before it left on.
   const reopened = await launch(dir, { transparent: false })
   await openFile(reopened, 'a.ts')
   expect(bgAlpha(reopened, 'const')).toBe(255)
 })
 
 test('the diff page stays painted — it is a layer over the editor', async () => {
-  // Not a surface of its own: the diff sits over the editor, so an unpainted one
-  // would show the file it is diffing straight through its own lines.
   const dir = fixture({ 'a.ts': 'alpha\n' })
   const git = (...args: string[]) => {
     const run = Bun.spawnSync(['git', ...args], { cwd: dir })
@@ -98,9 +87,6 @@ test('a theme switch keeps transparency on', async () => {
 })
 
 test('a modal over a transparent editor leaves the editor unpainted', async () => {
-  // The scrim is alpha-composited, and there is nothing under an unpainted cell
-  // to compose with: drawn anyway it came out opaque black, so opening any modal
-  // painted the whole see-through editor over.
   const t = await launch(fixture({ 'a.ts': 'const a = 1\n' }), { transparent: true })
   await openFile(t, 'a.ts')
   await openPalette(t)

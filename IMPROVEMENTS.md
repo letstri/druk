@@ -46,7 +46,7 @@ Claims re-checked against the tree (not just the previous doc):
 | ARCHITECTURE git still read-only | **True** — lines ~45 and ~319–322 still lie |
 | Tree-only hide undocument | **Mostly false** — ARCHITECTURE is explicit; README table says “file tree” |
 | `file:line:col` | Still true — `resolveTarget` regex accepts col, `Target` has no `col`, `App` calls `requestGoto(line, 0)` |
-| Module sizes | Still exact: EditorPane 1044, vim 802, DiffView 573, SearchPanel 481, workspace 469, SettingsView 272 |
+| Module sizes | **Stale** — all six have grown; the table in 1.4 carries the current numbers |
 | Project replace / find next / save all | Still absent as product features |
 | Test harness size | ~87 files under `test/` (was “~84+”) |
 | Mutations list | commit, undo, push, fetch, pull, stash, stash pop, show all changes — matches doc |
@@ -118,16 +118,16 @@ Shipped on `main`. Remaining image work is product polish, not “land the featu
 - Clear refuse / status for non-PNG/JPEG when opened somehow (P7.4)
 - Kitty/sixel when OpenTUI exposes it (P7.3)
 
-### 1.4 Large modules (unchanged)
+### 1.4 Large modules
 
 | File | ~Lines | Suggested split |
 | --- | --- | --- |
-| `ui/EditorPane.tsx` | 1044 | highlight, scrollbar, clipboard gate, vim/typing |
-| `editor/vim.ts` | 802 | motions / operators / text objects |
-| `ui/DiffView.tsx` | 573 | layout / highlight / nav |
-| `ui/SearchPanel.tsx` | 481 | model / keyboard / render |
-| `app/workspace.ts` | 469 | open-close-save / disk sync / session |
-| `ui/SettingsView.tsx` | 272 | new; keep focused |
+| `ui/EditorPane.tsx` | 2648 | highlight, scrollbar, clipboard gate, vim/typing |
+| `editor/vim.ts` | 746 | motions / operators / text objects |
+| `ui/DiffView.tsx` | 547 | layout / highlight / nav |
+| `ui/SearchPanel.tsx` | 597 | model / keyboard / render |
+| `app/workspace.ts` | 1047 | open-close-save / disk sync / session |
+| `ui/SettingsView.tsx` | 368 | new; keep focused |
 
 Split **as you touch** features. EditorPane remains the bottleneck.
 

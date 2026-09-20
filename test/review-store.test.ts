@@ -21,7 +21,6 @@ const note = (id: string, over: Partial<ReviewNote> = {}): ReviewNote => ({
 
 test('a save keeps the note another writer added meanwhile', () => {
   const file = notesFile()
-  // The agent wrote first; this session has never seen "theirs".
   saveNotes('/p', [note('theirs')], { file })
   saveNotes('/p', [note('mine')], { seen: new Set(['mine']), file })
   expect(
@@ -38,16 +37,13 @@ test('a reply survives the round trip, and keeps who wrote it', () => {
   const held = loadNotes('/p', file)
   expect(held).toHaveLength(2)
   expect(held[1]).toMatchObject({ parent: 'a', author: 'claude' })
-  // A note with neither is a note, not a reply to something called "".
   expect(held[0]!.parent).toBeUndefined()
 })
 
 test('an agent may answer a note this session is holding', () => {
   const file = notesFile()
   saveNotes('/p', [note('a')], { seen: new Set(['a']), file })
-  // The agent read the file, appended its answer and wrote the pair back.
   saveNotes('/p', [note('a'), note('r1', { parent: 'a', author: 'claude' })], { file })
-  // druk saves again knowing only its own note: the reply is not its to drop.
   saveNotes('/p', [note('a')], { seen: new Set(['a']), file })
   expect(loadNotes('/p', file).map(held => held.id)).toEqual(['a', 'r1'])
 })
@@ -55,7 +51,6 @@ test('an agent may answer a note this session is holding', () => {
 test('a note removed this session stays removed', () => {
   const file = notesFile()
   saveNotes('/p', [note('a'), note('b')], { file })
-  // Both were seen; "a" is gone from the list because this session removed it.
   saveNotes('/p', [note('b')], { seen: new Set(['a', 'b']), file })
   expect(loadNotes('/p', file).map(held => held.id)).toEqual(['b'])
 })
@@ -63,7 +58,6 @@ test('a note removed this session stays removed', () => {
 test("the file's copy wins for an id both sides hold", () => {
   const file = notesFile()
   saveNotes('/p', [note('a', { body: 'rewritten elsewhere', line: 9, endLine: 9 })], { file })
-  // This session still holds the original — its copy is the stale one.
   saveNotes('/p', [note('a')], { seen: new Set(['a']), file })
   const held = loadNotes('/p', file)
   expect(held).toHaveLength(1)
@@ -76,7 +70,6 @@ test('a clear does not delete the note another writer just added', () => {
   saveNotes('/p', [note('theirs')], { file })
   saveNotes('/p', [], { seen: new Set(['mine']), file })
   expect(loadNotes('/p', file).map(held => held.id)).toEqual(['theirs'])
-  // With nothing external left either, the entry itself goes.
   saveNotes('/p', [], { seen: new Set(['mine', 'theirs']), file })
   expect(readFileSync(file, 'utf8')).not.toContain('/p')
 })
@@ -128,12 +121,10 @@ test('an entry saved without touchedAt is fresh, not the first casualty', () => 
   for (let i = 1; i <= 20; i++) {
     saveNotes(`/p${i}`, [note(`n${i}`, { path: `/p${i}/a.ts` })], { now: i, file })
   }
-  // An agent wrote an entry with no touchedAt at all.
   const all = JSON.parse(readFileSync(file, 'utf8')) as Record<string, unknown>
   all['/agent'] = { notes: [note('theirs', { path: '/agent/a.ts' })] }
   writeFileSync(file, JSON.stringify(all))
   saveNotes('/p1', [note('n1', { path: '/p1/a.ts' })], { seen: new Set(['n1']), now: 22, file })
   expect(loadNotes('/agent', file)).toHaveLength(1)
-  // The eldest stamped entry paid for the trim instead.
   expect(loadNotes('/p2', file)).toEqual([])
 })

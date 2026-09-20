@@ -14,13 +14,9 @@ import { cut } from './text'
 export interface CompletionMenuProps {
   matches: Match[]
   selected: number
-  /** Size and detail rows, computed once by EditorPane so placement agrees. */
   layout: MenuLayout
-  /** The selected item's flattened signature — what the panel's colours come from. */
   detail: string
-  /** The open file's language, to parse that signature as. */
   filetype?: string
-  /** Placement inside the pane box, already flipped/clamped by EditorPane. */
   top: number
   left: number
 }
@@ -31,7 +27,7 @@ interface Span {
   attributes: number
 }
 
-/** Read at paint time: `ui` is a store, a module-scope table would freeze a theme. */
+// Read at paint time: `ui` is a store, a module-scope table would freeze a theme.
 const GROUP_COLORS: Record<KindGroup, () => string> = {
   fn: () => ui.accent,
   var: () => ui.gitModified,
@@ -41,32 +37,15 @@ const GROUP_COLORS: Record<KindGroup, () => string> = {
   text: () => ui.dim,
 }
 
-/**
- * The completion popup: a windowed list with its own scrollbar, a counter row
- * naming the selected item's kind, and a panel under it carrying the signature
- * and documentation for whichever item is selected.
- *
- * Purely presentational — EditorPane owns every decision, what is in the list,
- * what is selected, what has been resolved and where the box sits — so this
- * stays a painter that a test can drive through the real keyboard flow.
- */
 export function CompletionMenu(props: CompletionMenuProps) {
   const windowed = createMemo(() => windowAround(props.matches, props.selected, props.layout.rows))
-  /** Columns inside the border. */
   const inner = () => props.layout.width - 2
-  /** Reserved rows the current item did not fill; drawn blank so nothing moves. */
   const filler = () =>
     props.layout.panelRows -
     props.layout.signature.length -
     props.layout.documentation.length -
     (props.layout.origin ? 1 : 0)
 
-  /**
-   * The selected item's signature parsed as code, so the panel reads as the
-   * declaration it is rather than as a paragraph. The whole flattened signature
-   * is parsed at once — one short line, and the layout kept each row's offset
-   * into it, so a wrapped signature colours as the thing it was before wrapping.
-   */
   const [parsed, setParsed] = createSignal<Highlighted | null>(null)
   createEffect(
     on([() => props.detail, () => props.filetype], ([detail, filetype]) => {
@@ -87,14 +66,9 @@ export function CompletionMenu(props: CompletionMenuProps) {
     return doc ? segmentsIn(doc, 0, 0) : []
   })
 
-  /**
-   * One signature row as coloured pieces. Offsets are into the flattened
-   * signature, so a capture is sliced to the part of it this row holds; the
-   * ellipsis `capped` wrote over the last character rides along with it.
-   */
+  // Offsets are into the flattened signature, so a capture is sliced to this row.
   const painted = (line: SignatureLine): Span[] => {
-    // Read so the pieces are rebuilt on a theme switch: a segment's style id
-    // belongs to the table the previous theme built.
+    // Read for the dependency: a segment's style id belongs to the table its theme built.
     paintedTheme()
     const out: Span[] = []
     const plain = ui.text
@@ -126,10 +100,6 @@ export function CompletionMenu(props: CompletionMenuProps) {
   const acceptHint = () =>
     inner() - kind().length - counter().length - ACCEPT.length >= 2 ? ACCEPT : ''
 
-  /**
-   * The scrollbar cell for visible row `at`: a thumb whose size and travel say
-   * how much of the list is off screen, which a bare counter cannot.
-   */
   const track = (at: number): string => {
     const total = props.matches.length
     const shown = props.layout.rows
@@ -223,9 +193,7 @@ export function CompletionMenu(props: CompletionMenuProps) {
             wrapMode="none"
             content={` ${kind()}`}
           />
-          {/* The one key the menu cannot be used without, and the only place the
-              user is looking while it is up. Dropped rather than cut where the
-              row is too narrow: half a key name is worse than none. */}
+          {/* Dropped rather than cut on a narrow row: half a key name is worse than none. */}
           <text
             fg={ui.faint}
             bg={ui.panelBg}
@@ -274,7 +242,10 @@ export function CompletionMenu(props: CompletionMenuProps) {
               content={` ${props.layout.origin}`}
             />
           </Show>
-          <box height={Math.max(0, filler())} backgroundColor={ui.panelBg} />
+          {/* Guarded: a zero-height box still paints a row, over the box's own bottom border. */}
+          <Show when={filler() > 0}>
+            <box height={filler()} backgroundColor={ui.panelBg} />
+          </Show>
         </Show>
       </Show>
     </box>

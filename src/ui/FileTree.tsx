@@ -8,6 +8,7 @@ import { ui } from '../themes'
 import { useHoverKey } from './hover'
 import { createScrollList, scrollbarOptions } from './list'
 import { PanelHeader } from './PanelHeader'
+import { cut } from './text'
 import { useTooltip } from './tooltip'
 
 export interface FileTreeProps {
@@ -17,22 +18,15 @@ export interface FileTreeProps {
   expanded: Set<string>
   focused: boolean
   width: number
-  /** Working-tree status per absolute path. */
   gitStatus: Map<string, FileStatus>
-  /** Paths `.gitignore` excludes — drawn dim when they have no status mark. */
   gitIgnored: Set<string>
-  /** Taken with `x` and waiting for a destination; drawn as in flight. */
   cutPaths: string[]
-  /** Picked out with Shift+↑/↓, and what delete and move act on. */
   markedPaths: string[]
-  /** `iconTheme`: the glyph column, or `'none'` for the plain arrow. */
   iconTheme: string
   onActivate: (node: TreeNode) => void
   onPin: (node: TreeNode) => void
   onFocus: () => void
-  /** The header's ▴: shut every folder at once. */
   onCollapseAll: () => void
-  /** The project name is a button. */
   onSwitchWorkspace: () => void
 }
 
@@ -53,14 +47,7 @@ export const statusColor = (status: FileStatus) =>
       : ui.gitModified
 
 export function FileTree(props: FileTreeProps) {
-  /**
-   * A folder inherits the status of whatever changed inside it — precomputed by
-   * walking each entry's ancestors once per status refresh. Asking per folder
-   * row instead (scan the whole map for a prefix) is O(rows × entries) *per
-   * rebuild*, and on a large repository that scan was a visible share of every
-   * refresh's stall. First entry under the folder wins, as the scan's map order
-   * did: an already-filled dir means its ancestors are filled too.
-   */
+  // One walk per refresh: the first entry under a folder wins; a filled dir means filled ancestors.
   const dirStatus = createMemo(() => {
     const map = new Map<string, FileStatus>()
     for (const [path, status] of props.gitStatus) {
@@ -89,24 +76,7 @@ export function FileTree(props: FileTreeProps) {
   const project = useTooltip('workspace.switch')
   const rowHover = useHoverKey<string>()
 
-  /**
-   * The selection moves for reasons the tree cannot see — arrow keys, but also a tab
-   * switch or a jump from search — and a highlight scrolled out of view reads as no
-   * highlight at all.
-   *
-   * Keyed on the selected row's index, which is exactly what the scroll depends on,
-   * and that precision is load-bearing three times over:
-   *
-   * - `nodes` is a fresh array on every git refresh. Tracking the array would yank a
-   *   mouse-scrolled tree back every few seconds; the index is unchanged, so nothing
-   *   happens.
-   * - `focused` would snap the view back on every Tab or Esc — scroll away from the
-   *   selection to read something, move focus, and it jumps although nothing was
-   *   chosen. Navigating changes the index, so an arrow key still reveals the cursor.
-   * - Opening a file from the picker expands its parents, which moves the row *after*
-   *   the selection changed. Keying on the path alone would scroll to the old index
-   *   and leave the file off-screen.
-   */
+  // Keyed on the row *index*: `nodes` is fresh per refresh, and `focused` or the path yanks the scroll.
   const selectedRow = createMemo(() =>
     props.nodes.findIndex(node => node.path === props.selectedPath),
   )
@@ -125,8 +95,7 @@ export function FileTree(props: FileTreeProps) {
     const now = Date.now()
     const isDouble = lastClick.path === node.path && now - lastClick.at < DOUBLE_CLICK_MS
     lastClick = { path: node.path, at: now }
-    // Activating a folder toggles it, so the second click of a double-click would
-    // close what the first one opened and the folder would look inert.
+    // Activating a folder toggles it: the second click would close what the first opened.
     if (isDouble && node.isDir) return
     props.onActivate(node)
     if (isDouble) props.onPin(node)
@@ -139,19 +108,11 @@ export function FileTree(props: FileTreeProps) {
       backgroundColor={ui.sidebarBg}
       flexShrink={0}
       flexGrow={1}
-      // The tree fills what the sidebar's tab strip leaves. `flexBasis` must be 0:
-      // with the default `auto` the box starts at its content's height, the
-      // scrollbox below grows past the screen and its scrollbar never appears.
+      // `flexBasis` must be 0: with `auto` the scrollbox grows past the screen and loses its scrollbar.
       flexBasis={0}
       onMouseDown={() => props.onFocus()}
     >
-      {/* VS Code's two rows: the view's own title, then the folder it is open
-          on as a section header. The title says which view has the sidebar —
-          which the activity bar's icons only hint at — and the name below it is
-          the button that switches workspace. */}
       <PanelHeader title="Explorer" width={props.width} focused={props.focused}>
-        {/* The same arrowhead a row's own folder wears, pointing the way it
-            folds — and gone when there is nothing open to fold. */}
         <Show when={props.expanded.size > 0}>
           <box
             ref={collapse.ref}
@@ -216,27 +177,15 @@ export function FileTree(props: FileTreeProps) {
                 : rowHover.hovered(node.path)
                   ? ui.hoverBg
                   : ui.sidebarBg
-            /** Taken with `x` and waiting for a destination: drawn as already gone. */
             const leaving = () => props.cutPaths.includes(node.path)
             const open = () => props.expanded.has(node.path)
-            /**
-             * The icon takes the arrow's column rather than a column of its own:
-             * a folder glyph has an open and a closed form, so expansion stays
-             * readable and a row costs the same width either way.
-             */
             const icon = () =>
               iconFor(props.iconTheme, { name: node.name, isDir: node.isDir, expanded: open() })
-            // No mark on a file where no icon theme draws one: VS Code's tree
-            // gives a file the chevron's column and leaves it empty, which is
-            // what lets the names read as a list rather than as a bullet list.
             const glyph = () => icon()?.glyph ?? (node.isDir ? (open() ? '▾' : '▸') : ' ')
             const glyphColor = () =>
               leaving() ? ui.faint : (icon()?.color ?? (node.isDir ? ui.dim : ui.faint))
             const status = () => statusOf(node)
             const ignored = () => props.gitIgnored.has(node.path)
-            // Cut → status → ignored → ordinary. A status mark is more useful than
-            // "this is ignored", and ignored still beats the default folder/text so
-            // node_modules does not shout next to source.
             const nameColor = () =>
               leaving()
                 ? ui.faint
@@ -256,22 +205,24 @@ export function FileTree(props: FileTreeProps) {
                 onMouseOver={() => rowHover.enter(node.path)}
                 onMouseOut={() => rowHover.leave(node.path)}
               >
-                {/* Everything but the name is flexShrink={0}. Flex shrinks every
-                    item by default, so one long filename squeezed the indent and
-                    the arrow and slid the row's glyphs a column left — which made
-                    them jump around as a resize changed which rows overflow. The
-                    name is the only thing allowed to give. */}
-                {/* Two spaces a level, no rules: VS Code's indent guides are a
-                    hairline a terminal has no weight for, and drawn as `│` they
-                    are the loudest thing in the panel. */}
+                {/* Everything but the name is flexShrink={0}: one long filename would squeeze them. */}
                 <text fg={ui.faint} bg={bg()} flexShrink={0} content={' '.repeat(node.depth * 2)} />
                 <text fg={glyphColor()} bg={bg()} flexShrink={0} content={`${glyph()} `} />
-                {/* The name takes the slack, so the mark is pushed to the panel's
-                    right edge and every mark lines up in one column. */}
                 <box flexGrow={1} flexDirection="row" backgroundColor={bg()}>
-                  <text fg={nameColor()} bg={bg()} content={node.name} />
-                  {/* Beside the name, not in the mark column: a symlink is a
-                      property of the entry, and the marks there are git's. */}
+                  {/* The row is one tall, so a wrapped name loses its last word. */}
+                  <text
+                    fg={nameColor()}
+                    bg={bg()}
+                    wrapMode="none"
+                    content={cut(
+                      node.name,
+                      props.width -
+                        node.depth * 2 -
+                        3 -
+                        (node.symlink ? 2 : 0) -
+                        (status() ? 2 : 0),
+                    )}
+                  />
                   <Show when={node.symlink}>
                     <text fg={ui.dim} bg={bg()} flexShrink={0} content=" ↗" />
                   </Show>

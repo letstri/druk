@@ -7,7 +7,6 @@ import { setTheme, THEMES } from '../src/themes'
 import { ignoreScrollOutsideBounds } from '../src/ui/EditorPane'
 import { fixture, launch, openFile, pressTimes, until, untilFrame } from './helpers'
 
-/** A stand-in for the textarea: the renderer only needs bounds and the hook. */
 function fakeEditor(seen: MouseEvent[]) {
   return {
     x: 30,
@@ -28,7 +27,6 @@ describe('scroll delivered to the focused editor', () => {
     const editor = fakeEditor(seen)
     ignoreScrollOutsideBounds(editor)
 
-    // The renderer's hit test misses the tree and falls back to the focused editor.
     ;(editor as unknown as { onMouseEvent: (e: MouseEvent) => void }).onMouseEvent(
       event('scroll', 3, 8),
     )
@@ -56,16 +54,8 @@ describe('scroll delivered to the focused editor', () => {
   })
 })
 
-/**
- * The pane caches the buffer's row layout — reading it unpacks four native
- * arrays element by element, which the scroll path cannot afford per tick — and
- * an edit that adds rows makes the cached copy describe a file that is no longer
- * there. Left stale, scrolling past the edit asked for a highlight window around
- * the wrong lines and the text below rendered plain.
- */
 test('highlights survive scrolling past an edit that added lines', async () => {
-  // The theme is module state shared across test files, so pin it rather than
-  // asserting against whichever one the previously run file left behind.
+  // The theme is module state shared across the file's tests.
   setTheme('dark')
   invalidateSyntaxStyle()
 

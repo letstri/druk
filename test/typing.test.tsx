@@ -33,7 +33,7 @@ test('apostrophes inside words are left alone', async () => {
 
 test('Enter keeps the current indentation', async () => {
   const out = await edit('  const a = 1', i => {
-    i.pressKey('e', { ctrl: true }) // line end
+    i.pressKey('e', { ctrl: true })
     i.pressEnter()
     void i.typeText('b')
   })

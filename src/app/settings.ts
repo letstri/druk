@@ -38,22 +38,20 @@ import { BINDABLE, customHolder, isUnbound, keyOverrides, resolveKeymap } from '
 import type { Bindable } from './keymap'
 import type { Status } from './status'
 
-/** Columns the editor keeps for itself, whatever width the sidebar was saved at. */
+// Columns the editor keeps for itself, whatever width the sidebar was saved at.
 const EDITOR_MIN = 20
 
 const TAB_SIZES = [2, 4, 8]
 
-/** Levels the repository scan may look down; 0 is "the opened folder only". */
+// 0 is "the opened folder only".
 const SCAN_DEPTHS = [0, 1, 2, 3, 4, 5]
 const depthLabel = (depth: number) =>
   depth === 0 ? 'off' : `${depth} level${depth === 1 ? '' : 's'}`
 
-// Functions, not constants: extensions register themes and icon themes at startup,
-// which happens after this module is evaluated.
+// Functions, not constants: extensions register themes and icon themes after this module runs.
 const themeList = (): ThemeName[] => themeNames()
 const iconList = (): string[] => iconThemeNames()
 
-/** The entry `dir` steps to, wrapping at both ends. */
 const step = <T>(list: readonly T[], current: T, dir: 1 | -1): T =>
   list[(list.indexOf(current) + dir + list.length) % list.length]!
 
@@ -64,9 +62,7 @@ type BoolKey = { [K in keyof Config]: Config[K] extends boolean ? K : never }[ke
 type RowSpec = Omit<SettingRow, 'local' | 'clear'> & { key: keyof Config }
 
 export function createSettings(deps: {
-  /** The user's own settings — the whole `Config`, as its file holds it. */
   user: Config
-  /** What `<rootDir>/.druk/settings.json` overrides, and nothing more. */
   project: Partial<Config>
   rootDir: string
   status: Status
@@ -77,51 +73,27 @@ export function createSettings(deps: {
   const [user, setUser] = createStore<Config>({ ...deps.user })
   const [project, setProject] = createStore<Partial<Config>>({ ...deps.project })
   const [config, setConfig] = createStore<Config>(resolveConfig(deps.user, deps.project))
-  /** Which file the page shows and writes. User's own until asked otherwise. */
   const [scope, setScope] = createSignal<ConfigScope>('user')
 
-  // Here rather than beside the `setTheme` in main.tsx: the theme store outlives
-  // any one app instance, so a launch whose config says otherwise has to undo
-  // what the last one left behind.
+  // The theme store outlives any one app instance: undo what the last one left behind.
   setTransparency(config.transparent)
 
   const paintTheme = (name: ThemeName) => {
-    // A preview lands here on every keystroke, and repainting is not free — it
-    // drops every buffer's style table and re-highlights the window.
+    // Repainting re-highlights every buffer, and a preview lands here on every keystroke.
     if (paintedTheme() === name) return
     setTheme(name)
     invalidateSyntaxStyle()
   }
 
-  /**
-   * Undo a preview. `config.theme` is by definition what should be on screen —
-   * `patchLayer` repaints whenever it changes, and the OS-appearance poll writes
-   * the side theme into it — so this is the whole of it, for the light and dark
-   * rows as much as for `theme` itself.
-   */
   const restoreTheme = () => paintTheme(config.theme)
 
-  /**
-   * The icon set on screen, which is the config's except while a list is being
-   * arrowed through. Themes get this for free — the theme store is already
-   * separate from the config — but icons are read straight off `iconTheme`, so
-   * previewing one without writing it to disk needs a layer of its own.
-   */
+  // Icons are read straight off `iconTheme`, so previewing one without writing it needs a layer.
   const [iconPreview, setIconPreview] = createSignal<string | null>(null)
   const activeIconTheme = () => usableIconTheme(iconPreview() ?? config.iconTheme)
   const previewIcons = (id: string) => setIconPreview(id)
   const restoreIcons = () => setIconPreview(null)
 
-  /**
-   * Write `patch` into one layer, persist that file, and re-resolve.
-   *
-   * Three settings are also live state held elsewhere — the theme store, the
-   * transparency flag, the editor's vim mode — and they are pushed from here,
-   * against the *effective* config rather than the patch. A write to the user
-   * layer that the project shadows must change nothing on screen, and clearing a
-   * project override has to bring the user's value back into force without every
-   * step action knowing about layers.
-   */
+  // The three settings that are also live state are pushed against the *effective* config, not `patch`.
   const patchLayer = (target: ConfigScope, patch: Partial<Config>) => {
     const before = { ...unwrap(config) }
     if (target === 'project') {
@@ -139,25 +111,14 @@ export function createSettings(deps: {
 
   const patchConfig = (patch: Partial<Config>) => patchLayer(scope(), patch)
 
-  /**
-   * Machine-local by nature: the dismissed update notice and the theme the OS
-   * appearance chose. Neither belongs in a project file that gets committed.
-   */
   const patchUserConfig = (patch: Partial<Config>) => patchLayer('user', patch)
 
-  /**
-   * The config the page reads and steps from — the active scope's own view of it.
-   * In project scope that is the effective config; in user scope it is the user
-   * file alone, so a row still moves when the project pins that key. The page
-   * marks those rows rather than pretend the change did not happen.
-   */
+  // In user scope this is the user file alone: a row still moves when the project pins that key.
   const view = (): Config => (scope() === 'project' ? config : user)
 
   const configFile = () => (scope() === 'project' ? projectConfigFile(rootDir) : CONFIG_FILE)
 
-  // `notice` is given the *effective* value, which a project override may have
-  // kept where it was. The cast is the computed key: TypeScript widens
-  // `{ [key]: boolean }` to an index signature whatever `BoolKey` says.
+  // The cast is the computed key: TypeScript widens `{ [key]: boolean }` to an index signature.
   const boolRow = (
     section: string,
     key: BoolKey,
@@ -182,11 +143,6 @@ export function createSettings(deps: {
     status.say(`${label} back to the user setting`)
   }
 
-  /**
-   * A theme picked by hand. It has to outlive the next appearance poll, so the
-   * pick turns the sync off — and says so, since the user did not ask for that
-   * and the settings page is the only other place the change shows.
-   */
   const applyTheme = (name: ThemeName): void => {
     const wasSyncing = view().themeSync
     patchConfig({ theme: name, themeSync: false })
@@ -201,10 +157,8 @@ export function createSettings(deps: {
     )
   }
 
-  /** The OS said light or dark: paint that side's theme, quietly. */
   const applyAppearance = (appearance: Appearance) => {
-    // A project that pins `theme` outranks the OS, and the poll would otherwise
-    // rewrite the user file every few seconds for a value that never takes.
+    // A project pinning `theme` outranks the OS; the poll would rewrite the user file every few seconds.
     if (project.theme !== undefined) return
     const name = appearance === 'dark' ? config.themeDark : config.themeLight
     if (name === config.theme) return
@@ -232,7 +186,6 @@ export function createSettings(deps: {
     status.say(`Following OS appearance (${appearance})`)
   }
 
-  /** What a chosen set says: off, its name, or the set standing in for it. */
   const iconNotice = (id: string): string => {
     if (id === NO_ICONS) return 'File icons off'
     const drawn = usableIconTheme(id)
@@ -243,21 +196,13 @@ export function createSettings(deps: {
   }
 
   const applyIconTheme = (id: string) => {
-    // Before the write, not after: the preview is what the tree is reading, and
-    // leaving it up would keep showing the arrowed-past set over the saved one.
+    // Before the write: the preview is what the tree reads.
     restoreIcons()
     patchConfig({ iconTheme: id })
     status.say(iconNotice(config.iconTheme))
   }
 
-  /**
-   * Read every manifest again and re-register what they contribute.
-   *
-   * The theme is repainted unconditionally rather than through `paintTheme`,
-   * which returns early when the name has not changed: a reload can leave the
-   * same id pointing at different colors, or at none — `setTheme` falls back to
-   * the default for a theme whose extension has just been disabled.
-   */
+  // `setTheme`, not `paintTheme`: a reload can leave the same id pointing at different colors.
   const reloadExtensions = (): ExtensionLoad => {
     const load = loadExtensions(rootDir, config.disabledExtensions)
     setTheme(config.theme)
@@ -275,10 +220,7 @@ export function createSettings(deps: {
     status.say(`Extension "${id}" ${off ? 'enabled' : 'disabled'}`)
   }
 
-  /**
-   * An empty value means druk's own market, not "no market": the setting is a
-   * URL the fetch is built from, and there is no useful editor without one.
-   */
+  // An empty value means druk's own market, not "no market".
   const applyRegistry = (url: string) => {
     const trimmed = url.trim() || MARKET_URL
     if (!trimmed.startsWith('https://')) {
@@ -312,11 +254,7 @@ export function createSettings(deps: {
     status.say(`Vim mode ${onOff(config.vim)}`)
   }
 
-  /**
-   * The stored key for what was typed into the File types field: `.TS, tsx` and
-   * `ts,tsx` are the same entry, so they have to spell it the same way or the
-   * page would let one formatter be written twice under two keys.
-   */
+  // `.TS, tsx` and `ts,tsx` are one entry: two spellings would write one formatter twice.
   const extensionKey = (value: string) =>
     value
       .split(',')
@@ -324,7 +262,6 @@ export function createSettings(deps: {
       .filter(Boolean)
       .join(',')
 
-  /** The file types an entry covers, as a reader would say them: `.ts .tsx`. */
   const extensionLabel = (key: string) =>
     key === '*'
       ? 'Any file'
@@ -337,11 +274,6 @@ export function createSettings(deps: {
   const formatterOption = (key: string, command: string[]) =>
     `${extensionLabel(key)} → ${command.join(' ')}`
 
-  /**
-   * `previous` names the entry being edited, or null when adding; emptying either
-   * field removes it, and rewriting the extensions moves the entry rather than
-   * fork it.
-   */
   const setFormatter = (previous: string | null, types: string, value: string) => {
     const formatters = { ...view().formatters }
     const key = extensionKey(types)
@@ -364,7 +296,6 @@ export function createSettings(deps: {
     status.say(`Formatter: ${formatterOption(key, command)}`)
   }
 
-  /** The edit a formatter pick opens — entry `at`, or "add" past the end. */
   const formatterEdit = (at: number): SettingEdit => {
     const formatters = view().formatters
     const key = Object.keys(formatters)[at] ?? null
@@ -378,8 +309,6 @@ export function createSettings(deps: {
           placeholder: 'prettier --write',
         },
       ],
-      // Short lines on purpose: the modal is only as wide as the editor pane,
-      // and beside a sidebar a longer line wraps mid-word.
       hint: [
         'The tool must rewrite the file itself',
         `Its path is appended, or replaces ${FILE_TOKEN}`,
@@ -389,8 +318,7 @@ export function createSettings(deps: {
     }
   }
 
-  /** Custom command for one server; empty restores the default. Disabling stays
-   * on the Servers row — an empty command already means "off" there. */
+  // Empty restores the default; disabling is the Servers row, where an empty command means "off".
   const setServerCommand = (id: string, value: string) => {
     const overrides = { ...view().lspServers }
     const command = value.trim().split(/\s+/).filter(Boolean)
@@ -404,24 +332,11 @@ export function createSettings(deps: {
     )
   }
 
-  /** The shortcuts in force, clashes and all — the keyboard dispatches off this. */
   const keymap = createMemo(() => resolveKeymap(config.keybindings))
 
-  // The help table, the peek strip and the footer hints render from `ui/keys`,
-  // which knows the defaults and nothing about this setting. Pushed rather than
-  // read: nothing in `ui/` may reach into `app/`.
+  // Pushed rather than read: nothing in `ui/` may reach into `app/`.
   createEffect(() => setKeyOverrides(keyOverrides(keymap())))
 
-  /**
-   * Rebind one command. An empty value restores its default and "none" takes its
-   * key away.
-   *
-   * A chord another *custom* binding holds is refused: both are deliberate
-   * choices, so which of them goes is the user's call rather than ours. A chord a
-   * built-in default holds is taken — that is what rebinding is for — and the
-   * command that loses it is named, since the key silently going dead is exactly
-   * the surprise this message exists to prevent.
-   */
   const setKeybinding = (id: string, value: string) => {
     const spec = BINDABLE.find(entry => entry.id === id)
     if (!spec) return
@@ -462,7 +377,6 @@ export function createSettings(deps: {
   const bindingEdit = (spec: Bindable): SettingEdit => ({
     title: `Shortcut — ${spec.label}`,
     fields: [{ initial: keymap().display.get(spec.id) ?? '', placeholder: `Ctrl+${ALT}+K` }],
-    // Short lines on purpose: beside a sidebar a longer one wraps mid-word.
     hint: [
       `One chord, e.g. Ctrl+G or Ctrl+${ALT}+K or F5`,
       'It needs Ctrl or a function key',
@@ -482,7 +396,6 @@ export function createSettings(deps: {
     status.say(`Changed files as ${config.gitPanelView === 'tree' ? 'a tree' : 'a flat list'}`)
   }
 
-  /** The typed TypeScript location; empty hands the choice back to the server. */
   const applyTypescriptTsdk = (value: string) => {
     const tsdk = value.trim()
     patchConfig({ typescriptTsdk: tsdk })
@@ -491,12 +404,6 @@ export function createSettings(deps: {
     )
   }
 
-  /**
-   * Flip one server between enabled and disabled. Disabling writes the empty
-   * command; re-enabling removes the override entirely, so a custom command set
-   * by hand in the config file is not resurrected wrongly — the file is where
-   * custom commands live, and the page only turns servers on and off.
-   */
   const toggleServer = (id: string) => {
     const overrides = { ...view().lspServers }
     const disabled = overrides[id]?.length === 0
@@ -513,13 +420,7 @@ export function createSettings(deps: {
     return `${enabled ? '✓' : '✗'} ${id} — ${shown.join(' ')}`
   }
 
-  /**
-   * `'auto'` resolved against the terminal, then clamped against it again: a width
-   * saved on a wide screen must not swallow the editor when the window is smaller
-   * next time. The second clamp wins outright — below `SIDEBAR_MIN + EDITOR_MIN`
-   * columns the tree gives up its minimum rather than leave the editor unusable.
-   * The config value is untouched, so a saved width returns in full on a wide screen.
-   */
+  // Clamped again after `sidebarColumns`: a width saved on a wide screen must not swallow the editor.
   const treeWidth = () =>
     Math.max(
       0,
@@ -534,14 +435,8 @@ export function createSettings(deps: {
     if (next !== view().sidebarWidth) patchConfig({ sidebarWidth: next })
   }
 
-  /**
-   * Step the width by `delta`, from what is on screen rather than from the config.
-   * On a window too narrow to honour a large saved width that does discard it — but
-   * the alternative is a key that visibly does nothing while quietly counting down.
-   */
   const nudgeSidebar = (delta: number) => resizeSidebar(treeWidth() + delta)
 
-  /** The typed width: a column count (clamped as `[`/`]` are) or `auto`. */
   const applySidebarWidth = (value: string) => {
     const trimmed = value.trim().toLowerCase()
     if (trimmed === '' || trimmed === 'auto') {
@@ -564,9 +459,6 @@ export function createSettings(deps: {
   const toggleSidebarPosition = () =>
     applySidebarPosition(view().sidebarPosition === 'left' ? 'right' : 'left')
 
-  /** The rows as this module declares them: what the page draws, plus the key it edits. */
-
-  /** The settings page's rows: current values plus their step actions, in display order. */
   const specs = (): RowSpec[] => [
     {
       section: 'Appearance',
@@ -645,13 +537,7 @@ export function createSettings(deps: {
       section: 'Editor',
       key: 'cursorStyle',
       label: 'Cursor',
-      // Said on the row rather than left to the status line, which is gone by the time
-      // anyone wonders why the caret did not change.
-      //
-      // `config.vim` and not `view().vim`, unlike the value beside it: the note is about
-      // the caret actually on screen, and a project file pinning vim on overrides it
-      // whatever the user's own file says. The shape stays `view()`'s, because that is
-      // the value this page edits and marks as overridden.
+      // `config.vim`, not `view().vim`: the note is about the caret on screen.
       value: config.vim ? `${view().cursorStyle} (vim overrides)` : view().cursorStyle,
       cycle: dir => applyCursorStyle(step(CURSOR_STYLES, view().cursorStyle, dir)),
       select: {
@@ -679,14 +565,11 @@ export function createSettings(deps: {
       on => `Trim on save ${onOff(on)}`,
     ),
     boolRow('Editor', 'formatOnSave', 'Format on save', on =>
-      // Turning it on with nothing configured would silently do nothing on save.
       on && Object.keys(config.formatters).length === 0
         ? 'Format on save on — add a command on the Formatters row'
         : `Format on save ${onOff(on)}`,
     ),
     {
-      // Enter lists the configured entries plus an "add" row; picking one opens
-      // a text field, since a command is no pick-a-value setting.
       section: 'Editor',
       key: 'formatters',
       label: 'Formatters',
@@ -745,8 +628,6 @@ export function createSettings(deps: {
       cycle: toggleSidebarPosition,
     },
     {
-      // Two values: a list to choose between them is more ceremony than the
-      // flip is worth, so this stays a step like the booleans above.
       section: 'Git',
       key: 'diffView',
       label: 'Diff layout',
@@ -793,8 +674,6 @@ export function createSettings(deps: {
       },
     },
     {
-      // One row, not fourteen: Enter lists every known server and picking one
-      // flips it. Custom commands live on the row below.
       section: 'Language servers',
       key: 'lspServers',
       label: 'Servers',
@@ -832,10 +711,6 @@ export function createSettings(deps: {
       },
     },
     {
-      // One row for the lot, as the servers have: Enter lists every bindable
-      // command with the key it answers to, and picking one opens a field to type
-      // a chord into. The clash count is on the value because a shortcut that
-      // quietly lost its key is the one thing a user cannot see from the list.
       section: 'Keyboard',
       key: 'keybindings',
       label: 'Shortcuts',
@@ -846,20 +721,13 @@ export function createSettings(deps: {
         pick: at => bindingEdit(BINDABLE[at]!),
       },
     },
+    boolRow(
+      'Extensions',
+      'extensionUpdates',
+      'Check the market at startup',
+      on => `Extension market ${onOff(on)}`,
+    ),
     {
-      // The sidebar's extensions panel is where they are installed and turned
-      // off; what is left here is the two that are settings — a switch and a
-      // URL, neither of which belongs in a sidebar column.
-      ...boolRow(
-        'Extensions',
-        'extensionUpdates',
-        'Check the market at startup',
-        on => `Extension market ${onOff(on)}`,
-      ),
-    },
-    {
-      // Free text: a registry is a URL nobody would pick from a list, and the
-      // only two answers that matter are druk's own and a fork's.
       section: 'Extensions',
       key: 'extensionRegistry',
       label: 'Registry',
@@ -873,12 +741,6 @@ export function createSettings(deps: {
       },
     },
   ]
-
-  /**
-   * What the page draws. `local` and the reset come from the layers rather than
-   * from each row: only the project file can be reset, and only while it is the
-   * file on show — the user's own value is the base, with nothing underneath it.
-   */
 
   const cycleRow = (key: keyof Config) =>
     specs()

@@ -8,7 +8,6 @@ import type { Harness } from './helpers'
 import { initRepo } from './repo'
 import { tempDir } from './temp'
 
-/** A repo with one committed file, one edit and one untracked file. */
 function repo() {
   const dir = tempDir('druk-bar-')
   const git = (...args: string[]) => execFileSync('git', args, { cwd: dir })
@@ -40,7 +39,6 @@ describe('the status bar', () => {
 
     expect(branch).toBeGreaterThanOrEqual(0)
     expect(cursor).toBeGreaterThanOrEqual(0)
-    // Everything git sits left of everything about the file.
     expect(changed).toBeGreaterThan(branch)
     expect(cursor).toBeGreaterThan(changed)
     expect(filetype).toBeGreaterThan(cursor)
@@ -49,7 +47,6 @@ describe('the status bar', () => {
   test('the git group keeps its counts together', async () => {
     const t = await launch(repo())
     await openFirst(t, 'a.ts')
-    // Branch, then its counts, with nothing else wedged between them.
     expect(bar(t)).toMatch(/⎇ main( ↑\d+)?( ↓\d+)? ~\d+/)
   })
 
@@ -106,8 +103,6 @@ describe('the hints are what gives way when space runs out', () => {
   const countHints = (row: string) => (row.match(/Ctrl\+|Enter |↑↓|F1 /g) ?? []).length
 
   test('a message takes precedence over them', async () => {
-    // Narrow on purpose: at a full-width terminal every hint fits beside the
-    // message and nothing has to give way.
     const t = await launch(fixture({ 'a.ts': 'const a = 1\n' }), {}, { width: 56 })
     await openFirst(t, 'a.ts')
     const idle = countHints(bar(t))
@@ -137,17 +132,11 @@ describe('the hints are what gives way when space runs out', () => {
 
     expect(row.length).toBeLessThanOrEqual(32)
     expect(row).not.toContain('commands')
-    // The caret position is the thing a user cannot work out for themselves.
     expect(row).toContain('Ln 1')
   })
 })
 
 describe('a message far too long for the bar', () => {
-  /**
-   * A rename onto a name that is taken reports `already exists: <name>`, so a long
-   * enough filename gives a long enough message. Nothing in the editor produces a
-   * message this long by design — the bar has to survive one anyway.
-   */
   const TAKEN = `${'occupied-'.repeat(12)}.ts`
 
   async function longMessage(width: number) {
@@ -157,7 +146,6 @@ describe('a message far too long for the bar', () => {
     await pressEscape(t)
     await settle(t, 80)
 
-    // Selection is on a.ts after opening it; rename it onto the name already there.
     await press(t, input => void input.typeText('r'))
     await press(t, input => void input.typeText(TAKEN))
     await press(t, input => input.pressEnter())
@@ -169,9 +157,8 @@ describe('a message far too long for the bar', () => {
     const t = await longMessage(80)
     const row = bar(t)
 
-    expect(row).toContain('…') // clipped rather than overflowing
+    expect(row).toContain('…')
     expect(row.length).toBeLessThanOrEqual(80)
-    // Everything to the right of the message must survive it.
     expect(row).toContain('Ln 1')
     expect(row).toContain('ts')
   })

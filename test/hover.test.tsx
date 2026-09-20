@@ -15,20 +15,17 @@ const hex = (color?: { buffer: Uint8Array }) =>
     ? `#${Array.from(color.buffer.slice(0, 3), v => v.toString(16).padStart(2, '0')).join('')}`
     : ''
 
-/** Backgrounds of row `y`, as hex strings. */
 const rowBgs = (t: Harness, y: number) => {
   const frame = t.captureSpans() as unknown as Frame
   return frame.lines[y]?.spans.map(span => hex(span.bg)) ?? []
 }
 
-/** Foreground of the first span on row `y` whose text holds `glyph`. */
 const glyphFg = (t: Harness, y: number, glyph: string) => {
   const frame = t.captureSpans() as unknown as Frame
   const span = frame.lines[y]?.spans.find(s => s.text.includes(glyph))
   return hex(span?.fg)
 }
 
-/** The row of the char frame that contains `text`, or -1. */
 const rowOf = (t: Harness, text: string) =>
   t
     .captureCharFrame()
@@ -39,7 +36,6 @@ describe('hover on clickable rows', () => {
   test('a tree row under the pointer tints, and untints when it leaves', async () => {
     const t = await launch(fixture({ 'a.ts': 'const a = 1\n', 'b.ts': 'const b = 2\n' }))
 
-    // Nothing is selected at launch, so the row is plain until the pointer lands.
     const y = rowOf(t, 'b.ts')
     expect(y).toBeGreaterThan(0)
     expect(rowBgs(t, y)).not.toContain(ui.hoverBg)
@@ -48,7 +44,6 @@ describe('hover on clickable rows', () => {
     await settle(t)
     expect(rowBgs(t, y)).toContain(ui.hoverBg)
 
-    // Off the row — onto the row above — the tint goes with the pointer.
     await t.mockMouse.moveTo(3, y - 1)
     await settle(t)
     expect(rowBgs(t, y)).not.toContain(ui.hoverBg)
@@ -63,9 +58,6 @@ describe('hover on clickable rows', () => {
     await settle(t)
     expect(rowBgs(t, y)).toContain(ui.hoverBg)
 
-    // The watcher hands the tree a fresh node list, which rebuilds every row.
-    // The pointer has not moved, so the row must come back tinted — hover held
-    // per row was reborn false here and the highlight blinked on every refresh.
     writeFileSync(join(dir, 'z.ts'), 'const z = 3\n')
     await untilFrame(t, 'z.ts')
     expect(rowBgs(t, y)).toContain(ui.hoverBg)
@@ -74,9 +66,6 @@ describe('hover on clickable rows', () => {
   test('the selected row keeps its selection colour under the pointer', async () => {
     const t = await launch(fixture({ 'a.ts': 'const a = 1\n' }))
 
-    // The tree draws a file as `   name` under the project row; the open tab
-    // says `a.ts` too, so the indent is what tells the rows apart. Clicking
-    // selects the row and leaves the pointer parked on it.
     const y = rowOf(t, '   a.ts')
     expect(y).toBeGreaterThan(0)
     await t.mockMouse.click(3, y)

@@ -14,7 +14,7 @@ async function shims() {
   return prefix
 }
 
-/** The suite itself runs from a package script, so npm_config_* is set — clear it. */
+// The suite runs from a package script, so npm_config_* is already set.
 function withNpmEnv(env: Record<string, string | undefined>, run: () => void) {
   const keys = [
     'npm_config_global',
@@ -61,8 +61,6 @@ describe('Windows npm shim cleanup', () => {
     }
   })
 
-  // npm exports npm_config_global_prefix for every script it runs; npm_config_prefix
-  // only when the prefix is not npm's own default, which a plain `npm i -g` need not be.
   test('takes the prefix npm exports unconditionally', async () => {
     const [exported, overridden] = await Promise.all([shims(), shims()])
     try {

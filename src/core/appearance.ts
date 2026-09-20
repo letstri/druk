@@ -1,21 +1,12 @@
-/**
- * The OS light/dark appearance, for `themeSync`.
- *
- * There is no portable way to subscribe to the change — macOS needs a native
- * notification observer and the Linux desktops disagree — so this polls a cheap
- * per-platform command instead.
- */
 import { spawn, spawnSync } from 'node:child_process'
 
 export type Appearance = 'dark' | 'light'
 
-/** Forces an answer, for tests and for desktops none of the probes can read. */
 export const APPEARANCE_ENV = 'DRUK_OS_APPEARANCE'
 
 interface Probe {
   command: string
   args: string[]
-  /** `null` when this probe cannot tell — the next probe gets a turn. */
   read: (stdout: string, ok: boolean) => Appearance | null
 }
 
@@ -24,7 +15,7 @@ const PROBES: Record<string, Probe[]> = {
     {
       command: 'defaults',
       args: ['read', '-g', 'AppleInterfaceStyle'],
-      // The key only exists while dark mode is on, so a failed read means light.
+      // The key exists only while dark mode is on: a failed read means light.
       read: (stdout, ok) => (ok && stdout.trim() === 'Dark' ? 'dark' : 'light'),
     },
   ],
@@ -72,15 +63,7 @@ function parseEnvAppearance(value: string | undefined): Appearance | null {
   return wanted === 'dark' || wanted === 'light' ? wanted : null
 }
 
-/**
- * The current OS appearance, or `null` when nothing here can answer.
- *
- * Synchronous, so only for one-shot calls on an explicit user action (the
- * settings toggle). The poll must use `detectAppearanceAsync`: a probe is a
- * subprocess that can take over 100ms on a loaded machine, and run with
- * `spawnSync` on the timer it froze the whole UI — input included — every
- * `POLL_MS`.
- */
+// Synchronous: the poll must use detectAppearanceAsync, a probe subprocess costs 100ms.
 export function detectAppearance(): Appearance | null {
   const forced = parseEnvAppearance(process.env[APPEARANCE_ENV])
   if (forced) return forced
@@ -91,7 +74,7 @@ export function detectAppearance(): Appearance | null {
       const answer = probe.read(run.stdout ?? '', run.status === 0)
       if (answer) return answer
     } catch {
-      // probe unavailable — try the next one
+      // next probe
     }
   }
   return null
@@ -117,8 +100,7 @@ function runProbe(probe: Probe): Promise<Appearance | null> {
   })
 }
 
-/** `detectAppearance` without blocking the event loop — what the poll uses. */
-export async function detectAppearanceAsync(): Promise<Appearance | null> {
+async function detectAppearanceAsync(): Promise<Appearance | null> {
   const forced = parseEnvAppearance(process.env[APPEARANCE_ENV])
   if (forced) return forced
 
@@ -131,10 +113,7 @@ export async function detectAppearanceAsync(): Promise<Appearance | null> {
 
 const POLL_MS = 2000
 
-/**
- * Call `onChange` with the appearance now and on every change. Returns the stop
- * function. The timer is unrefed: a theme poll must never hold the process open.
- */
+// The timer is unrefed: a theme poll must never hold the process open.
 export function watchAppearance(
   onChange: (appearance: Appearance) => void,
   intervalMs = POLL_MS,
@@ -150,8 +129,6 @@ export function watchAppearance(
   }
 
   const poll = () => {
-    // The env override answers synchronously either way — the tests flip it and
-    // watch the very next poll.
     const forced = parseEnvAppearance(process.env[APPEARANCE_ENV])
     if (forced) return report(forced)
     if (inflight) return
@@ -162,11 +139,7 @@ export function watchAppearance(
     })
   }
 
-  // The first read is synchronous on purpose: it decides the first frame's
-  // theme, and read async the app paints in the wrong slot and flips a moment
-  // later. Only the *recurring* poll must not block — it is the one that ran a
-  // subprocess on the event loop every interval and froze input for its
-  // duration each time.
+  // Synchronous: this read decides the first frame's theme, else it paints wrong and flips.
   report(detectAppearance())
   const timer = setInterval(poll, intervalMs)
   timer.unref?.()

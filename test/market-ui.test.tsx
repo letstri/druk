@@ -1,11 +1,4 @@
-/**
- * The market from the editor's side: the offer a file raises, the update notice
- * on startup, and what accepting one actually writes.
- *
- * `fetch` is replaced for the whole file. Nothing here may reach the network —
- * and the global is the seam because that is exactly what production uses:
- * `core/market.ts` reads it at call time, so a stub is the registry.
- */
+// `fetch` is stubbed for the whole file: `core/market.ts` reads the global at call time.
 import { afterEach, beforeEach, expect, test } from 'bun:test'
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -34,7 +27,6 @@ const GO_EXTENSION = {
   languageServers: [{ id: 'go', command: ['druk-no-such-gopls'], filetypes: ['go'] }],
 }
 
-/** A linter: it serves Go without being the Go extension. */
 const GOLINT_EXTENSION = {
   id: 'golint',
   name: 'GoLint',
@@ -43,7 +35,6 @@ const GOLINT_EXTENSION = {
   languageServers: [{ id: 'golint', command: ['druk-no-such-golint'], filetypes: ['go'] }],
 }
 
-/** A language druk knows nothing about: no grammar, no extension, no server. */
 const NIM_EXTENSION = {
   id: 'nim',
   name: 'Nim',
@@ -59,7 +50,6 @@ const NIM_EXTENSION = {
   ],
 }
 
-/** A palette in the shape a manifest has to have: every chrome color, spelt out. */
 const paint = (color: string) =>
   Object.fromEntries(Object.keys(THEMES.dark.ui).map(key => [key, color]))
 
@@ -70,7 +60,6 @@ const theme = (id: string, name: string) => ({
   syntax: { keyword: { fg: '#ffc799' } },
 })
 
-/** One palette: the offer it raises is a yes/no, not a list. */
 const VESPER_EXTENSION = {
   id: 'vesper',
   name: 'Vesper',
@@ -79,7 +68,6 @@ const VESPER_EXTENSION = {
   themes: [theme('vesper', 'Vesper')],
 }
 
-/** Several palettes and an icon set: the offer is a choice between them. */
 const CATPPUCCIN_EXTENSION = {
   id: 'catppuccin',
   name: 'Catppuccin',
@@ -106,12 +94,11 @@ const INDEX = {
       name: 'Nim',
       version: '1.0.0',
       description: 'Nim highlighting',
-      provides: { themes: [], icons: [], filetypes: ['nim'] },
+      provides: { themes: [], icons: [], filetypes: ['nim'], extensions: ['.nim'] },
     },
   ],
 }
 
-/** The two above, for the tests about what an installed appearance offers. */
 const THEME_INDEX = {
   extensions: [
     {
@@ -136,9 +123,7 @@ const THEME_INDEX = {
 }
 
 const realFetch = globalThis.fetch
-/** Every url the editor asked for, so a test can assert it asked for nothing. */
 let requested: string[] = []
-/** What the stubbed registry serves as its index; a test may swap it. */
 let catalog: unknown = INDEX
 
 beforeEach(() => {
@@ -167,12 +152,10 @@ afterEach(() => {
   globalThis.fetch = realFetch
   rmSync(EXTENSIONS_DIR, { recursive: true, force: true })
   rmSync(join(process.env.XDG_CACHE_HOME!, 'druk', 'market.json'), { force: true })
-  // The registries are module state: an extension left registered would follow this
-  // file's tests into every one after them.
+  // The registries are module state; an extension left registered leaks into the next test.
   loadExtensions(process.env.XDG_CONFIG_HOME!)
 })
 
-/** An installed extension, at whatever version. */
 function install(manifest: unknown, id = 'go') {
   mkdirSync(join(EXTENSIONS_DIR, id), { recursive: true })
   writeFileSync(join(EXTENSIONS_DIR, id, 'extension.json'), JSON.stringify(manifest))
@@ -185,18 +168,11 @@ test('a file whose language has no server offers the extension, and installs it'
 
   await untilFrame(t, 'No language server')
   const frame = t.captureCharFrame()
-  // The command is on the modal because it is the part that is not inert: a
-  // manifest runs nothing, but this is what druk will spawn once it is there.
   expect(frame).toContain('druk-no-such-gopls')
   expect(frame).toContain('Extension available')
 
   await settle(t)
   t.mockInput.pressEnter()
-  // The servers the extension brought are restarted, which is what makes the
-  // open file try the new one without a relaunch. "Installed Go 1.1.0" is said
-  // first and is not what is waited for: a server the extension brought and the
-  // machine lacks is the more useful thing to leave on the status bar, so with
-  // this fixture the install line is replaced before a frame carries it.
   await untilFrame(t, 'druk-no-such-gopls is not installed, or not on PATH')
   expect(JSON.parse(readFileSync(join(EXTENSIONS_DIR, 'go', 'extension.json'), 'utf8'))).toEqual(
     GO_EXTENSION,
@@ -204,8 +180,6 @@ test('a file whose language has no server offers the extension, and installs it'
 })
 
 test('a linter serving the language is not the extension offered for it', async () => {
-  // Both claim `go`, and the catalog is alphabetical, so the lint-only one is
-  // first — the offer has to be the extension that *is* the language.
   catalog = {
     extensions: [
       {
@@ -227,9 +201,42 @@ test('a linter serving the language is not the extension offered for it', async 
   expect(t.captureCharFrame()).toContain('Install Go?')
 })
 
+test('a file no installed extension can name is matched by its extension', async () => {
+  const dir = fixture({ 'main.nim': 'proc main() = discard\n' })
+  const t = await launch(dir, { lsp: true, extensionUpdates: true })
+  await openFile(t, 'main.nim')
+
+  await untilFrame(t, 'No language server for .nim')
+  expect(t.captureCharFrame()).toContain('Install Nim?')
+})
+
+test('a linter serving the file alone still offers the language', async () => {
+  install(GOLINT_EXTENSION, 'golint')
+  const dir = fixture({ 'main.go': 'package main\n' })
+  loadExtensions(dir)
+  const t = await launch(dir, { lsp: true, extensionUpdates: true })
+  await openFile(t, 'main.go')
+
+  await untilFrame(t, 'No language server for go')
+  expect(t.captureCharFrame()).toContain('Install Go?')
+})
+
+test('a catalog that arrives later still gets the question', async () => {
+  catalog = null
+  const dir = fixture({ 'main.go': 'package main\n' })
+  const t = await launch(dir, { lsp: true, extensionUpdates: true })
+  await openFile(t, 'main.go')
+  await settle(t, 200)
+  expect(t.captureCharFrame()).not.toContain('No language server')
+
+  catalog = INDEX
+  await runCommand(t, 'Check for extension updates')
+  await untilFrame(t, 'Extension market')
+  await press(t, input => void input.typeText('x'))
+  await untilFrame(t, 'No language server for go')
+})
+
 test('a server the user turned off raises no offer', async () => {
-  // An empty command disables that server. Nothing is missing — offering another
-  // extension would re-ask what was just answered.
   catalog = {
     extensions: [
       {
@@ -273,15 +280,12 @@ test('an installed extension with a newer version in the market updates itself a
   const t = await launch(dir, { extensionUpdates: true }, {}, { checkUpdates: true })
 
   await untilFrame(t, 'Updated Go to 1.1.0')
-  // Applied, not only announced: the disk copy is the market's newer manifest.
   expect(JSON.parse(readFileSync(join(EXTENSIONS_DIR, 'go', 'extension.json'), 'utf8'))).toEqual(
     GO_EXTENSION,
   )
 })
 
 test('a built-in is never an update, however new the market copy', async () => {
-  // typescript ships inside the binary and updates with druk itself, so a newer
-  // catalog version of it must not count as an extension update.
   catalog = {
     extensions: [
       {
@@ -298,8 +302,6 @@ test('a built-in is never an update, however new the market copy', async () => {
 
   await runCommand(t, 'Check for extension updates')
   await untilFrame(t, 'Extension market: 1 extension')
-  // The second pass is the assertion: with a catalog already in hand it answers
-  // about updates, and "1 extension update available" is the failure this pins.
   await runCommand(t, 'Check for extension updates')
   await untilFrame(t, 'Every extension is up to date')
 })
@@ -313,11 +315,6 @@ test('the market is not touched when the setting is off', async () => {
   expect(requested.filter(url => url.includes('extensions'))).toEqual([])
 })
 
-/**
- * Install `name` from the sidebar's extensions panel. Available starts folded,
- * so the search is the way to one — and it lands the cursor on the first hit,
- * which is what makes the Enter after it an install.
- */
 async function openMarketRow(t: Harness, name: string) {
   await runCommand(t, 'Extensions panel')
   await settle(t)
@@ -351,11 +348,9 @@ test('the panel lists the whole market, not only what was searched for', async (
   await settle(t)
   const idle = t.captureCharFrame()
   expect(idle).toContain('INSTALLED')
-  // On screen without having to guess a name first.
   expect(idle).toContain('AVAILABLE')
   expect(idle).toContain('Go')
 
-  // The search still narrows it rather than raising it.
   await press(t, input => void input.typeText('/'))
   await press(t, input => void input.typeText('gopls'))
   const searched = t.captureCharFrame()
@@ -366,8 +361,6 @@ test('the panel lists the whole market, not only what was searched for', async (
   expect(t.captureCharFrame()).toContain('AVAILABLE')
 })
 test('opening the panel refetches a catalog the cache still calls fresh', async () => {
-  // Written this instant, so nothing about staleness makes druk fetch — and the
-  // extension published since is the one the panel exists to show.
   const cache = join(process.env.XDG_CACHE_HOME!, 'druk', 'market.json')
   mkdirSync(join(cache, '..'), { recursive: true })
   writeFileSync(cache, JSON.stringify({ at: Date.now(), extensions: [] }))
@@ -382,8 +375,6 @@ test('opening the panel refetches a catalog the cache still calls fresh', async 
   expect(t.captureCharFrame()).toContain('Go')
   expect(requested.filter(url => url.endsWith('index.json'))).toHaveLength(1)
 
-  // Once per session: the panel is in the Shift+Tab cycle, and a fetch per visit
-  // would be a fetch per cycle.
   await runCommand(t, 'Extensions panel')
   await runCommand(t, 'Extensions panel')
   await settle(t)
@@ -410,8 +401,6 @@ test('a search that matches most of a big market says what it left out', async (
   await press(t, input => void input.typeText('/'))
   await press(t, input => void input.typeText('pack'))
 
-  // The cap is 50, and the row that says so is the whole point: a list that
-  // stopped at fifty in silence would read as a market that has fifty.
   const frame = t.captureCharFrame()
   expect(frame).toContain('AVAILABLE')
   expect(frame).toContain('Pack 0')
@@ -423,7 +412,6 @@ test('installing a language extension teaches druk the language, extension and a
   const dir = fixture({ 'a.nim': 'proc main = discard\n' })
   const t = await launch(dir, { extensionUpdates: true })
 
-  // Before: nothing claims .nim, so the status bar has no language to name.
   await openFile(t, 'a.nim')
   expect(t.captureCharFrame()).not.toContain(' nim ')
 
@@ -435,8 +423,6 @@ test('installing a language extension teaches druk the language, extension and a
   t.mockInput.pressEnter()
   await untilFrame(t, 'Installed Nim 1.0.0')
 
-  // The extension is the whole point: OpenTUI resolves nothing for .nim, so the
-  // status bar naming the language means the extension's own claim is what routed it.
   await openFile(t, 'a.nim')
   await untilFrame(t, ' nim ')
 })
@@ -469,16 +455,12 @@ test('the search answers a kind, not only a name', async () => {
   await runCommand(t, 'Extensions panel')
   await settle(t)
 
-  // Nothing in Dracula's name or blurb says "theme" — the contribution does.
   await press(t, input => void input.typeText('/'))
   await press(t, input => void input.typeText('theme'))
   const themes = t.captureCharFrame()
   expect(themes).toContain('Dracula')
   expect(themes).not.toContain('Go 1.1.0')
 
-  // And "lsp" is the other question: a language extension with no server must
-  // not answer it, which is why the catalog carries the server ids apart from
-  // the filetypes.
   await pressEscape(t)
   await press(t, input => void input.typeText('/'))
   await press(t, input => void input.typeText('lsp'))
@@ -496,7 +478,6 @@ test('a kind search reaches what is installed too', async () => {
   await press(t, input => void input.typeText('/'))
   await press(t, input => void input.typeText('lsp'))
   const frame = t.captureCharFrame()
-  // The preinstalled set: typescript and html carry servers, markdown does not.
   expect(frame).toContain('TypeScript')
   expect(frame).not.toContain('Markdown')
 })
@@ -513,8 +494,6 @@ test('a theme extension offers to activate what it brought', async () => {
   await settle(t)
   t.mockInput.pressEnter()
 
-  // Installing a palette is not choosing one, so the offer follows the install:
-  // one theme is a yes/no, there being nothing to choose between.
   await untilFrame(t, 'Extension installed')
   expect(t.captureCharFrame()).toContain('Use the Vesper theme?')
   await settle(t)
@@ -539,11 +518,8 @@ test('several appearances are a choice, and declining changes nothing', async ()
   await untilFrame(t, 'Extension installed')
   const frame = t.captureCharFrame()
   expect(frame).toContain('Catppuccin Mocha theme')
-  // The icon set is on the same list: an appearance extension may carry both,
-  // and each is a thing to switch to.
   expect(frame).toContain('Catppuccin Icons file icons')
 
-  // Esc is "keep what I have": the extension stays installed either way.
   await pressEscape(t)
   await settle(t)
   expect(t.captureCharFrame()).not.toContain('Extension installed')

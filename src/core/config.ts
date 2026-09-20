@@ -1,19 +1,3 @@
-/**
- * Settings in two layers, as VS Code has them: the user's own, persisted at
- * `$XDG_CONFIG_HOME/druk/config.json` (default `~/.config/druk/config.json`),
- * and per-project overrides in `<project>/.druk/settings.json`.
- *
- * To add a setting: add the field to `Config`, give it a value in `DEFAULTS`,
- * and validate it in `VALIDATORS`. Anything missing or invalid falls back to the
- * default, so a hand-edited config can never break startup.
- *
- * A missing key means different things in the two files, and that is the whole
- * reason validation is a per-key table rather than one `parse`. The user file
- * holds every setting and is rewritten whole; the project file holds only what it
- * overrides, so `parsePartial` has to leave an unmentioned key *absent* instead of
- * filling in the default — the user's value is what fills that gap, in
- * `resolveConfig`.
- */
 import fs from 'node:fs'
 import os from 'node:os'
 import { dirname, join } from 'node:path'
@@ -32,22 +16,14 @@ export const CONFIG_FILE = join(
 
 export type ConfigScope = 'user' | 'project'
 
-/** Project overrides live beside the project, the way `.vscode/` does. */
 export const PROJECT_CONFIG_DIR = '.druk'
 
 export const projectConfigFile = (rootDir: string): string =>
   join(rootDir, PROJECT_CONFIG_DIR, 'settings.json')
 
-/** Narrow enough to still show a name, wide enough to leave the editor usable. */
 export const SIDEBAR_MIN = 15
 export const SIDEBAR_MAX = 80
 
-/**
- * `'auto'`: this share of the terminal, within these bounds. The floor is what an
- * 80-column window gets, so the automatic width only ever grows from what a fixed
- * default gave — a flat 30 columns is fine there and cramped at 200, where two
- * columns per nesting level leave a deep path almost nothing for its name.
- */
 const AUTO_SHARE = 0.25
 const AUTO_MIN = 30
 const AUTO_MAX = 60
@@ -57,183 +33,49 @@ export function sidebarColumns(width: number | 'auto', terminalWidth: number): n
   return Math.max(AUTO_MIN, Math.min(AUTO_MAX, Math.round(terminalWidth * AUTO_SHARE)))
 }
 
-/**
- * The caret shapes OpenTUI draws. Its fourth, `default`, is left out: it defers to
- * whatever the terminal was already set to, which is not a choice a settings row
- * could show a value for.
- */
 export const CURSOR_STYLES = ['block', 'line', 'underline'] as const
 export type CursorStyle = (typeof CURSOR_STYLES)[number]
 
-export const SIDEBAR_POSITIONS = ['left', 'right'] as const
+const SIDEBAR_POSITIONS = ['left', 'right'] as const
 export type SidebarPosition = (typeof SIDEBAR_POSITIONS)[number]
 
 export interface Config {
-  /** Color scheme id — see src/themes. */
   theme: ThemeName
-  /**
-   * Follow the OS light/dark appearance: `themeLight` and `themeDark` take over
-   * and `theme` becomes whichever of the two is on screen. Picking a theme by
-   * hand turns this off, since the poll would otherwise undo the pick.
-   */
   themeSync: boolean
-  /** Theme used while the OS is light and `themeSync` is on. */
   themeLight: ThemeName
-  /** Theme used while the OS is dark and `themeSync` is on. */
   themeDark: ThemeName
-  /**
-   * Leave the editor, tab strip and sidebar backgrounds unpainted, so a
-   * translucent terminal shows through them. Floating panels — the palette, the
-   * modals, the settings page — stay painted whatever this says: the editor
-   * would otherwise read straight through them.
-   */
   transparent: boolean
-  /**
-   * Which glyphs the file tree draws in place of the expansion arrow —
-   * `'none'`, the shipped `unicode`, or one an extension contributes (`nerd-icons`
-   * is the market's). `'none'` is the default because nothing can ask the
-   * terminal whether its font has the glyphs a set needs.
-   */
   iconTheme: string
-  /**
-   * Draw the file's icon in its tab as well as in the tree. Off by default: the
-   * strip is the one row the editor never scrolls, and a column per tab is a
-   * tab fewer on a narrow terminal. A tab carrying a diagnostic mark spends the
-   * same column on that instead, and one showing a diff or rendered markdown on
-   * the glyph that says so.
-   */
   tabIcons: boolean
-  /**
-   * Show the key that does what a chrome button does: the one under the pointer,
-   * and every one of them at once while Ctrl or Cmd is held. The held-modifier
-   * half needs a terminal that speaks the kitty keyboard protocol; hovering
-   * works everywhere.
-   */
   tooltips: boolean
-  /**
-   * Name the terminal's window and tab after the open file. Off for a terminal
-   * whose own title is doing something else — a multiplexer's pane name, say.
-   */
   terminalTitle: boolean
   vim: boolean
-  /**
-   * Shape of the caret. Ignored while `vim` is on, where the shape is how you tell
-   * normal from insert and the mode has to win.
-   */
   cursorStyle: CursorStyle
-  /**
-   * Soft-wrap long lines at the window's edge. Off, a line past the edge is read
-   * by moving the caret into it — OpenTUI scrolls the view sideways only with
-   * the cursor, which is the trade for one buffer line per screen row.
-   */
   wrap: boolean
-  /**
-   * Scroll on past the last line, until it is the only one left on screen —
-   * VS Code's `editor.scrollBeyondLastLine`. Off, the file stops with its last
-   * line at the bottom, so code being read at the end of a file sits under the
-   * status bar rather than in the middle of the pane.
-   */
   scrollPastEnd: boolean
-  /**
-   * Columns per indent level for space indentation — the Tab key and the guides.
-   * A literal tab is two columns whatever this says: OpenTUI's renderer fixes that
-   * width and exposes no setting for it.
-   */
   tabSize: number
-  /**
-   * Columns the file tree occupies, or `'auto'` for a share of the terminal —
-   * a fixed default is either cramped on a wide screen or greedy on a narrow one.
-   * Resizing with `[` / `]` or by dragging the divider pins an explicit number.
-   */
   sidebarWidth: number | 'auto'
-  /** Which side of the editor the sidebar (Files / Git / Extensions) sits on. */
   sidebarPosition: SidebarPosition
-  /** Version whose update notice was dismissed; suppresses the banner for it. */
   skipUpdate: string
-  /** On save: strip trailing spaces and end the file with one newline. */
   trimOnSave: boolean
-  /** On save: run the matching `formatters` command over the file just written. */
   formatOnSave: boolean
-  /**
-   * Formatter commands keyed by comma-separated extensions (`"ts,tsx"`), or `"*"`
-   * for any file. The saved file's path is appended, and the command must rewrite
-   * the file in place — `["prettier", "--write"]`, `["eslint", "--fix"]`,
-   * `["oxfmt"]`. An empty array disables its entry.
-   */
   formatters: Record<string, string[]>
-  /** Save every dirty buffer when the terminal window loses focus, and the file
-   * being left when the keyboard moves to another tab or out of the editor. */
   autoSaveOnBlur: boolean
-  /** How the diff view renders: one column of +/- rows, or two side by side. */
   diffView: 'inline' | 'split'
-  /** Source-control panel: changed files nested under folders, or one flat list
-   * of paths. */
   gitPanelView: 'tree' | 'list'
-  /**
-   * Levels below the opened folder to look for repositories in, when the folder
-   * itself is not one — a parent of checkouts (`~/code`, a folder of worktrees)
-   * otherwise shows no marks at all. Every repository found costs a `git status`
-   * per refresh, so 0 turns the search off and keeps druk to the single
-   * repository it used to assume.
-   */
   gitScanDepth: number
-  /** Whether the tree lists dotfiles. The default tells the filesystem's truth. */
   showDotfiles: boolean
-  /** Hide git-ignored files from the tree. Off by default for the same reason. */
   respectGitignore: boolean
-  /** Draw a review note's text after the end of its line, as `lspInline` does. */
   reviewInline: boolean
-  /** Language servers: spawn one per language as matching files open. */
   lsp: boolean
-  /** Draw the worst problem's message after the end of its line. */
   lspInline: boolean
-  /** Completion menu while typing (and on Ctrl+Space). Needs `lsp` on too. */
   lspCompletion: boolean
-  /**
-   * Offer to install a missing server (the npm ones) when a file that wants it
-   * opens. Off means the status bar prints the install line and nothing else;
-   * on still asks before anything is downloaded.
-   */
   lspAutoInstall: boolean
-  /**
-   * Which TypeScript the typescript server should drive — a path to a
-   * `tsserver.js`, to a `lib` folder, or to a typescript package directory.
-   * Empty leaves the choice to the server, which prefers the open project's own
-   * copy and falls back to whatever druk installed.
-   */
   typescriptTsdk: string
-  /**
-   * Per-server command override, keyed by server id — the ids are the ones the
-   * installed extensions declare, since druk ships no servers of its own. An empty
-   * array disables that server.
-   */
   lspServers: Record<string, string[]>
-  /**
-   * Custom shortcuts: command id → the one chord that runs it, replacing whatever
-   * it had by default (`"Ctrl+Opt+K"`). An empty value, or `"none"`, leaves the
-   * command with no key at all. The bindable ids and their defaults are in
-   * src/app/keymap.ts, and the settings page edits this without the ids.
-   */
   keybindings: Record<string, string>
-  /**
-   * Extension ids to read but not register — the settings page's off switch, so a
-   * extension can be shelved without deleting it. Read by `readDisabledExtensions`
-   * before the rest of this file is parsed: extensions have to be loaded before a
-   * theme id can be validated, and this is the one setting that decides which.
-   */
   disabledExtensions: string[]
-  /**
-   * Read the extension market at startup: notice a newer version of an installed
-   * extension, and offer the extension for a language or a theme that is missing. Off
-   * means druk never asks the registry anything.
-   */
   extensionUpdates: boolean
-  /**
-   * Where the market is served from — an https *directory* URL, under which each
-   * extension is `<id>/extension.json` and the catalog is `index.json`. A fork's raw
-   * URL belongs here; an extension being written is tested by dropping it straight
-   * into the extensions folder instead, which needs no registry at all.
-   */
   extensionRegistry: string
 }
 
@@ -248,9 +90,7 @@ export const DEFAULTS: Config = {
   tooltips: true,
   terminalTitle: true,
   vim: false,
-  // OpenTUI's own default, so an unset key keeps the caret druk has always drawn.
   cursorStyle: 'block',
-  // On, because it always was: druk wrapped unconditionally before this was a key.
   wrap: true,
   scrollPastEnd: true,
   tabSize: 2,
@@ -279,21 +119,17 @@ export const DEFAULTS: Config = {
   extensionRegistry: MARKET_URL,
 }
 
-/** Reads one setting out of parsed JSON; `undefined` for absent or invalid. */
 type Validator<K extends keyof Config> = (raw: unknown) => Config[K] | undefined
 
 const bool = (raw: unknown) => (typeof raw === 'boolean' ? raw : undefined)
 const theme = (raw: unknown) => (isThemeName(raw) ? raw : undefined)
 const text = (raw: unknown) => (typeof raw === 'string' ? raw : undefined)
 
-/** One of a fixed set of strings — the settings whose type is a small union. */
 const among =
   <T extends string>(...values: T[]) =>
   (raw: unknown): T | undefined =>
     typeof raw === 'string' ? values.find(value => value === raw) : undefined
 
-/** A key → command-array map (`lspServers`, `formatters`). Only well-formed
- * entries survive; a malformed one must not break startup. */
 const commands = (raw: unknown): Record<string, string[]> | undefined => {
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return undefined
   const parsed: Record<string, string[]> = {}
@@ -305,11 +141,9 @@ const commands = (raw: unknown): Record<string, string[]> | undefined => {
   return parsed
 }
 
-/** A list of ids (`disabledExtensions`). Anything that is not a string is dropped. */
 const ids = (raw: unknown): string[] | undefined =>
   Array.isArray(raw) ? raw.filter(value => typeof value === 'string') : undefined
 
-/** A key → text map (`keybindings`). Malformed entries are dropped, not fatal. */
 const strings = (raw: unknown): Record<string, string> | undefined => {
   if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return undefined
   const parsed: Record<string, string> = {}
@@ -325,8 +159,6 @@ const VALIDATORS: { [K in keyof Config]: Validator<K> } = {
   themeLight: theme,
   themeDark: theme,
   transparent: bool,
-  // A registry check, like the theme above it: an icon theme an extension has since
-  // been uninstalled with falls back to the default rather than drawing nothing.
   iconTheme: raw => (isIconThemeName(raw) ? raw : undefined),
   tabIcons: bool,
   tooltips: bool,
@@ -364,8 +196,6 @@ const VALIDATORS: { [K in keyof Config]: Validator<K> } = {
   keybindings: strings,
   disabledExtensions: ids,
   extensionUpdates: bool,
-  // https only. The registry is the one place druk reads a file someone else
-  // wrote, and a plaintext one could be rewritten between here and the machine.
   extensionRegistry: raw =>
     typeof raw === 'string' && raw.startsWith('https://') ? raw : undefined,
 }
@@ -385,12 +215,7 @@ export function parsePartial(raw: unknown): Partial<Config> {
 
 const parse = (raw: unknown): Config => ({ ...DEFAULTS, ...parsePartial(raw) })
 
-/**
- * The config the editor runs on: the user's, with the project's overrides on top.
- * A key the project leaves out keeps the user's value — and a key the settings
- * page has just reset is still present, holding `undefined`, so one spread is not
- * enough to drop it.
- */
+// A key the settings page reset is present holding `undefined`, so a plain spread would apply it.
 export function resolveConfig(user: Config, project: Partial<Config>): Config {
   const config = { ...user }
   for (const [key, value] of Object.entries(project)) {
@@ -415,12 +240,7 @@ export function loadProjectConfig(rootDir: string): Partial<Config> {
   }
 }
 
-/**
- * The one setting that has to be read before the others: extensions register the
- * themes and icon themes `parsePartial` then validates against, so which
- * extensions to skip cannot itself wait for a parsed config. Both layers, project
- * over user, as `resolveConfig` would have merged them.
- */
+// Read before any config parse: extensions register the theme ids VALIDATORS validate against.
 export function readDisabledExtensions(rootDir: string): string[] {
   const layer = (file: string): string[] | undefined => {
     try {
@@ -434,15 +254,6 @@ export function readDisabledExtensions(rootDir: string): string[] {
   return layer(projectConfigFile(rootDir)) ?? layer(CONFIG_FILE) ?? []
 }
 
-/**
- * Theme and icon-theme ids the config asks for that nothing has registered.
- *
- * Read from the raw files for the same reason `readDisabledExtensions` is: by the
- * time anything holds a `Config`, `VALIDATORS` has replaced an unknown id with
- * the default, and what the user actually wrote is gone. That id is exactly what
- * the market needs to offer the extension back — a config naming `dracula` after
- * the palettes moved out of druk is an extension recommendation, not a broken value.
- */
 export function unregisteredNames(rootDir: string): { themes: string[]; icons: string[] } {
   const themes = new Set<string>()
   const icons = new Set<string>()
@@ -468,15 +279,10 @@ export function saveUserConfig(config: Config): void {
     fs.mkdirSync(dirname(CONFIG_FILE), { recursive: true })
     fs.writeFileSync(CONFIG_FILE, `${JSON.stringify(config, null, 2)}\n`, 'utf8')
   } catch {
-    // best-effort — running without a writable home just means no persistence
+    // best-effort
   }
 }
 
-/**
- * Write the project file with the overridden keys and nothing else. Writing a
- * whole `Config` here would pin every setting on everyone who opens the project,
- * which is the one thing this file must not do.
- */
 export function saveProjectConfig(rootDir: string, overrides: Partial<Config>): void {
   const kept = Object.entries(overrides).filter(([, value]) => value !== undefined)
   try {
@@ -484,6 +290,6 @@ export function saveProjectConfig(rootDir: string, overrides: Partial<Config>): 
     fs.mkdirSync(dirname(file), { recursive: true })
     fs.writeFileSync(file, `${JSON.stringify(Object.fromEntries(kept), null, 2)}\n`, 'utf8')
   } catch {
-    // best-effort — a read-only project just means no project-level persistence
+    // best-effort
   }
 }

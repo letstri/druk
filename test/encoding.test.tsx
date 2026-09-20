@@ -7,7 +7,7 @@ import { fixture, launch, openFile, press } from './helpers'
 import type { Harness } from './helpers'
 
 const save = (t: Harness) => press(t, i => i.pressKey('s', { ctrl: true }))
-/** Node keeps a leading BOM as `\uFEFF` here, so the whole spelling is assertable. */
+// Node keeps a leading BOM as `\uFEFF` here, so the whole spelling is assertable.
 const onDisk = (dir: string, name: string) => readFileSync(join(dir, name), 'utf8')
 
 describe('decoding a file into a buffer', () => {
@@ -32,8 +32,6 @@ describe('decoding a file into a buffer', () => {
     expect(encodeText(text, encoding)).toBe('a\nb\n')
   })
 
-  // A file is one thing or the other: whichever side is outnumbered gets converted
-  // on the next save, so the majority is the rule that costs the fewest lines.
   test('a mixed file takes the majority ending', () => {
     expect(decodeText('a\nb\nc\r\n').encoding.eol).toBe('\n')
     expect(decodeText('a\r\nb\r\nc\n').encoding.eol).toBe('\r\n')
@@ -52,7 +50,6 @@ describe('opening a file druk has to normalize', () => {
     await openFile(t, 'crlf.ts')
 
     expect(t.captureCharFrame()).toContain('const a = 1')
-    // The tab's close glyph — which is what the dirty dot would have replaced.
     expect(t.captureCharFrame()).toContain('×')
     expect(t.captureCharFrame()).not.toContain('●')
 

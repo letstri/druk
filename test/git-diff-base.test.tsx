@@ -12,11 +12,6 @@ const git = (dir: string, ...args: string[]) => {
   if (run.exitCode !== 0) throw new Error(run.stderr.toString())
 }
 
-/**
- * `main` with two committed files and a clean tree, plus a `feature` branch one
- * commit ahead. Nothing is uncommitted anywhere: against HEAD there is nothing to
- * show, which is what makes the branch comparison's answer unambiguous.
- */
 function repo() {
   const dir = fixture({ 'a.ts': 'alpha\n', 'b.ts': 'beta\n' })
   initRepo(dir)
@@ -37,23 +32,18 @@ test('statusMap against a ref sees committed work, renames and untracked files',
   git(dir, 'commit', '-qm', 'rename')
   writeFileSync(join(dir, 'c.ts'), 'new and unadded\n')
 
-  // Nothing is uncommitted but the untracked file, so this is the control.
   expect([...statusMap(dir)]).toEqual([[join(dir, 'c.ts'), 'untracked']])
 
   const against = statusMap(dir, 'main')
   expect(against.get(join(dir, 'b.ts'))).toBe('modified')
-  // A rename is one entry naming the new path; the old one no longer exists and
-  // must not be reported as a file the tree could draw a mark against.
   expect(against.get(join(dir, 'renamed.ts'))).toBe('modified')
   expect(against.has(join(dir, 'a.ts'))).toBe(false)
-  // `git diff` never mentions untracked files — they are the second query.
   expect(against.get(join(dir, 'c.ts'))).toBe('untracked')
 })
 
 test('comparing against a branch shows work that is already committed', async () => {
   const t = await launch(repo())
   await runCommand(t, 'Source control')
-  // The working tree is clean: against HEAD the panel has nothing to list.
   expect(frame(t)).toContain('no changes')
 
   await runCommand(t, 'Compare against branch')
@@ -61,11 +51,8 @@ test('comparing against a branch shows work that is already committed', async ()
   await press(t, i => i.pressEnter())
 
   await untilFrame(t, 'vs main')
-  // Polled apart from the header: the base is a signal and paints at once, while
-  // the change list is a `git` subprocess away.
   await untilFrame(t, 'b.ts')
 
-  // And the diff page is against that branch too, not against HEAD.
   await press(t, i => i.pressArrow('up'))
   await untilFrame(t, 'beta on feature')
 

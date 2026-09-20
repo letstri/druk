@@ -7,7 +7,6 @@ import type { DiffFile } from '../ui/DiffView'
 
 export const slotKey = (path: string, area: ChangeArea) => `${area}:${path}`
 
-/** The section a panel row stands for — null on a heading, folder or commit. */
 export const rowSlotKey = (row: ChangeRow | undefined): string | null =>
   row?.kind === 'file' ? slotKey(row.change.path, row.change.area) : null
 
@@ -50,19 +49,9 @@ const sectionFor = (
   }
 }
 
-/** Visual rows a section costs the stacked page. A binary stub and an empty
- * patch still take a row, or a folder of them would never trip the cap. */
+// An empty patch still costs a row, or a folder of them would never trip the cap.
 const sectionCost = (section: ChangeSection) => Math.max(1, section.lines)
 
-/**
- * Walk panel-order changes into stacked sections, stopping once the patches
- * would exceed `maxLines`. The file under the panel cursor (`pin`) is kept
- * even past that cap: arrows that land on an omitted row would otherwise
- * scroll nowhere — and when the cap cut the walk before reaching it, the whole
- * budget is spent *from* that file instead, so the page carries on past the one
- * being read rather than ending on it. Previous section objects are reused when
- * the texts have not moved, so the list does not remount every git revision.
- */
 export function takeChangeSections(
   ordered: Change[],
   fileFor: (change: Change) => DiffFile | null,
@@ -104,9 +93,6 @@ export function takeChangeSections(
   const first = walk(0)
   if (!pin) return first
   const at = ordered.findIndex(change => slotKey(change.path, change.area) === pin)
-  // The pinned file ended the page while changes follow it: everything after it
-  // was cut, which reads as a page that will not scroll past the file being
-  // read. Walking again from it spends the same budget on those instead.
   const cutAfterPin =
     at > 0 && at < ordered.length - 1 && first.sections[first.sections.length - 1]?.key === pin
   return cutAfterPin ? walk(at) : first

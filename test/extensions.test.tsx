@@ -34,11 +34,9 @@ import {
   until,
 } from './helpers'
 
-/** The smallest theme a manifest can carry: every ui color, one syntax group. */
 const themeColors = (color: string) =>
   Object.fromEntries(Object.keys(themeFor('dark').ui).map(key => [key, color]))
 
-/** An appearance extension: how the editor looks, and nothing about a language. */
 const MANIFEST = {
   id: 'pack',
   name: 'Test Pack',
@@ -62,7 +60,6 @@ const MANIFEST = {
   ],
 }
 
-/** A language extension: one language, and the server that serves it. */
 const LANGUAGE = {
   id: 'nim',
   name: 'Nim',
@@ -85,7 +82,6 @@ const LANGUAGE = {
   ],
 }
 
-/** Write a manifest into the user extensions folder and load it. */
 function install(manifest: unknown, id = 'pack') {
   const dir = join(EXTENSIONS_DIR, id)
   mkdirSync(dir, { recursive: true })
@@ -95,8 +91,7 @@ function install(manifest: unknown, id = 'pack') {
 
 afterEach(() => {
   rmSync(EXTENSIONS_DIR, { recursive: true, force: true })
-  // The registries are module state, so an extension left registered would leak
-  // into every test after this one — and into the frames they capture.
+  // The registries are module state; an extension left registered leaks into the next test.
   loadExtensions(process.env.XDG_CONFIG_HOME!)
 })
 
@@ -130,12 +125,8 @@ test('a language manifest contributes the language and its server', () => {
 
   const language = languageFor('nim')
   expect(language?.lineComment).toBe('#')
-  // The regex arrives as a string and has to come back out as a working one,
-  // with `g` whatever the manifest said — the pattern walker loops without it.
   expect(language?.patterns?.[0]?.re.flags).toContain('g')
   expect(language?.patterns?.[0]?.re.test('proc f')).toBe(true)
-  // The extension is the only thing that routes a .nim file to this language:
-  // OpenTUI has never heard of it.
   expect(filetypeForPath('/tmp/a.nim')).toBe('nim')
 
   const server = resolveServer('nim', {})
@@ -144,39 +135,30 @@ test('a language manifest contributes the language and its server', () => {
 })
 
 test('what an extension is comes from what it contributes, never from a field', () => {
-  // Derived, so a manifest cannot claim to be a theme pack and ship a server.
   const appearance = parseManifest({ ...MANIFEST, categories: ['lsp'] }, '/p.json')
   expect(appearance.extension?.categories).toEqual(['theme', 'icons'])
 
   const language = parseManifest(LANGUAGE, '/l.json')
   expect(language.extension?.categories).toEqual(['language', 'lsp'])
 
-  // Markdown ships no server, so `lsp` is not one of its words — the whole point
-  // of keeping the categories apart from the filetypes.
   const { extensions: loaded } = loadExtensions(fixture({}))
   const markdown = loaded.find(extension => extension.id === 'markdown')
   expect(markdown?.categories).toEqual(['language'])
 })
 
 test('a manifest that is both a theme pack and a language is refused', () => {
-  // The two families are installed for different reasons and updated on
-  // different schedules; one extension doing both is not something to allow.
   const { extension, problems } = parseManifest({ ...MANIFEST, ...LANGUAGE, id: 'both' }, '/p.json')
   expect(extension).toBeNull()
   expect(problems[0]?.reason).toContain('one or the other')
 })
 
 test('a built-in wins over an extension on disk of the same id', () => {
-  // A built-in updates with druk itself, so a disk copy — a leftover from when
-  // the market updated built-ins, or a hand-written one — can only be stale.
-  // Loading it would pin the extension at that version through every druk update.
   install({
     id: 'typescript',
     version: '9.0.0',
     languageServers: [{ id: 'typescript', command: ['deno', 'lsp'], filetypes: ['typescript'] }],
   })
   const { extensions: found, problems } = loadExtensions(fixture({}))
-  // Named rather than silently skipped: deleting the copy is on whoever owns it.
   expect(problems[0]?.reason).toContain('ships with druk')
   expect(resolveServer('typescript', {})?.command).toEqual([
     'typescript-language-server',
@@ -207,8 +189,6 @@ test('a disabled extension is listed but registers nothing', () => {
 })
 
 test('a disabled built-in takes its language with it', () => {
-  // The one thing disabling a shipped extension has to do: druk stops knowing that
-  // language at all, rather than half-registering it.
   loadExtensions(fixture({}), ['typescript'])
   expect(languageFor('typescript')).toBeUndefined()
   loadExtensions(fixture({}))
@@ -240,8 +220,6 @@ test('an extension may register over a shipped id, and dropping it puts that bac
 
   rmSync(EXTENSIONS_DIR, { recursive: true, force: true })
   loadExtensions(project)
-  // Not deleted with the extension: `dark` is the fallback every other lookup ends
-  // at, so losing it would leave the editor with no colors at all.
   expect(themeFor('dark').name).toBe('GitHub Dark')
   expect(themeNames()).toContain('dark')
   expect(iconFor('unicode', { name: 'a.ts', isDir: false })?.glyph).toBe('◆')
@@ -272,8 +250,6 @@ test('an icon map points at definitions, and a folder gets its open form', () =>
     ts: { glyph: '◆', color: '#3178c6' },
     tsx: { glyph: '◆', color: '#3178c6' },
   })
-  // Kept whole, dot and all: `.gitignore` is the file's name, and stripping the
-  // dot here would leave a key `iconFor` can never look up.
   expect(icons.names['.gitignore']?.glyph).toBe('◆')
   expect(icons.folders.src?.glyph).toBe('◈')
   expect(icons.foldersOpen.src).toEqual({ glyph: '◇', color: '#4caf50' })
@@ -297,7 +273,6 @@ test('a named folder is found however the project spelled it', () => {
     expect(`${name}:${iconFor('dirs', { name, isDir: true })?.glyph}`).toBe(`${name}:◉`)
   }
   expect(iconFor('dirs', { name: '.github', isDir: true, expanded: true })?.glyph).toBe('◎')
-  // A folder the theme never named still says whether it is open.
   expect(iconFor('dirs', { name: 'whatever', isDir: true, expanded: true })?.glyph).toBe('▽')
 })
 
@@ -305,8 +280,6 @@ test('a Nerd Font glyph above the BMP is one cell, and still not an emoji', () =
   const { extension } = parseManifest(
     {
       id: 'nerd',
-      // U+F07D3 is Nerd Fonts' Material Design Icons range, which a patched font
-      // draws one cell wide; U+1F600 is an emoji and is two.
       icons: [{ id: 'nerd', file: '\u{F07D3}', extensions: { ts: '\u{1F600}' } }],
     },
     '/extensions/nerd/extension.json',
@@ -331,8 +304,6 @@ test('a bad contribution is reported and costs the extension only that entry', (
 
   expect(extension?.themes).toEqual([])
   expect(extension?.servers).toEqual([])
-  // The two-cell glyph is refused, not drawn: it would shift every name in the
-  // tree by a column. The theme it belongs to keeps its other icons.
   expect(extension?.icons.map(icons => icons.id)).toEqual(['wide', 'ok'])
   expect(extension?.icons[0]?.file.glyph).not.toBe('👍')
   expect(problems.map(problem => problem.reason)).toEqual([
@@ -365,21 +336,16 @@ test('the config takes an extension theme, and drops one no extension registers'
 })
 
 test('startup order: extensions load, then the config keeps their theme', () => {
-  // What main.tsx does, in the order it does it — the one arrangement no UI test
-  // covers, and the one that decides whether an extension theme survives a restart.
   install(MANIFEST)
   const dir = fixture({})
   mkdirSync(join(dir, PROJECT_CONFIG_DIR), { recursive: true })
   writeFileSync(projectConfigFile(dir), JSON.stringify({ disabledExtensions: [] }))
   writeFileSync(CONFIG_FILE, JSON.stringify({ theme: 'neon', disabledExtensions: ['pack'] }))
 
-  // The project's empty list wins over the user's, so nothing is disabled.
   expect(readDisabledExtensions(dir)).toEqual([])
   loadExtensions(dir, readDisabledExtensions(dir))
   expect(loadConfig().theme).toBe('neon')
 
-  // And with the project file gone, the user's own list shelves the extension —
-  // which takes its theme with it, so the config falls back.
   rmSync(projectConfigFile(dir))
   expect(readDisabledExtensions(dir)).toEqual(['pack'])
   loadExtensions(dir, readDisabledExtensions(dir))
@@ -393,8 +359,6 @@ test('icons take the arrow column in the tree', async () => {
   const frame = t.captureCharFrame()
   expect(frame).toContain('◆ a.ts')
   expect(frame).toContain('¶ notes.md')
-  // The row is no wider than it was: the glyph took the arrow's column, so the
-  // name is where it sits with no icon theme at all.
   expect(frame).not.toContain('   a.ts')
 })
 
@@ -419,8 +383,6 @@ test('the material set draws the tree it is installed for', async () => {
   const frame = t.captureCharFrame()
   expect(frame).toContain(`${glyph('a.ts', false)} a.ts`)
   expect(frame).toContain(`${glyph('src', true)} src`)
-  // Every row is still the same number of cells: a Nerd Font glyph above the
-  // BMP takes one, and the tree would drift a column if it were counted as two.
   const widths = frame
     .split('\n')
     .filter(Boolean)
@@ -450,9 +412,6 @@ test('the sidebar panel lists what is installed and turns one off', async () => 
   expect(t.captureCharFrame()).toContain('Test Pack')
   expect(t.captureCharFrame()).toContain('✓ Test Pack')
 
-  // The search is how a test reaches one row without counting the preinstalled
-  // ones, which adding a shipped extension would silently change — and it lands
-  // the cursor on the hit, so the Enter after it is the toggle.
   await press(t, input => void input.typeText('/'))
   await press(t, input => void input.typeText('Test Pack'))
   await press(t, input => input.pressEnter())
@@ -470,11 +429,8 @@ test('Backspace asks before it deletes an extension, and deleting is what it doe
   await settle(t)
   await press(t, input => void input.typeText('/'))
   await press(t, input => void input.typeText('Test Pack'))
-  // Esc leaves the field but keeps the row it found — Backspace is the field's
-  // while it is up, so this is the only way to reach the row with it.
   await pressEscape(t)
   await press(t, input => input.pressBackspace())
-  // Asked, not done: the folder is still there while the question is up.
   expect(t.captureCharFrame()).toContain('Uninstall extension')
   expect(existsSync(folder)).toBe(true)
 
@@ -514,8 +470,6 @@ test("the panel is the sidebar's third view, beside files and git", async () => 
 })
 
 test('every icon glyph druk ships is one cell wide', () => {
-  // A two-cell glyph shifts every name in the tree, and the frame captures in
-  // these tests would drift with it.
   for (const theme of ['unicode']) {
     for (const name of ['a.ts', 'a.js', 'readme.md', 'package.json', 'photo.png', 'x.unknown']) {
       const glyph = iconFor(theme, { name, isDir: false })?.glyph ?? ''

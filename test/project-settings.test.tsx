@@ -7,24 +7,21 @@ import { CONFIG_FILE } from '../src/core/config'
 import { fixture, launch, loadMarketExtensions, press, runCommand, settle } from './helpers'
 import type { Harness } from './helpers'
 
-// The themes these tests name are market extensions now.
 loadMarketExtensions()
 
 afterEach(() => {
   delete process.env[APPEARANCE_ENV]
 })
 
-/** A project whose `.druk/settings.json` holds `overrides` and nothing else. */
 const project = (overrides: Record<string, unknown>) =>
   fixture({ 'a.ts': 'const a = 1\n', '.druk/settings.json': JSON.stringify(overrides) })
 
 const local = (dir: string) => JSON.parse(readFileSync(join(dir, '.druk', 'settings.json'), 'utf8'))
 
-/** The user file is written lazily, and no test here should be what writes it. */
 const userVim = () =>
   existsSync(CONFIG_FILE) ? JSON.parse(readFileSync(CONFIG_FILE, 'utf8')).vim : undefined
 
-/** One flush per key: a burst of arrows in one chunk parses as fewer keys. */
+// One flush per key: a burst of arrows in one chunk parses as fewer keys.
 async function down(t: Harness, times: number) {
   for (let step = 0; step < times; step++) await press(t, i => i.pressArrow('down'))
 }
@@ -37,7 +34,6 @@ const rowOf = (t: Harness, label: string) =>
     .trimEnd()
 
 test('the project file outranks the user settings', async () => {
-  // `.druk` is itself a dotfile, so hiding them hides the file doing the hiding.
   const hidden = await launch(project({ showDotfiles: false }))
   expect(hidden.captureCharFrame()).toContain('a.ts')
   expect(hidden.captureCharFrame()).not.toContain('.druk')
@@ -49,11 +45,8 @@ test('the project file outranks the user settings', async () => {
 test('a key the project leaves out keeps the user value', async () => {
   const t = await launch(project({ vim: true }), { tabSize: 8 })
   await runCommand(t, 'Settings: this project')
-  // Theme, Follow OS, Light, Dark, Transparent, Icons, Tab icons, Tooltips, Title,
-  // Vim, Cursor, Word wrap, Scroll past end → Tab size
   await down(t, 13)
   expect(rowOf(t, 'Vim mode').endsWith('on')).toBe(true)
-  // Not 2: an absent key falls through to the user's file, not to the default.
   expect(rowOf(t, 'Tab size').endsWith('8')).toBe(true)
 })
 
@@ -62,8 +55,6 @@ test('Tab moves the page between the two files', async () => {
   await runCommand(t, 'Settings')
   expect(t.captureCharFrame()).toContain('Settings — User')
   await down(t, 13)
-  // The user page shows the user's own value, marked as overridden — VS Code's
-  // arrangement, and the only one where stepping the row does something visible.
   expect(rowOf(t, 'Tab size').endsWith('2')).toBe(true)
   expect(rowOf(t, 'Tab size')).toContain('◆')
 
@@ -76,7 +67,7 @@ test('the project page writes the project file, and only the keys it changed', a
   const dir = project({})
   const t = await launch(dir)
   await runCommand(t, 'Settings: this project')
-  await down(t, 9) // Vim mode
+  await down(t, 9)
   await press(t, i => i.pressEnter())
   expect(local(dir)).toEqual({ vim: true })
   expect(userVim()).not.toBe(true)
@@ -97,7 +88,6 @@ test('a broken or bogus project file is ignored, not fatal', async () => {
   const broken = await launch(fixture({ 'a.ts': 'const a = 1\n', '.druk/settings.json': '{ nope' }))
   expect(broken.captureCharFrame()).toContain('a.ts')
 
-  // Tall, so both rows are on screen at once without walking to each.
   const bogus = await launch(project({ tabSize: 'huge', vim: true }), {}, { height: 40 })
   await runCommand(bogus, 'Settings: this project')
   await down(bogus, 6)

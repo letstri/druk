@@ -7,7 +7,6 @@ import { fixture, launch, openFile, press, runCommand, settle } from './helpers'
 import type { Harness } from './helpers'
 import { tempDir } from './temp'
 
-/** A project big enough that one scan is unmistakably slower than one keystroke. */
 function corpus(count: number) {
   const dir = tempDir('druk-corpus-')
   for (let i = 0; i < count; i++) {
@@ -44,7 +43,6 @@ describe('project search waits for the typing to settle', () => {
   test('a whole query costs one scan, not one per character', async () => {
     const dir = corpus(2000)
 
-    // What a single scan of this tree costs, measured the same way the panel does it.
     const started = performance.now()
     searchProject(dir, 'zzzznomatch')
     const oneScan = performance.now() - started
@@ -56,8 +54,6 @@ describe('project search waits for the typing to settle', () => {
     await press(t, input => void input.typeText('value7'))
     const elapsed = performance.now() - typing
 
-    // Six characters used to mean six scans. Generous bound so a loaded CI box
-    // cannot flake it, but far below the 6× a per-keystroke scan would cost.
     expect(elapsed).toBeLessThan(oneScan * 3)
 
     await settle(t, 400)
@@ -71,7 +67,6 @@ describe('project search waits for the typing to settle', () => {
     await press(t, input => input.pressKey('f', { ctrl: true }))
     await press(t, input => void input.typeText('alpha'))
 
-    // No waiting: a debounce here would be a regression, not a fix.
     expect(summaryRow(t)).toMatch(/1 of 2/)
   })
 })

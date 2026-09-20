@@ -1,12 +1,3 @@
-/**
- * A server that enforces the protocol's open discipline the way real servers
- * do: a didOpen for a document it already holds is refused — the text it
- * carried is dropped, as typescript-language-server drops it ("Can't open
- * already open document"). Completion answers one item made of the word at the
- * asked position *as this server sees it* plus how many didOpens arrived, so a
- * client that lost sync is visible in the frame: the word is stale and the
- * count says the document was opened twice.
- */
 import { createDecoder, encodeMessage } from '../../src/lsp/transport'
 
 const send = (message: object) => process.stdout.write(encodeMessage(message))

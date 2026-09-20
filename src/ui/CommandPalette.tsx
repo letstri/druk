@@ -12,19 +12,15 @@ import { useKeys } from './useKeys'
 export interface Command {
   id: string
   label: string
-  /** Keybinding shown right-aligned, e.g. "Ctrl+S". Leaves only. */
   hint?: string
   run?: () => void
-  /** Paint a value while the selection sits on it — used by the themes submenu. */
   preview?: () => void
-  /** Put back what the config says, once the preview is over. */
   restore?: () => void
   children?: Command[]
 }
 
 export interface FlatCommand {
   command: Command
-  /** Breadcrumb of ancestor labels, e.g. ["Themes"]. */
   trail: string[]
 }
 
@@ -46,11 +42,9 @@ export function CommandPalette(props: CommandPaletteProps) {
   const [query, setQuery] = createSignal('')
   const [trail, setTrail] = createSignal<Command[]>([])
   const [index, setIndex] = createSignal(0)
-  /** Undo for the preview on screen, until it is confirmed or left behind. */
   let restore: (() => void) | undefined
 
   const width = () => modalWidth(dimensions().width, 0.55, 58, 92)
-  /** Border, input, blank line and footer. */
   const visibleRows = () => listRows(dimensions().height - topInset(dimensions().height), 8, 18)
 
   const rows = createMemo<FlatCommand[]>(() => {
@@ -67,26 +61,20 @@ export function CommandPalette(props: CommandPaletteProps) {
 
   const selected = () => Math.min(index(), Math.max(0, rows().length - 1))
 
-  /** Paint a command's preview whenever the selection lands on one. */
   createEffect(() => {
     const row = rows()[selected()]
     if (row?.command.preview) {
       row.command.preview()
       restore = row.command.restore
     } else if (restore) {
-      // Filtered away from it, or backed out of the submenu: the selection has
-      // left the previewed value, so the paint goes with it.
       restore()
       restore = undefined
     }
   })
 
-  // Every other way out closes the palette rather than moving the selection, and
-  // a preview must not outlive it — so the undo hangs off the teardown.
+  // A preview must not outlive the palette, and every other way out is a teardown.
   onCleanup(() => restore?.())
 
-  // A filter can match every leaf in the tree; rendering them all pushes the
-  // input and the footer off an 80x24 screen, so only a window is drawn.
   const windowed = createMemo(() => windowAround(rows(), selected(), visibleRows()))
 
   const enter = (row: FlatCommand) => {
@@ -96,8 +84,7 @@ export function CommandPalette(props: CommandPaletteProps) {
       setIndex(0)
       return
     }
-    // Confirming the preview on screen: `run` writes the value it is showing,
-    // so the teardown must not put the old one back over it.
+    // `run` writes the previewed value, so the teardown must not put the old one back over it.
     if (row.command.preview) restore = undefined
     props.onClose()
     row.command.run?.()
@@ -151,11 +138,8 @@ export function CommandPalette(props: CommandPaletteProps) {
           setIndex(0)
         }}
       />
-      {/* A blank line between the field and the list, so the two read as separate
-            things rather than one dense block. */}
       <text fg={ui.panelBg} bg={ui.panelBg} content="" />
-      {/* Fixed height, not content height: the panel is centered, so a list that
-            shrinks with every keystroke moves the input field the user is typing in. */}
+      {/* Fixed height: a list that shrinks per keystroke moves the input being typed in. */}
       <box flexDirection="column" height={visibleRows()}>
         <Show
           when={rows().length > 0}
@@ -168,13 +152,8 @@ export function CommandPalette(props: CommandPaletteProps) {
               const prefix = row.trail.length > 0 ? `${row.trail.join(' › ')} › ` : ''
               return (
                 <box flexDirection="row" backgroundColor={bg()}>
-                  {/* A bar on the selected row: the background alone is easy to miss
-                        on a low-contrast theme. */}
                   <text fg={ui.accent} bg={bg()} flexShrink={0} content={active() ? '▌ ' : '  '} />
                   <box flexGrow={1}>
-                    {/* A row each: a label can carry a theme name an extension
-                        chose, and one long enough to wrap grows the fixed-height
-                        list past the footer. */}
                     <text
                       wrapMode="none"
                       fg={active() ? ui.text : ui.dim}

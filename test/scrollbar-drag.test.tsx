@@ -5,7 +5,6 @@ import type { Harness } from './helpers'
 
 const long = `${Array.from({ length: 400 }, (_, index) => `line ${index}`).join('\n')}\n`
 
-/** Rightmost column of the editor rows: the scrollbar track. */
 const track = (t: Harness) =>
   t
     .captureCharFrame()
@@ -14,16 +13,12 @@ const track = (t: Harness) =>
     .map(row => row.at(-1))
     .join('')
 
-/** First line number in the gutter, i.e. where the viewport sits. */
+// First line number in the gutter: where the viewport sits.
 function topLine(t: Harness): number {
-  const row = t.captureCharFrame().split('\n')[2]!
+  const row = t.captureCharFrame().split('\n')[1]!
   return Number(row.trim().split(/\s+/)[0])
 }
 
-/**
- * Open the file with the sidebar hidden — the tree would otherwise occupy the
- * left columns, so the gutter is not the first thing on the row.
- */
 async function openAlone(name: string, content: string) {
   const t = await launch(fixture({ [name]: content }))
   await openFile(t, name)
@@ -32,8 +27,7 @@ async function openAlone(name: string, content: string) {
   return t
 }
 
-/** The track's screen column: the last cell of an editor row. */
-const trackX = (t: Harness) => t.captureCharFrame().split('\n')[2]!.length - 1
+const trackX = (t: Harness) => t.captureCharFrame().split('\n')[1]!.length - 1
 
 describe('dragging the editor scrollbar', () => {
   test('pressing down the track scrolls the file there', async () => {
@@ -51,12 +45,12 @@ describe('dragging the editor scrollbar', () => {
     const t = await openAlone('big.ts', long)
     const x = trackX(t)
 
-    await t.mockMouse.drag(x, 2, x, 16)
+    await t.mockMouse.drag(x, 1, x, 16)
     await settle(t)
     const deep = topLine(t)
     expect(deep).toBeGreaterThan(100)
 
-    await t.mockMouse.drag(x, 16, x, 2)
+    await t.mockMouse.drag(x, 16, x, 1)
     await settle(t)
     expect(topLine(t)).toBe(1)
   })
@@ -80,7 +74,6 @@ describe('dragging the editor scrollbar', () => {
     await t.mockMouse.pressDown(x, 10)
     await settle(t)
 
-    // Row 10 of the frame is row 9 of the track (row 0 is the tab bar).
     const thumb = track(t).indexOf('█')
     expect(Math.abs(thumb - 9)).toBeLessThanOrEqual(2)
   })
@@ -89,20 +82,15 @@ describe('dragging the editor scrollbar', () => {
     const t = await openAlone('big.ts', long)
     const x = trackX(t)
 
-    // Grab the thumb, then move with the pointer nowhere near the track — a real
-    // vertical drag drifts sideways within the first few rows. Capture lives on the
-    // pane, so leaving the one-column target must not end the gesture.
     await t.mockMouse.pressDown(x, 2)
     await settle(t)
     const grabbed = topLine(t)
 
-    // Well left of the track: past the minimap, which is a control of its own.
     await t.mockMouse.drag(x - 20, 4, x - 20, 15)
     await settle(t)
     const deep = topLine(t)
     expect(deep).toBeGreaterThan(grabbed + 100)
 
-    // Letting go ends it: the same movement afterwards changes nothing.
     await t.mockMouse.release(x - 20, 15)
     await settle(t)
     await t.mockMouse.drag(x - 20, 15, x - 20, 4)
@@ -115,7 +103,6 @@ describe('dragging the editor scrollbar', () => {
 
     expect(track(t)).not.toContain('█')
     expect(track(t)).not.toContain('│')
-    // Pressing where the track would be must not scroll or crash.
     await t.mockMouse.pressDown(79, 10)
     await settle(t)
     expect(topLine(t)).toBe(1)

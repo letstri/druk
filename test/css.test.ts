@@ -3,7 +3,6 @@ import { describe, expect, test } from 'bun:test'
 import { getSyntaxStyle } from '../src/languages/highlight'
 import { allSegments } from './syntax'
 
-/** What each group got painted on, so a query change shows up as text, not ids. */
 async function painted(source: string, filetype: string) {
   const segments = await allSegments(source, filetype)
   const lines = source.split('\n')
@@ -49,7 +48,6 @@ describe('css highlighting', () => {
     expect(group('attribute')).toContain('hover')
     expect(group('attribute')).toContain('before')
     expect(group('keyword')).toContain('!important')
-    // Bare values must not fall back to the plain text colour.
     expect(group('variable')).toContain('auto')
   })
 
@@ -57,7 +55,6 @@ describe('css highlighting', () => {
     const group = await painted(TAILWIND, 'css')
     const directives = group('keyword.directive')
 
-    // `@media` and `@import` are anonymous tokens; the rest are (at_keyword).
     expect(directives).toContain('@import')
     expect(directives).toContain('@extension')
     expect(directives).toContain('@theme')
@@ -74,9 +71,7 @@ describe('css highlighting', () => {
   })
 
   test('the query compiles — a single bad pattern would paint nothing at all', async () => {
-    // `["from" "to"]` used to be in here. They are keyframe selectors in this
-    // grammar rather than anonymous tokens, and naming them silently killed
-    // every other rule in the file.
+    // `from`/`to` are keyframe selectors here: naming them in the query kills every other rule.
     const segments = await allSegments(PLAIN, 'css')
     expect(segments.length).toBeGreaterThan(20)
   })
@@ -97,8 +92,6 @@ describe('scss and sass', () => {
   })
 
   test('indented sass still colours what it can', async () => {
-    // The CSS grammar cannot parse the indented syntax, so this asserts the
-    // graceful part: values stay lit even where the structure is not understood.
     const group = await painted('$brand: #f00\n.card\n  top: 1px\n', 'sass')
 
     expect(group('constant')).toContain('#f00')

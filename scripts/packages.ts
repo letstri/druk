@@ -1,30 +1,17 @@
 import { existsSync } from 'node:fs'
 import { mkdir, rm, writeFile } from 'node:fs/promises'
 
-/**
- * Turns the Linux binaries in dist/<target>/ into .deb and .rpm packages in
- * dist/release/, for the publish job to upload beside the archives.
- *
- * nfpm reads one YAML config per invocation; the config is built here rather
- * than committed, so the pure part runs under `bun run check` and
- * package.json stays the only place a version lives. nfpm itself is fetched
- * by the workflow, pinned by version and checksum — this script only ever
- * finds it on PATH or says it could not.
- */
-
 export type LinuxTarget = 'linux-x64' | 'linux-arm64'
 export type PackageFormat = 'deb' | 'rpm'
 
 export const LINUX_TARGETS: LinuxTarget[] = ['linux-x64', 'linux-arm64']
 export const FORMATS: PackageFormat[] = ['deb', 'rpm']
 
-/** nfpm takes Go's arch names and translates per packager. */
 const GOARCH: Record<LinuxTarget, string> = {
   'linux-x64': 'amd64',
   'linux-arm64': 'arm64',
 }
 
-/** What the file is called in each ecosystem's own vocabulary and shape. */
 const FILE_ARCH: Record<PackageFormat, Record<LinuxTarget, string>> = {
   deb: { 'linux-x64': 'amd64', 'linux-arm64': 'arm64' },
   rpm: { 'linux-x64': 'x86_64', 'linux-arm64': 'aarch64' },
@@ -36,8 +23,7 @@ export function packageFileName(
   version: string,
 ): string {
   const arch = FILE_ARCH[format][target]
-  // rpm's own naming is name-version-release.arch; mirroring deb's underscores
-  // there would read as foreign to every rpm tool and user.
+  // Each ecosystem's own shape: rpm is name-version-release.arch.
   return format === 'deb' ? `druk_${version}_${arch}.deb` : `druk-${version}-1.${arch}.rpm`
 }
 
@@ -92,7 +78,7 @@ if (import.meta.main) {
       await Bun.$`nfpm package -f ${config} -p ${format} -t ${out}`
       process.stdout.write(`packaged ${out}\n`)
     }
-    // The config beside the uploads would ride the release's wildcard glob.
+    // Left in place it would ride the release's wildcard glob.
     await rm(config)
   }
 }

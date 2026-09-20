@@ -53,8 +53,6 @@ test('a cursor file past the cap carries the page on past it', () => {
   const fileFor = filesFor(ordered, 'old\n', 'new\n')
   const pin = (at: number) => slotKey(ordered[at]!.path, ordered[at]!.area)
 
-  // The cap cut the walk before c.ts, so the budget is spent from it: the files
-  // after the one being read are what the reader scrolls into.
   expect(
     takeChangeSections(ordered, fileFor, new Map(), pin(2), budget).sections.map(s => s.rel),
   ).toEqual(['c.ts'])
@@ -62,13 +60,10 @@ test('a cursor file past the cap carries the page on past it', () => {
     takeChangeSections(ordered, fileFor, new Map(), pin(2), budget * 2).sections.map(s => s.rel),
   ).toEqual(['c.ts', 'd.ts'])
 
-  // The last change has nothing after it, so it is still kept beside the top of
-  // the list rather than becoming a page of one.
   expect(
     takeChangeSections(ordered, fileFor, new Map(), pin(4), budget).sections.map(s => s.rel),
   ).toEqual(['a.ts', 'e.ts'])
 
-  // A cursor the walk reaches on its own leaves the page starting at the top.
   expect(
     takeChangeSections(ordered, fileFor, new Map(), pin(0), budget).sections.map(s => s.rel),
   ).toEqual(['a.ts'])

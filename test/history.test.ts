@@ -45,7 +45,6 @@ describe('undo history', () => {
   })
 
   test('the first undo lands where the burst started, not where the file opened', () => {
-    // The buffer opened with the caret at 0; the typing happened at offset 40.
     const history = new History(at('a'.repeat(80), 0))
     history.record({ content: `${'a'.repeat(40)}x${'a'.repeat(40)}`, cursor: 40 }, 1000)
 

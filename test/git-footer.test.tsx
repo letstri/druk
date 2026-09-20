@@ -7,13 +7,8 @@ import { launch, until } from './helpers'
 import type { Harness } from './helpers'
 import { tempDir } from './temp'
 
-/**
- * druk runs no git commands of its own any more, so everything here is set up with
- * real git and only the reporting is asserted.
- */
 const git = (cwd: string, ...args: string[]) => execFileSync('git', args, { cwd })
 
-/** A bare "remote" plus clones of it, so ahead/behind are real. */
 function remoteSetup() {
   const base = tempDir('druk-footer-')
   const origin = join(base, 'origin.git')
@@ -41,18 +36,15 @@ describe('the footer', () => {
   test('counts unpushed commits, missing ones, and changed files', async () => {
     const { mine, clone } = remoteSetup()
 
-    // one commit of mine that origin has not seen
     writeFileSync(join(mine, 'local.ts'), 'const l = 1\n')
     git(mine, 'add', '.')
     git(mine, 'commit', '-qm', 'unpushed')
-    // one of theirs that I have not merged
     const theirs = clone('theirs')
     writeFileSync(join(theirs, 'remote.ts'), 'const r = 1\n')
     git(theirs, 'add', '.')
     git(theirs, 'commit', '-qm', 'from elsewhere')
     git(theirs, 'push', '-q')
     git(mine, 'fetch', '-q', '--all')
-    // and an edit sitting in my working tree
     writeFileSync(join(mine, 'a.ts'), 'const a = 999\n')
 
     const t = await launch(mine)

@@ -22,13 +22,12 @@ const PROJECT = {
 
 const SIZE = { width: 100, height: 30 }
 
-/** Open project replace from the palette and type both fields. */
 async function openReplace(t: Harness, query: string, replacement: string) {
   await runCommand(t, 'Replace in project')
-  await press(t, i => void i.typeText(query)) // nothing selected: the query field starts focused
+  await press(t, i => void i.typeText(query))
   await press(t, i => i.pressTab())
   await press(t, i => void i.typeText(replacement))
-  await settle(t, 300) // past the scan debounce
+  await settle(t, 300)
 }
 
 test('the palette opens project search with the replace field showing', async () => {
@@ -47,9 +46,7 @@ test('rows preview the hit beside its replacement', async () => {
 
 test('replace-all routes buffers and disk, and says which was which', async () => {
   const dir = fixture(PROJECT)
-  // Autosave off: switching tabs would otherwise save b.ts and unmake the dirty case.
   const t = await launch(dir, { autoSaveOnBlur: false }, SIZE)
-  // b.ts: open and made dirty. a.ts: open, clean, and active. c.ts: closed.
   await openFile(t, 'b.ts')
   await press(t, i => void i.typeText('x'))
   await openFile(t, 'a.ts')
@@ -62,11 +59,9 @@ test('replace-all routes buffers and disk, and says which was which', async () =
 
   const frame = t.captureCharFrame()
   expect(frame).toContain('2 in open tabs, unsaved')
-  // The two buffer-routed files kept their disks; the closed one was written.
   expect(readFileSync(join(dir, 'a.ts'), 'utf8')).toBe('const OLD = 1\n')
   expect(readFileSync(join(dir, 'b.ts'), 'utf8')).toBe('let OLD = 2\n')
   expect(readFileSync(join(dir, 'c.ts'), 'utf8')).toBe('var NEW = 3\n')
-  // The active buffer took the edit — and can give it back as one undo step.
   expect(frame).toContain('const NEW = 1')
   await press(t, i => i.pressKey('z', { ctrl: true }))
   expect(t.captureCharFrame()).toContain('const OLD = 1')
@@ -79,7 +74,6 @@ test('the confirm suspends the panel: one Enter, no stray apply', async () => {
   await press(t, i => i.pressKey('a', { ctrl: true }))
   await untilFrame(t, 'Replace 3 matches')
 
-  // Escape cancels the modal and only the modal — the panel keeps its state.
   await pressEscape(t)
   await settle(t)
   const frame = t.captureCharFrame()
@@ -88,7 +82,6 @@ test('the confirm suspends the panel: one Enter, no stray apply', async () => {
   expect(frame).toContain('const OLDNEW = 1')
   expect(readFileSync(join(dir, 'a.ts'), 'utf8')).toBe('const OLD = 1\n')
 
-  // Confirming closes the panel and applies everywhere — exactly once.
   await press(t, i => i.pressKey('a', { ctrl: true }))
   await untilFrame(t, 'Replace 3 matches')
   await press(t, i => i.pressEnter())
@@ -106,7 +99,6 @@ test('Enter applies one match and the row leaves the list', async () => {
   await press(t, i => i.pressEnter())
   await settle(t, 300)
   await untilFrame(t, '1 of 1 in 1 file')
-  // One file changed on disk, the other is still listed for its turn.
   const disks = [
     readFileSync(join(dir, 'a.ts'), 'utf8'),
     readFileSync(join(dir, 'b.ts'), 'utf8'),
@@ -130,7 +122,7 @@ test('an invalid regex refuses with its own message', async () => {
   const t = await launch(fixture(PROJECT), {}, SIZE)
   await runCommand(t, 'Replace in project')
   await press(t, i => void i.typeText('(('))
-  await press(t, i => i.pressKey('r', { ctrl: true })) // regex mode
+  await press(t, i => i.pressKey('r', { ctrl: true }))
   await press(t, i => i.pressKey('a', { ctrl: true }))
   await untilFrame(t, 'Invalid regex')
 })

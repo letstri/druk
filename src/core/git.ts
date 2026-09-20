@@ -4,48 +4,27 @@ import { lstatSync, realpathSync } from 'node:fs'
 import { dirname, isAbsolute, join, relative, sep } from 'node:path'
 
 import { decodeText } from './fs'
-// Not `run`: every query in this file names its own result `run`, and the two
-// spellings sitting in one scope is how a call ends up aimed at the wrong one.
-import { notInstalled, run as runProcess } from './process'
+import { firstLine, notInstalled, run as runProcess } from './process'
 import type { ProcessResult } from './process'
 
 export type LineChange = 'added' | 'modified' | 'deleted'
 export type FileStatus = 'untracked' | 'added' | 'modified' | 'deleted'
 
-/** Which of git's two columns a change is in — the index, or the working tree. */
-export type StageArea = 'staged' | 'unstaged'
+type StageArea = 'staged' | 'unstaged'
 
-/** The panel's groups: the two index sides, and the paths a merge left in conflict. */
 export type ChangeArea = StageArea | 'merge'
 
-/**
- * One path's change split the way porcelain reports it. Both sides can be set at
- * once: a file edited after being added is staged *and* unstaged, and the panel
- * lists it under both headings, as VS Code does.
- */
 export interface StatusEntry {
   staged: FileStatus | null
   unstaged: FileStatus | null
-  /** A merge left this path unmerged — the panel's `Merge Changes` group. */
   conflicted?: boolean
 }
 
-/** The single mark the tree and the gutter want: staged wins when both are set. */
 export function combinedStatus(entry: StatusEntry): FileStatus {
   return entry.staged ?? entry.unstaged ?? 'modified'
 }
 
-/**
- * Everything on a refresh path — the gutter marks, the tree marks, the status
- * bar's branch and counts — runs through `gitAsync`: `spawnSync` blocks the event
- * loop for the subprocess's whole life, which on a large repository is input the
- * terminal does not answer. `git` (synchronous) is left for the one-shot calls a
- * user's own keystroke asks for. Mutations run through `mutate`, asynchronously
- * for the same reason twice over: a push or fetch talks to the network.
- *
- * `spawnSync` truncates at 1 MB by default and reports ENOBUFS, which every caller
- * here reads as "no output" — `status` would lose files in a large repository.
- */
+// spawnSync truncates at 1 MB by default and reports ENOBUFS, which every caller reads as "no output".
 const MAX_OUTPUT = 128 * 1024 * 1024
 
 function git(cwd: string, args: string[], timeout = 5000, input?: string) {
@@ -58,11 +37,6 @@ function git(cwd: string, args: string[], timeout = 5000, input?: string) {
   })
 }
 
-/**
- * `git` off the render thread — the synchronous `git` above would stall a frame
- * for as long as the subprocess takes, which on a branch's worth of files, or a
- * repository large enough for `status` to take its time, is not a frame's worth.
- */
 function gitAsync(
   cwd: string,
   args: string[],
@@ -72,11 +46,7 @@ function gitAsync(
   return runProcess('git', args, { cwd, timeout, maxOutput: MAX_OUTPUT, input })
 }
 
-/**
- * Lines changed against `ref` (HEAD when null), keyed by 0-based line number.
- * Returns an empty map outside a repository, for untracked files, or when git is
- * unavailable.
- */
+// Keyed by 0-based line number; git's hunk headers are 1-based.
 export async function diffLines(
   path: string,
   ref: string | null = null,
@@ -90,7 +60,6 @@ export async function diffLines(
   if (run.status !== 0 || !run.stdout) return marks
 
   for (const hunk of run.stdout.split('\n')) {
-    // @@ -oldStart,oldCount +newStart,newCount @@
     const header = hunk.match(/^@@ -\d+(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/)
     if (!header) continue
     const removed = header[1] === undefined ? 1 : Number(header[1])
@@ -98,11 +67,9 @@ export async function diffLines(
     const added = header[3] === undefined ? 1 : Number(header[3])
 
     if (added === 0) {
-      // Pure deletion: mark the line the removed text sat above.
       marks.set(Math.max(0, start - 1), 'deleted')
       continue
     }
-    // A hunk that replaces N lines with M: the first N are rewrites, the rest new.
     for (let i = 0; i < added; i++) {
       marks.set(start - 1 + i, i < removed ? 'modified' : 'added')
     }
@@ -110,17 +77,11 @@ export async function diffLines(
   return marks
 }
 
-/**
- * Current branch, or null outside a repository and on a detached HEAD —
- * `--abbrev-ref` answers the literal "HEAD" there, which is not a branch name and
- * must never reach `git push --set-upstream`.
- */
 export function currentBranch(cwd: string): string | null {
   const run = git(cwd, ['rev-parse', '--abbrev-ref', 'HEAD'], 3000)
   return parseBranch(run.stdout, run.status)
 }
 
-/** `currentBranch` off the event loop, for the status refresh's cadence. */
 export async function currentBranchAsync(cwd: string): Promise<string | null> {
   const run = await gitAsync(cwd, ['rev-parse', '--abbrev-ref', 'HEAD'], 3000)
   return parseBranch(run.stdout, run.status)
@@ -133,11 +94,9 @@ function parseBranch(stdout: string, status: number | null): string | null {
 }
 
 export interface Branch {
-  /** `main` for a local branch, `origin/main` for a remote-tracking one. */
   name: string
   remote: boolean
   current: boolean
-  /** Where this local branch pushes and pulls, e.g. `origin/main`. */
   upstream: string | null
 }
 
@@ -149,7 +108,7 @@ export type ComparisonFileStatus =
   | 'copied'
   | 'typeChanged'
 
-export interface ComparisonRef {
+interface ComparisonRef {
   name: string
   oid: string
 }
@@ -176,7 +135,7 @@ export interface ComparisonCommit {
   parents: string[]
 }
 
-export interface ComparisonStats {
+interface ComparisonStats {
   files: number
   additions: number
   deletions: number
@@ -194,7 +153,7 @@ export interface BranchComparison {
   stats: ComparisonStats
 }
 
-export type ComparisonFailure =
+type ComparisonFailure =
   | 'notRepository'
   | 'detachedHead'
   | 'unbornBranch'
@@ -227,23 +186,11 @@ export interface ComparisonCommitDetail {
   stats: ComparisonStats
 }
 
-/**
- * The local name a remote-tracking branch checks out as: `origin/feat` → `feat`.
- * Both the checkout and the message that reports it derive it the same way, so a
- * remote whose name contains a slash cannot make the two disagree.
- */
 export function localBranchName(name: string): string {
   return name.slice(name.indexOf('/') + 1)
 }
 
-/**
- * Every branch, most recently committed to first — the order a picker wants,
- * since the branch you are looking for is nearly always one you touched today.
- * Empty outside a repository.
- */
 export function listBranches(cwd: string): Branch[] {
-  // Tab-separated: every field is a ref name or a single character, none of
-  // which can contain a tab.
   const format = ['%(refname)', '%(refname:short)', '%(HEAD)', '%(upstream:short)']
   const run = git(cwd, [
     'for-each-ref',
@@ -258,7 +205,6 @@ export function listBranches(cwd: string): Branch[] {
   for (const line of run.stdout.split('\n')) {
     const [ref, name, head, upstream] = line.split('\t')
     if (!ref || !name) continue
-    // `origin/HEAD` is the remote's default-branch pointer, not a branch of its own.
     if (name.endsWith('/HEAD')) continue
     branches.push({
       name,
@@ -270,12 +216,6 @@ export function listBranches(cwd: string): Branch[] {
   return branches
 }
 
-/**
- * The configured branch a comparison starts from. Remote HEAD is repository
- * evidence; `init.defaultBranch` is useful only when that branch actually
- * exists. Guessing main/master would make the same repository compare
- * differently across machines.
- */
 export function defaultBranch(cwd: string): string | null {
   const remotes = git(cwd, ['remote']).stdout?.trim().split('\n').filter(Boolean) ?? []
   for (const remote of remotes.toSorted((a, b) => {
@@ -305,11 +245,6 @@ function asyncFailure(run: ProcessResult, fallback: string): ComparisonResult<ne
   return comparisonFailure('gitError', run.stderr.trim() || fallback)
 }
 
-/**
- * Resolve the two branch tips and their history relationship before any file
- * metadata is loaded. Explicit OIDs make every later query a stable snapshot
- * even if a ref moves while it is running.
- */
 export async function resolveComparison(
   cwd: string,
   baseName: string,
@@ -399,7 +334,6 @@ function parseCount(value: string): number | null {
 const COMMIT_FORMAT = '%H%x00%h%x00%s%x00%an%x00%ae%x00%aI%x00%P'
 const COMMIT_FIELDS = 7
 
-/** `git log -z --format=COMMIT_FORMAT` output: seven NUL-separated fields each. */
 function parseCommits(text: string): ComparisonCommit[] | null {
   const fields = text.split('\0')
   if (fields.at(-1) === '') fields.pop()
@@ -419,10 +353,9 @@ function parseCommits(text: string): ComparisonCommit[] | null {
   return commits
 }
 
-/** git's own name for "nothing", so a root commit needs no special case. */
 const EMPTY_TREE = '4b825dc642cb6eb9a060e54bf8d69288fbee4904'
 
-/** Both halves of `changedFiles` need these, and must agree on them. */
+// Both halves of `changedFiles` must pass these, or they disagree on which path pairs exist.
 const RENAMES = ['--find-renames', '--find-copies']
 
 interface LineTotals {
@@ -431,18 +364,11 @@ interface LineTotals {
   deletions: number | null
 }
 
-/** All-zero is git's "this side does not exist", not an object to read. */
 function blobOid(field: string | undefined): string | null {
   return field && !/^0+$/.test(field) ? field : null
 }
 
-/**
- * `--numstat -z` totals, keyed by path pair. A record is `adds\tdels\tpath`,
- * except for a rename or a copy, whose path field is empty and whose two paths
- * follow as records of their own. Null if a record is truncated — every parse
- * here refuses partial output rather than dropping a row, because a dropped row
- * would read as "this file did not change".
- */
+// A rename or copy leaves the record's path field empty and follows it with its two paths.
 function parseNumstat(text: string): Map<string, LineTotals> | null {
   const totals = new Map<string, LineTotals>()
   const records = text.split('\0')
@@ -464,7 +390,6 @@ function parseNumstat(text: string): Map<string, LineTotals> | null {
     const additions = parseCount(record.slice(0, firstTab))
     const deletions = parseCount(record.slice(firstTab + 1, secondTab))
     totals.set(comparisonKey(oldPath, path), {
-      // git spends a `-` on each count of a file it will not diff as text.
       binary: additions === null || deletions === null,
       additions,
       deletions,
@@ -475,12 +400,8 @@ function parseNumstat(text: string): Map<string, LineTotals> | null {
 
 type RawFile = Omit<ComparisonFile, keyof LineTotals>
 
-/**
- * `--raw -z` records: `:oldMode newMode oldOid newOid STATUS`, then the path —
- * or two paths when the status is a rename or a copy. `-z` is what keeps a path
- * containing a tab, a newline or a non-ASCII byte intact; the default output
- * C-quotes those, and unquoting them by hand loses the original spelling.
- */
+// `-z` keeps a path holding a tab, a newline or a non-ASCII byte intact; the default output C-quotes it.
+// A rename or copy spends two records on its paths.
 function parseRaw(text: string): RawFile[] | null {
   const files: RawFile[] = []
   const tokens = text.split('\0')
@@ -500,7 +421,6 @@ function parseRaw(text: string): RawFile[] | null {
       path: paths.at(-1)!,
       oldPath: pathCount === 2 ? paths[0]! : null,
       status,
-      // `R100`, `C75`: how much of the old file the new one still is.
       similarity: spec.length > 1 ? Number(spec.slice(1)) : null,
       oldOid: blobOid(fields[2]),
       newOid: blobOid(fields[3]),
@@ -509,12 +429,6 @@ function parseRaw(text: string): RawFile[] | null {
   return files
 }
 
-/**
- * The files that differ between two commit-ish, with their line totals. Two
- * passes because no single git command carries both: `--raw` has the status,
- * the paths and the blob OIDs a lazy diff needs, `--numstat` has the counts.
- * Both are given the same rename flags, so they agree on which pairs exist.
- */
 async function changedFiles(
   cwd: string,
   from: string,
@@ -552,18 +466,10 @@ async function changedFiles(
   }
 }
 
-/**
- * A resolved comparison's files and commits. Contents stay unread: the OIDs in
- * `identity` make this a snapshot, so a blob can be fetched when its row is
- * opened without the list underneath having moved.
- */
 export async function loadResolvedComparison(
   cwd: string,
   identity: ComparisonIdentity,
 ): Promise<ComparisonResult<BranchComparison>> {
-  // `mergeBase..compare` for the files and `base..compare` for the commits: both
-  // leave out what only the base has, which is what makes this the branch's own
-  // work rather than a tip-to-tip diff.
   const [changed, logRun] = await Promise.all([
     changedFiles(cwd, identity.mergeBase, identity.compare.oid),
     gitAsync(cwd, [
@@ -589,7 +495,6 @@ export async function loadBranchComparison(
   return identity.ok ? loadResolvedComparison(cwd, identity.value) : identity
 }
 
-/** The two textual sides of one comparison row, fetched only when it is opened. */
 export async function comparisonFileContent(
   cwd: string,
   file: ComparisonFile,
@@ -617,9 +522,6 @@ export async function comparisonCommitDetail(
   const commit = commits?.length === 1 ? commits[0]! : null
   if (!commit) return comparisonFailure('invalidCompare', `Commit "${oid}" does not exist`)
 
-  // First parent for a merge, as `git show` reads one — a combined diff is not
-  // something the diff renderer can draw. The empty tree stands in for the
-  // parent a root commit does not have.
   const changed = await changedFiles(cwd, commit.parents[0] ?? EMPTY_TREE, commit.oid)
   return changed.ok ? { ok: true, value: { commit, ...changed.value } } : changed
 }
@@ -631,66 +533,47 @@ const STATUS_BY_CODE: Record<string, FileStatus> = {
   'R': 'modified',
   'C': 'modified',
   'U': 'modified',
-  // Typechange — a file became a symlink or back. Without this row the entry
-  // parses to neither side and the file vanishes from the panel entirely.
+  // Typechange: without this row the entry parses to neither side and the file vanishes from the panel.
   'T': 'modified',
   'D': 'deleted',
 }
 
-/**
- * Directory git-relative paths are joined onto. git reports the resolved root
- * (/private/var/…), while the tree holds the path the user opened (/var/…) —
- * so the caller's form wins when the two are the same place.
- */
+// git reports the resolved root (/private/var/…) where the tree holds the opened spelling (/var/…),
+// so the caller's wins when both name one place — keys from the two must match.
 function sameOrRoot(cwd: string, root: string): string {
   try {
     if (realpathSync(cwd) === realpathSync(root)) return cwd
   } catch {
-    // unreadable path: fall back to git's own root
+    // unreadable path
   }
   return root
 }
 
-/** `sameOrRoot` for the directory itself. Null outside a repository. */
 function keyBase(cwd: string): string | null {
   const top = git(cwd, ['rev-parse', '--show-toplevel'], 3000)
   return top.status === 0 ? sameOrRoot(cwd, top.stdout.trim()) : null
 }
 
-/*
- * The three parsers below are shared by the synchronous and asynchronous
- * spellings of `statusMap`. Both have to answer identically: the tree marks come
- * from one and the commit picker from the other, and a file the two disagree
- * about is a row you cannot commit.
- */
-
 const STATUS_ARGS = ['status', '--porcelain', '-z', '-uall']
 const UNTRACKED_ARGS = ['ls-files', '--others', '--exclude-standard', '-z']
 
-export interface PorcelainEntry {
-  /** The index and working-tree columns exactly as git reported them. */
+interface PorcelainEntry {
   readonly xy: string
-  /** Repository-relative destination path, never an absolute path. */
   readonly path: string
-  /** Repository-relative source of a rename or copy. */
   readonly source: string | null
 }
 
-export type DiscardMode = 'restore' | 'delete'
+type DiscardMode = 'restore' | 'delete'
 
 export interface DiscardTarget {
   readonly repo: string
   readonly path: string
-  /** Absolute working-tree paths changed when this row is discarded. */
   readonly affectedPaths: readonly string[]
   readonly mode: DiscardMode
-  /** The status row approved by the user, retained so execution can reject drift. */
   readonly entry: PorcelainEntry
-  /** Identity of HEAD, the index entry, and the working-tree change at confirmation time. */
   readonly fingerprint: string
 }
 
-/** Parse porcelain without throwing away either status column or rename/copy source. */
 function parsePorcelainEntries(stdout: string): PorcelainEntry[] {
   const parsed: PorcelainEntry[] = []
   const entries = stdout.split('\0')
@@ -713,12 +596,7 @@ function pathInHead(repo: string, path: string): boolean {
   return git(repo, ['cat-file', '-e', `HEAD:./${path}`], 3000).status === 0
 }
 
-/**
- * A path after `--` is a pathspec, where `[`, `*` and `?` are glob metacharacters:
- * `git clean -f -- '[id].tsx'` deletes `i.tsx` too, and the route files every
- * Next.js and SvelteKit project is full of are named exactly that. Every path
- * here came from porcelain and means itself alone.
- */
+// A path after `--` is a pathspec: `git clean -f -- '[id].tsx'` would also delete `i.tsx`.
 const literal = (path: string) => `:(literal)${path}`
 
 function discardMode(repo: string, entry: PorcelainEntry): DiscardMode {
@@ -760,7 +638,6 @@ function discardFingerprint(repo: string, entry: PorcelainEntry): string | null 
     .digest('hex')
 }
 
-/** Pin the exact row and repository a discard confirmation is about. */
 export function discardTarget(repo: string, path: string): DiscardTarget | null {
   const base = keyBase(repo)
   if (base === null) return null
@@ -784,26 +661,15 @@ export function discardTarget(repo: string, path: string): DiscardTarget | null 
   })
 }
 
-/**
- * `git status --porcelain -z -uall`. `-z` because the default output C-quotes and
- * octal-escapes any path that is not plain ASCII; unquoting that by hand loses
- * every accented or spaced name. `-uall`, or a brand-new directory collapses to a
- * single `?? newdir/` entry and every file inside it shows no mark at all.
- */
-/** Porcelain's unmerged states — a `U` in either column, plus both-added/-deleted. */
 const CONFLICT_CODES = new Set(['DD', 'AU', 'UD', 'UA', 'DU', 'AA', 'UU'])
 
 function parsePorcelain(stdout: string, base: string): Map<string, StatusEntry> {
   const statuses = new Map<string, StatusEntry>()
   for (const entry of parsePorcelainEntries(stdout)) {
-    // An unmerged path is neither staged nor unstaged — it is a question the
-    // merge asked, and `git add` (the panel's Space) is what answers it.
     if (CONFLICT_CODES.has(entry.xy)) {
       statuses.set(join(base, entry.path), { staged: null, unstaged: 'modified', conflicted: true })
       continue
     }
-    // `??` is one code across both columns, not an index state: an untracked
-    // file is nothing the index has heard of, so it is unstaged and only that.
     const untracked = entry.xy === '??'
     const staged = untracked ? null : (STATUS_BY_CODE[entry.xy[0]!] ?? null)
     const unstaged = untracked ? 'untracked' : (STATUS_BY_CODE[entry.xy[1]!] ?? null)
@@ -812,29 +678,22 @@ function parsePorcelain(stdout: string, base: string): Map<string, StatusEntry> 
   return statuses
 }
 
-/** Every path with a change, whichever column it is in. */
 function flatten(entries: Map<string, StatusEntry>): Map<string, FileStatus> {
   return new Map([...entries].map(([path, entry]) => [path, combinedStatus(entry)]))
 }
 
-/** A diff against a ref knows nothing of the index — every change is a change. */
 function asUnstaged(statuses: Map<string, FileStatus>): Map<string, StatusEntry> {
   return new Map([...statuses].map(([path, status]) => [path, { staged: null, unstaged: status }]))
 }
 
-/**
- * `git diff --name-status -z`. `-z` drops the tab between the code and the path
- * as well, so the fields arrive as a flat alternating list rather than one
- * record per entry.
- */
+// `-z` drops the tab between code and path too: the fields arrive as one flat alternating list.
 function parseNameStatus(stdout: string, base: string): Map<string, FileStatus> {
   const statuses = new Map<string, FileStatus>()
   const fields = stdout.split('\0')
   for (let i = 0; i < fields.length; i += 2) {
     const code = fields[i]
     if (!code) continue
-    // A rename or copy spends a field on each path; the new one is what exists
-    // on disk, and skipping ahead keeps the codes on the even indices.
+    // A rename or copy spends a field on each path; skipping one keeps the codes on even indices.
     if (code[0] === 'R' || code[0] === 'C') i++
     const path = fields[i + 1]
     const status = STATUS_BY_CODE[code[0]!]
@@ -849,28 +708,10 @@ function addUntracked(stdout: string, base: string, into: Map<string, FileStatus
   }
 }
 
-/**
- * Working-tree status per absolute path. Staged and unstaged changes collapse to
- * one mark — the tree only needs "this differs from HEAD", or from `ref` when
- * the user has pointed the whole editor at another branch.
- *
- * Against a ref this takes two queries rather than one: `git status` can only
- * ever compare against HEAD, so the tracked files come from a diff and the
- * untracked ones — which differ from every ref, and which the diff never
- * mentions — from `ls-files`.
- */
 export function statusMap(cwd: string, ref: string | null = null): Map<string, FileStatus> {
   return flatten(statusEntries(cwd, ref))
 }
 
-/**
- * The same status, both columns kept apart — what the source-control panel's
- * Staged/Changes headings are built from.
- *
- * Against a ref there is nothing staged to report: the index is always the
- * index of HEAD, so a comparison base's changes are all unstaged and the panel
- * draws one list, which is what it did before staging existed.
- */
 export function statusEntries(cwd: string, ref: string | null = null): Map<string, StatusEntry> {
   const base = keyBase(cwd)
   if (base === null) return new Map()
@@ -887,12 +728,6 @@ export function statusEntries(cwd: string, ref: string | null = null): Map<strin
   return asUnstaged(statuses)
 }
 
-/**
- * `statusEntries` off the render thread. The multi-repository refresh runs one of
- * these per repository at once: a folder holding twenty checkouts is forty
- * subprocesses, which synchronously would be a visible freeze on every save and
- * every filesystem event, and in parallel costs about what the slowest one does.
- */
 export async function statusEntriesAsync(
   cwd: string,
   ref: string | null = null,
@@ -915,21 +750,6 @@ export async function statusEntriesAsync(
   return asUnstaged(statuses)
 }
 
-/**
- * Which of `paths` gitignore would skip. Empty outside a repository.
- *
- * The companion to `ignoredPaths`, and not a duplicate of it: that one answers
- * "what may the tree hide", which needs no key for anything inside a collapsed
- * directory. This one answers "what does the tree draw dim", which is asked about
- * rows that are on screen *because* nothing is hidden — including the children of
- * an expanded `node_modules`, which `--directory` deliberately never enumerates.
- * Asking per visible path bounds the work by the sidebar's height either way.
- *
- * Paths come back in the same spelling they went in: we feed absolute tree paths
- * on stdin and get those absolutes out, so there is no `keyBase` remapping the
- * way `statusMap` needs for porcelain's repo-relative names — and no `keyBase`
- * call either, which would double the subprocesses this costs per refresh.
- */
 export async function ignoredAmongAsync(cwd: string, paths: string[]): Promise<Set<string>> {
   if (paths.length === 0) return new Set()
   const split = splitBeyondSymlink(cwd, paths)
@@ -942,15 +762,7 @@ export async function ignoredAmongAsync(cwd: string, paths: string[]): Promise<S
   return readCheckIgnore(cwd, split, run.stdout, run.status)
 }
 
-/**
- * git aborts the whole batch with 128 at the first path that reaches through a
- * symlinked directory ("is beyond a symbolic link") — expanding pnpm's
- * node_modules/@scope/pkg is enough — so those paths are never asked about.
- * One of them in the list used to blank the answer for every other row.
- *
- * The cache lives for this call alone: a directory can be swapped for a symlink
- * while druk is open, and the tree refresh this rides on is where that shows up.
- */
+// git aborts the whole `check-ignore` batch with 128 at the first path reaching through a symlink.
 function splitBeyondSymlink(cwd: string, paths: string[]) {
   const symlinkDirs = new Map<string, boolean>()
   const askable: string[] = []
@@ -961,11 +773,6 @@ function splitBeyondSymlink(cwd: string, paths: string[]) {
   return { askable, unanswerable }
 }
 
-/**
- * Exit 1 means none of the paths are ignored, and 128 means there is no
- * repository here — both are an empty set rather than a failure, so only 0 has
- * output worth reading. (`-z` + `--stdin`: one NUL-terminated path each way.)
- */
 function readCheckIgnore(
   cwd: string,
   split: { unanswerable: string[] },
@@ -979,9 +786,6 @@ function readCheckIgnore(
     }
   }
 
-  // An ignored directory takes everything under it, which is the only answer left
-  // for the rows git refused. Applied to those alone: a force-added file under an
-  // ignored directory is not ignored, and git is the one who knows which.
   for (const path of split.unanswerable) {
     if (hasIgnoredAncestor(cwd, path, ignored)) ignored.add(path)
   }
@@ -1013,22 +817,10 @@ function hasIgnoredAncestor(cwd: string, path: string, ignored: Set<string>): bo
   return false
 }
 
-/**
- * The contents of several blobs in one subprocess, keyed by the spec asked for
- * (`HEAD:./x`, `:./x` for the index) — null where the spec names no blob
- * (untracked, added, unborn branch, outside a repository). `cwd` anchors the
- * lookup: the `./` spelling makes the path cwd-relative, so a deleted file still
- * resolves even though it no longer exists on disk.
- *
- * One `git show` per file is ~6ms of spawn, and the changes page asks for every
- * changed file at once — forty of them froze the panel for a quarter of a second.
- * `cat-file --batch` answers the lot from one process.
- */
 export function blobTexts(cwd: string, specs: string[]): Map<string, string | null> {
   const out = new Map<string, string | null>()
   if (specs.length === 0) return out
-  // Buffers, not utf8: the batch header counts the contents in *bytes*, so a
-  // string would be sliced at the wrong place the moment a blob is not ASCII.
+  // Buffers, not utf8: the batch header counts contents in bytes, so a non-ASCII blob slices wrong.
   const run = spawnSync('git', ['cat-file', '--batch'], {
     cwd,
     timeout: 10_000,
@@ -1054,9 +846,7 @@ export function blobTexts(cwd: string, specs: string[]): Map<string, string | nu
       out.set(spec, null)
       continue
     }
-    // Normalized like every other text druk reads: the working-tree side of a
-    // diff comes from an open buffer, which is always LF, so a blob committed
-    // with CRLF would otherwise diff as every line changed.
+    // The other diff side is an open buffer, always LF: a CRLF blob would diff as every line changed.
     out.set(spec, decodeText(stdout.toString('utf8', at, at + bytes)).text)
     at += bytes + 1 // the newline git writes after the contents
   }
@@ -1064,18 +854,11 @@ export function blobTexts(cwd: string, specs: string[]): Map<string, string | nu
 }
 
 export interface Upstream {
-  /** `origin/main`, or null when the branch was never pushed. */
   name: string | null
-  /** Commits here but not on the remote, and the other way round. */
   ahead: number
   behind: number
 }
 
-/**
- * Where a push would go and how far apart the two sides are. Two subprocesses at
- * worst, one outside a repository — the status bar asks for this often enough
- * that a `currentBranch` call on top of them is worth avoiding.
- */
 export async function upstreamOf(cwd: string): Promise<Upstream | null> {
   const ref = await gitAsync(
     cwd,
@@ -1083,28 +866,17 @@ export async function upstreamOf(cwd: string): Promise<Upstream | null> {
     5000,
   )
   if (ref.status !== 0) {
-    // No upstream and no repository look the same here; the branch tells them apart.
-    // Ahead/behind stay 0: with nothing to compare against there is no distance to
-    // report, and a repo with no remote at all must not show a phantom ↑.
     return (await currentBranchAsync(cwd)) ? { name: null, ahead: 0, behind: 0 } : null
   }
 
-  // Status checked, and NaN floored: a failed count would otherwise put "NaN↓"
-  // on the status bar — `[''].map(Number)` is `[NaN]`, which `?? 0` keeps.
+  // `|| 0`, not `?? 0`: `[''].map(Number)` is `[NaN]`, which `??` would keep and the status bar print.
   const counts = await gitAsync(cwd, ['rev-list', '--left-right', '--count', '@{u}...HEAD'], 5000)
   const [behind, ahead] = counts.status === 0 ? counts.stdout.trim().split(/\s+/).map(Number) : []
   return { name: ref.stdout.trim(), ahead: ahead || 0, behind: behind || 0 }
 }
 
-/** How many commits either sync section lists — the header carries the true counts. */
 const SYNC_LOG_CAP = 50
 
-/**
- * The commits between the branch and its upstream, one direction at a time —
- * what the panel's Incoming/Outgoing sections list. Empty with no upstream to
- * measure against, and capped: a branch hundreds of commits adrift is a wall of
- * rows the header's counts already summarise.
- */
 export async function upstreamCommits(
   cwd: string,
   direction: 'incoming' | 'outgoing',
@@ -1127,14 +899,8 @@ export async function upstreamCommits(
     })
 }
 
-/** How far back the commit box's ↑ can reach. */
 const MESSAGE_LOG_CAP = 50
 
-/**
- * Subjects of the last commits, newest first — the history the commit box walks
- * with ↑/↓. Subjects rather than whole messages because the box is one line, and
- * deduplicated because a log full of `wip` is a history that walks nowhere.
- */
 export async function recentCommitMessages(cwd: string): Promise<string[]> {
   const run = await gitAsync(cwd, ['log', '-n', String(MESSAGE_LOG_CAP), '--format=%s'], 5000)
   if (run.status !== 0) return []
@@ -1150,16 +916,11 @@ export function inRepository(cwd: string): boolean {
   return git(cwd, ['rev-parse', '--is-inside-work-tree'], 3000).stdout?.trim() === 'true'
 }
 
-/**
- * Absolute paths staged in the index, keyed like `statusMap` so the two can be
- * compared. On an unborn branch git diffs the index against the empty tree, so
- * a fresh repository with staged files still reports correctly.
- */
 export function stagedPaths(cwd: string): Set<string> {
   const staged = new Set<string>()
   const base = keyBase(cwd)
   if (base === null) return staged
-  // `-z` for the same reason as `statusMap`: quoted paths would never match its keys.
+  // `-z`: a C-quoted path would never match statusMap's keys.
   const run = git(cwd, ['diff', '--cached', '--name-only', '-z'])
   if (run.status !== 0) return staged
   for (const rel of run.stdout.split('\0')) {
@@ -1168,25 +929,9 @@ export function stagedPaths(cwd: string): Set<string> {
   return staged
 }
 
-/**
- * Absolute paths of git-ignored entries, keyed like `statusMap`. Empty outside a
- * repository — with no `.gitignore` semantics to apply, nothing is ignored.
- *
- * `--directory` collapses a fully-ignored directory to one entry instead of
- * enumerating everything inside it — the difference between one line for
- * `node_modules` and a hundred thousand. The tree matches these keys exactly:
- * it hides an ignored directory at its top and never descends, so the collapsed
- * entry is the only key it ever asks about. Dimming cannot use these keys for
- * exactly that reason — see `ignoredAmong`.
- *
- * Keyed off `cwd`, not `keyBase`: `ls-files` names paths relative to the
- * directory it runs in, unlike porcelain's repo-relative ones, and it lists
- * nothing outside that directory either. A druk opened on a subdirectory of a
- * repository would otherwise key every entry under the repository root.
- */
 export function ignoredPaths(cwd: string): Set<string> {
   const ignored = new Set<string>()
-  // `-z` for the same reason as `statusMap`: quoted paths would never match its keys.
+  // `-z`: a C-quoted path would never match statusMap's keys.
   const run = git(cwd, [
     'ls-files',
     '--others',
@@ -1204,7 +949,6 @@ export function ignoredPaths(cwd: string): Set<string> {
   return ignored
 }
 
-/** Subject of HEAD, or null with no commits yet — what "undo last commit" names. */
 export function lastCommitSubject(cwd: string): string | null {
   const run = git(cwd, ['log', '-1', '--format=%s'], 3000)
   if (run.status !== 0) return null
@@ -1214,11 +958,9 @@ export function lastCommitSubject(cwd: string): string | null {
 
 export interface GitResult {
   ok: boolean
-  /** One status-bar line: the first thing git said worth repeating. */
   detail: string
 }
 
-/** Long enough for a slow push; nothing druk runs should legitimately outlast it. */
 const MUTATE_TIMEOUT = 60_000
 
 function lines(text: string): string[] {
@@ -1228,20 +970,8 @@ function lines(text: string): string[] {
     .filter(line => line.length > 0)
 }
 
-function firstLine(text: string): string {
-  return lines(text)[0] ?? ''
-}
-
-/** Advice and progress chatter git emits around the one line that says what broke. */
 const NOISE = /^(?:hint|warning|note):|^To\s|^remote:\s*$/i
 
-/**
- * What the status bar shows when git fails. Git puts its advice *before* the
- * cause, so the first line is usually the wrong one: a rejected pull opens with
- * a dozen `hint:` lines and only ends with the `fatal:` that names the problem.
- * Prefer that line, fall back to whatever survives the noise filter, and strip
- * the severity prefix — the bar already colours the message as an error.
- */
 export function failureLine(text: string): string {
   const all = lines(text)
   const signal = all.filter(line => !NOISE.test(line))
@@ -1249,25 +979,11 @@ export function failureLine(text: string): string {
   return chosen.replace(/^(?:fatal|error):\s*/, '')
 }
 
-/**
- * The one failure druk offers to fix rather than report: `gitPush` recognises it
- * by this exact string, so the row in KNOWN below has to keep using the constant.
- */
+// `gitPush` recognises this by its exact string, so the KNOWN row below must keep using the constant.
 export const PUSH_REJECTED = "origin has commits you don't — pull first, then push"
 
-/**
- * Failures worth naming, in the terms of what to do next. Git's own wording
- * assumes a shell where the fix is one command away, and druk runs a fixed set
- * of commands with no shell to offer — so each of these says what happened and
- * where the fix lives, pointing at druk's own commands where it has one.
- *
- * Matched against git's whole output, not the chosen line: the reason and the
- * command that failed routinely sit on different lines. First match wins, so
- * the specific patterns have to stay above the general ones — "Authentication
- * failed" would otherwise swallow the missing-credentials case below it.
- */
+// First match wins: a specific pattern has to stay above the general one it would be swallowed by.
 export const KNOWN: ReadonlyArray<readonly [RegExp, string]> = [
-  // druk pulls with --ff-only; a real merge needs an editor and a conflict UI.
   [
     /Not possible to fast-forward|Need to specify how to reconcile/i,
     'Branch and origin have both moved on — merge or rebase in a terminal',
@@ -1277,9 +993,6 @@ export const KNOWN: ReadonlyArray<readonly [RegExp, string]> = [
     /local changes to the following files would be overwritten/i,
     'Commit or stash your changes first — this would overwrite them',
   ],
-  // Above the general conflict row, and matching both halves of the output: a
-  // stash pop that conflicts keeps the entry, and saying so is the difference
-  // between a scare and a fact. A conflict with no stash line is a merge.
   [
     /(?:^CONFLICT|Merge conflict in)[\s\S]*stash entry is kept/im,
     'Conflicts in the working tree — the stash was kept, resolve them first',
@@ -1294,15 +1007,12 @@ export const KNOWN: ReadonlyArray<readonly [RegExp, string]> = [
   ],
   [/nothing to commit|no changes added to commit/i, 'Nothing to commit'],
   [/branch named '.*' already exists/i, 'A branch of that name already exists'],
-  // Short on purpose: the status bar is one line wide, and a longer sentence is
-  // cut off exactly where it would have said what to do instead.
   [/is not fully merged/i, 'Branch has unmerged commits — a force delete discards them'],
   [
     /Cannot delete branch .* checked out/i,
     'That is the branch you are on — switch to another one first',
   ],
   [/is not a valid branch name/i, 'Not a valid branch name'],
-  // Undo is `reset --soft HEAD~1`, so a root commit has nothing to reset to.
   [/ambiguous argument 'HEAD~1'/i, 'Nothing to undo — this is the only commit'],
   [/No stash entries found/i, 'No stash to pop'],
   [
@@ -1313,7 +1023,6 @@ export const KNOWN: ReadonlyArray<readonly [RegExp, string]> = [
     /Could not resolve host|unable to access.*(?:Couldn't connect|Connection refused|Operation timed out)/i,
     "Can't reach the remote — check your network",
   ],
-  // Ours: GIT_TERMINAL_PROMPT=0 turns git's credential prompt into this.
   [
     /terminal prompts disabled|could not read (?:Username|Password)/i,
     "No stored credentials for the remote — druk can't prompt for them",
@@ -1333,14 +1042,6 @@ export const KNOWN: ReadonlyArray<readonly [RegExp, string]> = [
   ],
 ]
 
-/**
- * A known failure named in druk's terms, or git's own most useful line.
- *
- * Both streams are matched, because git routinely splits one failure across the
- * two: a stash pop onto an unmerged index puts `error: could not write index` on
- * stderr and the `f.txt: needs merge` that actually explains it on stdout. Only
- * the fallback keeps to one stream, where stderr is the better guess.
- */
 export function explain(stderr: string, stdout = ''): string {
   const both = `${stderr}\n${stdout}`
   for (const [pattern, message] of KNOWN) {
@@ -1352,24 +1053,17 @@ export function explain(stderr: string, stdout = ''): string {
 async function mutate(cwd: string, args: string[]): Promise<GitResult> {
   const result = await runProcess('git', args, {
     cwd,
-    // Without this an https remote with no cached credential makes git *prompt*
-    // on the terminal druk owns — an invisible question the TUI hangs behind.
-    // Failing fast turns it into a status-bar error instead.
+    // Without this git prompts for credentials on the terminal druk owns, and the TUI hangs behind it.
     env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
     timeout: MUTATE_TIMEOUT,
   })
   if (result.error) {
-    // The one failure with no git output to explain: there is no git.
     const detail = notInstalled(result)
       ? 'git is not installed, or not on PATH'
       : result.error.message
     return { ok: false, detail }
   }
-  // Success chatter (push progress, fetch summaries) arrives on stderr too,
-  // so on failure stderr is the answer and on success either will do.
   if (result.status === 0) return { ok: true, detail: firstLine(result.stdout || result.stderr) }
-  // A killed process leaves whatever it had already written, which for a
-  // hung fetch is nothing at all — say why it stopped instead of going blank.
   const detail = result.timedOut
     ? `Timed out after ${MUTATE_TIMEOUT / 1000}s and was stopped`
     : explain(result.stderr, result.stdout)
@@ -1379,12 +1073,7 @@ async function mutate(cwd: string, args: string[]): Promise<GitResult> {
 const sameEntry = (before: PorcelainEntry, after: PorcelainEntry) =>
   before.xy === after.xy && before.path === after.path && before.source === after.source
 
-/**
- * Discard one pinned porcelain row without disturbing any other index or
- * working-tree entry. The row is read again at the last possible moment: a
- * confirmation left open while git changes must never execute against the new
- * meaning of the same path.
- */
+// The row is re-read at the last moment: a confirmation left open must not run against a changed path.
 export async function discardChange(target: DiscardTarget): Promise<GitResult> {
   const current = porcelainEntries(target.repo).find(entry => entry.path === target.entry.path)
   if (!current) return { ok: false, detail: 'That change is gone — refresh and try again' }
@@ -1436,21 +1125,10 @@ export async function discardChange(target: DiscardTarget): Promise<GitResult> {
   return mutate(target.repo, ['clean', '-q', '-f', '--', literal(current.path)])
 }
 
-/**
- * Put `paths` in the index. `-A` rather than a plain add: it is what records a
- * deletion, and a folder row hands this the folder, whose files may include one.
- */
 export function stagePaths(cwd: string, paths: readonly string[]): Promise<GitResult> {
   return mutate(cwd, ['add', '-A', '--', ...paths.map(literal)])
 }
 
-/**
- * Take `paths` back out of the index, leaving the working tree alone.
- *
- * `restore --staged` needs something to restore *from*, and on an unborn branch
- * there is no HEAD to name — every staged file there is a fresh add, so removing
- * the index entry is the whole of unstaging it.
- */
 export function unstagePaths(cwd: string, paths: readonly string[]): Promise<GitResult> {
   const spec = [...new Set([...paths, ...renameSources(cwd, paths)])].map(literal)
   return hasCommits(cwd)
@@ -1458,12 +1136,7 @@ export function unstagePaths(cwd: string, paths: readonly string[]): Promise<Git
     : mutate(cwd, ['rm', '-q', '--cached', '-r', '--', ...spec])
 }
 
-/**
- * The old names of the staged renames `paths` covers. Porcelain reports a rename
- * under its destination alone, so restoring that path leaves the *source* still
- * staged as a deletion — a row the user never asked to keep, and what made
- * unstaging a heading full of moved files leave one entry behind per move.
- */
+// Porcelain reports a rename under its destination alone; restoring that leaves the source staged.
 function renameSources(cwd: string, paths: readonly string[]): string[] {
   const wanted = paths.map(path => path.split(sep).join('/'))
   const covers = (rel: string) => wanted.some(path => rel === path || rel.startsWith(`${path}/`))
@@ -1474,45 +1147,33 @@ function renameSources(cwd: string, paths: readonly string[]): string[] {
   )
 }
 
-/** Whether HEAD names a commit — false on a repository with nothing committed yet. */
 function hasCommits(cwd: string): boolean {
   return git(cwd, ['rev-parse', '--verify', '--quiet', 'HEAD'], 3000).status === 0
 }
 
-/** Commit whatever is in the index, as `git commit` with no pathspec does. */
 export function commitStaged(cwd: string, message: string): Promise<GitResult> {
   return mutate(cwd, ['commit', '-m', message])
 }
 
-/** Stage and commit exactly `paths`; anything staged for other paths stays staged. */
 export async function commitPaths(
   cwd: string,
   message: string,
   paths: string[],
 ): Promise<GitResult> {
-  // -A scoped to the paths: it is what stages a deletion or an untracked file.
   const add = await mutate(cwd, ['add', '-A', '--', ...paths])
   if (!add.ok) return add
   return mutate(cwd, ['commit', '-m', message, '--', ...paths])
 }
 
-/**
- * Rewrite the last commit with whatever the index holds now. The message is
- * always given: amending is offered with the old subject prefilled, so an
- * "unchanged" message is the user handing the same words back, not a case to
- * special-case with `--no-edit`.
- */
 export function commitAmend(cwd: string, message: string): Promise<GitResult> {
   return mutate(cwd, ['commit', '--amend', '-m', message])
 }
 
-/** Soft reset: the commit is gone, its changes stay staged. */
 export function undoLastCommit(cwd: string): Promise<GitResult> {
   return mutate(cwd, ['reset', '--soft', 'HEAD~1'])
 }
 
 export function stashPush(cwd: string): Promise<GitResult> {
-  // -u: "stash my changes" from an editor includes the files just created.
   return mutate(cwd, ['stash', 'push', '-u'])
 }
 
@@ -1522,15 +1183,10 @@ export function stashPop(cwd: string): Promise<GitResult> {
 
 export interface Worktree {
   path: string
-  /** null on a detached HEAD */
   branch: string | null
 }
 
-/**
- * Every checkout of the repository, the main one included; a bare one has no
- * files to open. Not `localBranchName`: the porcelain writes a full ref, and
- * `feat/x` would come back as `heads/feat/x` from it.
- */
+// Not `localBranchName` on the branch line: the porcelain writes a full ref, so `feat/x` → `heads/feat/x`.
 export function worktrees(cwd: string): Worktree[] {
   const run = git(cwd, ['worktree', 'list', '--porcelain'], 5000)
   if (run.status !== 0) return []
@@ -1546,11 +1202,6 @@ export function worktrees(cwd: string): Worktree[] {
   return found
 }
 
-/**
- * A new checkout of the repository at `path`. `create` is what decides the
- * command: `worktree add -b` refuses a branch that already exists and a plain
- * `worktree add` refuses one that does not, so the caller has to know which.
- */
 export function addWorktree(
   cwd: string,
   path: string,
@@ -1563,16 +1214,11 @@ export function addWorktree(
   )
 }
 
-/**
- * Delete a checkout and its administrative files. Git refuses one holding
- * changes, which is the whole safety net here — druk never passes `--force`.
- */
 export function removeWorktree(cwd: string, path: string): Promise<GitResult> {
   return mutate(cwd, ['worktree', 'remove', path])
 }
 
 export interface StashEntry {
-  /** `stash@{0}` — the name every stash command addresses one by. */
   ref: string
   message: string
 }
@@ -1625,7 +1271,6 @@ export function listRemotes(cwd: string): Remote[] {
   if (run.status !== 0) return []
   const remotes: Remote[] = []
   for (const line of run.stdout.split('\n')) {
-    // `origin<TAB>url (fetch)` — the push line repeats the pair.
     const match = /^(\S+)\t(\S+) \(fetch\)$/.exec(line)
     if (match) remotes.push({ name: match[1]!, url: match[2]! })
   }
@@ -1662,15 +1307,6 @@ export function push(cwd: string, branch: string, hasUpstream: boolean): Promise
   return mutate(cwd, hasUpstream ? ['push'] : ['push', '--set-upstream', 'origin', branch])
 }
 
-/**
- * The fix for a rejected push, as one operation.
- *
- * Deliberately not `pull()`: a push is rejected precisely when the two sides
- * have diverged, which is the one case `--ff-only` refuses, so the merge is the
- * whole point of this. `--no-edit` keeps git from opening an editor druk cannot
- * host, and a conflicted merge stops here with git's own reason — the working
- * tree is left mid-merge, as it is after "Merge branch", and the push never runs.
- */
 export async function pullAndPush(
   cwd: string,
   branch: string,
@@ -1686,7 +1322,7 @@ export function fetchRemote(cwd: string): Promise<GitResult> {
 }
 
 export function pull(cwd: string): Promise<GitResult> {
-  // --ff-only: a real merge wants an editor and a conflict UI druk does not have.
+  // --ff-only: a real merge opens an editor druk cannot host.
   return mutate(cwd, ['pull', '--ff-only'])
 }
 
@@ -1694,11 +1330,6 @@ export function createBranch(cwd: string, name: string, from: string | null): Pr
   return mutate(cwd, from ? ['checkout', '-b', name, from] : ['checkout', '-b', name])
 }
 
-/**
- * Switch to `name`. A remote-tracking ref is not something to be on — checking
- * one out directly only detaches HEAD — so the first switch to `origin/x`
- * creates the local `x` that tracks it, and later ones move to that branch.
- */
 export function switchBranch(cwd: string, name: string, remote: boolean): Promise<GitResult> {
   if (!remote) return mutate(cwd, ['checkout', name])
   const local = localBranchName(name)
@@ -1707,7 +1338,6 @@ export function switchBranch(cwd: string, name: string, remote: boolean): Promis
     : mutate(cwd, ['checkout', '-b', local, '--track', name])
 }
 
-/** Whether `name` is a local branch — what decides `-b` from a plain checkout. */
 export function branchExists(cwd: string, name: string): boolean {
   return git(cwd, ['rev-parse', '--verify', '--quiet', `refs/heads/${name}`], 3000).status === 0
 }
@@ -1716,12 +1346,11 @@ export function renameBranch(cwd: string, from: string, to: string): Promise<Git
   return mutate(cwd, ['branch', '-m', from, to])
 }
 
-/** Delete a local branch. Without `force`, git refuses one that is not merged. */
 export function deleteBranch(cwd: string, name: string, force: boolean): Promise<GitResult> {
   return mutate(cwd, ['branch', force ? '-D' : '-d', name])
 }
 
 export function mergeBranch(cwd: string, name: string): Promise<GitResult> {
-  // --no-edit: a merge commit otherwise opens an editor druk cannot show.
+  // --no-edit: a merge commit otherwise opens an editor druk cannot host.
   return mutate(cwd, ['merge', '--no-edit', name])
 }

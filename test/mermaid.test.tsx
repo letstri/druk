@@ -16,14 +16,11 @@ test('a flowchart draws its nodes as boxes joined by arrows', () => {
   B -->|no| D[Fix]
 `)!
   expect(text).toContain('Start')
-  // A decision is the double border, so the shape says which node branches.
   expect(text).toContain('║ Ok? ║')
   expect(text).toContain('Ship')
   expect(text).toContain('yes')
   expect(text).toContain('no')
   expect(text).toContain('▼')
-  // A corner is a corner, never the crossing glyph: the lines are resolved from
-  // the directions that meet in a cell rather than by overwriting.
   expect(text).not.toContain('┼─┼')
 })
 
@@ -61,7 +58,6 @@ test('a sequence diagram draws lifelines and messages in order', () => {
   expect(text).toContain('Alice')
   expect(text).toContain('Bob')
   expect(text.indexOf('hello')).toBeLessThan(text.indexOf('hi back'))
-  // The reply is dotted and points back at the sender.
   expect(text).toContain('◀')
   expect(text).toContain('a note')
   expect(text).toContain('loop twice')
@@ -78,7 +74,6 @@ test('a class diagram keeps its members and points inheritance at the parent', (
   const lines = text.split('\n')
   expect(text).toContain('+int age')
   expect(text).toContain('+swim()')
-  // Hollow head: the relation is inheritance, not an association.
   expect(text).toContain('▽')
   expect(lines.findIndex(line => line.includes('Duck'))).toBeLessThan(
     lines.findIndex(line => line.includes('Animal')),

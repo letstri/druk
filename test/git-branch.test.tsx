@@ -9,7 +9,6 @@ import type { Harness } from './helpers'
 import { initRepo } from './repo'
 import { tempDir } from './temp'
 
-/** A repository with one commit on `main`, plus whatever extra branches. */
 function repo(...branches: string[]) {
   const dir = tempDir('druk-branch-')
   const git = (...args: string[]) => execFileSync('git', args, { cwd: dir })
@@ -29,7 +28,6 @@ const branchNames = (dir: string) =>
     .split('\n')
     .filter(Boolean)
 
-/** Git mutations finish off the render clock; poll instead of guessing a delay. */
 async function until(t: Harness, cond: () => boolean, ms = 5000) {
   const start = Date.now()
   while (!cond() && Date.now() - start < ms) await settle(t, 25)
@@ -52,9 +50,7 @@ test('listBranches marks the current branch and reads upstreams', () => {
 
   const after = listBranches(dir)
   expect(after.find(b => b.name === 'main')?.upstream).toBe('origin/main')
-  // The remote-tracking ref shows too — it is what a first checkout branches off.
   expect(after.find(b => b.name === 'origin/main')?.remote).toBe(true)
-  // `origin/HEAD` is a pointer, not a branch, and must never be offered.
   expect(after.some(b => b.name.endsWith('/HEAD'))).toBe(false)
 })
 
@@ -64,8 +60,6 @@ test('switch branch lists the others and checks the picked one out', async () =>
   const t = await launch(dir)
   await runCommand(t, 'Switch branch')
   const picker = t.captureCharFrame()
-  // The count in the title is the assertion that `main` is missing: the branch
-  // you are on is not somewhere to switch to, and the status bar names it anyway.
   expect(picker).toContain('Switch to branch — 1')
   expect(picker).toContain('feature')
 
@@ -96,7 +90,6 @@ test('new branch prompts for a name and lands on it', async () => {
 
 test('new branch from names its start point and branches off it', async () => {
   const dir = repo('feature')
-  // A commit only `feature` has, so branching off it is visible on disk.
   execFileSync('git', ['checkout', '-q', 'feature'], { cwd: dir })
   writeFileSync(join(dir, 'b.ts'), 'only on feature\n')
   execFileSync('git', ['add', '.'], { cwd: dir })
@@ -125,7 +118,6 @@ test('rename branch starts from the current name', async () => {
   await press(t, i => i.pressEnter())
   expect(t.captureCharFrame()).toContain('Rename branch to')
 
-  // The prompt prefills the old name, so typing appends to it.
   await press(t, i => void i.typeText('-2'))
   await press(t, i => i.pressEnter())
 
@@ -143,11 +135,10 @@ test('delete branch asks first, and force is offered for unmerged work', async (
 
   const t = await launch(dir)
   await runCommand(t, 'Delete branch…')
-  await press(t, i => i.pressEnter()) // the only candidate is `stray`
+  await press(t, i => i.pressEnter())
   expect(t.captureCharFrame()).toContain('Delete "stray"')
   await press(t, i => i.pressEnter())
 
-  // A plain delete refuses, and says what would go through instead.
   await until(t, () => t.captureCharFrame().includes('unmerged commits'))
   expect(branchNames(dir)).toContain('stray')
 

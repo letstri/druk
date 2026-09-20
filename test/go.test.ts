@@ -9,7 +9,6 @@ import {
 import { loadMarketExtensions } from './helpers'
 import { parseHighlights, WHOLE } from './syntax'
 
-// Go is a market extension, not one of the preinstalled languages.
 loadMarketExtensions()
 
 async function captured(source: string) {

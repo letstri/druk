@@ -6,22 +6,13 @@ import { ui } from '../themes'
 import { keySectionsFor } from './keys'
 import type { HelpSection, KeyScope } from './keys'
 import { PAD } from './modal'
+import { cut } from './text'
 
-/** Columns between one column of the panel and the next. */
 const GAP = 3
-/** Columns between a key and its label. */
 const KEY_GAP = 1
-/** Keys sit one column in from their heading, as they do in the help overlay. */
 const INDENT = 1
-/** Narrowest a column may be squeezed to before a taller panel is the better trade. */
 const MIN_COL = 24
-/** Label columns a squeezed column keeps whatever that costs its key column. */
 const MIN_LABEL = 8
-/**
- * How much wider than the panel a column count may want before it is refused. A
- * split that overruns by a few columns clips the one longest label; refusing it
- * costs a column of the panel and several rows of height, which is far worse.
- */
 const SQUEEZE = 1.08
 
 const SCOPE_LABELS: Record<KeyScope, string> = {
@@ -36,23 +27,15 @@ type Line =
   | { kind: 'header'; text: string }
   | { kind: 'key'; key: string; label: string }
   | { kind: 'gap' }
-  /** Stands where a column ran out of terminal, so nothing is dropped in silence. */
   | { kind: 'more' }
 
-/** What a cut column ends on. The full table is the palette's "Keyboard shortcuts". */
 const MORE = '… more (F1)'
 
-const clip = (label: string, width: number) =>
-  label.length > width ? `${label.slice(0, width - 1)}…` : label
-
-/** Rows plus the heading above them. */
 const blockHeight = (section: HelpSection) => section.rows.length + 1
 
-/** How tall a column of sections stands, one blank line between neighbours. */
 const columnHeight = (column: HelpSection[]) =>
   column.reduce((sum, section) => sum + blockHeight(section) + 1, -1)
 
-/** Sections poured into columns in order, breaking whenever one would pass `limit`. */
 function fill(sections: HelpSection[], limit: number): HelpSection[][] {
   const columns: HelpSection[][] = [[]]
   let used = 0
@@ -70,13 +53,6 @@ function fill(sections: HelpSection[], limit: number): HelpSection[][] {
   return columns
 }
 
-/**
- * Sections dealt into at most `cols` columns, in order, each as near the same
- * height as the rest — the shortest limit that still fits, found by bisection.
- * Pouring into a fixed target instead leaves the last column with everything the
- * earlier ones rounded away. A section is never split: a heading whose keys are
- * in the next column reads as a heading with nothing under it.
- */
 function pack(sections: HelpSection[], cols: number): HelpSection[][] {
   let low = Math.max(...sections.map(blockHeight))
   let high = columnHeight(sections)
@@ -88,7 +64,6 @@ function pack(sections: HelpSection[], cols: number): HelpSection[][] {
   return fill(sections, low)
 }
 
-/** The width a column would like: its widest row, plus the gap to its neighbour. */
 const naturalWidth = (column: HelpSection[]) =>
   Math.max(
     ...column.map(section => section.title.length),
@@ -97,11 +72,6 @@ const naturalWidth = (column: HelpSection[]) =>
     ),
   ) + GAP
 
-/**
- * Each column's share of the panel: its natural width, with what is left over split
- * evenly — or scaled down together when the columns want more than there is. Equal
- * shares instead would leave a column of short keys half empty beside one that clips.
- */
 function shares(columns: HelpSection[][], inner: number): number[] {
   const naturals = columns.map(naturalWidth)
   const wanted = naturals.reduce((sum, width) => sum + width, 0)
@@ -110,7 +80,6 @@ function shares(columns: HelpSection[][], inner: number): number[] {
   return naturals.map(width => width + extra)
 }
 
-/** One column's sections flattened to display lines, with the widths to draw them at. */
 function measure(column: HelpSection[], width: number, rows: number) {
   const all = column.flatMap<Line>((section, index) => [
     ...(index > 0 ? [{ kind: 'gap' } as const] : []),
@@ -118,8 +87,7 @@ function measure(column: HelpSection[], width: number, rows: number) {
     ...section.rows.map(([key, label]) => ({ kind: 'key', key, label }) as const),
   ])
   const kept = all.slice(0, rows - 1)
-  // A column cut right after a heading's last key would end on the blank line that
-  // separates sections, with the marker floating under it.
+  // A column cut after a heading's last key would end on a separating blank line.
   while (kept.at(-1)?.kind === 'gap') kept.pop()
   const lines: Line[] = all.length > rows ? [...kept, { kind: 'more' }] : all
   const room = width - GAP - INDENT - KEY_GAP
@@ -130,12 +98,6 @@ function measure(column: HelpSection[], width: number, rows: number) {
   return { lines, keyWidth, labelWidth: Math.max(MIN_LABEL, room - keyWidth) }
 }
 
-/**
- * The Ctrl+K peek: every key alive in the current pane, grouped under the same
- * headings the help overlay uses, as a panel sitting on the status bar. Opened by
- * a key and closed by the next one, so it reads as "hold to see" without needing
- * key-release events no classic terminal sends.
- */
 export function KeyPeek(props: { pane: KeyScope }) {
   const dimensions = useTerminalDimensions()
 
@@ -144,9 +106,6 @@ export function KeyPeek(props: { pane: KeyScope }) {
     const inner = dimensions().width - 2 - PAD * 2
     const maxCols = Math.max(1, Math.min(sections.length, Math.floor(inner / MIN_COL)))
 
-    // The widest split the panel can hold — measured on the columns the split
-    // actually produces, since a column of one-word keys needs far less room than
-    // the widest row in the table would suggest.
     let columns = pack(sections, 1)
     for (let cols = maxCols; cols > 1; cols--) {
       const candidate = pack(sections, cols)
@@ -156,7 +115,6 @@ export function KeyPeek(props: { pane: KeyScope }) {
         break
       }
     }
-    // The panel must leave the editor visible; past the cap, columns squeeze instead.
     const maxRows = Math.max(1, dimensions().height - 6)
     for (
       let cols = columns.length + 1;
@@ -167,8 +125,7 @@ export function KeyPeek(props: { pane: KeyScope }) {
     }
 
     const widths = shares(columns, inner)
-    // A terminal too short for even the widest split gets what fits: the panel has
-    // no scroll, and one that overran would push its own title off the screen.
+    // No scroll: a panel that overran would push its own title off screen.
     const rows = Math.min(Math.max(...columns.map(columnHeight)), maxRows)
     return columns.map((column, at) => ({
       width: widths[at]!,
@@ -220,13 +177,13 @@ export function KeyPeek(props: { pane: KeyScope }) {
                             bg={ui.panelBg}
                             content={
                               ' '.repeat(INDENT) +
-                              clip(row().key, column.keyWidth).padEnd(column.keyWidth)
+                              cut(row().key, column.keyWidth).padEnd(column.keyWidth)
                             }
                           />
                           <text
                             fg={ui.dim}
                             bg={ui.panelBg}
-                            content={' '.repeat(KEY_GAP) + clip(row().label, column.labelWidth)}
+                            content={' '.repeat(KEY_GAP) + cut(row().label, column.labelWidth)}
                           />
                         </>
                       )}
@@ -235,7 +192,7 @@ export function KeyPeek(props: { pane: KeyScope }) {
                       <text
                         fg={ui.dim}
                         bg={ui.panelBg}
-                        content={` ${clip(MORE, column.width - GAP)}`}
+                        content={` ${cut(MORE, column.width - GAP)}`}
                       />
                     </Match>
                   </Switch>

@@ -36,9 +36,7 @@ interface Extension {
   categories: string[]
 }
 
-// The nine `src/extensions/builtin.ts` compiles into the binary. Listed rather
-// than derived: nothing in the catalog marks a manifest as preinstalled, and the
-// page would otherwise tell a first-run user to install what they already have.
+// Mirrors src/extensions/builtin.ts; the catalog does not mark preinstalled manifests.
 const BUILTIN = new Set([
   'typescript',
   'json',
@@ -76,7 +74,6 @@ const GROUPS: { key: Category; label: string; note: string }[] = [
   },
 ]
 
-/** A linter is an `lsp` extension with no language of its own — eslint, oxlint. */
 function groupOf(extension: Extension): Category {
   if (extension.categories.includes('language')) return 'language'
   if (extension.categories.includes('theme')) return 'theme'
@@ -84,7 +81,6 @@ function groupOf(extension: Extension): Category {
   return 'lsp'
 }
 
-/** What the extensions panel matches on: name, id, categories, and everything registered. */
 function haystack(extension: Extension): string {
   const { themes, icons, filetypes } = extension.provides
   return [
@@ -102,9 +98,7 @@ function haystack(extension: Extension): string {
 
 function Row({ extension }: { extension: Extension }) {
   const { themes, icons, filetypes } = extension.provides
-  // A lone filetype named after the extension says nothing the row has not said
-  // already; the list is here for the ones that carry several (typescript, css)
-  // and for a palette family's flavors.
+  // A lone filetype named after the extension repeats the row's name.
   const registers = [...filetypes, ...themes, ...icons].filter(
     (name, _, all) => all.length > 1 || name !== extension.id,
   )

@@ -26,9 +26,7 @@ export type BranchMode =
 
 interface PickerSpec {
   title: string
-  /** Branches this mode may act on; the rest never reach the list. */
   keep: (branch: Branch) => boolean
-  /** Said instead of opening an empty picker. */
   empty: string
 }
 
@@ -44,8 +42,6 @@ const PICKERS: Record<BranchMode, PickerSpec> = {
     keep: branch => !branch.current,
     empty: 'No other branch to merge',
   },
-  // A remote-tracking branch is a copy of what the remote said; renaming or
-  // deleting one locally only loses track of it, so both are local-only.
   rename: {
     title: 'Rename branch',
     keep: branch => !branch.remote,
@@ -61,9 +57,6 @@ const PICKERS: Record<BranchMode, PickerSpec> = {
     keep: branch => !branch.remote && !branch.current,
     empty: 'No other local branch to delete',
   },
-  // The current branch stays on offer: comparing against it is comparing against
-  // its tip, which is a narrower question than "everything I have not committed"
-  // and a reasonable one to ask.
   diffBase: {
     title: 'Compare against branch',
     keep: () => true,
@@ -71,11 +64,6 @@ const PICKERS: Record<BranchMode, PickerSpec> = {
   },
 }
 
-/**
- * Branch commands: the picker they all start from, and the mutations they end
- * in. Everything destructive goes through a prompt first, so this module opens
- * one and `prompts.ts` calls back into the runners below once it is answered.
- */
 export function createBranches(deps: {
   status: Status
   git: Git
@@ -106,7 +94,6 @@ export function createBranches(deps: {
       done: () => `On ${name}`,
     })
 
-  /** New branch off HEAD — the one branch command with nothing to pick first. */
   const newBranch = () => {
     if (git.activeRepo() === null) return status.say(noRepository(git), 'warn')
     prompts.setPrompt({ kind: 'newBranch', from: null })
@@ -127,8 +114,6 @@ export function createBranches(deps: {
         return prompts.setPrompt({ kind: 'mergeBranch', name: branch.name })
       case 'rename':
         return prompts.setPrompt({ kind: 'renameBranch', from: branch.name })
-      // Not a mutation: nothing in the repository moves, only what druk compares
-      // against — so this one answers on the spot instead of going through gitOp.
       case 'diffBase':
         git.setDiffBase(branch.name)
         return status.say(`Comparing against ${branch.name}`)
@@ -155,8 +140,6 @@ export function createBranches(deps: {
   const merge = (name: string) =>
     gitOp('Merging', repo => mergeBranch(repo, name), {
       touchesTree: { kind: 'sync' },
-      // git's own summary ("Fast-forward", "Merge made by the 'ort' strategy")
-      // says more about what happened than any sentence here could.
       done: result => result.detail || `Merged ${name}`,
     })
 

@@ -6,7 +6,6 @@ import { encode } from 'fast-png'
 
 import { fixture, launch, openFile, press, settle } from './helpers'
 
-/** A project holding one text file and one small red/blue PNG. */
 function project(): { dir: string; png: string } {
   const dir = fixture({ 'main.ts': 'const a = 1\n' })
   const png = join(dir, 'logo.png')
@@ -36,10 +35,8 @@ describe('image viewer', () => {
     expect(frame).toContain('▀')
     expect(frame).not.toContain('cannot be')
 
-    // The status bar treats it as an image, not an empty text file.
     expect(frame).toContain('image')
 
-    // Ctrl+W closes the viewer tab like any other; the caption goes with it.
     await press(t, input => input.pressKey('w', { ctrl: true }))
     expect(t.captureCharFrame()).not.toContain('logo.png — 4×8')
   })
@@ -60,7 +57,6 @@ describe('image viewer', () => {
     await openFile(t, 'logo')
     expect(t.captureCharFrame()).toContain('logo.png — 4×8')
 
-    // Ctrl+S on the viewer must not create or save anything: the PNG stays intact.
     const before = [...(await Bun.file(png).bytes())]
     await press(t, input => input.pressKey('s', { ctrl: true }))
     await settle(t)

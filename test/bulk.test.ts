@@ -6,7 +6,6 @@ import { copyAll, moveAll, removeAll } from '../src/core/bulk'
 import type { BulkProgress } from '../src/core/bulk'
 import { tempDir } from './temp'
 
-/** A directory of `count` packages, each with a file inside — a small node_modules. */
 function heavyDir(count: number) {
   const base = tempDir('druk-bulk-')
   const dir = join(base, 'node_modules')
@@ -26,7 +25,6 @@ describe('deleting in the background', () => {
 
     expect(failed).toEqual([])
     expect(existsSync(dir)).toBe(false)
-    // One tick per entry: a single call at the end would be a frozen editor.
     expect(seen.length).toBe(12)
     expect(seen.at(-1)).toMatchObject({ done: 12, total: 12 })
   })
@@ -38,7 +36,6 @@ describe('deleting in the background', () => {
 
     await removeAll([a.dir, b.dir], progress => seen.push({ ...progress }))
 
-    // A per-target total read as "Deleting 5/4" the moment the second target began.
     for (const progress of seen) expect(progress.done).toBeLessThanOrEqual(progress.total)
     expect(seen.at(-1)).toMatchObject({ done: 7, total: 7 })
   })
@@ -60,8 +57,6 @@ describe('deleting in the background', () => {
     await removeAll([dir], () => {})
     clearInterval(timer)
 
-    // A synchronous rm would starve the timer entirely, which is exactly what
-    // made the editor look hung while a large folder was deleted.
     expect(ticks).toBeGreaterThan(0)
   })
 
@@ -81,7 +76,6 @@ describe('deleting in the background', () => {
     const { base } = heavyDir(1)
     const { failed, done } = await removeAll([join(base, 'nothing-here')], () => {})
 
-    // `force` makes a missing path a no-op rather than a failure.
     expect(failed).toEqual([])
     expect(done).toBe(1)
   })

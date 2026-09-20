@@ -10,17 +10,12 @@ import { cut } from './text'
 import { useKeys } from './useKeys'
 
 export interface ComparisonViewProps {
-  /** Null for a commit whose first-parent diff is empty — a merge, most often. */
   file: ComparisonFile | null
-  /** Null while the blobs are still being read — the row opened first. */
   content: ComparisonContent | null
-  /** Set when the file is one of a commit's, which adds its header and pager. */
   commit: ComparisonCommitDetail | null
   mode: DiffMode
-  /** Columns the pane owns — the editor slot, not the terminal. */
   width: number
   focused: boolean
-  /** A modal above the page owns the keys — this pane's handler runs first. */
   blocked: boolean
   onFocus: () => void
   onMoveFile: (delta: number) => void
@@ -28,14 +23,7 @@ export interface ComparisonViewProps {
   onClose: () => void
 }
 
-/**
- * A file from a branch comparison, over the editor slot. One page whichever way
- * the row was reached: a commit adds a header above the diff and makes ←/→ page
- * through its files, and anything with no diff to draw — binary, still loading,
- * a commit that changed nothing — becomes a message in the same frame.
- */
 export function ComparisonView(props: ComparisonViewProps) {
-  /** The one case `DiffView` can draw, and the one it owns the keyboard for. */
   const text = () => (props.content?.binary === false ? props.content : null)
 
   useKeys((key: KeyEvent, k: string) => {
@@ -48,7 +36,6 @@ export function ComparisonView(props: ComparisonViewProps) {
     key.preventDefault()
   })
 
-  /** Columns a header row has, after the pane's own left padding. */
   const room = () => Math.max(8, props.width - 1)
 
   const fileHeader = (file: ComparisonFile) =>
@@ -67,8 +54,7 @@ export function ComparisonView(props: ComparisonViewProps) {
           const commit = () => detail().commit
           const parents = () => commit().parents.length
           return (
-            // Three rows and three texts: a subject or an address allowed to wrap
-            // pushes the rows under it past the fixed height, where they are gone.
+            // Fixed three rows: a wrapped subject pushes the rows under it out of the box.
             <box height={3} flexDirection="column" backgroundColor={ui.solidBarBg} paddingLeft={1}>
               <text
                 wrapMode="none"

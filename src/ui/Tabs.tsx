@@ -7,70 +7,47 @@ import { useHover } from './hover'
 import { SEVERITY_COLOR, SEVERITY_GLYPH } from './severity'
 import { useTooltip } from './tooltip'
 
-/** Worst diagnostic a tab's file carries. Info and hints are not a tab's business. */
-export type TabSeverity = 'error' | 'warning'
+type TabSeverity = 'error' | 'warning'
 
 export interface TabInfo {
-  /** What the callbacks name this tab by: a file path, or the diff tab's own id —
-   * a diff of an open file is a second tab for the same path. */
   id: string
   name: string
   dirty: boolean
   preview: boolean
-  /** Worst diagnostic of the file, or null when it has none. */
   severity: TabSeverity | null
-  /** The file's icon, or null when `tabIcons` is off or the theme draws nothing. */
   icon: { glyph: string; color?: string } | null
 }
 
 export interface TabsProps {
   tabs: TabInfo[]
-  /** Columns the strip has — the editor's column, not the terminal's width. */
   width: number
   activeId: string | null
-  /** Whether the visit history has anywhere to go, each way. */
   canBack: boolean
   canForward: boolean
   onSelect: (id: string) => void
   onClose: (id: string) => void
   onBack: () => void
   onForward: () => void
-  /** Clicking an overflow counter asks for the full list of open tabs. */
   onOverflow: () => void
-  /**
-   * The rendered-markdown switch for the active tab, or null when it is not a
-   * markdown file. The command exists either way — this is the half of it people
-   * find, since nothing else in the editor says the view is there.
-   */
   markdown: { rendered: boolean } | null
   onToggleMarkdown: () => void
 }
 
 const MAX_LABEL = 18
-/** Padding, the dirty/close glyph and the separator around a label. */
 const CHROME = 5
-/** The glyph slot before a label, and the space after it. */
 const SLOT = 2
-/** Columns the history arrows take off the row: two boxes and their padding. */
 const NAV = 5
 const PREVIEW_LABEL = '¶ preview'
 const SOURCE_LABEL = '¶ source'
-/** Widest of the two labels plus its padding — the button must not reflow the
- * strip as it is toggled, so both states cost the row the same columns. */
+// Widest of the two labels, so toggling the button does not reflow the strip.
 const PREVIEW_WIDTH = PREVIEW_LABEL.length + 2
 
 const shorten = (name: string) =>
   name.length <= MAX_LABEL ? name : `${name.slice(0, MAX_LABEL - 1)}…`
 
-/** The strip's background, tinted while the pointer is on one of its buttons. */
 const barBg = (hovered: boolean) => (hovered ? ui.hoverBg : ui.barBg)
 
-/**
- * One glyph before the label, or null for none: a diagnostic outranks the file
- * icon rather than sitting beside it. Both are one cell, so a file that starts
- * erroring while icons are on moves nothing — and where icons are off, which is
- * the default, the mark is the only thing the slot is ever spent on.
- */
+// One cell either way: a diagnostic replaces the icon, so a tab that starts erroring shifts nothing.
 const glyphOf = (tab: TabInfo): { glyph: string; color?: string } | null =>
   tab.severity
     ? { glyph: SEVERITY_GLYPH[tab.severity], color: SEVERITY_COLOR[tab.severity]() }
@@ -83,14 +60,9 @@ export function Tabs(props: TabsProps) {
   const after = useTooltip('tabs.switch')
   const preview = useTooltip('view.markdown')
 
-  /**
-   * Only the tabs that fit are rendered, scrolled to keep the active one in
-   * view. Letting flexbox shrink them instead clips names mid-character.
-   */
+  // Only the tabs that fit are built: letting flexbox shrink them clips names mid-character.
   const visible = createMemo(() => {
-    // The strip sits over the editor alone, as VS Code's does, so its budget is
-    // that column's width — not the terminal's. The arrows are drawn whether or
-    // not they are live, so their columns are gone from the budget either way.
+    // Budget is the editor column's width; the arrows' columns are gone whether or not they are live.
     const budget = props.width - NAV - (props.markdown ? PREVIEW_WIDTH : 0)
     const width = (tab: TabInfo) =>
       shorten(tab.name).length + CHROME + (tab.severity || tab.icon ? SLOT : 0)
@@ -103,7 +75,6 @@ export function Tabs(props: TabsProps) {
     let last = active
     let used = props.tabs[active] ? width(props.tabs[active]!) : 0
 
-    // Grow outwards from the active tab until the row is full.
     while (first > 0 || last < props.tabs.length - 1) {
       const before = first > 0 ? width(props.tabs[first - 1]!) : Infinity
       const after = last < props.tabs.length - 1 ? width(props.tabs[last + 1]!) : Infinity
@@ -126,9 +97,7 @@ export function Tabs(props: TabsProps) {
   return (
     <box flexDirection="column" flexShrink={0}>
       <box height={1} flexDirection="row" backgroundColor={ui.barBg}>
-        {/* The way back through the tabs the editor has landed on. Always drawn,
-            dimmed to `faint` when that way is empty: an arrow that comes and goes
-            shifts every tab beside it, and the row would jump on each jump. */}
+        {/* Always drawn, dimmed when there is nowhere to go: an arrow that comes and goes shifts tabs. */}
         <box
           ref={back.ref}
           paddingLeft={1}
@@ -182,12 +151,7 @@ export function Tabs(props: TabsProps) {
                   onMouseOver={row.enter}
                   onMouseOut={row.leave}
                 >
-                  {/* The accent edge is what says "this one" at a glance — a bold
-                      label and a background a shade apart do not survive a
-                      low-contrast theme. It takes the column the padding had, so
-                      the strip's geometry is unchanged. A space on the inactive
-                      tabs, not the glyph hidden by painting it in the background:
-                      with `transparent` on there is no background to hide it in. */}
+                  {/* A space, not a glyph hidden in the background: `transparent` leaves none. */}
                   <text fg={ui.accent} bg={bg()} flexShrink={0} content={active() ? '▎' : ' '} />
                   <Show when={glyphOf(tab)}>
                     {(mark: () => { glyph: string; color?: string }) => (
@@ -209,9 +173,6 @@ export function Tabs(props: TabsProps) {
                     }
                     bg={bg()}
                     content={shorten(tab.name)}
-                    // Preview tabs italic, as VS Code draws them; nothing bold —
-                    // the active tab is said by its fill and its accent edge, and
-                    // a bold label on top of both is a third way of saying it.
                     attributes={tab.preview ? TextAttributes.ITALIC : undefined}
                   />
                   <box
@@ -223,9 +184,6 @@ export function Tabs(props: TabsProps) {
                     onMouseOver={close.enter}
                     onMouseOut={close.leave}
                   >
-                    {/* The × is painted in the tab's own background on an
-                        untouched inactive tab — hovering the tab is what
-                        reveals it, and hovering the × itself sharpens it. */}
                     <text
                       fg={
                         tab.dirty

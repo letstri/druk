@@ -13,8 +13,6 @@ export interface UpdateBannerProps {
 
 export function UpdateBanner(props: UpdateBannerProps) {
   useKeys((key: KeyEvent, k: string) => {
-    // The banner arrives asynchronously, possibly mid-keystroke: claim only the
-    // keys it acts on rather than eating whatever the user was in the middle of.
     if (k === 'escape' || k === 'return' || k === 'enter') {
       key.preventDefault()
       props.onClose()

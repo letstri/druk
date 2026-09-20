@@ -9,8 +9,6 @@ describe('recognising jsonc files', () => {
   test('by extension, and without stealing plain json', () => {
     expect(filetypeForPath('wrangler.jsonc')).toBe('jsonc')
     expect(filetypeForPath('app/tsconfig.jsonc')).toBe('jsonc')
-    // bun.lock carries trailing commas, and the languageId is what stops the
-    // json server flagging every one of them.
     expect(filetypeForPath('bun.lock')).toBe('jsonc')
     expect(filetypeForPath('package.json')).toBe('json')
   })
@@ -38,25 +36,16 @@ describe('painting jsonc', () => {
         .map(segment => SAMPLE.split('\n')[line]?.slice(segment.start, segment.end))
     expect(commented(1)).toEqual(['// a line comment'])
     expect(commented(2)).toEqual(['/* and a block one */'])
-    // The whole point: a comment must not be parsed as a broken value.
     expect(segments.some(segment => segment.styleId === style.getStyleId('error'))).toBe(false)
   })
 })
 
 test('the json server serves jsonc too', () => {
-  // Same process, but the languageId druk sends is the filetype — which is what
-  // tells vscode-json-language-server to allow the comments rather than flag them.
   expect(resolveServer('jsonc', {})?.command).toEqual(resolveServer('json', {})!.command)
 })
 
 test('bun.lock is excused its trailing commas by schema, not languageId', () => {
-  // The jsonc languageId only *downgrades* trailing commas to warnings — the
-  // server hardcodes `trailingCommas: 'warning'` for jsonc documents, and druk
-  // draws warnings too. Silence comes from a schema association: the language
-  // service skips both checks entirely for a file whose schema says
-  // `allowTrailingCommas` / `allowComments`. And once any settings are pushed,
-  // `validate.enable` must ride along — the server resets it to false on every
-  // `didChangeConfiguration` that omits it, killing syntax errors everywhere.
+  // `validate.enable` must ride along in every settings push: the server resets it otherwise.
   const settings = resolveServer('json', {})?.settings as {
     json: {
       validate: { enable: boolean }

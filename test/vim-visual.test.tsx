@@ -83,14 +83,12 @@ describe('edges', () => {
   test('visual selection can run backwards', async () => {
     const { t, file } = await vimEditor('abcdef\n')
     await type(t, '$hvhhd')
-    // Anchored on `e`, two steps back to `c`: the anchor end is inside the selection.
     expect(await save(t, file)).toBe('abf\n')
   })
 
   test('visual across lines deletes both halves', async () => {
     const { t, file } = await vimEditor('abc\ndef\n')
     await type(t, 'lvjd')
-    // b, c, the newline and d, e are all inside the selection.
     expect(await save(t, file)).toBe('af\n')
   })
 
@@ -179,7 +177,6 @@ describe('living with the rest of the editor', () => {
   test('Esc in normal mode hands the keyboard to the tree', async () => {
     const { t } = await vimEditor()
     await pressEscape(t)
-    // `d` in the tree is delete, which asks first — that is how we know focus moved.
     await type(t, 'd')
     expect(t.captureCharFrame()).toContain('Delete')
   })
@@ -195,7 +192,6 @@ describe('living with the rest of the editor', () => {
     await openFile(t, 'b.ts')
     expect(t.captureCharFrame()).toContain('NORMAL')
 
-    // …and the keys are commands again, not text: x deleted a character.
     await type(t, 'x')
     expect(t.captureCharFrame()).not.toContain('bbb')
   })
@@ -215,29 +211,26 @@ describe('living with the rest of the editor', () => {
 describe('paragraph motions', () => {
   test('} goes to the next blank line', async () => {
     const { t } = await vimEditor('one\ntwo\n\nthree\nfour\n')
-    // Cursor starts at Ln 1 (one). } goes to the blank line at Ln 3.
     await type(t, '}')
     expect(at(t)).toContain('Ln 3')
   })
 
   test('{ goes to the previous blank line', async () => {
     const { t } = await vimEditor('one\ntwo\n\nthree\nfour\n')
-    await type(t, 'j}') // Ln 2 → Ln 3 (blank)
+    await type(t, 'j}')
     expect(at(t)).toContain('Ln 3')
-    await type(t, '{') // Ln 3 → Ln 1 (start of buffer)
+    await type(t, '{')
     expect(at(t)).toContain('Ln 1')
   })
 
   test('counted paragraph motion: 2}', async () => {
     const { t } = await vimEditor('a\n\nb\n\nc\n')
-    // From Ln 1, 2} goes past blank at Ln 2, then past blank at Ln 4
     await type(t, '2}')
     expect(at(t)).toContain('Ln 4')
   })
 
   test('} at end of file goes to the trailing blank line', async () => {
     const { t } = await vimEditor('a\nb\n')
-    // "a\nb\n" splits into lines ["a", "b", ""]; the trailing empty line is Ln 3.
     await type(t, 'G}')
     expect(at(t)).toContain('Ln 3')
   })
@@ -264,7 +257,6 @@ describe('linewise visual mode', () => {
 
   test('Vy yanks linewise and P puts above', async () => {
     const { t, file } = await vimEditor()
-    // j to row 1 (two), V yanks linewise, P pastes above
     await type(t, 'jVyP')
     expect(await save(t, file)).toBe('one\ntwo\ntwo\nthree\n')
   })

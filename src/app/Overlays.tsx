@@ -63,10 +63,8 @@ type FileHistoryPrompt = Extract<Prompt, { kind: 'fileHistory' }>
 type WorkspacePickPrompt = Extract<Prompt, { kind: 'workspacePick' }>
 type WorktreePickPrompt = Extract<Prompt, { kind: 'worktreePick' }>
 
-/** What the problems modal is showing: every open file's, or the cursor's line. */
-export type ProblemsScope = 'all' | 'cursor'
+type ProblemsScope = 'all' | 'cursor'
 
-/** The active search toggles, named in the confirm so what runs is what was agreed to. */
 const searchFlags = (options: SearchOptions) => {
   const parts = [
     options.caseSensitive && 'case',
@@ -89,33 +87,15 @@ export function createOverlays(deps: {
   const { renderer, promptState, workspace, git, branches, comparison, panes, editor } = deps
 
   const [help, setHelp] = createSignal(false)
-  /** The Opt+/ strip of every key alive in this pane; any next key closes it. */
   const [peek, setPeek] = createSignal(false)
   const [palette, setPalette] = createSignal(false)
   const [picker, setPicker] = createSignal<'files' | 'tabs' | null>(null)
-  /** Open search: its scope, and whether the replacement field starts showing. */
   const [search, setSearch] = createSignal<{ scope: SearchScope; replacing?: boolean } | null>(null)
-  /**
-   * The last search of each scope, kept after the panel dies so reopening it
-   * comes back where it was left rather than empty. Flags ride along — a case
-   * toggle flipped after the final keystroke is part of what was searched for —
-   * and so do the selected row and the folds, which is what makes reading a hit
-   * and reopening a way to glance at a file rather than a way to lose your place.
-   * Per scope, because the two are separate searches: a project query is not
-   * what Ctrl+F was last given.
-   */
   const [lastSearch, setLastSearch] = createSignal<Partial<Record<SearchScope, SearchMemory>>>({})
   const rememberSearch = (scope: SearchScope, state: SearchMemory) =>
     setLastSearch(prev => ({ ...prev, [scope]: state }))
   const [update, setUpdate] = createSignal<UpdateInfo | null>(null)
-  /**
-   * The problems list, jumping to a diagnostic on Enter. `cursor` is the same
-   * modal over the cursor's line alone — what the inline note was too narrow to
-   * say, which is the only way to read a server's whole sentence in a terminal
-   * that has no hover.
-   */
   const [problemsOpen, setProblemsOpen] = createSignal<ProblemsScope | null>(null)
-  /** True while a modal or overlay owns the keyboard. One list, two readers. */
   const overlay = createMemo(
     () =>
       !!(
@@ -134,22 +114,13 @@ export function createOverlays(deps: {
       ),
   )
 
-  /**
-   * What is selected on screen, for search to open with. One line only: a query
-   * spanning a newline matches nothing, so carrying it over would just look broken.
-   */
+  // One line only: a query spanning a newline matches nothing.
   const selection = () => {
     const text = renderer.getSelection()?.getSelectedText() ?? ''
     return text.includes('\n') ? '' : text
   }
 
-  /**
-   * What the search box opens carrying. A selection wins over the remembered
-   * query — it is this moment's intent against the last one's — and brings back
-   * neither row nor folds, since an index into another search's results points
-   * at nothing in particular. The flags stay either way: they are a mode the
-   * user set, not part of any one query.
-   */
+  // A selection brings back neither row nor folds: an index into another search points at nothing.
   const searchOpensWith = (scope: SearchScope): SearchMemory => {
     const last = lastSearch()[scope]
     const options = last?.options ?? {}
@@ -196,7 +167,6 @@ export function createOverlays(deps: {
 
 export type Overlays = ReturnType<typeof createOverlays>
 
-/** The modal stack: prompts, confirms, search, pickers, palette and banners. */
 export function OverlayStack(props: { ctx: AppContext; commands: Accessor<Command[]> }) {
   // ctx is assembled once in App and never replaced, so reading it eagerly is safe.
   const app = props.ctx
@@ -208,11 +178,6 @@ export function OverlayStack(props: { ctx: AppContext; commands: Accessor<Comman
     rel: relative(app.rootDir, problem.path) || basename(problem.path),
   })
 
-  /**
-   * What the modal is listing: the cursor's line alone, or every open file's
-   * problems in tab order with errors first — a hundred style hints are worth
-   * less than the one type error under them, and the list opens on the top row.
-   */
   const problemRows = createMemo<ProblemEntry[]>(() => {
     const path = workspace.activePath()
     if (overlays.problemsOpen() === 'cursor') {
@@ -232,14 +197,11 @@ export function OverlayStack(props: { ctx: AppContext; commands: Accessor<Comman
     )
   })
 
-  // The list closes itself when the last problem is fixed while it is up —
-  // otherwise `overlay()` would keep the keyboard with a modal no longer there.
+  // Otherwise `overlay()` keeps the keyboard with a modal no longer there.
   createEffect(() => {
     if (overlays.problemsOpen() && problemRows().length === 0) overlays.setProblemsOpen(null)
   })
 
-  // A download answers the confirm modal below; only an npm install has a
-  // manager to pick, so the narrowing happens once and `Show` keys the child on it.
   const managerChoice = createMemo<InstallServerPrompt | null>(() => {
     const ask = prompts.prompt()
     return ask?.kind === 'installServer' && ask.install.kind === 'npm' ? ask : null
@@ -250,14 +212,11 @@ export function OverlayStack(props: { ctx: AppContext; commands: Accessor<Comman
     return ask?.kind === 'reviewKind' ? ask : null
   })
 
-  // A single appearance is the confirm modal below — there is nothing to choose
-  // between — so only a longer offer reaches this one.
   const activation = createMemo<ActivatePrompt | null>(() => {
     const ask = prompts.prompt()
     return ask?.kind === 'activateExtension' && ask.choices.length > 1 ? ask : null
   })
 
-  /** One narrowing memo per picker prompt, so each `Show` keys its child on it. */
   const promptOf = <K extends NonNullable<Prompt>['kind']>(kind: K) =>
     createMemo<Extract<Prompt, { kind: K }> | null>(() => {
       const ask = prompts.prompt()
@@ -313,8 +272,6 @@ export function OverlayStack(props: { ctx: AppContext; commands: Accessor<Comman
             title="Merge conflict"
             message={`Which side of the conflict on line ${ask().line + 1} should stay?`}
             choices={[
-              // Named by the markers where git wrote a name, since "current" and
-              // "incoming" mean nothing until you know which branch each one is.
               { id: 'ours', label: `Current change${ask().ours ? ` (${ask().ours})` : ''}` },
               { id: 'theirs', label: `Incoming change${ask().theirs ? ` (${ask().theirs})` : ''}` },
               { id: 'both', label: 'Both changes, current first' },
@@ -398,8 +355,6 @@ export function OverlayStack(props: { ctx: AppContext; commands: Accessor<Comman
             placeholder="Type part of a folder name or path…"
             items={ask().entries.map(entry => ({
               id: entry.path,
-              // Path last: the row is cut from the tail, and the path is both
-              // the longest part and the one worth losing.
               label: [
                 entry.name,
                 entry.current ? '· current' : '',
@@ -421,8 +376,6 @@ export function OverlayStack(props: { ctx: AppContext; commands: Accessor<Comman
             placeholder="Type part of a branch name or path…"
             items={ask().trees.map(tree => ({
               id: tree.path,
-              // Branch first: it is what one checkout is *for*, and the row is
-              // cut from the tail, where the path is the part worth losing.
               label: [tree.branch ?? 'detached', shortenHome(tree.path)].join('  '),
             }))}
             onPick={prompts.chooseWorktree}
@@ -454,8 +407,6 @@ export function OverlayStack(props: { ctx: AppContext; commands: Accessor<Comman
             onConfirm={() => {
               const confirmed = prompts.prompt()
               prompts.confirmPrompt()
-              // The panel sat suspended under the modal so cancel could return to
-              // it; a confirmed replace is the one outcome that is done with it.
               if (confirmed?.kind === 'replaceProject') overlays.setSearch(null)
             }}
             onCancel={prompts.cancelPrompt}
@@ -482,8 +433,7 @@ export function OverlayStack(props: { ctx: AppContext; commands: Accessor<Comman
                     const buffer = workspace.activeBuffer()
                     if (!path || !buffer) return
                     const next = replaceMatch(buffer.content, match, replacement)
-                    // Refused when the line has moved on since the scan — say so rather
-                    // than writing the replacement at a drifted offset.
+                    // Null when the line moved on since the scan: never write at a drifted offset.
                     if (next === null) return say('That match is gone', 'warn')
                     workspace.applyReplacement(path, next)
                   }
@@ -502,8 +452,6 @@ export function OverlayStack(props: { ctx: AppContext; commands: Accessor<Comman
                     say(`Replaced "${query}" in ${basename(path)}`)
                   }
                 : (query, replacement, options) => {
-                    // The gates get their own messages: an invalid pattern refused as
-                    // "nothing to replace" would read as a project with no matches.
                     if (!buildQuery(query, options)) return say('Invalid regex', 'warn')
                     if (query.length < MIN_QUERY) return
                     const { targets, matches } = planProjectReplace(
@@ -537,13 +485,9 @@ export function OverlayStack(props: { ctx: AppContext; commands: Accessor<Comman
             title={kind() === 'tabs' ? 'Switch tab' : 'Open file'}
             onPick={(path, position) => {
               overlays.setPicker(null)
-              // A position in the file already up changes no tab, so nothing else
-              // records where the jump started — and the way back is half of a jump.
               if (position && path === workspace.activeView()) app.navigation.mark()
               workspace.openFile(path)
-              // A file that would not open leaves the goto unsent, or it would aim
-              // at the file still on screen. No buffer is a viewer tab, which has
-              // no lines to land on; a line past the end lands on the last one.
+              // No goto for a file that would not open, or it would aim at the one on screen.
               const lines = workspace.buffers[path]?.content.split('\n').length
               if (position && lines && workspace.activePath() === path) {
                 editor.requestGoto(Math.min(position.line, lines - 1), position.col)

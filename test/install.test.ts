@@ -24,7 +24,6 @@ function scratch() {
 }
 afterEach(() => {
   for (const dir of scratches.splice(0)) {
-    // A test may have made the install dir read-only; rm needs it writable again.
     chmodSync(join(dir, 'bin'), 0o755)
     rmSync(dir, { recursive: true, force: true })
   }
@@ -53,21 +52,18 @@ async function runInstall(installDir: string, binary: string) {
   return { stdout, stderr, exitCode }
 }
 
-// Root ignores file permissions, so the two failure tests would install fine and fail.
+// Root ignores file permissions, so the failure tests would install fine.
 const asRoot = process.getuid?.() === 0
 
 describe('install --binary', () => {
   test('replaces the executable while it is the running process', async () => {
     const { bin, next } = setup()
-    // The exact situation `druk update` creates: the destination is the text
-    // segment of a live process, which is what made the old in-place cp fail.
     cpSync(Bun.which('sleep')!, join(bin, 'druk'))
     const running = Bun.spawn([join(bin, 'druk'), '30'])
     try {
       const result = await runInstall(bin, next)
       expect(result.exitCode).toBe(0)
       expect(readFileSync(join(bin, 'druk'), 'utf8')).toContain('v2')
-      // The staging file must be gone — installed, not abandoned.
       expect(readdirSync(bin)).toEqual(['druk'])
     } finally {
       running.kill()

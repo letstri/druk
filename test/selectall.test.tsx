@@ -24,7 +24,6 @@ describe('Ctrl+A', () => {
     await press(t, input => void input.typeText('replaced'))
     await save(t)
 
-    // The selection covers the trailing newline too, so nothing survives it.
     expect(readFileSync(join(dir, 'a.ts'), 'utf8')).toBe('replaced')
   })
 
@@ -39,8 +38,7 @@ describe('Ctrl+A', () => {
 
   test('a mouse selection is replaced by typing too', async () => {
     const { t, dir } = await openedFile()
-    // Drag across "first" on the first line.
-    await t.mockMouse.drag(35, 2, 40, 2)
+    await t.mockMouse.drag(35, 1, 40, 1)
     await press(t, input => void input.typeText('X'))
     await save(t)
 

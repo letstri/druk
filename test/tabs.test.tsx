@@ -8,8 +8,7 @@ test('the tab bar is a single row above the editor', async () => {
   await press(t, i => i.pressEnter())
   const rows = t.captureCharFrame().split('\n')
   expect(rows[0]).toContain('a.ts')
-  expect(rows[1]).toContain('a.ts') // the breadcrumbs, under the strip
-  expect(rows[2]).toContain('1 x') // and the editor under those
+  expect(rows[1]).toContain('1 x')
 })
 
 test('long names are shortened, never clipped mid-word', async () => {
@@ -24,12 +23,9 @@ test('many open tabs still fit the row', async () => {
     Array.from({ length: 12 }, (_, i) => [`file-number-${i}.ts`, `const a${i} = 1\n`]),
   )
   const t = await launch(fixture(files))
-  // The picker opens permanent tabs; tree clicks would only reuse the preview.
   for (let i = 0; i < 12; i++) await openFile(t, `file-number-${i}.ts`)
   const row = t.captureCharFrame().split('\n')[0]!
-  // The row never wraps or overflows the terminal.
   expect(row.length).toBeLessThanOrEqual(80)
-  // The tab opened last stays visible.
   expect(row).toContain('file-number-11')
 }, 20000)
 
@@ -71,15 +67,14 @@ test('Ctrl+PgUp/PgDn and Ctrl+Opt+arrows step through tabs', async () => {
   }
   expect(t.captureCharFrame()).toContain('const two = 2')
 
-  // The mock has no page keys, so send what a terminal actually sends.
+  // The mock has no page keys.
   await press(t, i => void i.pressKeys(['\u001B[5;5~']))
   expect(t.captureCharFrame()).toContain('const one = 1')
 
   await press(t, i => void i.pressKeys(['\u001B[6;5~']))
   expect(t.captureCharFrame()).toContain('const two = 2')
 
-  // Ctrl+Opt+arrow — what a MacBook without page keys can actually send, and
-  // what macOS does not swallow the way it swallows plain Ctrl+arrow.
+  // Ctrl+Opt+arrow: macOS swallows plain Ctrl+arrow.
   await press(t, i => void i.pressKeys(['\u001B[1;7D']))
   expect(t.captureCharFrame()).toContain('const one = 1')
 
@@ -96,13 +91,12 @@ test('clicking an overflow counter opens the list of open tabs', async () => {
 
   const bar = t.captureCharFrame().split('\n')[0]!
   const counter = bar.indexOf('\u2039')
-  expect(counter).toBeGreaterThan(-1) // tabs really did overflow
+  expect(counter).toBeGreaterThan(-1)
 
   await t.mockMouse.click(counter, 0)
   await settle(t)
   expect(t.captureCharFrame()).toContain('Switch tab')
 
-  // and it can reach a tab the bar had no room for
   await press(t, input => void input.typeText('component-0'))
   await press(t, input => input.pressEnter())
   expect(t.captureCharFrame()).toContain('const a0 = 1')

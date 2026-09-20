@@ -5,7 +5,6 @@ import type { ThemeName } from '../src/themes'
 import { fixture, launch, openPalette, press } from './helpers'
 import type { Harness } from './helpers'
 
-/** Foreground/background of the span containing `needle`, as [r,g,b] pairs. */
 function spanColors(t: Harness, needle: string) {
   const capture = t.captureSpans() as unknown as {
     lines: {

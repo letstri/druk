@@ -6,7 +6,6 @@ import { fixture, launch, loadMarketExtensions, openPalette, press } from './hel
 import type { Harness } from './helpers'
 import { allSegments } from './syntax'
 
-/** Every distinct background/foreground currently on screen, as "r,g,b". */
 function colors(t: Harness) {
   const capture = t.captureSpans() as unknown as {
     lines: {
@@ -29,10 +28,6 @@ function colors(t: Harness) {
   return seen
 }
 
-// These tests drive the module-global theme; leaving it changed would make every
-// later test file depend on the order bun happened to run them in.
-// Every palette druk offers is a market extension now, and these tests are about
-// all of them, not the two that ship.
 loadMarketExtensions()
 
 afterAll(() => {
@@ -68,8 +63,6 @@ test('switching theme repaints chrome and syntax', async () => {
 })
 
 test("switching themes never leaves a previous theme's colors behind", async () => {
-  // A merge instead of a replace used to keep groups the new theme omits, which
-  // renders as invisible text whenever the switch flips light/dark.
   for (const name of themeNames()) {
     setTheme(name)
     invalidateSyntaxStyle()

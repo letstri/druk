@@ -8,7 +8,6 @@ const PROJECT = {
   'b.ts': 'const b = 2\n',
 }
 
-// Rows: dir, a.ts, b.ts.
 describe('h/j/k/l in the tree (vim mode)', () => {
   test('j and k move the selection like the arrows', async () => {
     const t = await launch(fixture(PROJECT), { vim: true })

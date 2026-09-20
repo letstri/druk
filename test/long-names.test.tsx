@@ -8,44 +8,17 @@ import type { Harness } from './helpers'
 import { initRepo } from './repo'
 import { tempDir } from './temp'
 
-/**
- * A `<text>` wraps by word unless it is told not to, so anywhere the user's own
- * words reach — a branch named after an issue title, a path, a diagnostic — used
- * to grow its row instead of being cut, and take the panel's layout with it.
- * Each of these draws one of those surfaces at a hostile length and asserts the
- * data still costs the rows it is given.
- */
-
 const BRANCH =
   '49-tanstack-start-setupmiddleware-callback-imports-are-not-pruned-from-the-client-bundle'
 
-/** Frame rows carrying `needle` — the count is what wrapping used to inflate. */
-/** Columns the sidebar has at these terminal widths, its divider included. */
 const SIDEBAR = 34
 
-/** Under the tab strip, over the editor — and only while a file is open. */
-const BREADCRUMBS_ROW = 1
-
-/**
- * Rows carrying `needle`.
- *
- * Two things in the frame repeat what a panel row says, and each has to be
- * excluded where it would be counted: the breadcrumbs name the open file's own
- * path (`skipBreadcrumbs`), and the review's card repeats the remark beside the
- * sidebar (`within`, the sidebar's own columns).
- */
-const rowsWith = (
-  t: Harness,
-  needle: string,
-  options: { skipBreadcrumbs?: boolean; within?: number } = {},
-) =>
+const rowsWith = (t: Harness, needle: string, options: { within?: number } = {}) =>
   t
     .captureCharFrame()
     .split('\n')
-    .filter(
-      (row, at) =>
-        !(options.skipBreadcrumbs && at === BREADCRUMBS_ROW) &&
-        (options.within === undefined ? row : row.slice(0, options.within)).includes(needle),
+    .filter(row =>
+      (options.within === undefined ? row : row.slice(0, options.within)).includes(needle),
     ).length
 
 function repo() {
@@ -75,9 +48,6 @@ test('the branch picker gives a long branch and its upstream one row each', asyn
   await runCommand(t, 'Switch branch')
   await untilFrame(t, 'Switch to branch')
 
-  // The local branch and its remote-tracking ref: two rows, not one row per
-  // fifty characters. The upstream is the trap — it is a branch name too, and
-  // left whole it squeezed the name's box to nothing and wrapped it downward.
   expect(rowsWith(t, '49-tanstack')).toBe(2)
   expect(t.captureCharFrame()).toContain('↑↓ choose · Enter confirm · Esc cancel')
 }, 20000)
@@ -95,8 +65,6 @@ test('the status bar keeps its hints beside a long branch', async () => {
     .find(row => row.includes('⎇'))!
   expect(bar).toContain('F1 commands')
   expect(bar.length).toBeLessThanOrEqual(100)
-  // The welcome screen names the branch too, and its block is sized by its
-  // widest row — an uncut one drew over the sidebar rather than being clipped.
   expect(rowsWith(t, 'tanstack-start')).toBe(2)
 }, 20000)
 
@@ -111,8 +79,6 @@ test('the settings page keeps a long value on its own row', async () => {
   await untilFrame(t, 'TypeScript')
 
   expect(rowsWith(t, '/a/very/long')).toBe(1)
-  // …and on the row its label is on. A value that cannot shrink and is left
-  // whole eats the label's columns and wraps the rest into single characters.
   const row = t
     .captureCharFrame()
     .split('\n')
@@ -139,10 +105,7 @@ test('the problems list gives a long diagnostic one row', async () => {
   await runCommand(t, 'List problems')
   await untilFrame(t, 'Enter jumps', 15_000)
 
-  // The tab strip shortens the name itself, so the modal's row is the only one
-  // carrying the whole of it. Fifty of these at three rows apiece is a modal
-  // several screens tall.
-  expect(rowsWith(t, 'really-long-name', { skipBreadcrumbs: true })).toBe(1)
+  expect(rowsWith(t, 'really-long-name')).toBe(1)
 }, 40000)
 
 test('the completion menu keeps a huge label, signature and doc inside its box', async () => {
@@ -161,10 +124,7 @@ test('the completion menu keeps a huge label, signature and doc inside its box',
   await press(t, input => void input.typeText('long'))
   await untilFrame(t, 'longName', 15_000)
 
-  // One row for the item, whatever its label, signature and origin add up to.
   expect(rowsWith(t, 'longName')).toBe(1)
-  // The documentation is one unbreakable word: it has to be cut per row rather
-  // than widen the popup past the pane it floats in.
   const frame = t.captureCharFrame()
   expect(frame.split('\n').every(row => row.length <= 90)).toBe(true)
   expect(frame).toContain('unbreakableword')
@@ -183,8 +143,6 @@ test('the comparison header keeps its rows beside a long branch', async () => {
   await openComparison(t)
   await untilFrame(t, '1 files')
 
-  // The header is five fixed rows: a branch allowed to wrap pushed the base, the
-  // summary and the mode line past the fifth, where they are simply gone.
   const frame = t.captureCharFrame()
   expect(frame).toContain('base  main')
   expect(frame).toContain('[Files]  Commits')
@@ -212,17 +170,9 @@ test('the review panel gives a long note and a deep path one row each', async ()
   await runCommand(t, 'Review panel')
   await untilFrame(t, 'ISSUE 1')
 
-  // One row for the note and one for the file heading it hangs under: a remark
-  // is prose at whatever length it was typed, and the path is four folders deep.
-  // The needle for the heading is the path's head, since the tab strip carries
-  // the file's name too and shortens it itself.
   expect(rowsWith(t, 'ISSUE 1', { within: SIDEBAR })).toBe(1)
   expect(rowsWith(t, 'src/features', { within: SIDEBAR })).toBe(1)
 
-  // And an answer to it, whose author is whatever a writer of the notes file
-  // put there: one row, which is also the row the card's copy of it is drawn
-  // on — the box floats beside the sidebar, so a second row here would be the
-  // reply wrapping in one of the two.
   await press(t, input => input.pressArrow('down'))
   await press(t, input => void input.typeText('r'))
   await press(
@@ -250,7 +200,19 @@ test('the all-changes page gives a long path one row', async () => {
 
   expect(rowsWith(t, 'Uncommitted')).toBe(1)
   expect(t.captureCharFrame()).toContain('Esc close')
-  // Cut from the left, so the tail is what is on screen — a wrapped path would
-  // push the hunk off the page.
   expect(rowsWith(t, name.slice(-24))).toBe(1)
+}, 20000)
+
+test('the file tree ellipsises a long name instead of dropping its last word', async () => {
+  const dir = fixture({ 'cell-content-with-a-very-long-name.tsx': 'const a = 1\n' })
+  const t = await launch(dir, {}, { width: 100, height: 20 })
+  await untilFrame(t, 'cell-content')
+
+  const row = t
+    .captureCharFrame()
+    .split('\n')
+    .find(line => line.includes('cell-content'))!
+    .slice(0, SIDEBAR)
+  expect(row).toContain('…')
+  expect(row).toContain('cell-content-with-a-very')
 }, 20000)

@@ -27,10 +27,6 @@ const init = (dir: string) => {
   git(dir, 'commit', '-qm', 'init')
 }
 
-/**
- * A folder that is no repository itself and holds two — one directly below it,
- * one a level deeper — each with a change.
- */
 function folderOfRepos() {
   const dir = fixture({
     'alpha/a.ts': 'alpha\n',
@@ -47,7 +43,6 @@ const frame = (t: Harness) => t.captureCharFrame()
 const subject = (dir: string) =>
   Bun.spawnSync(['git', 'log', '-1', '--format=%s'], { cwd: dir }).stdout.toString().trim()
 
-/** Git mutations finish off the render clock; poll instead of guessing a delay. */
 async function until(t: Harness, cond: () => boolean, ms = 5000) {
   const start = Date.now()
   while (!cond() && Date.now() - start < ms) await settle(t, 25)
@@ -63,7 +58,6 @@ test('the panel lists the changes of every repository under the folder', async (
   const shown = frame(t)
   expect(shown).toContain('a.ts')
   expect(shown).toContain('b.ts')
-  // Each under the folder it lives in, so two repositories cannot look like one.
   expect(shown).toContain('alpha')
   expect(shown).toContain('beta')
 })
@@ -73,7 +67,6 @@ test('the branch is named with the repository the open file is in', async () => 
   await openFile(t, 'nested/beta/b.ts')
 
   await untilFrame(t, 'beta/')
-  // `repo/branch`: with several open, the branch alone says nothing about whose.
   expect(frame(t)).toMatch(/⎇ beta\/(main|master)/)
 })
 
@@ -81,7 +74,6 @@ test('the gutter marks a nested repository’s file', async () => {
   const t = await launch(folderOfRepos())
   await openFile(t, 'alpha/a.ts')
   await untilFrame(t, 'alpha changed')
-  // The mark column sits between the line number and the text.
   await untilFrame(t, '▎')
 })
 
@@ -95,8 +87,6 @@ test('a repository below the folder is left alone when the scan is off', async (
 
 test('a git command names the repository it cannot pick', async () => {
   const t = await launch(folderOfRepos())
-  // Nothing opened and nothing selected in the tree: two repositories, and no
-  // way to tell which one a push was meant for.
   await runCommand(t, 'Push')
   await untilFrame(t, 'Which repository?')
 })
@@ -108,7 +98,6 @@ test('a commit acts on the repository the file being edited is in', async () => 
   await untilFrame(t, 'beta changed')
 
   await runCommand(t, 'Commit')
-  // Only that repository's change is offered: the other's is a different commit.
   await untilFrame(t, '1 of 1 files')
   expect(frame(t)).toContain('b.ts')
   expect(frame(t)).not.toContain('a.ts')
@@ -118,7 +107,6 @@ test('a commit acts on the repository the file being edited is in', async () => 
   await press(t, i => i.pressEnter())
 
   await until(t, () => subject(join(dir, 'nested/beta')) === 'beta moves')
-  // The other repository is untouched — its change is still there to commit.
   expect(subject(join(dir, 'alpha'))).toBe('init')
 })
 
@@ -126,11 +114,8 @@ test('the diff of a nested repository’s file is read from that repository', as
   const t = await launch(folderOfRepos())
   await openPanel(t)
   await untilFrame(t, 'b.ts')
-  // Down through the folder rows to beta's change; each landing diffs it.
   await pressTimes(t, 6, i => i.pressArrow('down'))
   await untilFrame(t, 'beta changed')
-  // The committed side comes from beta's HEAD, not from an empty string — an
-  // untracked file would show every line added and no removal.
   expect(frame(t)).toContain('−1')
 })
 
@@ -139,20 +124,18 @@ test('a nested repository’s gitignore is what hides its files', async () => {
     'alpha/.gitignore': 'generated\n',
     'alpha/a.ts': 'alpha\n',
     'alpha/generated/out.js': 'built\n',
-    // Outside every repository: no rules apply to it, whatever the repositories say.
     'generated/loose.js': 'loose\n',
   })
   init(join(dir, 'alpha'))
 
   const t = await launch(dir, { respectGitignore: true })
-  await press(t, i => i.pressArrow('down')) // onto alpha
-  await press(t, i => i.pressArrow('right')) // open it
+  await press(t, i => i.pressArrow('down'))
+  await press(t, i => i.pressArrow('right'))
   await untilFrame(t, 'a.ts')
   const rows = frame(t)
     .split('\n')
     .map(row => row.slice(0, 30).trim())
   expect(rows.some(row => row.includes('.gitignore'))).toBe(true)
-  // One `generated` row left: the repository's is hidden, the loose one is not.
   expect(rows.filter(row => row.endsWith('generated'))).toHaveLength(1)
 })
 
@@ -186,7 +169,7 @@ test('a keyboard discard stays pinned when another repository row vanishes', asy
   await openPanel(t)
   await untilFrame(t, 'nested/beta/b.ts')
 
-  await press(t, input => input.pressArrow('down')) // beta is the second flat row
+  await press(t, input => input.pressArrow('down'))
   await press(t, input => void input.typeText('d'))
   expect(frame(t)).toContain('Discard changes')
   git(alpha, 'checkout', '-q', 'HEAD', '--', 'a.ts')

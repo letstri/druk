@@ -4,7 +4,7 @@ import { fixture, launch, openFile, press, pressTimes, settle } from './helpers'
 import type { Harness } from './helpers'
 
 const ESC = String.fromCharCode(27)
-/** Opt sends an ESC prefix ahead of the control byte the Ctrl chord already is. */
+// Opt is an ESC prefix ahead of the Ctrl chord's control byte.
 const BACK = `${ESC}${String.fromCharCode(26)}` // Ctrl+Opt+Z
 const FORWARD = `${ESC}${String.fromCharCode(25)}` // Ctrl+Opt+Y
 const UNDER_CURSOR = `${ESC}${String.fromCharCode(15)}` // Ctrl+Opt+O
@@ -14,7 +14,6 @@ const PROJECT = {
   'b.ts': 'const b = 2\n',
 }
 
-/** The status bar, which is where the cursor's line is read off. */
 const bar = (t: Harness) => t.captureCharFrame().split('\n').at(-2) ?? ''
 
 test('back and forward walk the tabs the editor has landed on', async () => {
@@ -45,8 +44,6 @@ test('going back lands on the line the file was left at', async () => {
 })
 
 test('a jump inside one file is a stop of its own', async () => {
-  // Ctrl+Opt+O opens what the path under the cursor names — here the file
-  // itself, so no tab changes and only the history remembers where it came from.
   const t = await launch(fixture({ 'a.ts': "const one = 1\nconst two = 2\n'./a'\n" }))
   await openFile(t, 'a.ts')
   await pressTimes(t, 2, i => i.pressArrow('down'))
@@ -65,8 +62,6 @@ test('the arrows on the tab strip do the same', async () => {
   await openFile(t, 'a.ts')
   await openFile(t, 'b.ts')
 
-  // The strip sits over the editor's column, so the arrows start where the
-  // sidebar ends rather than at column 0.
   const back = t.captureCharFrame().split('\n')[0]!.indexOf('←')
   await t.mockMouse.click(back, 0)
   await settle(t)

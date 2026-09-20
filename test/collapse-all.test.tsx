@@ -7,7 +7,7 @@ import type { Harness } from './helpers'
 import { initRepo } from './repo'
 
 const ESC = String.fromCharCode(27)
-/** Ctrl+Opt+G as terminals spell it: an ESC prefix ahead of Ctrl+G (0x07). */
+// Ctrl+Opt+G as terminals spell it: an ESC prefix ahead of Ctrl+G (0x07).
 const TOGGLE = `${ESC}${String.fromCharCode(7)}`
 
 const git = (dir: string, ...args: string[]) => {
@@ -15,7 +15,6 @@ const git = (dir: string, ...args: string[]) => {
   if (run.exitCode !== 0) throw new Error(run.stderr.toString())
 }
 
-/** Where the header's collapse button is drawn, so a click can land on it. */
 function button(t: Harness) {
   for (const [y, row] of t.captureCharFrame().split('\n').entries()) {
     const x = row.indexOf('▴')
@@ -31,7 +30,6 @@ describe('the file tree collapses everything', () => {
     const t = await launch(fixture(files))
     expect(button(t)).toBeNull()
 
-    // Nothing is selected until an arrow lands on a row; the first is `src`.
     await press(t, i => i.pressArrow('down'))
     await press(t, i => i.pressArrow('right'))
     await until(t, () => t.captureCharFrame().includes('deep'))
@@ -56,15 +54,12 @@ describe('the file tree collapses everything', () => {
     await settle(t)
 
     expect(t.captureCharFrame()).not.toContain('b.ts')
-    // The cursor was inside `src/deep`; → reopens whatever it landed on, which
-    // has to be `src` rather than a row that is no longer drawn.
     await press(t, i => i.pressArrow('right'))
     expect(t.captureCharFrame()).toContain('deep')
   })
 })
 
 describe('the source-control panel collapses everything', () => {
-  /** A repository whose changes sit two folders deep, so the panel nests them. */
   function repo() {
     const dir = fixture({ 'src/app/one.ts': 'before\n', 'src/ui/two.ts': 'before\n' })
     initRepo(dir)
@@ -83,9 +78,6 @@ describe('the source-control panel collapses everything', () => {
     const at = button(t)!
     await press(t, () => void t.mockMouse.click(at.x, at.y))
 
-    // The panel's own columns alone: the cursor pages the diff, so a file's
-    // name may legitimately sit in the tab strip or the diff header — only the
-    // sidebar must have folded its rows away.
     const sidebar = t
       .captureCharFrame()
       .split('\n')
@@ -93,7 +85,6 @@ describe('the source-control panel collapses everything', () => {
       .join('\n')
     expect(sidebar).not.toContain('one.ts')
     expect(sidebar).not.toContain('two.ts')
-    // The folded row says how many changes it is hiding, and stays pressable.
     expect(sidebar).toContain('src')
     expect(button(t)).toBeNull()
   })

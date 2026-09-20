@@ -6,7 +6,7 @@ import { fixture, launch, openFile, press, runCommand } from './helpers'
 
 const CONTENT = 'const a = 1\n  const b = 2\n'
 
-/** Ctrl+Opt+B: Opt is an ESC prefix ahead of the Ctrl byte. */
+// Opt is an ESC prefix ahead of the Ctrl byte.
 const CTRL_OPT_B = `\x1B${String.fromCharCode(2)}`
 
 async function opened() {
@@ -19,7 +19,6 @@ async function opened() {
 const save = (t: Awaited<ReturnType<typeof opened>>['t']) =>
   press(t, i => i.pressKey('s', { ctrl: true }))
 
-/** Down onto the indented line, then to its end — the caret opens at the top. */
 const toEndOfSecondLine = async (t: Awaited<ReturnType<typeof opened>>['t']) => {
   await press(t, i => i.pressArrow('down'))
   await press(t, i => i.pressKey('e', { ctrl: true }))

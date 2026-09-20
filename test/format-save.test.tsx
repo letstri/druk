@@ -5,15 +5,13 @@ import { join } from 'node:path'
 import { fixture, launch, press, settle, until, untilFrame } from './helpers'
 import type { Harness } from './helpers'
 
-/** An in-place formatter, as `formatters` commands must be: uppercases the file. */
 const UPPERCASE = `
 const fs = require('fs')
 const file = process.argv[2]
 fs.writeFileSync(file, fs.readFileSync(file, 'utf8').toUpperCase())
 `
 
-// Written to the stream rather than through `console.error`, which Bun decorates
-// with a source frame — the first stderr line would then be the frame, not the message.
+// Written to the stream rather than `console.error`, which Bun decorates with a source frame.
 const FAIL = `
 process.stderr.write('boom: bad syntax\\n')
 process.exit(2)
@@ -38,7 +36,6 @@ test('Ctrl+S runs the matching formatter and the buffer follows the result', asy
 
   await untilFrame(t, 'Formatted a.ts')
   expect(readFileSync(join(dir, 'a.ts'), 'utf8')).toBe('EDIT CONST A = 1\n')
-  // The buffer took the formatter's text and stayed clean.
   const frame = t.captureCharFrame()
   expect(frame).toContain('EDIT CONST A = 1')
   expect(frame).not.toContain('unsaved')
@@ -54,7 +51,6 @@ test('the save after a format is a plain save, not a conflict', async () => {
   await save(t)
   await untilFrame(t, 'Formatted a.ts')
 
-  // The cursor stayed where the edit left it, so X lands after "EDIT ".
   await press(t, i => void i.typeText('X'))
   await save(t)
   await untilFrame(t, 'Saved a.ts')
@@ -79,8 +75,6 @@ test('the {} token puts the path mid-command instead of at the end', async () =>
   const dir = fixture({ 'a.ts': 'const a = 1\n', 'fmt.js': UPPERCASE })
   const t = await launch(dir, {
     formatOnSave: true,
-    // The script uppercases argv[2]. Appending would leave "{}" there instead of
-    // the path, so this passing is the substitution working.
     formatters: { ts: [process.execPath, join(dir, 'fmt.js'), '{}', '--ignored'] },
   })
   await editA(t, 'edit ')

@@ -2,7 +2,6 @@ import { describe, expect, test } from 'bun:test'
 
 import { at, save, type, vimEditor } from './vim-harness'
 
-/** Offsets: `(` is 12, the comma 16, `)` 21; the o's are 1, 13 and 20. */
 const LINE = 'const a = fn(one, two);\nsecond line\n'
 
 describe('vim character search', () => {
@@ -32,7 +31,6 @@ describe('vim character search', () => {
 
   test('the search stays on its own line', async () => {
     const { t } = await vimEditor(LINE)
-    // The only `d` in the file is on line two — vim's search would not reach it.
     await type(t, 'fd')
     expect(at(t)).toBe('Ln 1, Col 1')
   })
@@ -59,7 +57,6 @@ describe('vim character search', () => {
     const { t } = await vimEditor(LINE)
     await type(t, 'to')
     expect(at(t)).toBe('Ln 1, Col 1')
-    // Without the skip this would find the same `o` for ever.
     await type(t, ';')
     expect(at(t)).toBe('Ln 1, Col 13')
   })
@@ -110,7 +107,6 @@ describe('vim character search', () => {
 
   test('the searched-for character is never read as a command or a count', async () => {
     const { t, file } = await vimEditor('a1a2a3\n')
-    // `f1` is a search for a 1, not a count of one; `d` after `f` is the target.
     await type(t, 'f1')
     expect(at(t)).toBe('Ln 1, Col 2')
     await type(t, 'x')
@@ -151,15 +147,11 @@ describe('vim character search', () => {
 
   test('t against the character beside the caret is a motion that failed', async () => {
     const { t, file } = await vimEditor('a,b\n')
-    // Vim moves nowhere here, and a motion that did not move takes its operator
-    // with it — the caret's own character is not the operator's to eat.
     await type(t, 'dt,')
     expect(await save(t, file)).toBe('a,b\n')
   })
 
   test('the character searched for is the one the layout printed', async () => {
-    // With a Cyrillic layout up, `ф` sits on the `a` key: a search reading the
-    // key's place rather than its character would land on the `a` at col 5.
     const { t } = await vimEditor('let a = ф\n')
     await type(t, 'fф')
     expect(at(t)).toBe('Ln 1, Col 9')

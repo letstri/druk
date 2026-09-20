@@ -19,7 +19,6 @@ test('a page opens as one tab, however often it is asked for', async () => {
   await runCommand(t, 'Settings')
   await untilFrame(t, 'Follow OS appearance')
 
-  // One tab per page: asking again lands on the tab already open.
   expect(occurrences(tabRow(t), 'Settings')).toBe(1)
   expect(tabRow(t)).toContain('a.ts')
   expect(tabRow(t)).toContain('b.ts')

@@ -5,8 +5,6 @@ import { join } from 'node:path'
 import { CONFIG_FILE } from '../src/core/config'
 import { fixture, launch, runCommand, settle } from './helpers'
 
-// Narrow enough that the marker sits past the editor's right edge — only a
-// wrapped continuation row can show it.
 const TAIL = 'TAIL_MARKER'
 const PROJECT = { 'a.ts': `const line = "${'x'.repeat(80)}" // ${TAIL}\n` }
 

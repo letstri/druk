@@ -10,7 +10,8 @@
           "0x96f"
         ],
         "icons": [],
-        "filetypes": []
+        "filetypes": [],
+        "extensions": []
       },
       "categories": [
         "theme"
@@ -27,7 +28,8 @@
           "astro-light"
         ],
         "icons": [],
-        "filetypes": []
+        "filetypes": [],
+        "extensions": []
       },
       "categories": [
         "theme"
@@ -45,7 +47,8 @@
           "ayu-light"
         ],
         "icons": [],
-        "filetypes": []
+        "filetypes": [],
+        "extensions": []
       },
       "categories": [
         "theme"
@@ -61,7 +64,8 @@
         "icons": [],
         "filetypes": [
           "bash"
-        ]
+        ],
+        "extensions": []
       },
       "categories": [
         "language",
@@ -78,7 +82,8 @@
           "bushland"
         ],
         "icons": [],
-        "filetypes": []
+        "filetypes": [],
+        "extensions": []
       },
       "categories": [
         "theme"
@@ -94,7 +99,8 @@
         "icons": [],
         "filetypes": [
           "c"
-        ]
+        ],
+        "extensions": []
       },
       "categories": [
         "language",
@@ -114,7 +120,8 @@
           "catppuccin-latte"
         ],
         "icons": [],
-        "filetypes": []
+        "filetypes": [],
+        "extensions": []
       },
       "categories": [
         "theme"
@@ -131,7 +138,8 @@
           "cocoa-almond-cream"
         ],
         "icons": [],
-        "filetypes": []
+        "filetypes": [],
+        "extensions": []
       },
       "categories": [
         "theme"
@@ -147,7 +155,8 @@
         "icons": [],
         "filetypes": [
           "cpp"
-        ]
+        ],
+        "extensions": []
       },
       "categories": [
         "language",
@@ -164,7 +173,8 @@
         "icons": [],
         "filetypes": [
           "csharp"
-        ]
+        ],
+        "extensions": []
       },
       "categories": [
         "language"
@@ -183,7 +193,8 @@
           "scss",
           "sass",
           "less"
-        ]
+        ],
+        "extensions": []
       },
       "categories": [
         "language",
@@ -200,7 +211,8 @@
         "icons": [],
         "filetypes": [
           "dart"
-        ]
+        ],
+        "extensions": []
       },
       "categories": [
         "language"
@@ -216,6 +228,11 @@
         "icons": [],
         "filetypes": [
           "diff"
+        ],
+        "extensions": [
+          ".patch",
+          ".diff",
+          ".rej"
         ]
       },
       "categories": [
@@ -232,7 +249,8 @@
         "icons": [],
         "filetypes": [
           "dotenv"
-        ]
+        ],
+        "extensions": []
       },
       "categories": [
         "language"
@@ -248,7 +266,8 @@
           "dracula"
         ],
         "icons": [],
-        "filetypes": []
+        "filetypes": [],
+        "extensions": []
       },
       "categories": [
         "theme"
@@ -264,7 +283,8 @@
         "icons": [],
         "filetypes": [
           "elixir"
-        ]
+        ],
+        "extensions": []
       },
       "categories": [
         "language",
@@ -286,7 +306,8 @@
           "javascriptreact",
           "vue",
           "svelte"
-        ]
+        ],
+        "extensions": []
       },
       "categories": [
         "lsp"
@@ -303,7 +324,8 @@
           "everforest-light"
         ],
         "icons": [],
-        "filetypes": []
+        "filetypes": [],
+        "extensions": []
       },
       "categories": [
         "theme"
@@ -320,7 +342,8 @@
           "flexoki-light"
         ],
         "icons": [],
-        "filetypes": []
+        "filetypes": [],
+        "extensions": []
       },
       "categories": [
         "theme"
@@ -336,7 +359,8 @@
         "icons": [],
         "filetypes": [
           "go"
-        ]
+        ],
+        "extensions": []
       },
       "categories": [
         "language",
@@ -354,7 +378,8 @@
           "gruvbox-light"
         ],
         "icons": [],
-        "filetypes": []
+        "filetypes": [],
+        "extensions": []
       },
       "categories": [
         "theme"
@@ -371,6 +396,11 @@
         "filetypes": [
           "terraform",
           "hcl"
+        ],
+        "extensions": [
+          ".tf",
+          ".tfvars",
+          ".hcl"
         ]
       },
       "categories": [
@@ -392,7 +422,8 @@
           "hearth-light-teal"
         ],
         "icons": [],
-        "filetypes": []
+        "filetypes": [],
+        "extensions": []
       },
       "categories": [
         "theme"
@@ -408,7 +439,8 @@
         "icons": [],
         "filetypes": [
           "html"
-        ]
+        ],
+        "extensions": []
       },
       "categories": [
         "language",
@@ -425,7 +457,8 @@
         "icons": [],
         "filetypes": [
           "ini"
-        ]
+        ],
+        "extensions": []
       },
       "categories": [
         "language"
@@ -441,7 +474,8 @@
         "icons": [],
         "filetypes": [
           "java"
-        ]
+        ],
+        "extensions": []
       },
       "categories": [
         "language"
@@ -458,6 +492,9 @@
         "filetypes": [
           "json",
           "jsonc"
+        ],
+        "extensions": [
+          ".jsonc"
         ]
       },
       "categories": [
@@ -477,7 +514,8 @@
           "kanagawa-lotus"
         ],
         "icons": [],
-        "filetypes": []
+        "filetypes": [],
+        "extensions": []
       },
       "categories": [
         "theme"
@@ -493,7 +531,8 @@
         "icons": [],
         "filetypes": [
           "kotlin"
-        ]
+        ],
+        "extensions": []
       },
       "categories": [
         "language"
@@ -509,6 +548,9 @@
         "icons": [],
         "filetypes": [
           "liquid"
+        ],
+        "extensions": [
+          ".liquid"
         ]
       },
       "categories": [
@@ -525,7 +567,8 @@
         "icons": [],
         "filetypes": [
           "lua"
-        ]
+        ],
+        "extensions": []
       },
       "categories": [
         "language",
@@ -543,7 +586,8 @@
           "malibu-sunrise"
         ],
         "icons": [],
-        "filetypes": []
+        "filetypes": [],
+        "extensions": []
       },
       "categories": [
         "theme"
@@ -559,7 +603,8 @@
         "icons": [],
         "filetypes": [
           "markdown"
-        ]
+        ],
+        "extensions": []
       },
       "categories": [
         "language"
@@ -575,7 +620,8 @@
         "icons": [
           "material"
         ],
-        "filetypes": []
+        "filetypes": [],
+        "extensions": []
       },
       "categories": [
         "icons"
@@ -591,7 +637,8 @@
         "icons": [
           "nerd"
         ],
-        "filetypes": []
+        "filetypes": [],
+        "extensions": []
       },
       "categories": [
         "icons"
@@ -607,7 +654,8 @@
           "nord"
         ],
         "icons": [],
-        "filetypes": []
+        "filetypes": [],
+        "extensions": []
       },
       "categories": [
         "theme"
@@ -623,7 +671,8 @@
           "one-dark"
         ],
         "icons": [],
-        "filetypes": []
+        "filetypes": [],
+        "extensions": []
       },
       "categories": [
         "theme"
@@ -644,7 +693,8 @@
           "javascriptreact",
           "vue",
           "svelte"
-        ]
+        ],
+        "extensions": []
       },
       "categories": [
         "lsp"
@@ -660,7 +710,8 @@
         "icons": [],
         "filetypes": [
           "php"
-        ]
+        ],
+        "extensions": []
       },
       "categories": [
         "language",
@@ -677,7 +728,8 @@
         "icons": [],
         "filetypes": [
           "python"
-        ]
+        ],
+        "extensions": []
       },
       "categories": [
         "language",
@@ -712,7 +764,8 @@
           "relentless-sunset"
         ],
         "icons": [],
-        "filetypes": []
+        "filetypes": [],
+        "extensions": []
       },
       "categories": [
         "theme"
@@ -730,7 +783,8 @@
           "rose-pine-dawn"
         ],
         "icons": [],
-        "filetypes": []
+        "filetypes": [],
+        "extensions": []
       },
       "categories": [
         "theme"
@@ -746,7 +800,8 @@
         "icons": [],
         "filetypes": [
           "ruby"
-        ]
+        ],
+        "extensions": []
       },
       "categories": [
         "language",
@@ -763,7 +818,8 @@
         "icons": [],
         "filetypes": [
           "rust"
-        ]
+        ],
+        "extensions": []
       },
       "categories": [
         "language",
@@ -780,7 +836,8 @@
         "icons": [],
         "filetypes": [
           "scala"
-        ]
+        ],
+        "extensions": []
       },
       "categories": [
         "language"
@@ -801,7 +858,8 @@
           "sequoia-retro-light"
         ],
         "icons": [],
-        "filetypes": []
+        "filetypes": [],
+        "extensions": []
       },
       "categories": [
         "theme"
@@ -823,7 +881,8 @@
           "serendipity-morning-v1"
         ],
         "icons": [],
-        "filetypes": []
+        "filetypes": [],
+        "extensions": []
       },
       "categories": [
         "theme"
@@ -840,7 +899,8 @@
           "solarized-light"
         ],
         "icons": [],
-        "filetypes": []
+        "filetypes": [],
+        "extensions": []
       },
       "categories": [
         "theme"
@@ -856,6 +916,9 @@
         "icons": [],
         "filetypes": [
           "solidity"
+        ],
+        "extensions": [
+          ".sol"
         ]
       },
       "categories": [
@@ -873,7 +936,8 @@
         "icons": [],
         "filetypes": [
           "sql"
-        ]
+        ],
+        "extensions": []
       },
       "categories": [
         "language"
@@ -889,7 +953,8 @@
         "icons": [],
         "filetypes": [
           "svelte"
-        ]
+        ],
+        "extensions": []
       },
       "categories": [
         "language"
@@ -905,7 +970,8 @@
         "icons": [],
         "filetypes": [
           "swift"
-        ]
+        ],
+        "extensions": []
       },
       "categories": [
         "language",
@@ -922,7 +988,8 @@
           "tokyo-night"
         ],
         "icons": [],
-        "filetypes": []
+        "filetypes": [],
+        "extensions": []
       },
       "categories": [
         "theme"
@@ -938,7 +1005,8 @@
         "icons": [],
         "filetypes": [
           "toml"
-        ]
+        ],
+        "extensions": []
       },
       "categories": [
         "language"
@@ -954,6 +1022,9 @@
         "icons": [],
         "filetypes": [
           "tsrx"
+        ],
+        "extensions": [
+          ".tsrx"
         ]
       },
       "categories": [
@@ -973,7 +1044,8 @@
           "javascript",
           "typescriptreact",
           "javascriptreact"
-        ]
+        ],
+        "extensions": []
       },
       "categories": [
         "language",
@@ -990,7 +1062,8 @@
           "vesper"
         ],
         "icons": [],
-        "filetypes": []
+        "filetypes": [],
+        "extensions": []
       },
       "categories": [
         "theme"
@@ -1006,7 +1079,8 @@
         "icons": [],
         "filetypes": [
           "vue"
-        ]
+        ],
+        "extensions": []
       },
       "categories": [
         "language",
@@ -1023,7 +1097,8 @@
         "icons": [],
         "filetypes": [
           "yaml"
-        ]
+        ],
+        "extensions": []
       },
       "categories": [
         "language"
@@ -1039,7 +1114,8 @@
         "icons": [],
         "filetypes": [
           "zig"
-        ]
+        ],
+        "extensions": []
       },
       "categories": [
         "language",

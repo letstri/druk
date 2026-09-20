@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Installs druk into ~/.druk/bin. Served at https://druk.letstri.dev/install:
-#   curl -fsSL https://druk.letstri.dev/install | bash
 set -euo pipefail
 
 APP=druk
@@ -91,8 +89,7 @@ else
       x86_64|amd64) arch="x64" ;;
     esac
 
-    # A binary running under Rosetta reports x64 while the machine is arm64, and the
-    # native build is both faster and the only one Apple silicon keeps supporting.
+    # Under Rosetta uname says x64 on an arm64 machine; ship the native build.
     if [ "$os" = "darwin" ] && [ "$arch" = "x64" ]; then
       if [ "$(sysctl -n sysctl.proc_translated 2>/dev/null || echo 0)" = "1" ]; then
         arch="arm64"
@@ -109,10 +106,7 @@ else
         ;;
     esac
 
-    # Bun's default x64 builds need AVX2 and die with "illegal hardware instruction"
-    # on a pre-2013 CPU (issue #99); the release carries a baseline build for those.
-    # MSYS/MINGW expose /proc/cpuinfo too, so one probe covers Linux and Windows;
-    # DRUK_CPU_BASELINE=1/0 overrides it either way.
+    # Default x64 builds need AVX2 (issue #99); MSYS exposes /proc/cpuinfo too.
     case "$target" in
       linux-x64|windows-x64)
         if [ "${DRUK_CPU_BASELINE:-}" = "1" ]; then
@@ -142,8 +136,7 @@ else
 
     if [ -z "$requested_version" ]; then
         url="https://github.com/$REPO/releases/latest/download/$filename"
-        # `set -e` plus pipefail would abort on curl's own exit code here, printing its
-        # error and none of ours; the guard keeps the failure ours to report.
+        # Without the guard, pipefail aborts on curl's exit code before our own error prints.
         latest=$(curl -fsSL --retry 2 "https://api.github.com/repos/$REPO/releases/latest" 2>/dev/null) || latest=""
         specific_version=$(printf '%s' "$latest" | sed -n 's/.*"tag_name": *"v\([^"]*\)".*/\1/p' | head -1)
         if [ -z "$specific_version" ]; then
@@ -173,15 +166,10 @@ else
     echo -e "${MUTED}Installing ${NC}druk $specific_version${MUTED} for $target${NC}"
     tmp_dir=$(mktemp -d)
     trap 'rm -rf "$tmp_dir"' EXIT
-    # curl sizes its progress bar with an ioctl on *stdin* — which is the installer
-    # script itself when this is run as `curl … | bash`, so it falls back to 79
-    # columns, and on a narrower terminal every frame wraps and lands on a line of
-    # its own instead of redrawing in place. Handing it the terminal is what gives
-    # it the real width; it reads nothing from stdin for this request.
+    # curl sizes its progress bar from stdin, which is this script under `curl | bash`.
     curl_stdin=/dev/null
     [ -t 1 ] && [ -e /dev/tty ] && curl_stdin=/dev/tty
-    # --retry covers the transient 502/504 that GitHub's asset CDN serves often
-    # enough for an install to fail on a release that is perfectly intact.
+    # --retry: GitHub's asset CDN serves transient 502/504s.
     if ! curl -# -fL --retry 3 --retry-delay 1 -o "$tmp_dir/$filename" "$url" < "$curl_stdin"; then
         echo -e "${RED}Failed to download $filename${NC}" >&2
         echo -e "${MUTED}Try again, or check that release v$specific_version carries $target: $url${NC}" >&2
@@ -200,11 +188,7 @@ fi
 exe_name="$APP"
 case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) exe_name="$APP.exe" ;; esac
 
-# The binary is replaced with mv, not cp: rename(2) swaps the directory entry
-# without touching the old inode, so it works while that inode is the running
-# druk doing the update (cp would get ETXTBSY). Unlike cp, mv replaces a
-# symlink instead of writing through it — druk owns this path, so a symlink
-# here is someone else's setup we refuse to break.
+# mv, not cp: rename(2) works while the old inode is the running druk (cp gets ETXTBSY).
 if [ -L "$INSTALL_DIR/$exe_name" ]; then
     echo -e "${RED}Error: $INSTALL_DIR/$exe_name is a symlink; refusing to replace it${NC}" >&2
     echo -e "${MUTED}Remove the symlink and re-run the installer${NC}" >&2

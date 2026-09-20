@@ -1,15 +1,7 @@
-/**
- * Whole-line edits, pure text-in text-out so they unit-test without a buffer.
- * Rows are 0-based and ranges inclusive, matching the editor's logical cursor.
- */
+// Rows are 0-based and ranges inclusive, matching the editor's logical cursor.
 
 const indentOf = (line: string) => line.length - line.trimStart().length
 
-/**
- * Comment the lines `from`..`to` with `prefix`, or uncomment when every
- * non-blank line already carries it. The prefix lands at the shallowest indent
- * of the block, so a commented block stays visually aligned.
- */
 export function toggleComment(text: string, from: number, to: number, prefix: string): string {
   const lines = text.split('\n')
   const picked = () => lines.slice(from, to + 1)
@@ -35,7 +27,6 @@ export function toggleComment(text: string, from: number, to: number, prefix: st
   return lines.join('\n')
 }
 
-/** Move lines `from`..`to` one step up or down, or null at the buffer's edge. */
 export function moveLines(text: string, from: number, to: number, delta: -1 | 1): string | null {
   const lines = text.split('\n')
   // The trailing empty string after a final newline is not a movable line.
@@ -46,14 +37,9 @@ export function moveLines(text: string, from: number, to: number, delta: -1 | 1)
   return lines.join('\n')
 }
 
-/**
- * Drop lines `from`..`to`, the newline that ends each of them included, so what
- * follows keeps its own indentation instead of being pulled onto the line above.
- */
 export function removeLines(text: string, from: number, to: number): string {
   const lines = text.split('\n')
-  // The trailing empty string after a final newline is not a line to delete —
-  // taking it would leave the file without its final newline.
+  // The trailing empty string after a final newline is not a line: deleting it takes the newline.
   const last = lines.at(-1) === '' ? lines.length - 2 : lines.length - 1
   const start = Math.max(0, from)
   const end = Math.min(to, last)
@@ -68,7 +54,6 @@ export function duplicateLines(text: string, from: number, to: number): string {
   return lines.join('\n')
 }
 
-/** Strip trailing spaces and tabs from every line and end with one newline. */
 export function trimTrailing(text: string): string {
   const trimmed = text
     .split('\n')

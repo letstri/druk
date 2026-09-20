@@ -4,7 +4,6 @@ import { join } from 'node:path'
 
 const SRC = join(import.meta.dir, '..', 'src')
 
-/** Folders that must never import from app/ — the one-way dependency rule. */
 const FEATURE_FOLDERS = [
   'ui',
   'core',
@@ -37,12 +36,7 @@ test('ui/ and the feature folders never import from app/', () => {
   expect(offenders).toEqual([])
 })
 
-/**
- * A raw `mkdtempSync` is invisible to the sweep in `test/setup.ts` and leaks for
- * good: the git helpers each made one and left tens of thousands of directories
- * behind, until `mkdtemp` in that folder slowed down and files began failing with
- * `ENOENT` on their own fixtures.
- */
+// A raw `mkdtempSync` is invisible to the sweep in `test/setup.ts` and leaks for good.
 test('tests take their temp directories from tempDir()', () => {
   const dir = import.meta.dir
   const offenders: string[] = []

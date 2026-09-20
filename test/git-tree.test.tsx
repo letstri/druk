@@ -19,7 +19,6 @@ const git = (dir: string, ...args: string[]) => {
   if (run.exitCode !== 0) throw new Error(run.stderr.toString())
 }
 
-/** A repository whose changes sit at three different depths. */
 function repo() {
   const dir = fixture({ 'root.ts': 'root\n' })
   mkdirSync(join(dir, 'src/app'), { recursive: true })
@@ -36,7 +35,6 @@ function repo() {
 }
 
 const frame = (t: Harness) => t.captureCharFrame()
-/** The sidebar's rows, trailing blanks trimmed, in screen order. */
 const panelRows = (t: Harness) =>
   frame(t)
     .split('\n')
@@ -50,13 +48,10 @@ test('the panel nests the changes under folder rows', async () => {
   await openPanel(t)
 
   const rows = panelRows(t)
-  // The file at the root, then the folder that holds the rest — and `src` is
-  // joined with nothing, since it has two children.
   expect(rows.some(row => row.includes('root.ts'))).toBe(true)
   expect(rows.some(row => row.includes('▾ src'))).toBe(true)
   expect(rows.some(row => row.includes('▾ app'))).toBe(true)
   expect(rows.some(row => row.includes('▾ ui'))).toBe(true)
-  // Leaves carry their own name only: the path is what the folder rows say.
   expect(rows.some(row => row.includes('actions.ts') && row.trimEnd().endsWith('M'))).toBe(true)
   expect(frame(t)).not.toContain('src/app/actions.ts')
 })
@@ -65,14 +60,12 @@ test('a folder folds on ← and says how many changes it hides, and unfolds on �
   const t = await launch(repo())
   await openPanel(t)
 
-  // Rows: root.ts, src, app, actions.ts, ui, panel.ts — the cursor starts at 0.
   await press(t, i => i.pressArrow('down'))
   await press(t, i => i.pressArrow('left'))
 
   let rows = panelRows(t)
   expect(rows.some(row => row.includes('▸ src'))).toBe(true)
   expect(rows.some(row => row.includes('actions.ts'))).toBe(false)
-  // The count stands in for the two files behind the fold.
   expect(rows.find(row => row.includes('▸ src'))).toContain('2')
 
   await press(t, i => i.pressArrow('right'))
@@ -84,21 +77,15 @@ test('a folder folds on ← and says how many changes it hides, and unfolds on �
 test('the arrows page the diff through the files and step over the folders', async () => {
   const t = await launch(repo())
   await openPanel(t)
-  // The panel opens on the first change without diffing it; down onto the folder
-  // and back is the shortest landing on that row.
   await press(t, i => i.pressArrow('down'))
   await press(t, i => i.pressArrow('up'))
-  // The diff renderable assembles its panes on a queued microtask, so poll.
   await untilFrame(t, '+ ROOT')
 
-  // Down onto `src`, a folder row: the page stays where it was rather than
-  // clearing, and the folder is not folded by the cursor passing over it.
   await press(t, i => i.pressArrow('down'))
   const shown = frame(t)
   expect(shown).toContain('+ ROOT')
   expect(shown).toContain('▾ src')
 
-  // Two more rows down is `actions.ts`, the next file.
   await pressTimes(t, 2, i => i.pressArrow('down'))
   await untilFrame(t, '+ ACTIONS')
 })
@@ -107,23 +94,21 @@ test('Enter folds the folder under the cursor', async () => {
   const t = await launch(repo())
   await openPanel(t)
 
-  await press(t, i => i.pressArrow('down')) // src
+  await press(t, i => i.pressArrow('down'))
   await press(t, i => i.pressEnter())
   expect(panelRows(t).some(row => row.includes('▸ src'))).toBe(true)
 
-  await press(t, i => i.pressEnter()) // and back
+  await press(t, i => i.pressEnter())
   expect(panelRows(t).some(row => row.includes('▾ src'))).toBe(true)
 })
 
 test('the flat list is one command away, and shows whole paths again', async () => {
   const t = await launch(repo())
   await openPanel(t)
-  // The flip lives on the settings page's Git section, not in the palette.
   await toggleSetting(t, 'Changed files')
 
   const rows = panelRows(t)
   expect(rows.some(row => row.includes('src/app/actions.ts'))).toBe(true)
-  // No folder rows left — the `Changes` heading keeps its own arrow.
   expect(rows.some(row => row.includes('▾ src'))).toBe(false)
 })
 
@@ -131,12 +116,10 @@ test('"Diff current file" lands on the file even with its folder folded', async 
   const dir = repo()
   const t = await launch(dir)
   await openPanel(t)
-  await press(t, i => i.pressArrow('down')) // src
-  await press(t, i => i.pressEnter()) // folded away
+  await press(t, i => i.pressArrow('down'))
+  await press(t, i => i.pressEnter())
   expect(panelRows(t).some(row => row.includes('actions.ts'))).toBe(false)
 
-  // Open the folded file and ask for its diff: the fold has to give way, or the
-  // cursor would point at a row that is not on screen.
   await runCommand(t, 'Open file…')
   await press(t, i => void i.typeText('actions'))
   await press(t, i => i.pressEnter())

@@ -58,8 +58,6 @@ describe('files', () => {
       mkdirSync(join(dir, 'node_modules', 'left-pad'), { recursive: true })
       writeFileSync(join(dir, 'node_modules', 'left-pad', 'index.js'), 'module.exports = 1\n')
       await new Promise(resolve => setTimeout(resolve, 300))
-      // Still a tree change too: the file tree lists node_modules like any other
-      // directory, and it has just appeared.
       expect(seen.at(-1)).toEqual({ tree: true, git: false, deps: true })
     } finally {
       stop()
@@ -70,8 +68,6 @@ describe('files', () => {
     const dir = tempDir('druk-watch-')
     const watcher = watchPath(dir, { recursive: true }, () => {})
     try {
-      // What a recursive watch over a huge tree reports once the inotify limit
-      // is reached (letstri/druk#101) — unhandled, an EventEmitter throws it.
       expect(() =>
         watcher?.emit('error', new Error('ENOSPC: no space left on device, watch')),
       ).not.toThrow()
@@ -115,7 +111,6 @@ describe('registries', () => {
     const ids = leaves.map(l => l.command.id)
     expect(new Set(ids).size).toBe(ids.length)
 
-    // Running every leaf must not throw and must reach an action.
     for (const { command } of leaves) command.run?.()
     expect(ran.length).toBe(leaves.length)
   })
@@ -141,7 +136,6 @@ describe('registries', () => {
     expect(ran).toEqual(['previewTheme:light', 'restoreTheme:'])
   })
 
-  // Missing/extra ui keys are a tsc error, so only the values are worth asserting.
   test('every theme tints the current line instead of filling it', () => {
     const channels = (hex: string) =>
       [0, 2, 4].map(i => Number.parseInt(hex.replace('#', '').slice(i, i + 2), 16))
@@ -149,7 +143,6 @@ describe('registries', () => {
     for (const [id, theme] of Object.entries(THEMES)) {
       const [bg, line] = [channels(theme.ui.bg), channels(theme.ui.currentLine)]
       const delta = Math.max(...bg.map((v, i) => Math.abs(v - line[i]!)))
-      // Visible as a band, never a block that competes with the code on it.
       expect(`${id}:${delta > 0 && delta <= 20}`).toBe(`${id}:true`)
     }
   })

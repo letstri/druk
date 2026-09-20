@@ -23,19 +23,11 @@ const CONFLICTED = [
 const frame = (t: Harness) => t.captureCharFrame()
 const bar = (t: Harness) => frame(t).split('\n').at(-2) ?? ''
 
-/** A project whose one file is mid-merge. */
 const conflicted = () => fixture({ 'a.ts': CONFLICTED })
 
-/**
- * Put the caret inside the first conflict. The accept commands act on the block
- * the caret is in and nowhere else — a file's other conflict is off screen as
- * often as not, and resolving one of those unasked is unrecoverable by eye.
- */
 const intoConflict = (t: Harness) => pressTimes(t, 2, i => i.pressArrow('down'))
 
 test('every conflict group resolves to a style, so the block is actually tinted', async () => {
-  // A group nothing resolves to paints as plain text and says nothing: the tint
-  // would be gone with no error anywhere, which is the failure this catches.
   const t = await launch(conflicted())
   await openFile(t, 'a.ts')
   getSyntaxStyle()
@@ -45,24 +37,17 @@ test('every conflict group resolves to a style, so the block is actually tinted'
 })
 
 test('a tinted side keeps the colours its code was painted in', async () => {
-  // The native buffer replaces a cell's style with the winning highlight's, so a
-  // background-only tint drawn as one span repaints the whole block in plain
-  // text — the code inside a conflict (and inside a diagnostic) went grey.
   const t = await launch(conflicted(), {}, { width: 100, height: 24 })
   await openFile(t, 'a.ts')
   const keyword = (row: string) => spansOf(t, row).find(span => span.text.trim() === 'const')
-  // The first parse is a worker round trip, and a cold one loads the grammar as
-  // well: before it lands the line is one span.
   await until(t, () => keyword('const b = 2') !== undefined, 15_000)
   const outside = keyword('const a = 1')
   const inside = keyword('const b = 2')
   expect(outside).toBeDefined()
   expect(inside).toBeDefined()
-  // Same foreground as the same keyword outside the block, over a tint of its own.
   expect(inside?.fg).toBe(outside?.fg)
   expect(inside?.bg).not.toBe(outside?.bg)
-  // Past bun's 5s default: the wait above is for a cold grammar load, which on a
-  // machine running the rest of the suite takes longer than the default allows.
+  // Past bun's 5s default: the wait above is for a cold grammar load.
 }, 20000)
 
 test('the gutter marks the block and nothing either side of it', async () => {
@@ -72,7 +57,6 @@ test('the gutter marks the block and nothing either side of it', async () => {
     .split('\n')
     .filter(row => row.includes('┃'))
     .map(row => row.trim())
-  // Lines 2 through 6 are the conflict; 1 and 7 are the code around it.
   expect(marked).toHaveLength(5)
   expect(marked.at(0)).toContain('<<<<<<< HEAD')
   expect(marked.at(-1)).toContain('>>>>>>> feature/x')
@@ -101,7 +85,6 @@ test('accepting the current change keeps ours and drops the markers', async () =
   expect(shown).not.toContain('const b = 3')
   expect(shown).not.toContain('=======')
 
-  // Saving writes what the editor is showing, markers and all gone.
   await press(t, i => i.pressKey('s', { ctrl: true }))
   await until(t, () => !readFileSync(join(dir, 'a.ts'), 'utf8').includes('<<<<<<<'))
   expect(readFileSync(join(dir, 'a.ts'), 'utf8')).toBe('const a = 1\nconst b = 2\nconst c = 4\n')
@@ -146,7 +129,6 @@ test('a resolve away from any conflict says so rather than eating a block', asyn
   await openFile(t, 'a.ts')
   await runCommand(t, 'Resolve conflict at cursor')
   await until(t, () => bar(t).includes('No merge conflict on this line'))
-  // The file is untouched: the markers are all still there.
   expect(frame(t)).toContain('<<<<<<< HEAD')
 })
 
@@ -193,11 +175,10 @@ test('a real merge conflict resolves from the panel through to a commit', async 
   try {
     git('merge', 'other')
   } catch {
-    // The merge is meant to fail — that is the state under test.
+    // The merge is meant to fail: that is the state under test.
   }
 
   const t = await launch(dir)
-  // The panel lists it under Merge Changes and Enter opens it at the markers.
   await runCommand(t, 'Source control (commit / push)')
   await until(t, () => frame(t).includes('Merge Changes'))
   await until(t, () => frame(t).includes('a.ts'))

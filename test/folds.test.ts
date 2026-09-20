@@ -23,7 +23,6 @@ test('a block owns the more-indented lines under it, not its closing brace', () 
   const regions = foldableRegions(SAMPLE, 2)
   expect(regions).toContainEqual({ start: 0, end: 4 })
   expect(regions).toContainEqual({ start: 2, end: 3 })
-  // A line with nothing indented under it is not a region.
   expect(regions.some(region => region.start === 7)).toBe(false)
   expect(regions.some(region => region.start === 1)).toBe(false)
 })
@@ -68,18 +67,11 @@ test('a nested fold keeps no note while the block above it is closed', () => {
 
 test('an edit away from a fold moves it without touching what it hides', () => {
   const view = foldView(SAMPLE, [{ start: 2, end: 3 }])
-  //   0 function outer() {
-  //   1   const a = 1
-  //   2   if (a) {      ← folded
-  //   3   }
-  //   4 }
-  //   5
-  //   6 const after = 2
   const edited = view.text.split('\n')
   edited[1] = '  const a = 11'
   const { source, folds } = reconcileFolds(view, edited.join('\n'))
   expect(source.split('\n')[1]).toBe('  const a = 11')
-  expect(source.split('\n')[3]).toBe('    log(a)') // still there, still hidden
+  expect(source.split('\n')[3]).toBe('    log(a)')
   expect(folds).toEqual([{ start: 2, end: 3 }])
 })
 
@@ -95,7 +87,7 @@ test('lines inserted above a fold carry it down with them', () => {
 test('an edit that takes an anchor away keeps the lines it was hiding', () => {
   const view = foldView(SAMPLE, [{ start: 2, end: 3 }])
   const edited = view.text.split('\n')
-  edited.splice(2, 1) // delete the folded `if (a) {` line outright
+  edited.splice(2, 1)
   const { source, folds } = reconcileFolds(view, edited.join('\n'))
   expect(source).toContain('log(a)')
   expect(folds).toEqual([])

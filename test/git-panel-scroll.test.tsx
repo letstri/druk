@@ -7,7 +7,7 @@ import type { Harness } from './helpers'
 import { initRepo } from './repo'
 
 const ESC = String.fromCharCode(27)
-/** Ctrl+Opt+G as terminals spell it: an ESC prefix ahead of Ctrl+G (0x07). */
+// Ctrl+Opt+G as terminals spell it: an ESC prefix ahead of Ctrl+G (0x07).
 const TOGGLE = `${ESC}${String.fromCharCode(7)}`
 
 const git = (dir: string, ...args: string[]) => {
@@ -17,7 +17,6 @@ const git = (dir: string, ...args: string[]) => {
 
 const NAMES = Array.from({ length: 120 }, (_, index) => `f${String(index).padStart(3, '0')}.ts`)
 
-/** A repository where every file is modified, so the change list outruns the panel. */
 function repo() {
   const dir = fixture(Object.fromEntries(NAMES.map(name => [name, 'before\n'])))
   initRepo(dir)
@@ -27,7 +26,6 @@ function repo() {
   return dir
 }
 
-/** The sidebar's rows, below the tab strip and the panel header. */
 const sidebar = (t: Harness) =>
   t
     .captureCharFrame()
@@ -43,7 +41,6 @@ async function openPanel() {
   return t
 }
 
-/** Wheel the panel down, flushing once at the end rather than per tick. */
 async function scrollDown(t: Harness, ticks: number) {
   for (let n = 0; n < ticks; n++) await t.mockMouse.scroll(4, 8, 'down')
   await settle(t)
@@ -75,8 +72,7 @@ describe('the source-control panel scrolls', () => {
     await scrollDown(t, 20)
     const scrolled = sidebar(t)
 
-    // The watcher re-reads `git status` on a timer; the rows are a fresh array
-    // every time, and tracking that array used to snap the view to the top.
+    // Fixed wait: the watcher's rebuild of the row array must not snap the view to the top.
     await settle(t, 600)
 
     expect(sidebar(t)).toBe(scrolled)
@@ -91,9 +87,6 @@ describe('the source-control panel scrolls', () => {
     const scrolled = sidebar(t)
     expect(scrolled).not.toContain('f000.ts')
 
-    // A real revision: the watcher sees the write, every row is rebuilt, and the
-    // panel's cursor — still row 0 — used to drag the view back to the top with
-    // it, once per save. With a lot of changes that is most of the session.
     writeFileSync(join(dir, NAMES[0]!), 'changed again\n')
     for (let n = 0; n < 6; n++) {
       await settle(t, 250)

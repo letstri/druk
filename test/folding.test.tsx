@@ -27,13 +27,9 @@ test('folding hides the block and says how much it took', async () => {
   expect(folded).not.toContain('return secret')
   expect(folded).toContain('function outer() {')
   expect(folded).toContain('⋯ 2 lines')
-  // The lines still on screen keep the numbers they have in the file: the row
-  // under the folded one is the file's line 4, not the buffer's line 2.
   expect(folded).toMatch(/4\s+\}/)
   expect(folded).toMatch(/6\s+const after = 2/)
 
-  // The chord that opens it again, on the row the caret is on: the `▸` in the
-  // gutter is for a mouse, and nothing else names the key.
   expect(folded).toContain(`⋯ 2 lines Ctrl+${ALT}+E`)
 
   await runCommand(t, 'Unfold block at cursor')
@@ -46,7 +42,6 @@ test('a fold never reaches the file, however the buffer is edited', async () => 
   await openFile(t, 'a.ts')
   await runCommand(t, 'Fold block at cursor')
 
-  // Type on the last line, which the fold has moved up the screen, and save.
   await pressTimes(t, 5, i => i.pressArrow('down'))
   await press(t, i => void i.typeText('const tail = 3'))
   await press(t, i => i.pressKey('s', { ctrl: true }))
@@ -66,7 +61,6 @@ test('typing on a folded line opens the block rather than editing past it', asyn
   await runCommand(t, 'Fold block at cursor')
   expect(t.captureCharFrame()).not.toContain('const secret = 1')
 
-  // The caret sits on the anchor; a keystroke there has to find the block open.
   await press(t, i => void i.typeText(' '))
   const frame = t.captureCharFrame()
   expect(frame).toContain('const secret = 1')
@@ -83,11 +77,6 @@ test('every foldable block carries a marker, and clicking it toggles the block',
   const t = await launch(dir)
   await openFile(t, 'a.ts')
 
-  // One marker, on the only block this file has. Asserted on the frame as it
-  // first lands: the glyph is a gutter sign rather than an overlay of ours
-  // precisely so it cannot be drawn against coordinates the layout has not
-  // filled in yet — hence the line number, the glyph and the code with exactly
-  // one column of air between the last two.
   const rows = t.captureCharFrame().split('\n')
   const y = rows.findIndex(row => row.includes('▾'))
   expect(y).toBeGreaterThan(-1)
@@ -98,7 +87,6 @@ test('every foldable block carries a marker, and clicking it toggles the block',
   await press(t, () => void t.mockMouse.click(x, y))
   await until(t, () => t.captureCharFrame().includes('⋯ 2 lines'))
   expect(t.captureCharFrame()).not.toContain('const secret = 1')
-  // The marker turns around, so the row says which way it will go next.
   expect(t.captureCharFrame()).toContain('▸ function outer() {')
 
   await press(t, () => void t.mockMouse.click(x, y))
@@ -112,8 +100,6 @@ test('folding leaves the view where it was', async () => {
   const dir = fixture({ 'big.ts': `${lines.join('\n')}\n` })
   const t = await launch(dir, {}, {}, { openFile: join(dir, 'big.ts') })
 
-  // Down to a line whose block starts above it but still on screen: the fold
-  // changes nothing about what should be visible.
   await pressTimes(t, 50, i => i.pressArrow('down'))
   await settle(t)
   const topRow = (): string | undefined =>
@@ -122,11 +108,8 @@ test('folding leaves the view where it was', async () => {
       .split('\n')
       .find(row => /const x|function f/.test(row))
   const before = topRow()
-  expect(before).toContain('const x37 = 37')
+  expect(before).toContain('const x36 = 36')
 
-  // `setText` drops the buffer to the top and placing the caret afterwards
-  // scrolls the least amount that reveals it — which used to leave the block
-  // pinned to the bottom edge, twenty lines from where the eye was.
   await runCommand(t, 'Fold block at cursor')
   expect(topRow()).toBe(before)
   await runCommand(t, 'Unfold block at cursor')

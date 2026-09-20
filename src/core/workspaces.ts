@@ -1,8 +1,3 @@
-/**
- * Which folders the workspace switcher offers: what the open repositories
- * *have* (`git worktree list` knows a checkout druk was never opened on) and
- * what druk has *been* opened on (`sessions.json`).
- */
 import { realpathSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { basename, dirname, join } from 'node:path'
@@ -11,8 +6,7 @@ import { isDirectory } from './fs'
 import { worktrees } from './git'
 import { recentProjects } from './session'
 
-// Each repository is a synchronous `git` on the render thread, and a folder of
-// checkouts can hold dozens; the rest still appear through the recents.
+// Each repository is a synchronous `git` on the render thread.
 const MAX_WORKTREE_REPOS = 8
 
 export interface WorkspaceEntry {
@@ -20,7 +14,6 @@ export interface WorkspaceEntry {
   name: string
   branch: string | null
   source: 'worktree' | 'recent'
-  /** The workspace already open — listed, so the list says where you are. */
   current: boolean
 }
 
@@ -31,11 +24,7 @@ export function shortenHome(path: string, home = homedir()): string {
 const trimSlash = (path: string): string =>
   path.length > 1 && path.endsWith('/') ? path.slice(0, -1) : path
 
-/**
- * The one spelling every comparison here uses: `git worktree list` prints the
- * symlink-resolved path (`/private/var/…` on macOS) and the shell the other,
- * and without this the folder you are in is listed twice and current neither time.
- */
+// `git worktree list` prints the symlink-resolved path and the shell the other.
 export function resolvedPath(path: string): string {
   try {
     return trimSlash(realpathSync(path))
@@ -44,7 +33,6 @@ export function resolvedPath(path: string): string {
   }
 }
 
-/** Worktrees of the open repositories, then remembered folders; the current one first. */
 export function workspaceEntries(rootDir: string, repos: readonly string[]): WorkspaceEntry[] {
   const root = resolvedPath(rootDir)
   const entries: WorkspaceEntry[] = []
@@ -70,11 +58,7 @@ export function workspaceEntries(rootDir: string, repos: readonly string[]): Wor
   return entries.toSorted((a, b) => Number(b.current) - Number(a.current))
 }
 
-/**
- * Where a new worktree goes: a sibling of the repository named for its branch.
- * Inside the repository it would be part of its own file tree, its searches and
- * its status, which is a checkout showing up as untracked files in itself.
- */
+// A sibling, not a child: inside the repo the checkout shows up in its own tree and status.
 export function worktreePath(repo: string, branch: string): string {
   return join(dirname(repo), `${basename(repo)}-${branch.replace(/[/\\]+/g, '-')}`)
 }

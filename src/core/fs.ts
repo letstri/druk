@@ -8,62 +8,30 @@ export interface TreeNode {
   path: string
   isDir: boolean
   depth: number
-  /** Points elsewhere: shown with a mark, opened as whatever it resolves to. */
   symlink?: boolean
 }
 
-/**
- * A version control system's own storage. Not project content: nothing in here is
- * meant to be browsed, searched or edited, and `.git` alone can hold more files than
- * everything else put together. Left out of every listing, and — with the exceptions
- * below — out of the watcher too.
- *
- * Ordinary dotfiles are *not* in this class. `.gitignore`, `.env` and `.github/` are
- * files someone wrote and will want to open.
- */
-export const VCS_DIRS = new Set(['.git', '.svn', '.hg', '.jj'])
+const VCS_DIRS = new Set(['.git', '.svn', '.hg', '.jj'])
 
-/**
- * The same list as a path matcher, for the watcher. Reading git status refreshes
- * `.git/index`, so watching all of `.git` closes a loop on itself: status → index
- * write → watcher → status, forever, at whatever rate the debounce allows.
- */
+// Watching all of `.git` loops on itself: git status rewrites `.git/index` → watcher → status.
 const UNWATCHED = new RegExp(
-  // The leading dot has to be escaped, or `.git` would also match `agit`.
   `(?:^|[/\\\\])(?:${[...VCS_DIRS].map(dir => dir.replace('.', '\\.')).join('|')})(?:[/\\\\]|$)`,
 )
 
-/**
- * Where a package manager puts what it installed. Reported apart because a
- * language server resolves imports through these directories and reads them
- * once, at startup: a `bun install` run in another terminal is invisible to it
- * until it is restarted.
- */
 const DEPENDENCY_DIRS = ['node_modules', 'vendor', '.venv', 'venv']
 
 const DEPENDENCIES = new RegExp(
   `(?:^|[/\\\\])(?:${DEPENDENCY_DIRS.map(dir => dir.replace('.', '\\.')).join('|')})(?:[/\\\\]|$)`,
 )
 
-/** What a debounced burst of events touched. More than one can be true for a burst. */
 export interface Changed {
-  /** A file in the working tree. */
   tree: boolean
-  /** `HEAD` or a ref moved: a commit, checkout or reset happened. */
   git: boolean
-  /** Installed dependencies were written — an install, an update, a removal. */
   deps: boolean
 }
 
-/**
- * `fs.watch` with the failures it reports *after* returning handled. A recursive
- * watch descends once it is running, so a directory it cannot add — the inotify
- * limit exhausted on a huge tree (`ENOSPC`, a `/home` full of cargo and npm
- * caches: letstri/druk#101), a permission denied — arrives as an `error` event,
- * and an unhandled one on an EventEmitter is thrown at the process, which paints
- * the failure over the editor. Best-effort, as every watcher here is: that path
- * goes unwatched and nothing is said.
- */
+// A recursive watch reports a directory it cannot add (ENOSPC) as an `error`, thrown at the process
+// if unhandled.
 export function watchPath(
   path: string,
   options: fs.WatchOptions,
@@ -78,15 +46,6 @@ export function watchPath(
   }
 }
 
-/**
- * Watch `root` and call `onChange` (debounced) on any file event. Returns a stop
- * function. Best-effort — an unwatchable path is simply left unwatched.
- *
- * The kinds are reported apart because they cost different things to react to.
- * Re-reading ahead/behind is two subprocesses, and only history moving can change
- * it — running that on every keystroke-triggered save would be pure waste. A
- * dependency write costs a language server restart, which is dearer still.
- */
 export function watchTree(root: string, onChange: (changed: Changed) => void): () => void {
   let timer: ReturnType<typeof setTimeout> | null = null
   const empty = (): Changed => ({ tree: false, git: false, deps: false })
@@ -100,7 +59,7 @@ export function watchTree(root: string, onChange: (changed: Changed) => void): (
       const changed = pending
       pending = empty()
       onChange(changed)
-    }, 80) // coalesce bursts of events
+    }, 80) // coalesce bursts
   }
 
   const watchers: fs.FSWatcher[] = []
@@ -118,8 +77,6 @@ export function watchTree(root: string, onChange: (changed: Changed) => void): (
   watch(root, { recursive: true }, name => {
     if (!name) return ['tree']
     if (UNWATCHED.test(name)) return []
-    // A dependency write is a tree write as well: the file tree lists
-    // node_modules like any other directory, and it has just appeared.
     return DEPENDENCIES.test(name) ? ['tree', 'deps'] : ['tree']
   })
 
@@ -132,22 +89,8 @@ export function watchTree(root: string, onChange: (changed: Changed) => void): (
   }
 }
 
-/**
- * Report a commit, checkout, reset or pack-refs in `repo`. Returns a stop
- * function; best-effort, so a directory that is not a repository simply goes
- * unwatched.
- *
- * Its own watchers, because a recursive watch on the working tree cannot cover
- * this. A commit or a checkout made in another terminal changes no working-tree
- * file at all, so without these the tree marks, the changed count and the branch
- * sit stale — and the recursive watch is no help: macOS coalesces everything
- * under `.git` down to `.git/index.lock`, which is precisely the file a plain
- * `git status` rewrites, so reacting to it would feed the watcher its own tail
- * forever.
- *
- * Watching HEAD and the refs directly reports all four — and, verified, nothing
- * that reading status does.
- */
+// HEAD and refs only: macOS coalesces everything under `.git` to `index.lock`, which git status
+// rewrites, so a watch on the directory feeds itself.
 export function watchGitRefs(repo: string, onChange: () => void): () => void {
   const watchers: fs.FSWatcher[] = []
   const watch = (path: string, options: fs.WatchOptions) => {
@@ -162,15 +105,6 @@ export function watchGitRefs(repo: string, onChange: () => void): () => void {
   }
 }
 
-/**
- * Directory entries, folders first then files, each alphabetical.
- *
- * Everything the directory holds, bar the VCS store: hiding a file the user can
- * see in their shell is a worse answer than showing it and refusing to open what
- * cannot be displayed. The opt-in dotfile/gitignore filters live in
- * `flattenVisible`, so every direct caller (project search, the fuzzy picker)
- * still sees the filesystem's truth.
- */
 export function listDir(dir: string, depth = 0): TreeNode[] {
   let entries: fs.Dirent[]
   try {
@@ -183,13 +117,12 @@ export function listDir(dir: string, depth = 0): TreeNode[] {
     .map(e => {
       const path = join(dir, e.name)
       if (!e.isSymbolicLink()) return { name: e.name, path, isDir: e.isDirectory(), depth }
-      // A dirent describes the link itself, so a symlinked directory answers
-      // isDirectory() false — and the tree then tries to read it as a file.
+      // A dirent describes the link itself, so a symlinked directory answers isDirectory() false.
       let isDir = false
       try {
         isDir = fs.statSync(path).isDirectory()
       } catch {
-        // Broken link: nothing to resolve, so leave it looking like a file.
+        // broken link
       }
       return { name: e.name, path, isDir, depth, symlink: true }
     })
@@ -199,7 +132,6 @@ export function listDir(dir: string, depth = 0): TreeNode[] {
     })
 }
 
-/** Where a path really lives, or the path itself when it cannot be resolved. */
 function realPath(path: string): string {
   try {
     return fs.realpathSync(path)
@@ -211,12 +143,10 @@ function realPath(path: string): string {
 export function flattenVisible(
   root: string,
   expanded: Set<string>,
-  /** Rows to leave out. A hidden directory is also never descended into. */
   hidden?: (node: TreeNode) => boolean,
 ): TreeNode[] {
   const out: TreeNode[] = []
-  // Real paths of the branch being walked. A symlink pointing at one of its own
-  // ancestors is a cycle, and expanding into it would never come back.
+  // Real paths of the branch being walked: a symlink into an ancestor would recurse forever.
   const branch = new Set<string>()
   const walk = (dir: string, depth: number) => {
     const real = realPath(dir)
@@ -240,16 +170,6 @@ export class BinaryFileError extends Error {
   }
 }
 
-/**
- * How a file's text was spelled on disk, so a save can put it back that way.
- *
- * druk holds text as LF without a BOM, because that is the only shape that
- * survives the edit buffer: OpenTUI's Zig core drops the `\r` of a CRLF break
- * and rejoins lines with `\n`, and `TextDecoder` eats a leading BOM. Keeping the
- * raw text in the buffer instead would mean every CRLF or BOM file came back
- * from the engine different from what was read, which reads as an edit — a file
- * dirty the moment it opened, and a save that rewrote every line of it.
- */
 export interface TextEncoding {
   eol: '\n' | '\r\n'
   bom: boolean
@@ -259,57 +179,27 @@ export const DEFAULT_ENCODING: TextEncoding = { eol: '\n', bom: false }
 
 const countOf = (haystack: string, needle: string) => haystack.split(needle).length - 1
 
-/** Strip the BOM and the CRs, reporting what was taken off so a write can restore it. */
 export function decodeText(raw: string): { text: string; encoding: TextEncoding } {
   const bom = raw.startsWith('\uFEFF')
   const body = bom ? raw.slice(1) : raw
-  // Majority rather than first-break-wins: one stray CRLF in an LF file must not
-  // convert the whole file on the next save, and the same the other way round.
+  // Majority, not first-wins: one stray CRLF must not convert the whole file on the next save.
   const crlf = countOf(body, '\r\n')
   const eol = crlf > 0 && crlf * 2 >= countOf(body, '\n') ? '\r\n' : '\n'
   return { text: eol === '\r\n' ? body.replaceAll('\r\n', '\n') : body, encoding: { eol, bom } }
 }
 
-/** Put back what `decodeText` took off. */
 export function encodeText(text: string, encoding: TextEncoding): string {
-  // Normalized first, not converted straight to `eol`: a paste can carry CRLF into
-  // an LF buffer, and `\n` → `\r\n` over that text would double every CR.
+  // Normalize first: a paste can carry CRLF into an LF buffer, and `\n` → `\r\n` would double its CRs.
   const lf = text.includes('\r\n') ? text.replaceAll('\r\n', '\n') : text
   const body = encoding.eol === '\r\n' ? lf.replaceAll('\n', '\r\n') : lf
   return encoding.bom ? `\uFEFF${body}` : body
 }
 
 const SNIFF = 8192
-/**
- * How far in a real binary format is allowed to hide its first NUL. Every one of
- * them puts a length, a magic number or a padded field near the top — PNG at byte
- * 8, JPEG at 4, wasm at 1, gzip at 3, tar in its padded name field, UTF-16 at 1 —
- * so a window this small catches them all while leaving a stray NUL deep inside
- * an otherwise-text file alone. VS Code sniffs 512 bytes for the same reason.
- */
 const NUL_HEADER = 512
-/**
- * NUL share of the sniffed bytes that says binary even with a text-looking header.
- * Compressed content averages 1/256 zero bytes (~0.4%), so this sits above the
- * noise a header-less deflate stream would produce and far above what a text file
- * carrying a sentinel or two ever reaches.
- */
 const NUL_DENSITY = 0.01
 
-/**
- * Read a text file with the BOM and the CRs taken off, reporting both so a save
- * can put them back, and refusing binary content.
- *
- * Deliberately *not* git's rule — a NUL anywhere in the first 8 KB. A source file
- * with one NUL in a string literal is text that every other editor opens, and
- * refusing all of it over one byte is the worse answer; git only has to decide
- * whether to print a diff. So: a NUL in the header, or NULs dense enough to be
- * data rather than a stray.
- *
- * The sniff is a positional read rather than a slice of the whole file: the tree
- * happily offers a 2 GB video, and reading it before rejecting it would allocate
- * all of it and throw ERR_FS_FILE_TOO_LARGE instead of BinaryFileError.
- */
+// Positional read, not a whole-file slice: a 2 GB video would throw ERR_FS_FILE_TOO_LARGE first.
 export function readTextFile(path: string): { text: string; encoding: TextEncoding } {
   const fd = fs.openSync(path, 'r')
   try {
@@ -326,12 +216,10 @@ export function readTextFile(path: string): { text: string; encoding: TextEncodi
   return decodeText(fs.readFileSync(path, 'utf8'))
 }
 
-/** As `readTextFile`, for the readers with nothing to write back. */
 export function readFile(path: string): string {
   return readTextFile(path).text
 }
 
-/** Size in bytes, or 0 when the file is missing/unreadable. */
 export function sizeOf(path: string): number {
   try {
     return fs.statSync(path).size
@@ -340,7 +228,6 @@ export function sizeOf(path: string): number {
   }
 }
 
-/** Last-modified time in ms, or 0 when the file is missing/unreadable. */
 export function mtimeOf(path: string): number {
   try {
     return fs.statSync(path).mtimeMs
@@ -361,7 +248,6 @@ export function exists(path: string): boolean {
   return fs.existsSync(path)
 }
 
-/** Result helper: `null` on success, otherwise a human-readable message. */
 export type FsResult = string | null
 
 const attempt = (run: () => void): FsResult => {
@@ -403,17 +289,10 @@ export const rename = (from: string, to: string): FsResult =>
     fs.renameSync(from, to)
   })
 
-/**
- * `dir/name`, or the first `name copy`, `name copy 2`, … that nothing occupies.
- *
- * Pasting a copy beside the original is the ordinary case, so a free name has to be
- * found rather than refused — and the suffix goes before the extension, where the
- * eye expects it and where tooling still sees a `.ts` file.
- */
 export function freePath(dir: string, name: string): string {
   if (!fs.existsSync(join(dir, name))) return join(dir, name)
   const dot = name.lastIndexOf('.')
-  // A leading dot is the whole name of a dotfile, not an extension.
+  // `dot > 0`: a leading dot is a dotfile's whole name, not an extension.
   const stem = dot > 0 ? name.slice(0, dot) : name
   const ext = dot > 0 ? name.slice(dot) : ''
   for (let n = 1; ; n++) {

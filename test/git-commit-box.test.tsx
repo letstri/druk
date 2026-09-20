@@ -9,12 +9,11 @@ import { initRepo } from './repo'
 import { tempDir } from './temp'
 
 const ESC = String.fromCharCode(27)
-/** Ctrl+Opt+G as terminals spell it: an ESC prefix ahead of Ctrl+G (0x07). */
+// Ctrl+Opt+G as terminals spell it: an ESC prefix ahead of Ctrl+G (0x07).
 const TOGGLE = `${ESC}${String.fromCharCode(7)}`
 
 const git = (cwd: string, ...args: string[]) => execFileSync('git', args, { cwd })
 
-/** A repository with one commit and one modified file, so the panel has a row. */
 function repo() {
   const dir = fixture({ 'a.ts': 'alpha\n', 'b.ts': 'beta\n' })
   initRepo(dir)
@@ -24,10 +23,6 @@ function repo() {
   return dir
 }
 
-/**
- * A clone whose upstream has moved on while it has a fresh edit of its own —
- * the shape where sync's pull half and push half both have work to do.
- */
 function behindWithEdit() {
   const base = tempDir('druk-sync-')
   const origin = join(base, 'origin.git')
@@ -58,7 +53,6 @@ function behindWithEdit() {
   return { mine, origin }
 }
 
-/** Every subject on origin's main, newest first. */
 const remoteLog = (origin: string) =>
   execFileSync('git', ['log', '--format=%s', 'main'], { cwd: origin }).toString()
 
@@ -69,8 +63,6 @@ test('the commit box keeps its message across Esc, and Enter needs one', async (
   const t = await launch(dir)
   await press(t, i => void i.pressKeys([TOGGLE]))
 
-  // Enter with an empty box refuses rather than committing nothing — and the
-  // box keeps the keyboard, so the message can be typed without reopening it.
   await press(t, i => void i.typeText('c'))
   await press(t, i => i.pressEnter())
   await until(t, () => frame(t).includes('Enter a commit message'))
@@ -78,7 +70,6 @@ test('the commit box keeps its message across Esc, and Enter needs one', async (
   await press(t, i => void i.typeText('half a thought'))
   await pressEscape(t)
 
-  // The keyboard is back on the rows — the words stay where they were typed.
   expect(frame(t)).toContain('half a thought')
   const log = execFileSync('git', ['log', '--format=%s'], { cwd: dir }).toString()
   expect(log).not.toContain('half a thought')
@@ -98,7 +89,6 @@ test('↑ in the commit box walks past subjects, ↓ comes back to the draft', a
   await until(t, () => frame(t).includes('second thoughts'))
   await press(t, i => i.pressArrow('up'))
   await until(t, () => frame(t).includes('init'))
-  // Walking forward again ends on what was being typed, not on an empty box.
   await press(t, i => i.pressArrow('down'))
   await until(t, () => frame(t).includes('second thoughts'))
   await press(t, i => i.pressArrow('down'))
@@ -138,7 +128,6 @@ test('Commit & sync lands the commit on origin and pulls what it had', async () 
   const t = await launch(mine)
 
   await runCommand(t, 'Commit & sync')
-  // Nothing staged: the file picker carries the variant through.
   await until(t, () => frame(t).includes('Commit —'))
   await press(t, i => i.pressEnter())
   await until(t, () => frame(t).includes('Commit message'))
@@ -146,7 +135,6 @@ test('Commit & sync lands the commit on origin and pulls what it had', async () 
   await press(t, i => i.pressEnter())
 
   await until(t, () => remoteLog(origin).includes('mine via sync'))
-  // The pull half brought origin's commit home.
   const local = execFileSync('git', ['log', '--format=%s'], { cwd: mine }).toString()
   expect(local).toContain('from elsewhere')
 })
@@ -157,7 +145,6 @@ test('Commit (amend) folds staged work into the last commit', async () => {
   const t = await launch(dir)
 
   await runCommand(t, 'Commit (amend)')
-  // The prompt opens carrying the old subject; Enter hands the same words back.
   await until(t, () => frame(t).includes('Amend commit message'))
   await press(t, i => i.pressEnter())
 
@@ -173,7 +160,6 @@ test('Commit (amend) folds staged work into the last commit', async () => {
 
 test('s in the panel syncs: origin gains nothing, the branch gains theirs', async () => {
   const { mine } = behindWithEdit()
-  // The edit stays uncommitted; sync's pull must still land origin's commit.
   git(mine, 'stash', '-u')
   const t = await launch(mine)
   await press(t, i => void i.pressKeys([TOGGLE]))

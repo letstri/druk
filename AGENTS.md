@@ -30,12 +30,8 @@ erroring shifts nothing; the strip is the *editor's* own row rather than the
 terminal's, VS Code's arrangement — it begins where the sidebar ends, so the
 sidebar reaches the top of the window and the strip's budget is the editor
 column's width (`slotWidth` in `App.tsx`, which every page over that slot is
-sized from) — and under it sits the breadcrumb row naming the open file's path
-from the project root (`src/ui/Breadcrumbs.tsx`, cut from the *front*, since the
-file's own name is the half worth keeping; no symbols in it, which would need the
-server's document symbols and is a feature rather than a look). Two rows of
-chrome, so the editor's first content row is row 2 of the frame and every page
-over the slot is a row shorter than the terminal —
+sized from). One row of chrome, so the editor's first content row is row 1 of the
+frame —
 a quick look at the row under the tree's cursor that opens no
 tab at all (Space in the tree, palette → View → Preview file — the file over the
 editor slot, syntax-coloured, following the cursor as ↑↓ walks the tree and paging
@@ -78,7 +74,15 @@ the offset to the last screenful and the pane resizes on its own — the marks
 beside the scrollbar are a column that exists only while the file has something
 to put in it, so a language server publishing its first diagnostic narrows the
 editor by one and dropped the reader back to the end of the file),
-selecting a word by double-click and a line by triple-click (OpenTUI has no such
+selecting a word by double-click and a line by triple-click — and every selection
+is on the clipboard the moment it is made, the status bar saying what was taken:
+a drag when the mouse comes up (`copyOnSelect` in `src/ui/selection.ts`, off the
+renderer's own `selection` event, which is emitted by `finishSelection` and so
+fires once per drag rather than per row crossed), a click-selection from the
+handler that made it. `copyText` there is the one copy — subprocess and OSC 52
+both, as Ctrl+C does — and an empty selection is skipped, which is what keeps the
+click that ends a double-click from overwriting what the double-click just took
+(OpenTUI has no such
 event, so both are counted from consecutive mouse-downs at one cell, the way the
 file tree already counts its own; a line terminator is not a token, so a click
 past the end of a line or on a blank line selects nothing rather than the `\n` —
@@ -356,7 +360,9 @@ the note *on the caret's row alone*, since a key nobody
 has been told about is a key nobody presses, and the same hint down every line
 would be noise (`chordFor` in `src/ui/keys.ts` reads the spelling in force, so a
 rebind renames the hint and unbinding it removes one) — status-bar
-counts, a problems list in the palette — errors above warnings, each row the
+counts, F8 / Shift+F8 walking the list from the editor (`Opt+F8` is how the
+second one is spelled — `secondary` puts Shift, Opt and Cmd in one bucket, so the
+chord answers to both), a problems list in the palette — errors above warnings, each row the
 severity glyph in its own colour, the path from the project root in a column the
 rows share, the message, and the rule that fired (`eslint(import/no-cycle)`),
 over a block that spells the selected row's whole message out, since a server's
@@ -402,7 +408,11 @@ druk's own copy of the selected one — a confirm naming the npm packages that
 go with it, and refused for a server on PATH or in the project, which are not
 druk's to remove — and the log survives a restart so the run before stays
 readable), LSP autocomplete (a fuzzy-filtered menu that opens as you
-type or on Ctrl+Space, applies auto-import edits, and is toggled by
+type or on Ctrl+Space, walked with ↑↓ or Ctrl+N/P — those two are taken from the
+keymap while it is open (`keyboard.ts`), a menu being where every editor puts
+them and where New file / Open file are the last things wanted; the help table
+does not list them, being one row from overflowing an 83-row terminal — applies
+auto-import edits, and is toggled by
 `lspCompletion` — a row carries the kind glyph, the label with its matched
 letters lit, the server's own signature and, at the right edge, where the symbol
 comes from; under the list a counter names the selected item's kind, the key that
@@ -419,11 +429,12 @@ it takes whatever rows the documentation leaves rather than a fixed three, since
 a panel that draws blank filler under a one-line doc comment while the signature
 ends in an ellipsis has spent reserved rows on nothing; where the symbol comes
 from goes into a row that would have been blank, never displacing docs. The
-panel's rows are
-reserved rather than measured, so the box is one size for as long as it is open
-— an item's docs change on every keystroke and a box that fitted itself to them
-would jump under the cursor — and a pane too short for both drops the panel and
-keeps the list), go to definition (F12, the server's answer in whichever of the
+panel is sized to the item but only ever grows while the menu is open
+(`panelFloor` in `src/ui/EditorPane.tsx`, handed back to `layoutMenu` as its
+floor) — an item's docs change on every keystroke and a box that shrank and grew
+around them would jump under the cursor, while one that only grows settles after a
+few steps and leaves a list of paths a row or two rather than nine blank ones —
+and a pane too short for both drops the panel and keeps the list), go to definition (F12, the server's answer in whichever of the
 protocol's three shapes it comes) and open the file under the cursor
 (`Ctrl+Opt+O` — the path or import specifier the cursor is in, resolved on disk
 relative to the file and to the project root, then through the aliases
@@ -438,6 +449,16 @@ a visit history — every tab the editor lands on, kept at the position it was l
 at, walked with `Ctrl+Opt+Z` / `Ctrl+Opt+Y` or the ← → arrows at the left of the
 tab strip, so a jump to a definition has a way back; a jump that stays inside the
 open file is a stop of its own, since no tab changes to record one —
+a landing flash: every jump — a definition, a search hit, a problem, a review note,
+the `:42` a picker read off a query — tints the line it lands on for a second and
+then lets it go, since a caret is one cell in a screenful of code and a reader who
+did not watch it move has nothing to look for. One place, because every one of
+those goes through the editor's `goto` channel (`flashLanding` in
+`src/ui/EditorPane.tsx`, `FLASH_GROUP` in `src/languages/highlight.ts`). It is a
+*highlight* over the syntax, the way a conflict side and a diagnostic tint are,
+rather than the gutter's own `lineColors`: that prop is a `Map` the Solid
+reconciler assigns as `node.lineColors`, and `LineNumberRenderable` carries only
+`setLineColors`, so nothing there reaches the frame at all —
 format on save through the user's own commands (`formatOnSave`
 is the switch, `formatters` maps extensions to an in-place command — prettier,
 eslint --fix, oxfmt, gofmt — with the saved file's path appended, or put where a
@@ -521,7 +542,13 @@ catalog is updated automatically by the startup check, the status bar saying so
 (never a preinstalled one, which is part of the binary and updates with druk itself —
 a disk copy of a built-in's id is skipped and reported rather than loaded; the confirm
 is for first installs alone, an update being a question already answered), a file whose language no
-installed extension serves offers the extension that does, and a config naming a theme
+installed extension serves offers the extension that does — asked even while a linter
+is serving the file, since eslint claims `.vue` and lint marks with no language server
+is the same gap, and matched on the file's extension against the catalog's
+`provides.extensions` when nothing installed can name its filetype, which is exactly
+the case for a `.sol` before its extension is there; a catalog that never arrived
+leaves the question open for a later fetch rather than closing it for the session —
+and a config naming a theme
 nothing registers is offered its extension back (`extensionUpdates` turns the whole of
 that off, `extensionRegistry` points it at a fork),
 file watching with conflict prompts, a save-all palette command (every unsaved tab
@@ -807,7 +834,7 @@ dependency rule, and recipes for the extension points:
 | Want to add a… | Edit |
 | --- | --- |
 | language | a `languages` entry in a market manifest — `extensions/<language>/extension.json`, then `bun run extensions`. `grammar` is `{"vendored": "<key in src/languages/grammars.ts>"}` for one druk embeds, `{"bundled": true}` for one OpenTUI carries — but check its query first: OpenTUI's queries gate captures behind `#lua-match?` predicates its worker never evaluates, so such a pattern matches *everything*, which is why typescript/javascript point at the vendored tsx grammar rather than the bundled pair — or `{"wasm": "…", "query": "…"}` for files in the extension folder. `patterns` are `{group, re, flags}` (regex as a string) for a format with no usable grammar; `extensions` / `filenames` / `filenamePattern` claim the names OpenTUI resolves none of. Adding a *vendored* grammar is still a source change: two static imports in `src/languages/grammars.ts`. A grammar that leaves another language's code as one opaque token (vue's `<script>` body is a single `raw_text`) captures that span as `@injection.<filetype>` in its query, and `resolveInjections` (`src/languages/highlight.ts`) reparses it with that filetype's grammar — one level deep, and skipped when no registered language carries that grammar. A span may be a few characters as easily as a whole block: a Vue directive's value (`v-if="a > b"`, `:style="{ w: n + 'px' }"`) is captured that way too, which is what paints the template's own logic as the expressions it is written in rather than as one string. Leaving the coarse `@string` capture over such a span is deliberate — injected captures win the characters they share, so what stays string-coloured is the quotes, the gaps between tokens, and a value the injected grammar made nothing of |
-| language server | a `languageServers` entry in a market manifest — `extensions/<language>/extension.json`, then `bun run extensions`. `install` is `{"kind": "npm", "packages": […]}` or `{"kind": "download", "urls": {"<platform>-<arch>": "…"}}` when druk can fetch it itself, and `{"kind": "manual", "command": "…"}` for a line to print — a `download` carries a `command` too, for the machines the release has no build for; `settings` is the server's own configuration object, passed through unvalidated (it is the *server's* shape, not druk's) and given to it both ways the protocol offers — answered to every `workspace/configuration` item and pushed once as `didChangeConfiguration`. Several servers may claim one filetype and all of them are spawned; users override per-server with the `lspServers` setting, which can only *replace* a command some extension declared (an empty one disables that server alone). A server whose command depends on what the project installed goes in `projectCommand` (`src/lsp/project.ts`) instead, which every server consults first — that part is code, and stays in `src/`, as does anything a manifest cannot spell: `initialize` options are `initializationOptionsFor` in `src/app/lsp.ts`, which is where typescript's tsdk and `vue-typescript`'s plugin path (a directory, found by `vuePluginLocation`) are worked out |
+| language server | a `languageServers` entry in a market manifest — `extensions/<language>/extension.json`, then `bun run extensions`. `install` is `{"kind": "npm", "packages": […]}` or `{"kind": "download", "urls": {"<platform>-<arch>": "…"}}` when druk can fetch it itself, and `{"kind": "manual", "command": "…"}` for a line to print — a `download` carries a `command` too, for the machines the release has no build for; `settings` is the server's own configuration object, passed through unvalidated (it is the *server's* shape, not druk's) and given to it both ways the protocol offers — answered to every `workspace/configuration` item and pushed once as `didChangeConfiguration`. Several servers may claim one filetype and all of them are spawned; users override per-server with the `lspServers` setting, which can only *replace* a command some extension declared (an empty one disables that server alone). A server whose command depends on what the project installed goes in `projectCommand` (`src/lsp/project.ts`) instead, which every server consults first, walking up from the *open file's* directory rather than reading `rootDir` alone — a workspace package, a folder of checkouts and druk opened on `src/` all keep their `node_modules` elsewhere, and a TypeScript 7 (or `@typescript/native-preview`) project nested one level down was otherwise handed to typescript-language-server; on Windows the `.cmd` beside npm's sh shim is the file to run, spawned through a shell — that part is code, and stays in `src/`, as does anything a manifest cannot spell: `initialize` options are `initializationOptionsFor` in `src/app/lsp.ts`, which is where typescript's tsdk and `vue-typescript`'s plugin path (a directory, found by `vuePluginLocation`) are worked out |
 | mermaid diagram type | a parser in `src/core/mermaid/parse.ts` answering one of the models in `model.ts`, and a renderer for it in `index.ts`. A type that is a graph of boxes needs no renderer — map it onto `GraphDiagram` and `graph.ts` lays it out. Lines are drawn as the directions they leave a cell in (`canvas.ts`), never as characters, so corners and crossings resolve themselves; `set`/`text` are for glyphs that must win over a line. A type nothing draws must parse to `unsupported`, which is what makes the fence fall back to its source |
 | theme | a `themes` entry in a market manifest — `extensions/<family>/extension.json`, one extension per palette family (catppuccin carries its four flavors), then `bun run extensions`. Only `dark` and `light` are built in, in `src/themes/`, because the defaults name them. Chrome roles that are a *relationship* between two colours (`border`, `sidebarBg`, `solidBg`) are derived in `colorsFor` there and are never listed by a theme. A `syntax` map lists *root* scopes and the sub-scopes it wants to differ: `styleIdForGroup` walks `type.builtin` → `type` by itself, and `FALLBACK_GROUP` (`src/languages/highlight.ts`) is what saves a root the theme never heard of — `attribute` → `property`, `constructor` → `function`, `namespace` → `type`. A group nothing resolves to paints as plain text, which is why that walk decides membership with `getStyle` and not with `getStyleId`: the native style table invents an id for any name it is asked about, so `getStyleId` never answers null |
 | icon theme | an `icons` entry in a market manifest — one codepoint per glyph, since the tree gives it the arrow's single column, and a two-cell glyph is dropped rather than drawn (a Nerd Font one is not two-cell, wherever in the private-use planes it sits). A map's value may name an entry in `definitions`, whose `open` is the expanded form of a folder, so a set of thousands lists each icon once. `unicode` alone is built in (`src/icons/index.ts`), being the set any font already has |
@@ -873,6 +900,31 @@ spelling (the key prints `.`), so the panels' filter key needs a terminal that s
 the kitty protocol. `test/keylayout.test.tsx` covers both readings, Option text and
 composition through raw terminal bytes. Physical keyboard input, OS composition
 and terminal encoding still need a manual check.
+
+Ctrl+U in the editor is the buffer's delete-to-line-start, not a pager: a Mac
+terminal sends `\x15` for Cmd+Backspace (Ghostty ships
+`keybind = super+backspace=text:\x15`, and iTerm2 and Terminal.app agree), so the
+chord that looks like a vim half-page is the one every Mac reaches for to clear a
+line. Paging in the editor is PgUp/PgDn and Ctrl+D; vim's normal mode still pages
+with Ctrl+U from its own handler (`src/editor/vim.ts`), and the read-only pages —
+diff, markdown, LSP status, changes — keep Ctrl+U/D, having no buffer to delete
+from. At column 0 the chord is swallowed rather than passed on: OpenTUI's
+`delete-to-line-start` deletes the newline *above* there, joining the lines, and a
+Mac's Cmd+Backspace on an empty line deletes nothing.
+
+The editable surfaces — the editor's textarea and `TextInput`, which every prompt,
+filter and the commit box are built from — take `EDIT_KEYS` (`src/ui/editKeys.ts`),
+OpenTUI's own `defaultTextareaKeyBindings` plus what macOS expects of them: a
+binding is keyed by name plus `ctrl`/`shift`/`meta`/`super`, and the table has no
+`super` row, so Cmd+Backspace did nothing. Extending that list is the supported
+path, so a chord added here is not a trade-off to record.
+
+Text is selectable with the mouse in the editor's buffer and in a diff pane, and
+nowhere else: every text renderable is selectable by default, so a drag across a tree
+row would otherwise select that chrome text. `allowSelectionIn` (`src/ui/selection.ts`)
+is the one place the renderer's `startSelection` is wrapped, and a surface that wants
+the drag registers itself there — a descendant of a registered renderable counts, the
+hit test answering with the code renderable inside a diff rather than with the pane.
 
 Anything clickable tints under the pointer: `useHover` (`src/ui/hover.ts`) wired to
 `onMouseOver`/`onMouseOut` on the element's box — the events bubble, so one pair on a
@@ -972,22 +1024,26 @@ together, and bump the OpenTUI version its header is checked against.
 
 ### Comments
 
-The bar is high: write a comment only when its absence would let someone break the code.
-Assume the reader is competent and can read TypeScript — they don't need the "what", only
-the "why you can't do the obvious thing".
+Default to **not** writing one. Assume a competent TypeScript reader: they need the "why
+you can't do the obvious thing", never the "what".
 
-Ask: **if I delete this comment, will the next person make a mistake?** If no, delete it.
+Ask: **if I delete this, will the next person introduce a bug?** If no, delete it.
 
-Worth writing:
+Only five things earn a comment:
 
-- A trap that will be "cleaned up" and reintroduce a bug — non-obvious ordering, a guard
-  that looks redundant, a workaround for upstream behaviour.
-- A convention the types don't carry — units, offset bases, which coordinate space a
-  number lives in.
+- A workaround for upstream behaviour (OpenTUI, Bun, git, a language server, a terminal)
+  that someone would "clean up" and so reintroduce the bug.
+- A guard or an ordering that looks redundant or wrong but is not.
+- A unit, an offset base or a coordinate space the types do not carry.
 - An invariant two distant pieces of code silently depend on.
+- The reason on an `eslint-disable` or a `@ts-expect-error`.
 
-Not worth writing: restating the line below, naming a section, labelling parameters,
-explaining a well-named function, TODOs, commented-out code.
+Everything else goes, and that includes file-header blocks, `/** */` on anything whose
+name and signature already say it, design rationale, rejected alternatives, what VS Code
+or vim does, what the code used to do, section banners, and TODOs.
+
+**A comment that survives is one line.** Two only when one genuinely cannot hold it. Name
+the trap and stop — no consequence clause, no justification, no history.
 
 ```ts
 // Bad — restates the code
@@ -998,9 +1054,8 @@ count++
 /** Saves the file to disk. */
 function saveFile(path: string, content: string) {}
 
-// Good — deleting this comment invites a "simplification" that breaks every file
-// highlightOnce returns absolute string offsets, but the edit buffer indexes
-// text with newlines removed; without this every line drifts one column right.
+// Good — deleting this invites a "simplification" that breaks every file
+// highlightOnce offsets are absolute; the buffer indexes newline-free text.
 ```
 
 Prefer making the comment unnecessary: a clearer name, a named constant, or a small
@@ -1053,12 +1108,11 @@ harness exists to encode:
 - **Escape needs a gap.** Esc is the prefix of every arrow/function-key sequence, so the
   parser holds it until it knows nothing follows. Use `pressEscape()`, not
   `mockInput.pressEscape()`.
-- **The editor's first content row is row 2, and its column is not 0.** The tab strip is
-  row 0 and the breadcrumbs row 1, so a test that clicks or drags in the text works from
-  row 2 down; the editor's first column moves with the sidebar, so read it off the frame
-  (`row.indexOf(word)`) rather than hard-coding one. The breadcrumbs also *repeat* the
-  open file's path, which is what makes a "one row carries this name" assertion count two
-  (`rowsWith` in `test/long-names.test.tsx` skips that row for exactly this).
+- **The editor's first content row is row 1, and its column is not 0.** The tab strip is
+  row 0, so a test that clicks or drags in the text works from row 1 down; the editor's
+  first column moves with the sidebar, so read it off the frame (`row.indexOf(word)`)
+  rather than hard-coding one. The tab strip *repeats* the open file's name, which is what
+  makes a "one row carries this name" assertion count two.
 - **One flush per assertion, not per key.** A flush that repaints the editor costs ~20ms,
   so a loop of `await press(...)` is where a test's seconds go — and where the 5s budget
   went when the suite ran loaded. Send the keys, then flush once: `pressTimes()` for a

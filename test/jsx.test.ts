@@ -16,7 +16,6 @@ export function Panel({ title }: { title: string }) {
 }
 `
 
-/** What each group got painted on, as text. */
 async function painted(filetype: string) {
   const segments = await allSegments(SOURCE, filetype)
   const lines = SOURCE.split('\n')
@@ -32,11 +31,8 @@ async function painted(filetype: string) {
 
 describe('jsx', () => {
   test('tag names are tags, not plain text', async () => {
-    // Every tag and attribute used to render in the plain text colour, which is
-    // most of what a component file is made of.
     const group = await painted('typescriptreact')
 
-    // The angle brackets carry the tag's colour, so they merge into its segment.
     expect(group('tag')).toContain('<section')
     expect(group('tag')).toContain('<hr')
     expect(group('tag')).toContain('</section>')

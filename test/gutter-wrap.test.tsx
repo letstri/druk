@@ -3,21 +3,17 @@ import { describe, expect, test } from 'bun:test'
 import { fixture, launch, openFile, press, pressEscape, settle } from './helpers'
 import type { Harness } from './helpers'
 
-/** Every fifth line is long enough to wrap, so the gutter has continuation rows. */
 const content = `${Array.from({ length: 40 }, (_, i) =>
   i % 5 === 0 ? `line ${i} ${'x'.repeat(120)}` : `line ${i}`,
 ).join('\n')}\n`
 
-/**
- * Every numbered row, as [number in the gutter, index in the file]. A row the
- * gutter left blank is a continuation and has nothing to check.
- */
+// [number in the gutter, index in the file]; a blank gutter row is a continuation.
 function numbered(t: Harness): Array<[number, number]> {
   return (
     t
       .captureCharFrame()
       .split('\n')
-      // Unanchored: with the tree on screen the row starts with the tree, not the gutter.
+      // Unanchored: with the tree on screen the row does not start with the gutter.
       .map(row => /(\d+)\s+line (\d+)/.exec(row))
       .filter(match => match !== null)
       .map(match => [Number(match[1]), Number(match[2])] as [number, number])
@@ -30,7 +26,6 @@ async function open() {
   return t
 }
 
-/** The gutter numbers lines, not rows: line N is always numbered N + 1. */
 function expectNumbersMatchLines(t: Harness) {
   const rows = numbered(t)
   expect(rows.length).toBeGreaterThan(3)
@@ -51,7 +46,6 @@ describe('line numbers with wrapped lines', () => {
 
   test('survive the sidebar being resized', async () => {
     const t = await open()
-    // `[` and `]` resize from the tree, so the keyboard has to be there first.
     await pressEscape(t)
     await press(t, input => input.pressKey(']'))
     await press(t, input => input.pressKey(']'))

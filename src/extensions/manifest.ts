@@ -1,18 +1,3 @@
-/**
- * Reading a `extension.json` into contributions druk can register.
- *
- * Manifests are data, never code: an extension is a JSON file, so installing one
- * cannot run anything and the compiled binary needs no loader. That is the
- * whole trade — an extension adds languages, language servers, themes and icon
- * themes, and nothing else, which is what these four lists are for. It adds
- * them from *one* of the two families, never both: a language extension and an
- * appearance extension are installed for different reasons and change on different
- * schedules.
- *
- * Every field is validated here rather than where it is used. A malformed entry
- * costs its extension that one contribution and a reported problem; it never costs
- * the extension its other contributions, and it can never break startup.
- */
 import { join } from 'node:path'
 
 import type { StyleDefinitionInput } from '@opentui/core'
@@ -25,7 +10,6 @@ import { THEMES } from '../themes'
 import type { Theme, ThemeUi } from '../themes'
 import type { Extension, ExtensionCategory, ExtensionProblem } from './types'
 
-/** Read off a shipped theme, so a new chrome color needs no second list here. */
 const UI_KEYS = Object.keys(THEMES.dark.ui) as (keyof ThemeUi)[]
 
 const isRecord = (raw: unknown): raw is Record<string, unknown> =>
@@ -41,7 +25,7 @@ const stringList = (raw: unknown): string[] | null =>
     ? (raw as string[])
     : null
 
-/** Ids name files and config keys, so they are held to what a file name may be. */
+// Ids name files and config keys: held to what a file name may be.
 const isId = (raw: unknown): raw is string => typeof raw === 'string' && /^[\w.-]+$/.test(raw)
 
 function parseTheme(
@@ -92,24 +76,9 @@ function parseTheme(
   return { id, theme: { name: text(raw.name) ?? id, ui, syntax } }
 }
 
-/**
- * Codepoints a terminal draws two cells wide — CJK, the fullwidth forms, and
- * the emoji planes. Not exhaustive and does not need to be: it covers what
- * someone reaches for when writing an icon theme, and the rest of the BMP is
- * one cell.
- *
- * The range stops short of the two private-use planes on purpose. Nerd Fonts
- * moved its largest set — Material Design Icons — to U+F0001 and up once the
- * BMP private area filled, and it draws those one cell wide like the rest; a
- * range running to U+10FFFF would refuse most of a Nerd Font icon theme.
- */
+// Stops short of U+F0000: Nerd Fonts put one-cell Material icons at U+F0001 and up.
 const WIDE = /[ᄀ-ᅟ⺀-꓏가-힣豈-﫿︰-﹯＀-｠￠-￦]|[\u{1F000}-\u{EFFFF}]/u
 
-/**
- * One glyph, or a glyph with a color. Held to a single *cell*: the tree gives
- * the icon the column the arrow had, and a wider glyph shifts every name in the
- * panel by one — which is why an emoji is refused rather than drawn.
- */
 function parseIcon(raw: unknown): IconEntry | null {
   const glyph = typeof raw === 'string' ? raw : isRecord(raw) ? raw.glyph : null
   if (typeof glyph !== 'string') return null
@@ -118,11 +87,6 @@ function parseIcon(raw: unknown): IconEntry | null {
   return color ? { glyph, color } : { glyph }
 }
 
-/**
- * A named icon a theme's maps point at, so a set that gives four thousand names
- * an icon spells each one out once. `open` is the form a folder takes while it
- * is expanded, and is read off whichever definition the `folders` map names.
- */
 interface IconDefinition {
   icon: IconEntry
   open?: IconEntry
@@ -140,11 +104,7 @@ function parseDefinitions(raw: unknown): Record<string, IconDefinition> {
   return map
 }
 
-/**
- * A map's value is a glyph, an icon object, or the name of a definition. The
- * three never collide: a glyph is one character and a definition name is not,
- * which is the rule a theme with definitions has to keep.
- */
+// A glyph is one character and a definition name is not, so the two never collide.
 const resolveIcon = (
   value: unknown,
   definitions: Record<string, IconDefinition>,
@@ -165,10 +125,8 @@ function parseIconMap(
   return map
 }
 
-/** Names and folders are matched whole, `.gitignore` dot and all. */
 const wholeName = (name: string): string => name.toLowerCase()
 
-/** An extension is written either way — `.ts` and `ts` are one key. */
 const extensionName = (name: string): string => name.toLowerCase().replace(/^\./, '')
 
 const FALLBACK: Record<'file' | 'folder' | 'folderOpen', IconEntry> = {
@@ -190,8 +148,7 @@ function parseIconTheme(raw: unknown, fail: (reason: string) => void): IconTheme
   const definitions = parseDefinitions(raw.definitions)
   const folders = parseIconMap(raw.folders, definitions, wholeName)
   const foldersOpen = parseIconMap(raw.foldersOpen, definitions, wholeName)
-  // A folder's open form comes from the definition it names, so a theme that
-  // gives a thousand folders an icon lists each name once and not twice.
+  // A folder's open form comes from the definition it names, so a name is listed once.
   if (isRecord(raw.folders)) {
     for (const [name, value] of Object.entries(raw.folders)) {
       const open = typeof value === 'string' ? definitions[value]?.open : undefined
@@ -203,8 +160,6 @@ function parseIconTheme(raw: unknown, fail: (reason: string) => void): IconTheme
     id,
     name: text(raw.name) ?? id,
     patchedFont: raw.patchedFont === true,
-    // The three defaults are what a theme that only maps extensions falls back
-    // to; without them such a theme would draw nothing on most rows.
     file: resolveIcon(raw.file, definitions) ?? FALLBACK.file,
     folder: resolveIcon(raw.folder, definitions) ?? FALLBACK.folder,
     folderOpen:
@@ -218,16 +173,7 @@ function parseIconTheme(raw: unknown, fail: (reason: string) => void): IconTheme
   }
 }
 
-/**
- * How a server is obtained, as a manifest spells it.
- *
- * `download` takes either one `url` or a `urls` map keyed by
- * `<platform>-<arch>` — a release that ships a binary per machine, which is
- * common and which static data has to describe somehow. The current machine is
- * resolved here rather than at install time, so an extension that has no build for
- * it falls back to the `command` it also carries and the user is told what to
- * fetch by hand instead of being offered a URL that 404s.
- */
+// Machine resolved here, not at install time: no build for it falls back to `command`.
 function parseInstall(raw: unknown): ServerInstall | undefined {
   if (!isRecord(raw)) return undefined
   const command = text(raw.command)
@@ -269,10 +215,7 @@ function parseServer(raw: unknown, fail: (reason: string) => void): ServerSpec |
     return null
   }
   const install = parseInstall(raw.install)
-  // Any object, unvalidated on purpose: this is the *server's* settings shape,
-  // not druk's, and the manifest is the only thing that knows it. Rejecting a
-  // key druk has never heard of would mean a druk release for every server
-  // option — the opposite of what a data extension is for.
+  // Unvalidated: the server's own settings shape, not druk's.
   const settings = isRecord(raw.settings) ? raw.settings : undefined
   return {
     id,
@@ -283,7 +226,7 @@ function parseServer(raw: unknown, fail: (reason: string) => void): ServerSpec |
   }
 }
 
-/** A relative path inside the extension's own folder — never an escape from it. */
+// Relative to the extension's own folder — never an escape from it.
 function assetPath(raw: unknown): string | null {
   const value = text(raw)
   if (!value) return null
@@ -291,15 +234,6 @@ function assetPath(raw: unknown): string | null {
   return value
 }
 
-/**
- * One language: which grammar highlights it, and the names that resolve to it.
- *
- * A grammar comes from one of three places — the ones druk vendors (`vendored`,
- * embedded in the binary, so installing that extension downloads no wasm at all),
- * OpenTUI's own (`bundled`), or the extension's folder (`wasm` + `query`, which is
- * how a language druk never heard of arrives). `collect` records the relative
- * paths so the market knows what to fetch beside the manifest.
- */
 function parseLanguage(
   raw: unknown,
   fail: (reason: string) => void,
@@ -342,9 +276,7 @@ function parseLanguage(
       }
       ctx.collect(wasm)
       ctx.collect(query)
-      // Absolute once the folder is known, which is what the parser is handed;
-      // left relative for a manifest read off the wire, whose files are not on
-      // disk yet — the market resolves them when it writes the folder.
+      // Left relative for a manifest off the wire: the market resolves those when writing it.
       language.wasm = ctx.dir ? join(ctx.dir, wasm) : wasm
       language.query = ctx.dir ? join(ctx.dir, query) : query
     }
@@ -361,8 +293,7 @@ function parseLanguage(
         return null
       }
       try {
-        // `g` always: `highlightWithPatterns` walks matches with lastIndex, and
-        // a non-global regex there loops on the first match forever.
+        // `g` always: `highlightWithPatterns` walks with lastIndex and loops forever without it.
         const flags = text(entry.flags) ?? ''
         patterns.push({ group, re: new RegExp(source, flags.includes('g') ? flags : `${flags}g`) })
       } catch (error) {
@@ -394,15 +325,6 @@ function parseLanguage(
   return language
 }
 
-/**
- * A manifest as contributions. `null` for one druk cannot use at all — anything
- * short of that is an extension with a problem beside it.
- *
- * `dir` is the folder the manifest was read from, when there is one: it is what
- * turns a relative asset into a path the parser can open. A manifest fetched
- * from the market has no folder yet, and its assets stay relative for the
- * installer to place.
- */
 export function parseManifest(
   raw: unknown,
   source: string,
@@ -434,9 +356,6 @@ export function parseManifest(
   const servers = list(raw.languageServers)
     .map(entry => parseServer(entry, fail))
     .filter(entry => entry !== null)
-  // An extension is about a language or about how the editor looks, never both: the
-  // two are installed for different reasons and updated on different schedules,
-  // and a Go extension that also repaints the editor is not one anybody asked for.
   if (themes.length + icons.length > 0 && languages.length + servers.length > 0) {
     fail(`"${id}" mixes themes with languages — an extension is one or the other`)
     return { extension: null, problems }
@@ -464,12 +383,7 @@ export function parseManifest(
   }
 }
 
-/**
- * What an extension is, from what it contributes. The one place the mapping
- * lives: the market's catalog rows and the loaded extensions both go through it,
- * so a search cannot find one and miss the other.
- */
-export function categoriesOf(parts: {
+function categoriesOf(parts: {
   languages: unknown[]
   servers: unknown[]
   themes: unknown[]

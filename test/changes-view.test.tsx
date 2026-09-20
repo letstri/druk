@@ -45,7 +45,6 @@ const rowsWith = (t: Harness, text: string) =>
     .split('\n')
     .filter(line => line.includes(text)).length
 
-/** A real repository with committed files. */
 function repo(files: Record<string, string>) {
   const dir = tempDir('druk-changes-')
   const git = (...args: string[]) => execFileSync('git', args, { cwd: dir })
@@ -110,8 +109,6 @@ test('a save under the page refreshes the stacked diffs', async () => {
   writeFileSync(join(dir, 'b.ts'), 'BETA\n')
 
   const t = await launch(dir, {}, { height: 40 })
-  // The file has to be an open tab: that is what the watcher reloads, and the
-  // reload is what tells the page to re-read.
   await press(t, i => i.pressArrow('down'))
   await press(t, i => i.pressEnter())
   await runCommand(t, 'Show all changes')
@@ -179,7 +176,6 @@ test('Enter on an Incoming commit closes the page so the commit is visible', asy
   await runCommand(t, 'Show all changes')
   await untilFrame(t, 'Uncommitted')
   await untilFrame(t, 'from elsewhere')
-  // Changes heading, the dirty file, Incoming, then the commit.
   await pressTimes(t, 8, i => i.pressArrow('up'))
   await pressTimes(t, 3, i => i.pressArrow('down'))
   await press(t, i => i.pressEnter())
@@ -207,7 +203,6 @@ test('opening the page scrolls to the file under the panel cursor', async () => 
   const t = await launch(dir, {}, { height: 24 })
   await runCommand(t, 'Source control')
   await untilFrame(t, 'b.ts')
-  // Heading or a.ts: two downs land on b.ts and stay there.
   await press(t, i => i.pressArrow('down'))
   await press(t, i => i.pressArrow('down'))
   await press(t, i => i.pressKey('a'))
@@ -329,8 +324,6 @@ test('a scrolled file keeps its header at the top of the page', async () => {
   const t = await launch(dir, {}, { height: 24 })
   await runCommand(t, 'Show all changes')
   await untilFrame(t, '▾ M a.ts')
-  // Into the page and a screenful down, which pushes a.ts's own header off the
-  // top — the sticky overlay is what keeps it on screen.
   await press(t, i => i.pressTab())
   await press(t, i => i.pressKey('d', { ctrl: true }))
   await untilGone(t, '+ new0')
@@ -345,22 +338,16 @@ test('folding the stuck file does not leave its header drawn twice', async () =>
   const t = await launch(dir, {}, { height: 24 })
   await runCommand(t, 'Show all changes')
   await untilFrame(t, '▾ M a.ts')
-  // Scroll a.ts's own header off the top, so the sticky overlay is holding it.
   await press(t, i => i.pressTab())
   await press(t, i => i.pressKey('d', { ctrl: true }))
   await untilGone(t, '+ new0')
 
-  // Folding moves every header below it. The overlay reads those positions off
-  // the renderables, which only move a macrotask later — before the remeasure
-  // it kept the pre-fold position and was painted over the one now in flow.
   await press(t, i => i.pressKey('h'))
   await untilFrame(t, '▸ M a.ts')
   await until(t, () => rowsWith(t, '+40 −40') === 1)
 })
 
 test('clicking a file above the one on screen scrolls back to it', async () => {
-  // Backwards is the direction that broke: a section scrolled off the top has a
-  // negative y, and the reveal used to wait for that to turn positive.
   const dir = repo({ 'a.ts': many('old'), 'b.ts': many('old'), 'c.ts': many('old') })
   writeFileSync(join(dir, 'a.ts'), many('alpha'))
   writeFileSync(join(dir, 'b.ts'), many('beta'))
@@ -368,8 +355,6 @@ test('clicking a file above the one on screen scrolls back to it', async () => {
 
   const t = await launch(dir, {}, { height: 24 })
   await runCommand(t, 'Show all changes')
-  // A rewrite leads with its removals, so the page is a screenful of them —
-  // which file's header is up is what says where the scroll is.
   await untilFrame(t, '▾ M a.ts')
 
   await t.mockMouse.click(6, rowOf(t, ' c.ts'))
@@ -388,17 +373,13 @@ test('Tab walks the files and puts the one it lands on at the top', async () => 
   await runCommand(t, 'Show all changes')
   await untilFrame(t, '▾ M a.ts')
 
-  await press(t, i => i.pressTab()) // out of the panel, into the page
-  await press(t, i => i.pressTab()) // onto b.ts
+  await press(t, i => i.pressTab())
+  await press(t, i => i.pressTab())
   await untilFrame(t, '▾ M b.ts')
-  // Rows 0-1 are the tab strip and the page header, so a file scrolled to the
-  // top of the page has its own header on row 2.
   expect(rowOf(t, '▾ M b.ts')).toBe(2)
 })
 
 test('Shift+S in the panel flips the page to side-by-side', async () => {
-  // Plain `s` there is sync, and the panel is what holds the keyboard while the
-  // page is read — a layout key only the page answered to was unreachable.
   const dir = repo({ 'a.ts': 'one\ntwo\nthree\n' })
   writeFileSync(join(dir, 'a.ts'), 'one\nTWO\nthree\n')
 
@@ -412,8 +393,6 @@ test('Shift+S in the panel flips the page to side-by-side', async () => {
 })
 
 test('flipping the layout keeps the file being read at the top', async () => {
-  // Split pads a side row for row, so every section grows — a scroll offset kept
-  // across the flip lands the reader somewhere else entirely.
   const dir = repo({ 'a.ts': many('old'), 'b.ts': many('old') })
   writeFileSync(join(dir, 'a.ts'), many('alpha'))
   writeFileSync(join(dir, 'b.ts'), many('beta'))
@@ -421,7 +400,7 @@ test('flipping the layout keeps the file being read at the top', async () => {
   const t = await launch(dir, {}, { width: 130, height: 24 })
   await runCommand(t, 'Show all changes')
   await untilFrame(t, '▾ M a.ts')
-  await press(t, i => i.pressArrow('down')) // onto b.ts, which goes to the top
+  await press(t, i => i.pressArrow('down'))
   await untilFrame(t, '▾ M b.ts')
   expect(rowOf(t, '▾ M b.ts')).toBe(2)
 
@@ -431,8 +410,6 @@ test('flipping the layout keeps the file being read at the top', async () => {
 })
 
 test('flipping the layout holds where the wheel left the page, not the panel cursor', async () => {
-  // The panel's cursor is still on the first file: the reader scrolled past it
-  // with the wheel, and a flip anchored on the cursor threw that scroll away.
   const dir = repo({ 'a.ts': many('old'), 'b.ts': many('old') })
   writeFileSync(join(dir, 'a.ts'), many('alpha'))
   writeFileSync(join(dir, 'b.ts'), many('beta'))
@@ -441,7 +418,6 @@ test('flipping the layout holds where the wheel left the page, not the panel cur
   await runCommand(t, 'Show all changes')
   await untilFrame(t, '▾ M a.ts')
 
-  // Wheel over the page itself, which leaves the keyboard in the panel.
   const atTop = () => rowOf(t, '▾ M b.ts') >= 0 && rowOf(t, '▾ M b.ts') <= 5
   for (let n = 0; n < 200 && !atTop(); n++) {
     await t.mockMouse.scroll(80, 10, 'down')
@@ -451,8 +427,6 @@ test('flipping the layout holds where the wheel left the page, not the panel cur
 
   await press(t, i => i.pressKey('s', { shift: true }))
   await untilFrame(t, 'side-by-side')
-  // Near where it was: the reader is still at the end of a.ts and the start of
-  // b.ts, not back at the top of the file the panel's cursor is on.
   expect(t.captureCharFrame()).toContain('▾ M b.ts')
   expect(t.captureCharFrame()).toContain('+ beta0')
   expect(t.captureCharFrame()).not.toContain('+ alpha0')
@@ -466,13 +440,12 @@ test('Space on the page stages the file its header names', async () => {
   const t = await launch(dir, {}, { height: 40 })
   await runCommand(t, 'Show all changes')
   await untilFrame(t, '▾ M a.ts')
-  await press(t, i => i.pressTab()) // into the page, on a.ts's header
+  await press(t, i => i.pressTab())
   await press(t, i => void i.typeText(' '))
 
   await until(t, () =>
     execFileSync('git', ['status', '--porcelain'], { cwd: dir }).toString().startsWith('M  a.ts'),
   )
-  // The staged copy is a section of its own, and says which heading it is under.
   await untilFrame(t, 'staged')
 })
 
@@ -485,15 +458,13 @@ test('the stage button on a header stages that file, not the row under the point
   await runCommand(t, 'Show all changes')
   await untilFrame(t, '▾ M b.ts')
   await press(t, i => i.pressTab())
-  await press(t, i => i.pressTab()) // Tab walks to b.ts's header and lights it
+  await press(t, i => i.pressTab())
 
   const row = rowOf(t, '▾ M b.ts')
   const at = t.captureCharFrame().split('\n')[row]!.lastIndexOf('+')
-  await t.mockMouse.click(at, row) // the `+` sits at the right edge of the header
+  await t.mockMouse.click(at, row)
   await until(t, () =>
     execFileSync('git', ['status', '--porcelain'], { cwd: dir }).toString().includes('M  b.ts'),
   )
-  // Clicking the button must not fold the file away — the row's own handler
-  // would have done that.
   expect(t.captureCharFrame()).toContain('+ BETA')
 })

@@ -1,8 +1,3 @@
-/**
- * A language server that republishes the same diagnostic on a timer, the way a
- * real one does while a project is being rebuilt around it. Run with
- * `bun test/fixtures/tick-lsp.ts`.
- */
 import { createDecoder, encodeMessage } from '../../src/lsp/transport'
 
 const send = (message: object) => process.stdout.write(encodeMessage(message))

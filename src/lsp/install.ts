@@ -1,25 +1,3 @@
-/**
- * Installing a language server on the user's behalf: an npm package, or a
- * release binary downloaded from a URL.
- *
- * Three decisions worth keeping:
- *
- * - **A prefix of druk's own**, not `npm i -g`. A global install may need sudo,
- *   puts a binary somewhere the user did not choose, and cannot be undone by
- *   deleting a directory. This one can: `rm -rf ~/.local/share/druk/lsp`.
- * - **Whichever manager the user has — but node either way.** The npm-shaped
- *   servers are node scripts with a `#!/usr/bin/env node` shebang, so node has
- *   to be there to *run* them however they were fetched. bun will happily
- *   install one on a machine with no node and leave behind a server that can
- *   never spawn, which is why the offer is withheld there. The compiled druk
- *   binary bakes bun, not node, and cannot stand in for it. A downloaded binary
- *   needs neither.
- * - **One prefix, one manager.** A `node_modules` written half by npm and half
- *   by pnpm is not a tree either of them can take apart, so whichever filled it
- *   is recorded and every later install and removal is handed to that one.
- * - **PATH still wins.** `installedCommand` only answers for a binary druk put
- *   there itself, so a user who installs the server properly gets their copy.
- */
 import {
   chmodSync,
   existsSync,
@@ -37,20 +15,13 @@ import { firstLine, notInstalled, run } from '../core/process'
 import type { ProcessResult } from '../core/process'
 import type { ServerInstall } from './servers'
 
-/** Long enough for a slow link; short enough to not hang. */
 const INSTALL_TIMEOUT_MS = 180_000
 
 export type PackageManager = 'npm' | 'bun' | 'pnpm'
 
-/**
- * Best first, which is what the choice modal lands its cursor on. yarn is absent
- * deliberately: Berry resolves through Plug'n'Play and writes no `node_modules`
- * at all, so an install that reported success would leave `installedCommand`
- * with nothing to find.
- */
+// Best first (the choice modal's cursor). No yarn: Berry writes no `node_modules`.
 const MANAGERS: PackageManager[] = ['npm', 'bun', 'pnpm']
 
-/** Names the manager that filled the prefix, so a later removal matches it. */
 const MANAGER_FILE = '.manager'
 
 export const SERVER_ROOT = join(
@@ -59,25 +30,14 @@ export const SERVER_ROOT = join(
   'lsp',
 )
 
-/**
- * The managers that could fetch a server, best first — empty when none could.
- * Node's absence empties it whatever else is installed: see the note at the top
- * of this file, the servers are node scripts whichever tool downloads them.
- */
 export function availablePackageManagers(root = SERVER_ROOT): PackageManager[] {
   if (!which('node')) return []
-  // A prefix one manager already wrote is not one another can take apart, so the
-  // question is asked once and its answer stands until the directory is deleted.
   const chosen = savedManager(root)
   if (chosen) return which(chosen) ? [chosen] : []
   return MANAGERS.filter(manager => which(manager))
 }
 
-/**
- * `Bun.which` reads the real environment rather than `process.env`, so the PATH
- * is handed over explicitly — without it a test cannot take a program away, and
- * neither can anything that edits PATH after startup.
- */
+// `Bun.which` reads the real environment, not `process.env`, so PATH is handed over.
 function which(bin: string): string | null {
   return Bun.which(bin, { PATH: process.env.PATH ?? '' })
 }
@@ -95,20 +55,11 @@ function rememberManager(root: string, manager: PackageManager): void {
   try {
     writeFileSync(join(root, MANAGER_FILE), manager)
   } catch {
-    // The packages are in; losing the note only costs the next removal its
-    // manager, and npm is the guess it falls back to.
+    // the next removal falls back to npm
   }
 }
 
-/**
- * Give the prefix the package.json the managers save into, building it out of
- * whatever is already installed when there is none. A prefix filled by a druk
- * that ran `--no-save` has servers in it and nothing describing them, so writing
- * an empty manifest would make the very next install prune the lot — the bug
- * this exists to end, one last time. Every top-level package is listed, the ones
- * that came along as dependencies included: over-listing costs a directory that
- * outstays its server, while under-listing costs a server.
- */
+// An older druk's prefix has servers and no manifest; an empty manifest would prune the lot.
 function ensureManifest(root: string): void {
   const manifest = join(root, 'package.json')
   if (existsSync(manifest)) return
@@ -121,12 +72,10 @@ function ensureManifest(root: string): void {
   try {
     writeFileSync(manifest, `${JSON.stringify(body, null, 2)}\n`)
   } catch {
-    // Nothing to do but let the manager run: it will prune, and the servers it
-    // takes are offered again on the next launch.
+    // the manager prunes, and the servers it takes are offered again next launch
   }
 }
 
-/** What is in `node_modules` now, as a dependency map at the exact versions there. */
 function installedPackages(root: string): Record<string, string> {
   const modules = join(root, 'node_modules')
   const found: Record<string, string> = {}
@@ -135,11 +84,10 @@ function installedPackages(root: string): Record<string, string> {
       const { name, version } = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8'))
       if (typeof name === 'string' && typeof version === 'string') found[name] = version
     } catch {
-      // Not a package — an empty scope directory npm left behind, most of all.
+      // not a package
     }
   }
   for (const entry of readdirOrNone(modules)) {
-    // `.bin`, `.package-lock.json`: npm's own bookkeeping, not packages.
     if (entry.startsWith('.')) continue
     if (entry.startsWith('@')) {
       for (const scoped of readdirOrNone(join(modules, entry))) add(join(modules, entry, scoped))
@@ -158,16 +106,7 @@ function readdirOrNone(dir: string): string[] {
   }
 }
 
-/**
- * The prefix keeps a package.json, and every manager writes to it. It reads like
- * a "project" that is really a bin directory, and npm was once told `--no-save`
- * for exactly that reason — but npm's ideal tree is the manifest plus the
- * arguments and *everything else in `node_modules` is extraneous*, so with no
- * manifest each install pruned the servers installed before it. That is a loop:
- * every launch finds one server missing, offers it, and the install evicts
- * another. bun and pnpm need the dependency written down for their own `remove`
- * to find anything to take, so all three want the same thing.
- */
+// No `--no-save`: npm prunes what the manifest omits, and bun/pnpm need the entry for `remove`.
 const INSTALL_ARGS: Record<PackageManager, (root: string) => string[]> = {
   npm: root => ['install', '--prefix', root, '--no-audit', '--no-fund'],
   bun: root => ['add', '--cwd', root],
@@ -180,7 +119,6 @@ const REMOVE_ARGS: Record<PackageManager, (root: string) => string[]> = {
   pnpm: root => ['remove', '--dir', root],
 }
 
-/** What went wrong running `manager`, or null when it did what was asked. */
 function failureOf(result: ProcessResult, manager: PackageManager): string | null {
   if (result.error) {
     return notInstalled(result)
@@ -192,16 +130,16 @@ function failureOf(result: ProcessResult, manager: PackageManager): string | nul
   return firstLine(result.stderr) || `${manager} exited with code ${result.status}`
 }
 
-/**
- * `command` rewritten to run the copy druk installed, or null if there is none.
- * npm servers land in `node_modules/.bin`; downloaded binaries in `bin/` (with
- * the `.exe` suffix Windows needs).
- */
 export function installedCommand(command: string[], root = SERVER_ROOT): string[] | null {
   const [executable, ...args] = command
   if (!executable) return null
-  const local = join(root, 'node_modules', '.bin', executable)
-  if (existsSync(local)) return [local, ...args]
+  // npm's bare-name launcher is a sh script; only the `.cmd` spawns on Windows.
+  for (const name of process.platform === 'win32'
+    ? [`${executable}.cmd`, executable]
+    : [executable]) {
+    const local = join(root, 'node_modules', '.bin', name)
+    if (existsSync(local)) return [local, ...args]
+  }
   const downloaded = join(
     root,
     'bin',
@@ -210,16 +148,6 @@ export function installedCommand(command: string[], root = SERVER_ROOT): string[
   return existsSync(downloaded) ? [downloaded, ...args] : null
 }
 
-/**
- * Delete druk's own copy of a server. Resolves to an error message, or null when
- * there is nothing of it left.
- *
- * Driven by the manifest's `install` rather than by scanning the directory: an
- * npm server's executable is a link into a package whose name only the manifest
- * knows, and handing that name back to the manager is the one thing that also
- * takes the dependencies that came with it. A `manual` install is druk's to
- * remove in no sense — it was never druk's to put there.
- */
 export async function removeServer(
   install: ServerInstall,
   executable: string,
@@ -239,33 +167,24 @@ export async function removeServer(
     }
   }
   if (install.kind !== 'npm') return 'druk did not install it'
-  // Whoever wrote the tree takes it apart; npm for one filled before the note
-  // existed, which is what every install used then.
   const manager = savedManager(root) ?? 'npm'
-  // A removal prunes what the manifest does not list, exactly as an install
-  // does, so the other servers need describing before this one is taken.
+  // A removal prunes what the manifest does not list, exactly as an install does.
   ensureManifest(root)
   const result = await run(manager, [...REMOVE_ARGS[manager](root), ...install.packages], {
     timeout: INSTALL_TIMEOUT_MS,
   })
   const failure = failureOf(result, manager)
   if (failure) return failure
-  // npm exits 0 for a package that was not there; what the caller promised the
-  // user is that the executable is gone, so that is what is checked.
+  // npm exits 0 for a package that was not there.
   return installedCommand([executable], root) ? `${executable} is still in ${root}` : null
 }
 
-/**
- * Install `packages` into druk's prefix. Resolves to an error message, or null
- * when the server is ready to spawn.
- */
 export async function installServer(
   packages: string[],
   root = SERVER_ROOT,
   manager: PackageManager = 'npm',
 ): Promise<string | null> {
-  // The managers are given a directory to work in rather than one to create,
-  // and pnpm refuses a path that is not there at all.
+  // pnpm refuses a directory that is not there.
   mkdirSync(root, { recursive: true })
   ensureManifest(root)
   const result = await run(manager, [...INSTALL_ARGS[manager](root), ...packages], {
@@ -277,21 +196,13 @@ export async function installServer(
   return null
 }
 
-/**
- * Fetch a release binary into `root/bin`, like `installServer` but for servers
- * that ship as a download rather than an npm package. `name` is the executable
- * the command runs — the file is saved as `name` (`.exe` on Windows) so
- * `installedCommand` finds it. Resolves to an error message, or null on success.
- */
 export async function downloadServer(
   url: string,
   name: string,
   root = SERVER_ROOT,
 ): Promise<string | null> {
   const target = join(root, 'bin', process.platform === 'win32' ? `${name}.exe` : name)
-  // Written under a scratch name and renamed once the body is whole: a transfer
-  // that dies mid-stream would otherwise leave a truncated file at `target`,
-  // which `installedCommand` then hands to `spawn` on every launch forever.
+  // A transfer that dies mid-stream must not leave a truncated file where `installedCommand` looks.
   const partial = `${target}.part`
   try {
     mkdirSync(join(root, 'bin'), { recursive: true })

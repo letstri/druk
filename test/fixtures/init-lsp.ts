@@ -1,9 +1,3 @@
-/**
- * fake-lsp, but it first records the `initializationOptions` it was handed:
- * argv[2] names a file to write them to as JSON. The typescript settings test
- * asserts on that, since what a server does with those options is its business
- * and not something a frame can show.
- */
 import { writeFileSync } from 'node:fs'
 
 import { createDecoder } from '../../src/lsp/transport'

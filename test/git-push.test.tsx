@@ -8,11 +8,6 @@ import { tempDir } from './temp'
 
 const git = (cwd: string, ...args: string[]) => execFileSync('git', args, { cwd })
 
-/**
- * A clone whose branch has diverged from origin: one commit of theirs on the
- * remote, one of mine on top of the old tip. That is the only shape a push is
- * rejected in, so it is the shape the offer has to be tested against.
- */
 function diverged() {
   const base = tempDir('druk-push-')
   const origin = join(base, 'origin.git')
@@ -45,7 +40,6 @@ function diverged() {
   return { mine, origin }
 }
 
-/** Every subject on origin's main, newest first. */
 const remoteLog = (origin: string) =>
   execFileSync('git', ['log', '--format=%s', 'main'], { cwd: origin }).toString()
 

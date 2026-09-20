@@ -32,7 +32,6 @@ test('Stashes… lists the stash and Apply brings its change back', async () => 
   await press(t, i => i.pressEnter())
 
   await until(t, () => readFileSync(join(dir, 'a.ts'), 'utf8') === 'stashed work\n')
-  // Apply keeps the stash — pop is the one that drops it.
   expect(git(dir, 'stash', 'list').toString()).toContain('my half-thought')
 })
 
@@ -79,14 +78,12 @@ test('File history lists the commits that touched the open file', async () => {
   git(dir, 'commit', '-aqm', 'second pass')
   const t = await launch(dir)
   await press(t, i => i.pressArrow('down'))
-  await press(t, i => i.pressEnter()) // open a.ts
+  await press(t, i => i.pressEnter())
 
   await runCommand(t, 'File history')
   await untilFrame(t, 'second pass')
   expect(frame(t)).toContain('init')
 
-  // Enter on the newest commit opens its page — the diff carries the old line,
-  // which the editor behind it does not, so it is what says the page loaded.
   await press(t, i => i.pressEnter())
   await untilFrame(t, '- alpha')
   expect(frame(t)).toContain('second pass')

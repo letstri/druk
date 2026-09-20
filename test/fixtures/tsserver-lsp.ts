@@ -1,11 +1,3 @@
-/**
- * The other half of `hybrid-lsp`: a server that drives a tsserver and offers
- * `typescript.tsserverRequest` for putting a raw request to it — what
- * typescript-language-server and vtsls expose, and what the relay looks for.
- *
- * It echoes the command it was asked to run, so a test can tell a real relayed
- * answer from the null a client that found nobody would send.
- */
 import { createDecoder, encodeMessage } from '../../src/lsp/transport'
 
 const send = (message: object) => process.stdout.write(encodeMessage(message))

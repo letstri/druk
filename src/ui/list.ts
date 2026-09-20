@@ -1,8 +1,3 @@
-/**
- * Shared list behaviour, so a panel and a launcher scroll and highlight the same
- * way. Every one of these was copied between components before it lived here,
- * and the copies had already started to disagree.
- */
 import type { KeyEvent, ScrollBoxRenderable } from '@opentui/core'
 import { useTerminalDimensions } from '@opentui/solid'
 import { createMemo, createSignal, onCleanup } from 'solid-js'
@@ -10,13 +5,6 @@ import { createMemo, createSignal, onCleanup } from 'solid-js'
 import { ui } from '../themes'
 import { useKeys } from './useKeys'
 
-/**
- * The window of `items` around `selected`, and where it starts.
- *
- * `lead` is how many rows of the list stay visible past the selection: one for a
- * plain list, more where the row above carries context (a search result's file
- * heading) that has to survive the scroll.
- */
 export function windowAround<T>(
   items: readonly T[],
   selected: number,
@@ -27,17 +15,10 @@ export function windowAround<T>(
   return { start, rows: items.slice(start, start + size) }
 }
 
-/**
- * Shortest the scrollbar thumb may get, in rows.
- *
- * OpenTUI floors it at one *virtual* cell — half a row — so a list of a few
- * hundred entries leaves a half-block that is neither visible at a glance nor
- * worth aiming at. Both the size and the thumb's travel come from this one
- * function, so raising the floor keeps dragging consistent with what is drawn.
- */
+// OpenTUI floors the thumb at one virtual cell — half a row — which is too small to aim at.
 const MIN_THUMB_ROWS = 3
 
-/** Two virtual cells per row, which is the unit the slider works in. */
+// Two virtual cells per row, the unit the slider works in.
 function enlargeThumb(box: ScrollBoxRenderable) {
   const slider = box.verticalScrollBar?.slider as unknown as
     | { getVirtualThumbSize: () => number; height: number }
@@ -48,36 +29,14 @@ function enlargeThumb(box: ScrollBoxRenderable) {
     Math.min(slider.height * 2, Math.max(size(), MIN_THUMB_ROWS * 2))
 }
 
-/**
- * The scrollbox emits no scroll event of its own — but every way it moves ends
- * up on its scrollbar, whose slider does: `scrollTop` is the bar's position, so
- * a wheel notch, a drag of the bar and a programmatic reveal all land here.
- */
+// The scrollbox emits no scroll event; every way it moves goes through its scrollbar, which does.
 export function followScroll(el: ScrollBoxRenderable, moved: (top: number) => void) {
   el.verticalScrollBar.on('change', () => moved(el.scrollTop))
 }
 
-/**
- * Only a window of rows exists as renderables. `viewportCulling` skips *drawing*
- * off-screen children but still builds them, and the Zig core stops handing out
- * renderables a few thousand in — expanding a directory of 8000 files used to
- * leave the tree blank.
- *
- * Sized from the terminal rather than fixed: the window has to cover the whole
- * viewport, and no list can be taller than the screen. A constant 200 left the
- * bottom of the tree empty on a terminal past ~160 rows.
- */
+// `viewportCulling` still builds culled rows, and the Zig core stops a few thousand in.
 const OVERSCAN = 40
 
-/**
- * A scrollbox-backed sidebar list: the wheel and the scrollbar move it, only a
- * window of its rows is built, and `reveal` brings a row the keyboard moved to
- * back into view.
- *
- * Give `ref` to the `<scrollbox>`, slice the items with `window()`, and pad both
- * ends with `<box height={…}>` spacers so the scrollable extent stays honest
- * while only a window exists.
- */
 export function createScrollList(total: () => number) {
   const [scrollTop, setScrollTop] = createSignal(0)
   const dimensions = useTerminalDimensions()
@@ -89,15 +48,7 @@ export function createScrollList(total: () => number) {
     return { start, end: Math.min(total(), start + page()) }
   })
 
-  /**
-   * Bring `row` into view on the next macrotask rather than now.
-   *
-   * Revealing a row can grow the list in the same tick the cursor moves — a file
-   * reveal expands its parents, a commit rewrites the change list. The scrollbox
-   * clamps `scrollTop` against a content height that layout has not recomputed
-   * yet, so scrolling immediately is silently clamped to 0 and the row stays
-   * off-screen. One tick later the extent is real.
-   */
+  // A macrotask: revealing a row can grow the list, and the scrollbox clamps against the old height.
   let pending: ReturnType<typeof setTimeout> | null = null
   onCleanup(() => {
     if (pending) clearTimeout(pending)
@@ -111,8 +62,7 @@ export function createScrollList(total: () => number) {
       const height = box.viewport.height
       if (row < box.scrollTop) box.scrollTop = row
       else if (row >= box.scrollTop + height) box.scrollTop = row - height + 1
-      // Read it back: the scrollbox clamps to its own extent, and a window built
-      // from a position the box never reached renders the wrong slice.
+      // Read it back: the box clamps to its own extent, and the wrong slice renders otherwise.
       setScrollTop(box.scrollTop)
     }, 0)
   }
@@ -128,26 +78,17 @@ export function createScrollList(total: () => number) {
   return { ref, window, reveal }
 }
 
-/**
- * Track colours every sidebar scrollbox shares. A function, not a constant: the
- * palette is a store, and an object built once at import time keeps the colours
- * the theme had at startup.
- */
+// A function, not a constant: the palette is a store, so an object built at import time freezes.
 export const scrollbarOptions = () => ({
   trackOptions: { foregroundColor: ui.scrollbar, backgroundColor: ui.sidebarBg },
 })
 
-/**
- * The keyboard a filtered picker has: ↑/↓ wrapping around the list, Enter to
- * take the selection, Esc to leave. `move` is given a wrapped index, so a picker
- * never has to spell the modulus out for itself.
- */
+// `move` is given an already-wrapped index.
 export function useListKeys(handlers: {
   count: () => number
   move: (next: (index: number) => number) => void
   pick: () => void
   close: () => void
-  /** Keys that close as well as Esc — `left` where the list is a step deeper. */
   alsoClose?: string[]
 }) {
   useKeys((key: KeyEvent) => {
@@ -169,10 +110,5 @@ export function useListKeys(handlers: {
   })
 }
 
-/**
- * A sidebar row's background: the selection reads differently depending on
- * whether the panel holding it has the keyboard. Hover never outranks the
- * selection — the cursor's row keeps its colour under the pointer.
- */
 export const rowBg = (selected: boolean, focused: boolean, hovered = false): string =>
   selected ? (focused ? ui.treeSelectedBg : ui.treeFocusBg) : hovered ? ui.hoverBg : ui.sidebarBg

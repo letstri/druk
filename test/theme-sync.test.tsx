@@ -13,7 +13,6 @@ import {
   untilFrame,
 } from './helpers'
 
-// The themes these tests name are market extensions now.
 loadMarketExtensions()
 
 afterEach(() => {
@@ -56,8 +55,6 @@ test('sync paints the dark slot, then follows the OS to light', async () => {
     themeDark: 'tokyo-night',
     themeLight: 'light',
   })
-  // Nothing on screen names the active theme outside the settings page, and the
-  // page reads the config live — so it is what shows which slot won.
   await runCommand(t, 'Settings')
   await untilFrame(t, 'Tokyo Night')
 
@@ -95,7 +92,6 @@ test('the settings page turns the sync on and applies the matching slot', async 
   })
   await toggleSetting(t, 'Follow OS appearance')
   await untilFrame(t, 'Following OS appearance')
-  // The Theme row is what names the slot that won, and toggleSetting closed the page.
   await runCommand(t, 'Settings')
   await untilFrame(t, 'Solarized Light')
 })

@@ -19,24 +19,13 @@ export function createFileOps(deps: {
   const { rootDir, status, tree, workspace, renderer } = deps
   const { say, setBusy, whileFree } = status
 
-  /**
-   * Rows taken with `x` or `c`, waiting for the `p` that says where they go. A cut
-   * is spent by the paste; a copy is not, so the same thing can be dropped in
-   * several places without picking it up again.
-   */
   const [clipboard, setClipboard] = createSignal<{ paths: string[]; mode: 'cut' | 'copy' }>({
     paths: [],
     mode: 'cut',
   })
-  /** Only a cut greys its rows: a copy leaves the original exactly where it is. */
   const cut = () => (clipboard().mode === 'cut' ? clipboard().paths : [])
 
-  /**
-   * Point everything that remembers a path at where the file went: open tabs, their
-   * buffers, the active and preview tabs, the selection and the expanded folders.
-   * Paths *under* `from` move with it — a buffer left pointing at the old path
-   * saves the file back to where it used to be, recreating the folder just moved.
-   */
+  // Paths *under* `from` move too: a buffer left on the old path saves the folder back.
   const adoptMove = (from: string, to: string) => {
     const inside = `${from}/`
     const remap = (path: string) =>
@@ -54,22 +43,14 @@ export function createFileOps(deps: {
     return null
   }
 
-  /** `dir` is `path` itself or sits inside it — moving or copying there is circular. */
   const within = (dir: string, path: string) => dir === path || dir.startsWith(`${path}/`)
 
-  /**
-   * Why one path cannot go into `dir`, or null when it can. Separated from doing the
-   * move so a batch can report which of its files were refused and still move the rest.
-   */
   const whyNotMove = (path: string, dir: string): string | null => {
     if (dirname(path) === dir) return `${basename(path)} is already there`
-    // A folder cannot be moved inside itself: the destination would travel with the
-    // source, and `fs.renameSync` reports EINVAL for it.
     if (within(dir, path)) return `Cannot move ${basename(path)} into itself`
     return null
   }
 
-  /** Move `path` into the folder `dir`, refusing the moves that cannot mean anything. */
   const moveInto = (path: string, dir: string) => {
     const refused = whyNotMove(path, dir)
     if (refused) return say(refused, 'warn')
@@ -79,15 +60,8 @@ export function createFileOps(deps: {
     say(`Moved ${basename(path)} to ${relative(rootDir, dir) || basename(rootDir)}/`)
   }
 
-  /**
-   * Move several into `dir`. One refusal does not stop the others — a range selection
-   * routinely includes the destination folder itself, and failing the whole batch for
-   * that would be maddening.
-   */
   const moveAllInto = (paths: string[], dir: string) => {
     if (paths.length === 1) return moveInto(paths[0]!, dir)
-    // Refusals are decided up front — they are cheap checks, and the ones that
-    // survive go through the incremental mover so the bar can count them.
     const refused: string[] = []
     const movable = paths.filter(path => {
       if (!whyNotMove(path, dir)) return true
@@ -107,8 +81,6 @@ export function createFileOps(deps: {
             progress => setBusy({ label: 'Moving', done: progress.done, total: progress.total }),
           )
           setBusy(null)
-          // Tabs, buffers and the selection follow the files, exactly as they do
-          // when a single file is moved.
           for (const { from, to } of moved) adoptMove(from, to)
           if (done > 0) tree.expand(dir)
           tree.refreshTree()
@@ -121,8 +93,7 @@ export function createFileOps(deps: {
   }
 
   const copyAllInto = (paths: string[], dir: string) => {
-    // A folder cannot be copied into itself: the copy would walk the copy it is
-    // writing. Its own parent is fine, and is how a folder gets duplicated.
+    // A folder copied into itself would walk the copy it is writing.
     const refused: string[] = []
     const copyable = paths.filter(path => {
       if (!within(dir, path)) return true
@@ -130,8 +101,6 @@ export function createFileOps(deps: {
       return false
     })
     tree.clearMarks()
-    // Nothing left to do: say why rather than reporting "copied 0 items", which
-    // describes the outcome without naming the reason.
     if (copyable.length === 0) {
       return say(`Cannot copy ${refused.join(', ')} into itself`, 'warn')
     }
@@ -172,37 +141,25 @@ export function createFileOps(deps: {
       return say('Nothing taken — press x or c on a file or folder first', 'warn')
     }
     const from = paths.filter(path => exists(path))
-    // A copy stays on the clipboard: pasting it twice is a reasonable thing to want.
     if (mode === 'cut') setClipboard({ paths: [], mode: 'cut' })
     if (from.length === 0) return say(`What was ${mode} is gone`, 'warn')
     if (mode === 'cut') moveAllInto(from, tree.targetDir())
     else copyAllInto(from, tree.targetDir())
   }
 
-  /**
-   * Put a file's own path on the system clipboard — the string, not the file, so
-   * this shares nothing with the `x`/`c`/`p` clipboard above. A path outside the
-   * project has no relative form worth pasting (`../../..` to somewhere the reader
-   * cannot see), so `relative` falls back to the absolute path and says so.
-   */
   const copyPath = (path: string, kind: 'absolute' | 'relative') => {
     const rel = relative(rootDir, path)
-    // The separator matters: a file the project really holds may be named `..rc`,
-    // and a bare `startsWith('..')` would call it outside and copy it absolute.
+    // Not a bare `startsWith('..')`: a project file may be named `..rc`.
     const outside = rel === '..' || rel.startsWith(`..${sep}`)
     const text = kind === 'relative' && !outside ? rel : path
 
     copyToClipboard(text)
-    // Both routes, as the editor's Ctrl+C does, and the return value is ignored for
-    // the same reason: the subprocess reaches this machine's clipboard, the escape
-    // sequence reaches the terminal's own — which over SSH is the one the user is
-    // sitting at, and is the one that worked when no pbcopy/xclip exists here.
+    // Both routes: the subprocess reaches this machine, OSC 52 the terminal the user sits at.
     renderer.copyToClipboardOSC52(text)
     if (kind === 'relative' && outside) return say(`Copied ${text} — outside the project`, 'warn')
     say(`Copied ${text}`)
   }
 
-  /** Esc: drop what `x` or `c` took, so `p` no longer fires. */
   const cancelTake = () => {
     const cancelled = clipboard().mode === 'cut' ? 'Move' : 'Copy'
     setClipboard({ paths: [], mode: 'cut' })
@@ -213,9 +170,6 @@ export function createFileOps(deps: {
     for (const target of targets) {
       if (workspace.tabs().includes(target)) workspace.closeTab(target, true)
     }
-    // Land on whatever took the deleted row's place, rather than clearing
-    // the selection: with nothing selected the next arrow key jumps back to
-    // the top of the tree instead of carrying on from here.
     const gone = tree.selectedPath()
     const wasAt = gone && targets.includes(gone) ? tree.nodes().findIndex(n => n.path === gone) : -1
     tree.clearMarks()

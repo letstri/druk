@@ -9,12 +9,8 @@ import { loadExtensions } from './extensions'
 import { highlightClient } from './languages/highlight'
 import { setTheme } from './themes'
 
-/** Everything past argument handling — imported dynamically by index.tsx so the
- * asset-root staging there runs before `@opentui/core` evaluates. */
 export async function main(target: Target): Promise<void> {
-  // The staged asset root exists only so @opentui/core's import (above) finds the
-  // native library at a stable path; the next asset lookup after this point must
-  // fall back to the bundled files instead.
+  // The staged root existed only for @opentui/core's own import; later lookups use the bundle.
   releaseAssetRoot()
 
   // Before the renderer takes the screen: from here on stderr is the editor.
@@ -22,20 +18,15 @@ export async function main(target: Target): Promise<void> {
 
   const { rootDir, openFile } = target
 
-  // Before the config, not after: an extension's theme and icon theme are only
-  // valid values of those settings once the extension has registered them, and the
-  // validators drop what they do not recognise.
+  // Before the config: a validator drops a theme whose extension has not registered it yet.
   loadExtensions(rootDir, readDisabledExtensions(rootDir))
 
-  // Apply the saved theme before the first render — the project's, where it has
-  // one, or the first frame paints in the user's and then repaints.
+  // Before the first render, or it paints in the user's theme and then repaints.
   const config = loadConfig()
   const project = loadProjectConfig(rootDir)
   setTheme(resolveConfig(config, project).theme)
 
-  // Start the tree-sitter worker now, in parallel with the renderer's own boot:
-  // spawning it plus compiling the runtime wasm is the long pole of the first
-  // highlight, and nothing about it needs the UI.
+  // Kicked off in parallel: the worker spawn and wasm compile are the first highlight's long pole.
   void highlightClient()
 
   await render(
@@ -52,17 +43,7 @@ export async function main(target: Target): Promise<void> {
     ),
     {
       useMouse: true,
-      /*
-       * `events` and `allKeysAsEscapes` together are what make a held Ctrl
-       * visible: the protocol reports a modifier as a key of its own only when
-       * every key is reported as an escape code, and its press and release only
-       * when event types are on. That is what the tooltip peek watches for
-       * (src/ui/tooltip.ts).
-       *
-       * `reportText` goes with them: a key code alone loses what Option, a dead
-       * key or an IME produced. Releases go to `keyrelease`, which only the peek
-       * listens to, and a terminal without the protocol sends what it always did.
-       */
+      // events + allKeysAsEscapes make a held Ctrl visible to the peek; reportText carries IME.
       useKittyKeyboard: {
         disambiguate: true,
         alternateKeys: true,
@@ -70,12 +51,9 @@ export async function main(target: Target): Promise<void> {
         allKeysAsEscapes: true,
         reportText: true,
       },
-      // Without motion reporting the terminal never hands drags to the app, so every
-      // click-drag paints the terminal's own selection over the UI instead.
+      // Without it the terminal never hands drags over, and paints its own selection.
       enableMouseMovement: true,
-      // Ctrl+C is handled in App, not here: it copies when there is a selection and
-      // quits otherwise. OpenTUI's own exit would bypass the unsaved-buffer prompt and
-      // drop the work.
+      // App handles Ctrl+C: OpenTUI's own exit would bypass the unsaved-buffer prompt.
       exitOnCtrlC: false,
       targetFps: 30,
     },

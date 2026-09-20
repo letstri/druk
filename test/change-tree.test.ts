@@ -16,11 +16,9 @@ const changes = (...rels: string[]): Change[] =>
 const staged = (...rels: string[]): Change[] =>
   changes(...rels).map(change => ({ ...change, area: 'staged' as const }))
 
-/** `kind:label@depth` per row — the shape a panel row renders from. */
 const shape = (rows: ReturnType<typeof changeRows>) =>
   rows.map(row => `${row.kind}:${row.label}@${row.depth}`)
 
-/** The rows without the headings, which most of these tests are not about. */
 const plain = (list: Change[], mode: 'list' | 'tree', collapsed: ReadonlySet<string> = new Set()) =>
   changeRows(list, mode, collapsed, false)
 
@@ -38,8 +36,6 @@ test('the tree nests files under a folder row', () => {
 })
 
 test('a folder with one child folder is joined into one row', () => {
-  // Two rows for `src` and `app` would spend half a narrow sidebar on folders
-  // that say nothing on their own.
   const rows = plain(changes('src/app/a.ts', 'src/app/b.ts'), 'tree')
 
   expect(shape(rows)).toEqual(['dir:src/app@0', 'file:a.ts@1', 'file:b.ts@1'])
@@ -56,7 +52,6 @@ test('a collapsed folder keeps its row and hides its subtree', () => {
   const rows = plain(changes('src/a.ts', 'src/b.ts', 'c.ts'), 'tree', shut)
 
   expect(shape(rows)).toEqual(['file:c.ts@0', 'dir:src@0'])
-  // The count is what the row shows in place of the files it is hiding.
   expect(rows.find(row => row.kind === 'dir')).toMatchObject({ collapsed: true, files: 2 })
 })
 
@@ -69,10 +64,8 @@ test('collapsing an outer folder hides the inner folders too', () => {
 
 test('← walks a file out to the folder holding it', () => {
   const rows = plain(changes('src/app/a.ts', 'src/ui/b.ts'), 'tree')
-  //             0: src   1: app   2: a.ts   3: ui   4: b.ts
   expect(parentRow(rows, 2)).toBe(1)
   expect(parentRow(rows, 1)).toBe(0)
-  // Nothing outside the top level to walk to: the cursor stays put.
   expect(parentRow(rows, 0)).toBe(0)
 })
 
@@ -108,7 +101,6 @@ test('one path half-staged is a row under each heading', () => {
     'section:Changes@0',
     'file:a.ts@1',
   ])
-  // Folding one heading leaves the other's copy of the file alone.
   expect(shape(changeRows(list, 'list', new Set([foldKey('staged', '')])))).toEqual([
     'section:Staged Changes@0',
     'section:Changes@0',
@@ -121,7 +113,6 @@ test('a heading stands for every change in it, a folder for its subtree', () => 
   const rows = changeRows(list, 'tree')
   const rels = (at: number) => changesFor(list, rows[at]!).map(change => change.rel)
 
-  //           0: Staged  1: src  2: a.ts  3: Changes  4: c.ts  5: src  6: b.ts
   expect(rels(0)).toEqual(['src/a.ts'])
   expect(rels(3)).toEqual(['c.ts', 'src/b.ts'])
   expect(rels(5)).toEqual(['src/b.ts'])
@@ -130,7 +121,6 @@ test('a heading stands for every change in it, a folder for its subtree', () => 
 
 test('← walks a top-level row out to its heading', () => {
   const rows = changeRows(changes('src/a.ts'), 'tree')
-  //           0: Changes  1: src  2: a.ts
   expect(parentRow(rows, 2)).toBe(1)
   expect(parentRow(rows, 1)).toBe(0)
   expect(parentRow(rows, 0)).toBe(0)

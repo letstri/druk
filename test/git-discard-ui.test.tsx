@@ -43,8 +43,6 @@ test('left click still opens a diff', async () => {
   const t = await launch(dir)
   await runCommand(t, 'Source control')
 
-  // Row 4 is the `Changes` heading — the panel's title row and the commit box's
-  // two rows sit above it — and the first file sits under it.
   await t.mockMouse.click(4, 5)
   await until(t, () => t.captureCharFrame().includes('+1 −1'))
 }, 20_000)
@@ -109,8 +107,6 @@ test('palette discard refuses comparison mode', async () => {
 
 test('a stale confirmation changes neither the dirty buffer nor disk', async () => {
   const dir = repo()
-  // Off, or leaving the editor for the panel writes the buffer and the checkout
-  // below is then a plain reload of a clean one — not the case being pinned.
   const t = await launch(dir, { autoSaveOnBlur: false })
   await openFile(t, 'a.ts')
   await press(t, input => void input.typeText('unsaved '))
@@ -119,10 +115,6 @@ test('a stale confirmation changes neither the dirty buffer nor disk', async () 
 
   git(dir, 'checkout', '-q', 'HEAD', '--', 'a.ts')
   await press(t, input => input.pressEnter())
-  // The refusal is asserted on the buffer, not on the status bar: that same
-  // checkout is a clash the watcher reports, and which of the two messages
-  // lands last is a race. What the refusal means is that the buffer was never
-  // reloaded — `discardChange`'s own wording is pinned in `git-discard.test.ts`.
   await settle(t, 600)
 
   expect(readFileSync(join(dir, 'a.ts'), 'utf8')).toBe('alpha\n')

@@ -6,7 +6,6 @@ import { flattenVisible, listDir } from '../src/core/fs'
 import { launch, openFile, press } from './helpers'
 import { tempDir } from './temp'
 
-/** A project holding a real directory and file, plus symlinks to each. */
 function linked() {
   const base = tempDir('druk-link-')
   const target = join(base, 'target')
@@ -24,8 +23,6 @@ function linked() {
 
 describe('listing symlinks', () => {
   test('a link to a directory is a directory', () => {
-    // The dirent describes the link, so this used to come back as a file — and
-    // opening it raised "EISDIR: illegal operation on a directory, read".
     const { project } = linked()
     const skills = listDir(project).find(node => node.name === 'skills')
 
@@ -68,7 +65,6 @@ describe('listing symlinks', () => {
     const loop = join(project, 'loop')
     symlinkSync(project, loop)
 
-    // Every level expanded: without a cycle guard this never returns.
     const rows = flattenVisible(project, new Set([loop, join(loop, 'loop')]))
     expect(rows.length).toBeGreaterThan(0)
   })
@@ -79,7 +75,7 @@ describe('opening symlinks', () => {
     const { project } = linked()
     const t = await launch(project)
 
-    await press(t, input => input.pressArrow('down')) // skills, the linked directory
+    await press(t, input => input.pressArrow('down'))
     await press(t, input => input.pressEnter())
 
     expect(t.captureCharFrame()).toContain('inside.ts')

@@ -11,16 +11,13 @@ import { useKeys } from './useKeys'
 
 export interface CommitFile {
   path: string
-  /** Shown to the user; `path` is what git gets. */
   rel: string
   status: FileStatus
-  /** Whether the file starts checked — the caller's read of the index. */
   checked: boolean
 }
 
 export interface CommitModalProps {
   files: CommitFile[]
-  /** The files left checked, in tree order. Never empty — Enter refuses instead. */
   onSubmit: (paths: string[]) => void
   onCancel: () => void
 }
@@ -29,8 +26,7 @@ export function CommitModal(props: CommitModalProps) {
   const dimensions = useTerminalDimensions()
   const [cursor, setCursor] = createSignal(0)
   const [top, setTop] = createSignal(0)
-  // Read once on open: the modal is remounted per showing, and the files array
-  // does not change underneath it.
+  // Read once on open: the modal is remounted per showing.
   const [excluded, setExcluded] = createSignal<Set<string>>(
     new Set(props.files.filter(file => !file.checked).map(file => file.path)),
   )
@@ -80,8 +76,6 @@ export function CommitModal(props: CommitModalProps) {
     } else if (k === 'return' || k === 'enter') {
       key.preventDefault()
       const paths = picked().map(file => file.path)
-      // Nothing checked: an empty commit is never what was meant, so the key
-      // does nothing and the "0 of N" in the title says why.
       if (paths.length > 0) props.onSubmit(paths)
     } else if (k === 'escape') {
       key.preventDefault()

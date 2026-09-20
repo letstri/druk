@@ -11,10 +11,8 @@ async function withOpenFile() {
   return t
 }
 
-/** Drag across `word` on the editor's first row. */
 async function selectOnFirstRow(t: Harness, word: string) {
-  // Found from the frame: the editor's first column moves with the sidebar
-  // width. Row 2 — the tab strip is row 0 and the breadcrumbs row 1.
+  // Read off the frame: the editor's first column moves with the sidebar width.
   const row = t.captureCharFrame().split('\n')[2]!
   const from = row.indexOf(word)
   await t.mockMouse.drag(from, 2, from + word.length, 2)
@@ -30,7 +28,6 @@ describe('search opens on what is selected', () => {
     const frame = t.captureCharFrame()
     expect(frame).toContain('Search in file')
     expect(frame).toContain('alpha')
-    // Both occurrences found, so the count is there without a keystroke.
     expect(frame).toContain('1 of 2')
   })
 
@@ -50,7 +47,6 @@ describe('search opens on what is selected', () => {
     await settle(t)
 
     await press(t, input => input.pressKey('f', { ctrl: true }))
-    // "const" opens 2 matches; the point is that the field was not left empty.
     expect(t.captureCharFrame()).not.toContain('Type at least 2 characters')
     expect(t.captureCharFrame()).toContain('1 of 2')
   })

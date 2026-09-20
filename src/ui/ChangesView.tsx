@@ -20,28 +20,21 @@ import { followScroll } from './list'
 import { cut } from './text'
 import { useKeys } from './useKeys'
 
-/** One file in the all-changes page — staged and unstaged of the same path are
- * two of these, which is why `key` carries the area. */
 export interface ChangeSection {
-  /** `${area}:${path}` — unique when a path sits under both headings. */
+  // `${area}:${path}`: one path can sit under both headings.
   key: string
   rel: string
   area: ChangeArea
   status: DiffFileStatus
-  /** Null when the file cannot be read as text — binary, or gone from disk. */
   file: DiffFile | null
-  /** Patch body rows actually shown, after the per-file cap. */
   lines: number
   adds: number
   dels: number
-  /** True when the patch was cut at DIFF_MAX_LINES. */
   truncated: boolean
 }
 
 export interface ChangesMeta {
-  /** File rows the panel lists, including ones past the display cap. */
   total: number
-  /** +/- of the sections on screen — not of the files the cap left out. */
   adds: number
   dels: number
 }
@@ -57,20 +50,15 @@ export function changesSummary(title: string, shown: number, meta: ChangesMeta):
 export interface ChangesViewProps {
   sections: ChangeSection[]
   meta: ChangesMeta
-  /** Git panel cursor's section, or null on a heading — the page scrolls to it. */
   focusKey: string | null
-  /** `Uncommitted`, or the branch the list is against. */
   title: string
-  /** Inline or side-by-side, for every section at once — `diffView`. */
   mode: DiffMode
   width: number
   focused: boolean
   blocked: boolean
   onFocus: () => void
   onToggleMode: () => void
-  /** Stage or unstage one file — its `+`/`−`, and Space on its header. */
   onToggleStage: (key: string) => void
-  /** False against a comparison base, where there is no index to stage into. */
   staging: boolean
   onClose: () => void
 }
@@ -82,45 +70,23 @@ interface LaidOut {
 
 export interface StickyHeader {
   index: number
-  /** How many rows of the header have been pushed off the top. 0 = fully stuck. */
+  // Rows of the header pushed off the top; 0 = fully stuck.
   clipped: number
 }
 
-/**
- * Two rows so the next file can push this header off one row at a time. A
- * one-row header snaps, which is not the sticky bar this page is copying.
- */
-export const SECTION_HEADER_ROWS = 2
+const SECTION_HEADER_ROWS = 2
 
-/** Left column the selection mark occupies. A box border drew `│` in accent,
- * which several palettes put too close to `barBg` to see. A full cell of
- * accent plus `treeSelectedBg` is the pair every other list already uses. */
 const HEADER_MARK = 1
 
-/** Frames the first reveal waits for the stack to lay out — half a second. */
 const REVEAL_TRIES = 30
 
-/**
- * Frames a re-anchor keeps re-applying itself after the layout flips. The
- * scrollbox clamps an offset against the height it still has, and the sections'
- * new heights land a layout pass later — one shot at it either overshoots or is
- * cut short, and the reader watches the page jump and come back.
- */
+// Frames a re-anchor keeps re-applying: the scrollbox clamps against the height it still has.
 const HOLD_FRAMES = 6
 
-/**
- * One frame. The renderables' positions are written by the layout pass, which
- * has not run when the macrotask after a state change fires — re-reading them
- * any sooner than this hands back the geometry from before the change.
- */
+// One frame: renderable positions are written by the layout pass, later than the macrotask.
 const LAYOUT_FRAME = 16
 
-/**
- * Which in-flow header should be mirrored at the top of the viewport.
- * `ys` are content-space y of each header's first row, in section order.
- * Returns null when the in-flow header is already at the top (nothing to pin)
- * or has been fully pushed off by the next one.
- */
+// `ys`: content-space y of each header's first row, in section order. Null when nothing pins.
 export function stickyHeader(scrollTop: number, ys: number[]): StickyHeader | null {
   if (ys.length === 0 || ys.some(y => !Number.isFinite(y))) return null
   let index = -1
@@ -174,11 +140,9 @@ interface FileHeaderProps {
   section: ChangeSection
   width: number
   collapsed: boolean
-  /** `meta` is the counts row alone — the leftover while the next header pushes. */
   part: 'full' | 'meta'
   hovered: boolean
   selected: boolean
-  /** Draw the stage button at all — off against a comparison base. */
   staging: boolean
   onToggle: () => void
   onStage: () => void
@@ -198,8 +162,7 @@ function FileHeader(props: FileHeaderProps) {
     const word = label()
     const right = word ? ` ${word} ` : ''
     const prefix = ` ${chevron()} ${diffMark(props.section.status)} `
-    // The stage button's two columns are held whether or not it is drawn: the
-    // path would otherwise grow and shrink as the selection walked past.
+    // Held whether or not the button is drawn, or the path jumps as the selection walks past.
     const button = props.staging ? 2 : 0
     const room = Math.max(8, textWidth() - prefix.length - right.length - button)
     return cutPath(displayRel(props.section), room)
@@ -234,12 +197,7 @@ function FileHeader(props: FileHeaderProps) {
               <text wrapMode="none" fg={color()} bg={bg()} flexShrink={0} content={` ${word()} `} />
             )}
           </Show>
-          {/* Staged files unstage, everything else stages — the panel's `+`/`−`,
-              on the file the reader is looking at. Drawn on the selected header
-              and under the pointer only, as the panel draws it on the cursor's
-              row alone: a terminal has no hover to hide a button behind. Its own
-              handler, and it runs before the row's — pressing `+` is not
-              pressing the row, which would fold the file away. */}
+          {/* stopPropagation: a press on `+` must not reach the row, which would fold the file. */}
           <Show when={props.staging && (props.selected || props.hovered)}>
             <box
               flexShrink={0}
@@ -278,11 +236,6 @@ function FileHeader(props: FileHeaderProps) {
   )
 }
 
-/**
- * Every changed file stacked in one scroll, over the editor slot — Cursor's
- * Changes page, sized to a terminal. The source-control panel keeps the list
- * and the commit; this is the reading surface.
- */
 export function ChangesView(props: ChangesViewProps) {
   const dimensions = useTerminalDimensions()
   const hover = useHoverKey<string>()
@@ -290,15 +243,13 @@ export function ChangesView(props: ChangesViewProps) {
   const [scrollTop, setScrollTop] = createSignal(0)
   const [pickedKey, setPickedKey] = createSignal<string | null>(null)
 
-  // Bumped when the stack's geometry has moved for a reason `scrollTop` cannot
-  // report. `equals: false` so a bump always notifies.
+  // Bumped when the stack's geometry moved for a reason `scrollTop` cannot report.
   const [layout, bumpLayout] = createSignal(0, { equals: false })
 
   let box: ScrollBoxRenderable | undefined
   const anchors = new Map<string, LaidOut>()
   const headers = new Map<string, LaidOut>()
-  /** Whether the page has been scrolled away from the last file revealed onto.
-   * Not a signal: only the layout flip reads it, and never while rendering. */
+  // Not a signal: never read while rendering.
   let drifted = false
   let revealTimer: ReturnType<typeof setTimeout> | undefined
   let layoutTimer: ReturnType<typeof setTimeout> | undefined
@@ -313,14 +264,7 @@ export function ChangesView(props: ChangesViewProps) {
     if (box) setScrollTop(box.scrollTop)
   }
 
-  /**
-   * Folding moves every header below it and can shorten the stack enough that
-   * the scrollbox clamps its own `scrollTop`. Both are read straight off the
-   * renderables and neither is a signal, so the pinned header otherwise keeps
-   * the position it had before the fold and is painted a second time over the
-   * one now back in flow. The reconciler flushes on a macrotask, so the
-   * re-read has to wait one out.
-   */
+  // Read off renderables, not signals: the reconciler flushes on a macrotask, so wait one out.
   const remeasure = () => {
     clearTimeout(layoutTimer)
     layoutTimer = setTimeout(() => {
@@ -354,8 +298,6 @@ export function ChangesView(props: ChangesViewProps) {
   }
 
   const scroll = (delta: number) => {
-    // A hold re-applies its offset for a few frames; a reader scrolling inside
-    // that window must win, or the page would pull itself back under them.
     clearTimeout(modeTimer)
     drifted = true
     if (box) box.scrollTop = Math.max(0, box.scrollTop + delta)
@@ -368,12 +310,6 @@ export function ChangesView(props: ChangesViewProps) {
     syncScroll()
   }
 
-  /**
-   * Put a file at the top of the page. Always, even when it is already on
-   * screen: moving onto a change and having the page hold still reads as a key
-   * that did nothing, and where a change *starts* is what the reader was asking
-   * for. Both pagers land here — the panel's cursor and Tab inside the page.
-   */
   const reveal = (key: string, into = 0) => {
     const host = box
     const el = anchors.get(key)
@@ -383,13 +319,7 @@ export function ChangesView(props: ChangesViewProps) {
     syncScroll()
   }
 
-  /**
-   * How far into `key`'s section the viewport sits, as a share of its height.
-   * Split pads every change block row for row, so the row the reader was on is
-   * not at the same offset afterwards — the same *share* of the file is as
-   * close as a flip can put them back, and it beats being thrown to the top of
-   * a file they were a hundred rows into.
-   */
+  // A share of the section's height, not rows: split pads every block, so rows do not survive a flip.
   const offsetIn = (key: string) => {
     const host = box
     const el = anchors.get(key)
@@ -428,9 +358,6 @@ export function ChangesView(props: ChangesViewProps) {
     return at >= 0 ? at : 0
   }
 
-  /** Which header ←/→ and Tab talk about. Nothing is marked while the panel
-   * still has the keyboard — Tab into the page is what lights one. A memo, not
-   * a plain call: every header row asks, and each answer walks all the sections. */
   const selectedKey = createMemo(() => {
     if (!props.focused) return null
     const keys = props.sections.map(section => section.key)
@@ -441,17 +368,7 @@ export function ChangesView(props: ChangesViewProps) {
 
   const isSelected = (key: string) => selectedKey() === key
 
-  /**
-   * The file the reader is on: the header Tab lit, else the panel cursor's —
-   * both of those were scrolled to when they were set. Once the page has been
-   * scrolled since, neither is where the reader is any more, and the file the
-   * viewport is showing is; anchoring a flip on the cursor's file is what used
-   * to throw the scroll away and drop the reader back up the page.
-   *
-   * Not `currentIndex()` throughout: it is measured off the renderables, which
-   * a programmatic reveal moves a layout pass later than the offset it set, so
-   * straight after one it still answers with the file left behind.
-   */
+  // Not `currentIndex()`: measured off renderables, a layout pass behind the offset it set.
   const anchorKey = () => {
     const keys = props.sections.map(section => section.key)
     if (!drifted) {
@@ -462,43 +379,25 @@ export function ChangesView(props: ChangesViewProps) {
     return keys[currentIndex()] ?? null
   }
 
-  /**
-   * Hold a file at the top of the page across a relayout. Applied at once and
-   * again over the next few frames: the first attempt runs before the new
-   * heights exist and is clamped to the old ones, and only a later one lands —
-   * re-applying an offset that is already right costs nothing and is what keeps
-   * the wrong frame from being one the reader sees.
-   */
+  // Re-applied over the next frames: the first attempt is clamped to the old heights.
   const holdAt = (key: string, into = 0) => {
     clearTimeout(modeTimer)
     let tries = HOLD_FRAMES
     const apply = () => {
-      // `into` is re-applied rather than remembered as rows: each retry reads
-      // the section's height as it is by then, which is the whole point of the
-      // hold — the new heights land a layout pass after the offset is first set.
       reveal(key, into)
       remeasure()
       if (--tries <= 0) return
-      // The first retry is a macrotask, not a frame: when the reconciler has
-      // already applied the new heights there is nothing to wait for, and the
-      // sooner the offset is right the fewer frames can show it wrong.
       modeTimer = setTimeout(apply, tries === HOLD_FRAMES - 1 ? 0 : LAYOUT_FRAME / 2)
     }
     apply()
   }
 
-  /**
-   * Split pairs each change block row for row and pads the shorter side, so
-   * every section changes height when the layout flips — a scroll offset kept
-   * across that lands on a different file.
-   */
   createEffect(
     on(
       () => props.mode,
       () => {
         const key = anchorKey()
-        // Read before the flip lays out: these are the heights the offset the
-        // reader is looking at was measured against.
+        // Read before the flip lays out — the heights the reader's offset was measured against.
         if (key) holdAt(key, offsetIn(key))
       },
       { defer: true },
@@ -516,25 +415,17 @@ export function ChangesView(props: ChangesViewProps) {
 
   createEffect(
     on(
-      // Membership, not identity: a refresh that reuses the same keys must not
-      // yank the scroll back. First open still fires — focusKey is set before
-      // the section refs exist, and a tick that misses has to try again.
+      // Membership, not identity: a refresh that reuses the same keys must not yank the scroll back.
       () => `${props.focusKey ?? ''}\n${props.sections.map(s => s.key).join('\n')}`,
       () => {
         const key = props.focusKey
         if (!key || !props.sections.some(s => s.key === key)) return
         clearTimeout(revealTimer)
-        // Capped: a section that never lays out would otherwise hold a 16ms
-        // timer for as long as the page is open.
         let tries = REVEAL_TRIES
         const tryReveal = () => {
           const el = anchors.get(key)
           const first = props.sections[0]?.key === key
-          // y stays 0 until layout; treating that as ready scrolled a later
-          // file to the top of the stack on first open. Not `y > 0`: a section
-          // scrolled off the top of the page has a negative y, and waiting for
-          // it to turn positive is waiting forever — which is a click on a file
-          // above the one on screen scrolling nowhere.
+          // y is 0 before layout and negative when scrolled off the top: neither is ready.
           const ready = el && box && el.height > 0 && (first || el.y !== 0)
           if (ready) {
             reveal(key)
@@ -565,12 +456,7 @@ export function ChangesView(props: ChangesViewProps) {
       const sel = selectedKey()
       if (sel) setFold(sel, false)
     } else if (k === 'tab') moveSelection(key.shift ? -1 : 1)
-    // Tab already walks the file headers here, so the layout gets the two keys
-    // the one-file page also answered to.
     else if (k === 's' || k === 'd') props.onToggleMode()
-    // Space is the panel's stage key, and it means the same here rather than
-    // paging: PgDn and Ctrl+D already page, and nothing else on this side of
-    // Tab could stage the file being read.
     else if (k === 'space') {
       const sel = selectedKey()
       if (sel) props.onToggleStage(sel)
@@ -583,9 +469,6 @@ export function ChangesView(props: ChangesViewProps) {
 
   const hints = () => {
     const layout = props.mode === 'inline' ? 'inline' : 'side-by-side'
-    // The page answers to `s`; the panel, which holds the keyboard until Tab is
-    // pressed, answers to `S` — plain `s` is sync there. Naming the key that
-    // works from where the keyboard actually is, is the whole point of a hint.
     const key = props.focused ? 's' : 'S'
     const stage = props.staging ? ' · Space stage' : ''
     const full = ` ${layout} · ${key} layout${stage} · ↑↓ scroll · Tab file · ← fold · Esc close `
@@ -628,8 +511,6 @@ export function ChangesView(props: ChangesViewProps) {
               box = el
               followScroll(el, top => {
                 if (top === scrollTop()) return
-                // The wheel and the scrollbar move the page without going
-                // through `scroll`, and are as much the reader moving as a key.
                 drifted = true
                 setScrollTop(top)
               })

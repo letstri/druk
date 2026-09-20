@@ -90,6 +90,8 @@ status bar with the branch, unsaved state and cursor position.
   gone again on the next keypress.
 - The mouse works throughout: click tabs, tree rows and the editor, drag the sidebar's
   edge to resize it, and scroll any pane.
+- Selecting code copies it — drag over it, double-click a word or triple-click a line, and
+  it is on the clipboard (and on the clipboard of the machine you are SSH'd from).
 
 ## Shortcuts
 
@@ -101,7 +103,7 @@ status bar with the branch, unsaved state and cursor position.
 | `Ctrl+T` | Switch between open tabs |
 | `Ctrl+S` | Save |
 | `Ctrl+F` | Find in this file (`Tab` adds replace) |
-| `Ctrl+R` | Find in the whole project |
+| `Ctrl+Opt+F` | Find in the whole project (`Ctrl+R` too, outside vim mode) |
 | `Ctrl+G` | Go to line |
 | `Ctrl+N` | New file |
 | `Ctrl+W` | Close tab |
@@ -109,10 +111,12 @@ status bar with the branch, unsaved state and cursor position.
 | `Ctrl+Q` | Quit |
 | `Ctrl+Z` / `Ctrl+Y` | Undo / redo |
 | `Ctrl+C` / `Ctrl+X` / `Ctrl+V` | Copy / cut / paste (system clipboard, OSC52 over SSH) |
+| `Ctrl+U` | Delete to the start of the line — what macOS terminals send for `Cmd+Delete` |
 | `Ctrl+/` or `Ctrl+L` | Toggle comment |
 | `Opt+↑` / `↓` | Move line or selection |
 | `Opt+Shift+↑` / `↓` | Duplicate line or selection |
 | `Ctrl+Opt+T` | Reopen closed tab |
+| `F8` / `Shift+F8` | Next / previous problem |
 | `Ctrl+Opt+←` / `→` | Previous / next tab |
 | `Ctrl+Opt+C` | Copy the path of this file (relative form in the palette) |
 | `Ctrl+Opt+G` | Source control panel (commit / push) |
@@ -158,8 +162,8 @@ which of the two it was left in.
 
 ## Search
 
-`Ctrl+F` searches the open file, `Ctrl+R` the project (`Ctrl+Opt+F` too — that is the one
-to use in vim mode, where `Ctrl+R` is redo). Whatever you had selected is already in the box.
+`Ctrl+F` searches the open file, `Ctrl+Opt+F` the project (`Ctrl+R` too, except in vim
+mode, where that is redo). Whatever you had selected is already in the box.
 
 Results are grouped by file, each row showing the line number and the line with the hit
 picked out, and the lines around the selected match are previewed underneath. `Tab` folds

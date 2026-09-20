@@ -10,13 +10,9 @@ export interface UpdateInfo {
   latest: string
 }
 
-/** Baked in by build.ts; undefined when running from source. */
+// Defined by build.ts; absent from source, hence the typeof guard below.
 declare const __DRUK_VERSION__: string
 
-/**
- * Our own version. The released binary carries it as a build-time constant — it has no
- * package.json to read — so the walk below only ever runs from source.
- */
 export function currentVersion(): string {
   if (typeof __DRUK_VERSION__ === 'string') return __DRUK_VERSION__
 
@@ -42,10 +38,6 @@ export function isNewer(latest: string, current: string): boolean {
   }
 }
 
-/**
- * Ask npm for the published version. Best-effort: any failure (offline, slow,
- * malformed) resolves to null and the editor starts as usual.
- */
 export async function checkForUpdate(current = currentVersion()): Promise<UpdateInfo | null> {
   try {
     const res = await fetch(REGISTRY, {

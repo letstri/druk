@@ -8,16 +8,12 @@ import { useHover } from './hover'
 import { useKeys } from './useKeys'
 
 export interface LspStatusViewProps {
-  /** Every server this session has tried to run, sorted by id. */
   servers: ServerView[]
-  /** Columns the pane owns — the editor slot, not the terminal. */
   width: number
   focused: boolean
   blocked: boolean
   onFocus: () => void
-  /** The palette's "Restart language servers", one key away from the evidence. */
   onRestart: () => void
-  /** Delete druk's own copy of a server. Ignored for one druk did not install. */
   onUninstall: (id: string) => void
   onClose: () => void
 }
@@ -29,17 +25,11 @@ const STATE_GLYPH: Record<ServerState, string> = {
   failed: '✗',
 }
 
-/**
- * The status of every language server this session has run: state, command and
- * open documents per server, over a live log of its stderr, window/logMessage
- * traffic and lifecycle events. A page over the editor slot, like settings —
- * the answer to "why are there no diagnostics" without leaving the editor.
- */
 export function LspStatusView(props: LspStatusViewProps) {
   const dimensions = useTerminalDimensions()
 
   const [cursor, setCursor] = createSignal(0)
-  /** Clamped, not stored clamped: a server list that grows keeps the cursor put. */
+  // Clamped, not stored clamped: a server list that grows keeps the cursor put.
   const at = createMemo(() => Math.max(0, Math.min(cursor(), props.servers.length - 1)))
   const selected = createMemo(() => props.servers[at()] ?? null)
 
@@ -52,8 +42,6 @@ export function LspStatusView(props: LspStatusViewProps) {
     if (box) box.scrollTop = Math.max(0, row)
   }
 
-  // The log follows its tail, the way a terminal does — on every new line and
-  // when the selection moves to another server's log.
   createEffect(
     on(
       () => [selected()?.id, selected()?.logs.length] as const,
@@ -61,12 +49,10 @@ export function LspStatusView(props: LspStatusViewProps) {
     ),
   )
 
-  /** Rows a page spans — the pane is the editor slot: tabs, header, status bar off. */
   const page = () => Math.max(1, dimensions().height - 3)
 
   useKeys((key: KeyEvent, k: string) => {
-    // A page, not a modal: keys count only when this pane holds the focus, and
-    // a chord the global keymap already claimed is not ours to reuse.
+    // A page, not a modal: keys count only while this pane holds the focus.
     if (props.blocked || !props.focused || key.defaultPrevented) return
     if (k === 'up' || k === 'k') setCursor(Math.max(0, at() - 1))
     else if (k === 'down' || k === 'j') setCursor(Math.min(props.servers.length - 1, at() + 1))
@@ -75,9 +61,6 @@ export function LspStatusView(props: LspStatusViewProps) {
     else if (k === 'end' || (k === 'g' && key.shift)) scrollTo(Number.MAX_SAFE_INTEGER)
     else if (k === 'home' || k === 'g') scrollTo(0)
     else if (k === 'r') props.onRestart()
-    // Not Backspace, which the tree and the extensions panel spend on the same
-    // idea: this page's list is the one place a *server* can be removed, and a
-    // key that deletes wants to be the one that is typed on purpose.
     else if (k === 'd') {
       const server = selected()
       if (server) props.onUninstall(server.id)
@@ -148,8 +131,7 @@ export function LspStatusView(props: LspStatusViewProps) {
                     flexShrink={0}
                     content={`${server.id} · ${stateLabel(server)}`}
                   />
-                  {/* A row each: a server command is a path somebody configured,
-                    and wrapping one pushes the log below it down the page. */}
+                  {/* One row: a wrapped server command pushes the log down the page. */}
                   <text
                     wrapMode="none"
                     fg={ui.dim}

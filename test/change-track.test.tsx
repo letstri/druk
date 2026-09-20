@@ -20,10 +20,6 @@ interface Frame {
 const hex = (fg?: { buffer: Uint8Array }) =>
   fg ? `#${Array.from(fg.buffer.slice(0, 3), v => v.toString(16).padStart(2, '0')).join('')}` : ''
 
-/**
- * Colours of the change marks beside the scrollbar. The tab strip is skipped:
- * the active tab's accent edge is the same glyph, one row above the editor.
- */
 const track = (t: Harness) => {
   const frame = t.captureSpans() as unknown as Frame
   return frame.lines
@@ -54,7 +50,6 @@ async function open(dir: string) {
 
 describe('the change track', () => {
   test('shows changes far below the viewport, which is the point of it', async () => {
-    // Line 380 of 400 is nowhere near the first screen.
     const t = await open(await repoWith(lines => (lines[380] = '// changed down here')))
 
     expect(track(t)).toContain(ui.gitModified)
@@ -77,14 +72,12 @@ describe('the change track', () => {
     const marks = track(t)
 
     expect(marks).toContain(ui.gitModified)
-    // Every mark is a git colour — none of the syntax colours the strip used.
     const gitColors = new Set([ui.gitAdded, ui.gitModified, ui.gitDeleted])
     expect(marks.every(color => gitColors.has(color))).toBe(true)
   })
 })
 
 describe('the track agrees with the scrollbar', () => {
-  /** Long lines, so every one wraps and visual rows outnumber lines threefold. */
   const WRAPPED = `${Array.from(
     { length: 300 },
     (_, index) => `const value${index} = ${'x'.repeat(160)} // ${index}`,
@@ -104,9 +97,7 @@ describe('the track agrees with the scrollbar', () => {
     return dir
   }
 
-  // Row 0, the tab strip, is skipped rather than sliced away: the active tab's
-  // accent edge is the track's own glyph, and the rows either side of it have to
-  // keep the indices the assertions below compare against the terminal's height.
+  // Row 0 is skipped rather than sliced away: the rows after it keep their indices.
   const rowsOf = (t: Harness, glyph: string) =>
     t
       .captureCharFrame()
@@ -115,13 +106,9 @@ describe('the track agrees with the scrollbar', () => {
       .flatMap((row, index) => (index > 0 && row.includes(glyph) ? [index] : []))
 
   test('scrolling to a mark puts the thumb beside it', async () => {
-    // The thumb used to be driven by the visual scroll position while the marks
-    // were placed per line: on a wrapped file the two pointed at different parts
-    // of the same file.
     const t = await open(await wrappedRepo(150))
     const mark = rowsOf(t, '▎')[0]!
 
-    // Halfway down the file by line, which is where the mark is.
     await press(t, input => input.pressKey('g', { ctrl: true }))
     await press(t, input => void input.typeText('150'))
     await press(t, input => input.pressEnter())
@@ -129,7 +116,6 @@ describe('the track agrees with the scrollbar', () => {
 
     const thumb = rowsOf(t, '█')
     expect(thumb.length).toBeGreaterThan(0)
-    // Within a row or two of the mark, not at the far end of the track.
     expect(Math.min(...thumb.map(row => Math.abs(row - mark)))).toBeLessThanOrEqual(2)
   }, 30000)
 

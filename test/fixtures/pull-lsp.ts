@@ -1,21 +1,14 @@
-/**
- * A server that publishes nothing and answers `textDocument/diagnostic`
- * instead — how TypeScript 7's compiler serves diagnostics, and the reason the
- * client asks as well as listens. Same "oops" rule as fake-lsp.
- */
 import type { Diagnostic } from '../../src/lsp/protocol'
 import { createDecoder, encodeMessage } from '../../src/lsp/transport'
 
 const send = (message: object) => process.stdout.write(encodeMessage(message))
 
-/** Last text seen per uri: a pull is answered about whatever was synced. */
 const documents = new Map<string, string>()
 
 const diagnosticsFor = (uri: string): Diagnostic[] => {
   const lines = (documents.get(uri) ?? '').split('\n')
   const found: Diagnostic[] = []
   for (let line = 0; line < lines.length; line++) {
-    // Every occurrence, not just the first: a test types one next to another.
     for (
       let col = lines[line]!.indexOf('oops');
       col >= 0;

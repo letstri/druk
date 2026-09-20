@@ -24,21 +24,18 @@ export interface ComparePanelProps {
 
 export function ComparePanel(props: ComparePanelProps) {
   const rows = () => (props.mode === 'files' ? props.files : props.commits)
-  /** A memo so the reveal below fires on the cursor's *value* — see GitPanel. */
+  // A memo so the reveal below fires on the cursor's *value* — see GitPanel.
   const cursor = createMemo(() => Math.max(0, Math.min(props.cursor, rows().length - 1)))
 
   const list = createScrollList(() => rows().length)
   createEffect(on(cursor, row => list.reveal(row)))
 
-  // One window over whichever list is showing: slicing both meant the hidden one
-  // was re-sliced on every cursor move for nothing.
   const visibleFiles = createMemo(() =>
     props.mode === 'files' ? props.files.slice(list.window().start, list.window().end) : [],
   )
   const visibleCommits = createMemo(() =>
     props.mode === 'commits' ? props.commits.slice(list.window().start, list.window().end) : [],
   )
-  /** Columns the header rows have, after the panel's own left padding. */
   const room = () => Math.max(8, props.width - 2)
 
   const summary = () => {
@@ -59,9 +56,7 @@ export function ComparePanel(props: ComparePanelProps) {
       flexBasis={0}
       onMouseDown={() => props.onFocus()}
     >
-      {/* Five rows and five texts: a branch name allowed to wrap takes the rows
-          under it with it, and the header is a fixed height, so what it pushes
-          past the fifth row is simply gone. */}
+      {/* Fixed five rows: a wrapped branch name pushes the rows under it out of the box. */}
       <box height={5} flexDirection="column" backgroundColor={ui.sidebarBg} paddingLeft={2}>
         <text
           wrapMode="none"
@@ -134,8 +129,6 @@ export function ComparePanel(props: ComparePanelProps) {
                         content={` ${commit.subject}`}
                         flexGrow={1}
                       />
-                      {/* The gap is this column's, not slack in the subject's box:
-                          a subject long enough to fill the row leaves none. */}
                       <text
                         fg={ui.faint}
                         bg={bg()}

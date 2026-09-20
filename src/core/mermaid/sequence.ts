@@ -1,14 +1,9 @@
-/**
- * Sequence diagrams: a column per participant, a lifeline down each, and the
- * messages as arrows between them in the order they were written.
- */
 import { Canvas } from './canvas'
 import type { Line, Stroke } from './canvas'
 import type { EdgeStyle, SequenceDiagram, SequenceEvent } from './model'
 
 const MIN_GAP = 6
 const MAX_GAP = 44
-/** Columns a self-message's loop sticks out to the right of its lifeline. */
 const LOOP = 4
 
 const STROKE: Record<EdgeStyle, Stroke> = { solid: 'solid', dotted: 'dotted', thick: 'thick' }
@@ -19,7 +14,6 @@ function boxWidth(label: string): number {
   return width(label) + 4
 }
 
-/** Rows an event takes: its text sits above the arrow, a note inside a frame. */
 function rowsFor(event: SequenceEvent): number {
   if (event.type === 'message') return 3
   if (event.type === 'note') return 4
@@ -34,8 +28,6 @@ export function renderSequence(diagram: SequenceDiagram): Line[] {
   const index = new Map(participants.map((participant, at) => [participant.id, at]))
   const boxes = participants.map(participant => boxWidth(participant.label))
 
-  // A gap wide enough for the messages that cross it, so their text has room
-  // over the arrow rather than running into the next lifeline.
   const gaps = participants.slice(1).map((_, at) => {
     let needed = MIN_GAP
     for (const event of diagram.events) {
@@ -122,8 +114,7 @@ export function renderSequence(diagram: SequenceDiagram): Line[] {
       canvas.set(right, row + 2, '╯', 'border')
       canvas.set(left, row + 1, '│', 'border')
       canvas.set(right, row + 1, '│', 'border')
-      // The lifelines were drawn first and run straight through: blanking the
-      // inside is what puts the note over them rather than under.
+      // The lifelines run straight through: blanking puts the note over them.
       canvas.charLine(left + 1, right - 1, row + 1, ' ', 'label')
       canvas.text(left + 2, row + 1, event.text, 'label')
       row += 4
@@ -140,7 +131,6 @@ export function renderSequence(diagram: SequenceDiagram): Line[] {
     const head = event.head === 'cross' ? '✕' : event.head === 'circle' ? '○' : null
 
     if (from === to) {
-      // A message to itself: out of the lifeline, down one row and back in.
       const at = centre(from)
       canvas.hline(at, at + LOOP, row, stroke, 'edge')
       canvas.vline(row, row + 1, at + LOOP, stroke, 'edge')

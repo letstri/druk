@@ -1,8 +1,4 @@
-/**
- * `with { type: 'file' }` imports resolve to a path string at runtime. TypeScript has
- * no notion of the attribute, so without these the grammar imports in
- * `languages/grammars.ts` fail to resolve under `tsc`.
- */
+// TypeScript has no notion of `with { type: 'file' }`, which resolves to a path string.
 declare module '*.wasm' {
   const path: string
   export default path

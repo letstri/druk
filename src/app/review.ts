@@ -1,15 +1,3 @@
-/**
- * Reading code with a review beside you: the notes dropped on lines while
- * reading, and the answers to them.
- *
- * The division is the panel's usual one — this owns the list, the cursor and
- * the fold state, `ui/ReviewPanel.tsx` draws whatever `rows()` returns and
- * reports clicks, and `app/keyboard.ts` holds the keys.
- *
- * Nothing here talks to a network. A review is what this session's reader and
- * whichever agent shares the notes file have said to each other, and that is
- * deliberately all of it.
- */
 import { basename, relative } from 'node:path'
 
 import { createMemo, createSignal } from 'solid-js'
@@ -23,15 +11,8 @@ import type { Workspace } from './workspace'
 
 export type { ReviewRow } from '../ui/ReviewPanel'
 
-/** One line of a remark, for a row that has one line to draw it in. */
 const oneLine = (text: string) => text.replaceAll(/\s+/g, ' ').trim()
 
-/**
- * What the panel says when the review is empty, which is the only time it has
- * the room to say anything: a sidebar is thirty columns, so the lines are short
- * enough to survive being cut at one, and the key is asked for rather than
- * spelled out — a rebind has to rename it here too.
- */
 const emptyHints = (chord: string): string[] => {
   const key = chord || 'palette → Review → Note'
   return [
@@ -57,7 +38,7 @@ const emptyHints = (chord: string): string[] => {
   ]
 }
 
-/** How long after creating a note an external write missing it reads as a stale clobber. */
+// ms: within this, a note missing from an external write reads as a stale clobber.
 const RESCUE_WINDOW = 2000
 
 export function createReview(deps: { rootDir: string; status: Status; workspace: Workspace }) {
@@ -69,13 +50,9 @@ export function createReview(deps: { rootDir: string; status: Status; workspace:
   const [collapsed, setCollapsed] = createSignal<ReadonlySet<string>>(new Set())
   const [cursor, setCursor] = createSignal(0)
 
-  // What lets a save merge instead of clobber (`seen`), and an adopt tell an
-  // external delete from a stale writer's overwrite (`created`, against the
-  // note's own age).
   const seen = new Set(initial.map(note => note.id))
   const created = new Set<string>()
 
-  /** Notes are the one thing here that outlives the session, so every write persists. */
   const writeNotes = (next: ReviewNote[]) => {
     for (const note of next) seen.add(note.id)
     setNotes(next)
@@ -93,26 +70,13 @@ export function createReview(deps: { rootDir: string; status: Status; workspace:
     a.parent === b.parent &&
     a.author === b.author
 
-  /**
-   * Adopt what the file says — the way git state made in another terminal
-   * shows up without a restart. The value compare absorbs a watch event that
-   * reports a save of druk's own, which some platforms deliver and some do
-   * not: a rename is announced under whichever of the two names the platform
-   * picks, and the temp one is filtered out by name.
-   */
   const reloadNotes = () => {
     const fresh = readNotes(rootDir)
-    // Unreadable is another writer caught mid-file: "not now", never "no notes".
     if (fresh === null) return
     const held = notes()
+    // The value compare absorbs the watch event some platforms send for druk's own save.
     if (fresh.length === held.length && fresh.every((note, i) => sameNote(note, held[i]!))) return
     const freshIds = new Set(fresh.map(note => note.id))
-    // A note this session created seconds ago, gone from a file druk did not
-    // write, was clobbered by a writer holding a copy read before it existed —
-    // so it goes back, and back to disk. Age is what separates that from a
-    // deliberate delete: druk cannot see whether the other side read the file
-    // before or after the save, and only the racing writer is quick. Past the
-    // window the file is right and the note is the file's to delete.
     const orphaned = held.filter(
       note =>
         created.has(note.id) && !freshIds.has(note.id) && Date.now() - note.at < RESCUE_WINDOW,
@@ -122,11 +86,6 @@ export function createReview(deps: { rootDir: string; status: Status; workspace:
     writeNotes([...fresh, ...orphaned])
   }
 
-  /**
-   * The replies to each note, oldest first — the order a conversation reads in,
-   * and not the order the list happens to hold them in: another writer appends
-   * wherever it likes, and druk's own rescue puts a note back at the end.
-   */
   const threads = createMemo(() => {
     const byParent = new Map<string, ReviewNote[]>()
     for (const note of notes()) {
@@ -141,17 +100,12 @@ export function createReview(deps: { rootDir: string; status: Status; workspace:
 
   const repliesOf = (id: string) => threads().get(id) ?? []
 
-  /**
-   * The notes a thread hangs off. A reply whose note is gone from the file —
-   * another writer deleted one and left its answers — is one of these too: it
-   * is somebody's words, and hiding it would lose them silently.
-   */
+  // A reply whose note another writer deleted is listed on its own rather than lost.
   const threadStarts = createMemo(() => {
     const ids = new Set(notes().map(note => note.id))
     return notes().filter(note => !note.parent || !ids.has(note.parent))
   })
 
-  /** Ids only have to be unique within this list; the clock plus a counter is that. */
   let counter = 0
   const nextId = () => `${Date.now().toString(36)}-${counter++}`
 
@@ -167,12 +121,6 @@ export function createReview(deps: { rootDir: string; status: Status; workspace:
     say(`${NOTE_LABELS[note.kind]} noted on ${where} — ${threadStarts().length} in this review`)
   }
 
-  /**
-   * An answer to a note, which is a note of its own carrying the other's id —
-   * see `core/review.ts` for why a thread is a list rather than a field. It
-   * takes the line and the file it answers on: everything that groups, marks
-   * or opens a remark reads those, and a reply belongs wherever its note does.
-   */
   const reply = (parent: ReviewNote, body: string) => {
     add(
       { path: parent.path, line: parent.line, endLine: parent.endLine, kind: 'note', body },
@@ -183,8 +131,6 @@ export function createReview(deps: { rootDir: string; status: Status; workspace:
   const removeNote = (id: string) => {
     const held = notes().find(note => note.id === id)
     if (!held) return
-    // A thread goes whole: a reply without the note it answers reads as a
-    // remark nobody made, and there is no way back to the question it was for.
     const gone = new Set([id, ...repliesOf(id).map(note => note.id)])
     writeNotes(notes().filter(note => !gone.has(note.id)))
     const answers = gone.size - 1
@@ -203,11 +149,6 @@ export function createReview(deps: { rootDir: string; status: Status; workspace:
     say(`Cleared ${gone} review note${gone === 1 ? '' : 's'}`)
   }
 
-  /**
-   * Draft notes of one file, by line — the gutter marks and the inline text.
-   * Threads, not messages: a reply sits on the line its note does, and one mark
-   * per line is what the gutter and the row after the line have room for.
-   */
   const notesFor = (path: string) => threadStarts().filter(note => note.path === path)
 
   const marks = createMemo(() => {
@@ -218,8 +159,6 @@ export function createReview(deps: { rootDir: string; status: Status; workspace:
       const said = repliesOf(note.id).length
       byLine.set(note.line, {
         draft: true,
-        // The count is the whole of what a thread adds to a one-line mark: the
-        // conversation itself is in the panel and in the card under the line.
         label: said > 0 ? `${NOTE_LABELS[note.kind]} ↳${said}` : NOTE_LABELS[note.kind],
         text: oneLine(note.body),
       })
@@ -227,7 +166,6 @@ export function createReview(deps: { rootDir: string; status: Status; workspace:
     return byLine
   })
 
-  /** Every thread, grouped by file, files in path order. */
   const grouped = createMemo(() => {
     const groups = new Map<string, { rel: string; notes: ReviewNote[] }>()
     const group = (path: string) => {
@@ -250,8 +188,6 @@ export function createReview(deps: { rootDir: string; status: Status; workspace:
         kind: 'file',
         id: `file:${entry.rel}`,
         rel: entry.rel,
-        // Replies counted too: the number says what the fold is hiding, and a
-        // fold hides the whole thread.
         count: entry.notes.reduce((held, note) => held + 1 + repliesOf(note.id).length, 0),
         collapsed: shut,
       })
@@ -264,9 +200,6 @@ export function createReview(deps: { rootDir: string; status: Status; workspace:
           label: `${NOTE_LABELS[note.kind]} ${note.line + 1}`,
           text: oneLine(note.body),
         })
-        // The answers under what they answer, and only the file's fold hides
-        // them: a thread is three rows on a bad day, and a second fold to learn
-        // would cost more than it saved.
         for (const said of repliesOf(note.id)) {
           out.push({
             kind: 'reply',
@@ -278,8 +211,6 @@ export function createReview(deps: { rootDir: string; status: Status; workspace:
         }
       }
     }
-    // An empty review is the one place with room to say what the panel is for,
-    // and the one time the user has nothing else to read here.
     if (out.length === 0) {
       const hints = emptyHints(chordFor('review.note'))
       for (const [index, label] of hints.entries()) {
@@ -301,7 +232,6 @@ export function createReview(deps: { rootDir: string; status: Status; workspace:
       return next
     })
 
-  /** → and ←, which only ever mean "open" and "shut", and only on a heading. */
   const fold = (shut: boolean) => {
     const current = row()
     if (current?.kind !== 'file' || current.collapsed === shut) return
@@ -312,15 +242,6 @@ export function createReview(deps: { rootDir: string; status: Status; workspace:
 
   const placeOf = (note: ReviewNote) => ({ path: note.path, line: note.line })
 
-  /**
-   * The remark the row at `index` speaks for, which is what both the editor
-   * that follows the cursor and the card under the line are about.
-   *
-   * A heading answers with the first remark of its file rather than with
-   * nothing: it is the row the cursor lands on when the panel opens, and a
-   * review that shows no code until the second keypress is the thing this is
-   * for. A collapsed group still answers — the remarks are hidden, not gone.
-   */
   const remarkOf = (index = at()): ReviewNote | null => {
     const current = rows()[Math.max(0, Math.min(index, rows().length - 1))]
     if (!current || current.kind === 'hint') return null
@@ -333,19 +254,13 @@ export function createReview(deps: { rootDir: string; status: Status; workspace:
     return remark ? placeOf(remark) : null
   }
 
-  /**
-   * The remark under the cursor as the editor opens it: a card under its line,
-   * and only while it is about the file on screen — the card is drawn in that
-   * file's coordinates, so one belonging to another file has nowhere to go.
-   */
+  // Only for the file on screen: the card is drawn in that file's coordinates.
   const card = createMemo(() => {
     const remark = remarkOf()
     const path = workspace.activePath()
     if (!remark || !path) return null
     const place = placeOf(remark)
     if (place.path !== path) return null
-    // The whole thread, whichever of its messages the cursor is on: a reply read
-    // without the remark it answers is half a conversation.
     const root = (remark.parent && notes().find(note => note.id === remark.parent)) || remark
     return {
       line: place.line,
@@ -359,7 +274,6 @@ export function createReview(deps: { rootDir: string; status: Status; workspace:
     }
   })
 
-  /** Enter: fold a heading, or land on the line the remark is about. */
   const activate = (index = at(), open?: (path: string, line: number) => void) => {
     moveTo(index)
     const current = row()
@@ -370,22 +284,13 @@ export function createReview(deps: { rootDir: string; status: Status; workspace:
     }
   }
 
-  /** Backspace: drop the thread, or the one answer, under the cursor. */
   const remove = () => {
     const current = row()
     if (current?.kind !== 'note' && current?.kind !== 'reply') return
     removeNote(current.note.id)
   }
 
-  /**
-   * The note an answer would hang off — the remark the card is showing, so `r`
-   * answers what is on screen rather than what the cursor is literally on: a
-   * heading stands in for its file's first remark, as it does everywhere else.
-   *
-   * Answering a reply answers the note it belongs to. A thread is flat, as it is
-   * everywhere a review is read, and nesting the second answer under the first
-   * says a hierarchy nobody meant.
-   */
+  // Answering a reply answers its note: a thread is flat.
   const replyTarget = (): ReviewNote | null => {
     const remark = remarkOf()
     if (!remark) {
@@ -415,14 +320,12 @@ export function createReview(deps: { rootDir: string; status: Status; workspace:
     removeNote,
     clear,
     reloadNotes,
-    /** The header's count, which no fold narrows. */
     count: () => notes().length,
   }
 }
 
 export type Review = ReturnType<typeof createReview>
 
-/** Kinds as the chooser lists them, with what each one means to an agent. */
 export const KIND_CHOICES: { id: NoteKind; label: string }[] = [
   { id: 'issue', label: 'Issue — this is wrong and needs fixing' },
   { id: 'suggestion', label: 'Suggestion — consider changing this' },

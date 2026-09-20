@@ -3,20 +3,13 @@ import { describe, expect, test } from 'bun:test'
 import { fixture, launch, openFile, settle } from './helpers'
 import type { Harness } from './helpers'
 
-/**
- * Switching files reuses one textarea, so the gutter's cached paint must be
- * invalidated when the new text rewraps — these tests pin that. Every case
- * failed before the gutter was subscribed to 'line-info-change': the old
- * file's wrap layout stayed painted over the new file's lines.
- */
-
-/** Rows as [gutter number, line index] — content lines are all `line N`. */
+// Rows as [gutter number, line index].
 function numbered(t: Harness): Array<[number, number]> {
   return (
     t
       .captureCharFrame()
       .split('\n')
-      // Unanchored: the tree sits left of the gutter, so rows don't start with it.
+      // Unanchored: the tree sits left of the gutter.
       .map(row => /(\d+)\s+line (\d+)/.exec(row))
       .filter(match => match !== null)
       .map(match => [Number(match[1]), Number(match[2])] as [number, number])
@@ -33,12 +26,10 @@ async function open(t: Harness, name: string) {
   await openFile(t, name)
 }
 
-/** Every fifth line wraps, so the gutter has continuation rows to get wrong. */
 const wrapped = `${Array.from({ length: 40 }, (_, i) =>
   i % 5 === 0 ? `line ${i} ${'x'.repeat(120)}` : `line ${i}`,
 ).join('\n')}\n`
 
-/** Same line count as `wrapped`, so nothing else forces the gutter to repaint. */
 const plain = `${Array.from({ length: 40 }, (_, i) => `line ${i}`).join('\n')}\n`
 
 describe('line numbers after switching files', () => {

@@ -10,22 +10,14 @@ import type { CommitVariant } from './git'
 export type Focus = 'tree' | 'editor'
 
 export interface FileBuffer {
-  /** Always LF and never BOM-prefixed — see `TextEncoding` for why. */
+  // Always LF and never BOM-prefixed — see `TextEncoding`.
   content: string
-  /**
-   * The content this buffer was last in sync with disk at — what a load or a save
-   * put in `content`. `dirty` is `content !== saved`, so undoing back to the file's
-   * own text clears the mark rather than leaving a `●` over nothing to write.
-   */
   saved: string
   dirty: boolean
-  /** Disk mtime this buffer was last in sync with; used to detect outside edits. */
   mtime: number
-  /** What the file was spelled as on disk, restored by every write. */
   encoding: TextEncoding
 }
 
-/** Dirty buffers a disk sync refused to touch, split by what happened to the file. */
 export interface DiskSync {
   changed: string[]
   deleted: string[]
@@ -34,9 +26,7 @@ export interface DiskSync {
 export interface Conflict {
   path: string
   disk: string
-  /** How the disk version is spelled, so accepting it adopts that too. */
   encoding: TextEncoding
-  /** The file is gone: there is no outside version to accept. */
   deleted: boolean
 }
 
@@ -48,43 +38,28 @@ export type Prompt =
   | { kind: 'delete'; targets: string[] }
   | { kind: 'closeDirty'; paths: string[]; names: string[] }
   | { kind: 'quitDirty'; names: string[] }
-  /** `paths` null commits the index as it stands — what the panel's Space built. */
+  // `paths` null commits the index as it stands.
   | { kind: 'commit'; paths: string[] | null; variant: CommitVariant }
-  /** Rewrite the last commit; `subject` prefills the prompt with its message. */
   | { kind: 'commitAmend'; subject: string; repo: string }
-  /**
-   * Nothing is staged and the box's message is ready: VS Code's "commit all
-   * changes directly?" offer. The paths are resolved when the commit runs, so
-   * `count` is what the confirm shows, not what it commits.
-   */
   | { kind: 'commitAll'; message: string; variant: CommitVariant; repo: string; count: number }
   | { kind: 'undoCommit'; subject: string }
-  /** The Stashes… picker, then what to do with the one picked. */
   | { kind: 'stashPick'; repo: string; stashes: StashEntry[] }
   | { kind: 'stashAction'; repo: string; ref: string; message: string }
   | { kind: 'stashDrop'; repo: string; ref: string; message: string }
   | { kind: 'newTag'; repo: string }
   | { kind: 'tagDelete'; repo: string; tags: string[] }
-  /** Adding a remote asks the name first, then the URL — two prompts, one flow. */
   | { kind: 'remoteAddName'; repo: string }
   | { kind: 'remoteAddUrl'; repo: string; name: string }
   | { kind: 'remoteRemove'; repo: string; remotes: Remote[] }
   | { kind: 'remoteRemoveConfirm'; repo: string; name: string; url: string }
-  /** The active file's commits; picking one opens it in the commit page. */
   | { kind: 'fileHistory'; repo: string; commits: { oid: string; subject: string }[] }
   | { kind: 'discardChange'; target: DiscardTarget }
-  /** `from` is the branch to start at, or null for HEAD. */
+  // `from` null starts at HEAD.
   | { kind: 'newBranch'; from: string | null }
   | { kind: 'renameBranch'; from: string }
   | { kind: 'deleteBranch'; name: string; force: boolean }
   | { kind: 'mergeBranch'; name: string }
-  /** A push origin refused; `hasUpstream` is what the retry after the pull needs. */
   | { kind: 'pullPush'; branch: string; hasUpstream: boolean }
-  /**
-   * Replace across the project. `paths` is the set the confirm approved —
-   * data only, so the prompt handlers can run the apply without reaching
-   * into the panel that raised it.
-   */
   | {
       kind: 'replaceProject'
       query: string
@@ -93,24 +68,9 @@ export type Prompt =
       paths: string[]
       matches: number
       files: number
-      /** The active toggles, restated so the user confirms what will run. */
       flags: string
     }
-  /**
-   * A review note is being written. The kind is asked for first — a chooser,
-   * since the four read differently to an agent — and the text second, so the
-   * pair is two prompt kinds rather than one modal that does both.
-   */
   | { kind: 'reviewKind'; path: string; line: number; endLine: number }
-  /**
-   * Which side of the conflict at `line` to keep. A chooser rather than three
-   * chords: resolving is rare enough that three of the terminal's few remaining
-   * Ctrl+Opt letters would be spent on keys nobody has in their fingers, and the
-   * palette spells the three out for anyone who wants them bound.
-   *
-   * `ours` / `theirs` are the labels the markers carry, so the modal can say
-   * which branch each side is rather than "current" and "incoming".
-   */
   | { kind: 'mergeConflict'; line: number; ours: string; theirs: string }
   | {
       kind: 'reviewNote'
@@ -119,13 +79,7 @@ export type Prompt =
       endLine: number
       noteKind: NoteKind
     }
-  /**
-   * An answer to a remark. `parent` is the note it hangs off — the id and not
-   * the note, since the list may be rewritten by another writer while the
-   * prompt is open, and the id is what survives that.
-   */
   | { kind: 'reviewReply'; parent: string; heading: string }
-  /** A language server is missing and druk can fetch it; `id` is the server id. */
   | {
       kind: 'installServer'
       id: string
@@ -133,15 +87,7 @@ export type Prompt =
       install: FetchableInstall
       managers: PackageManager[]
     }
-  /** Delete druk's own copy of a server. `packages` is what goes with it. */
   | { kind: 'uninstallServer'; id: string; name: string; packages: string[] }
-  /**
-   * A market extension is worth installing. `why` is what raised it (a file whose
-   * language has no server, or a config naming a theme nothing registers), and
-   * `runs` names the commands the extension would have druk spawn — the one
-   * thing about a manifest that is not inert. Only ever a first install: an
-   * update of something already installed applies itself without a prompt.
-   */
   | {
       kind: 'installExtension'
       id: string
@@ -150,24 +96,13 @@ export type Prompt =
       why: string
       runs: string[]
     }
-  /**
-   * An extension that just landed contributes an appearance nothing is using.
-   * Installing one is not choosing it, and a theme sitting in a list nobody
-   * opens is a theme that was installed for nothing — so the offer follows the
-   * install. `choices` carries what a pick applies as `theme:<id>` /
-   * `icons:<id>`, and `more` counts what the modal had no rows for.
-   */
+  // A choice id is `theme:<id>` or `icons:<id>`; `more` counts what the modal had no rows for.
   | {
       kind: 'activateExtension'
       name: string
       choices: { id: string; label: string }[]
       more: number
     }
-  /**
-   * Delete an installed extension. `servers` names the language servers druk
-   * fetched for it, which go with it — the one part of an uninstall that reaches
-   * outside the extensions folder.
-   */
   | {
       kind: 'uninstallExtension'
       id: string
@@ -175,17 +110,8 @@ export type Prompt =
       servers: { id: string; name: string }[]
     }
   | { kind: 'workspacePick'; entries: WorkspaceEntry[] }
-  /**
-   * A new checkout of the repository. The branch name is all it asks for — the
-   * folder is derived from it (`worktreePath`), since a worktree nobody has to
-   * name a directory for is the whole point of having the command.
-   */
   | { kind: 'newWorktree'; repo: string }
-  /**
-   * The repository's checkouts. One list for both errands — `mode` is what Enter
-   * does with the one picked — so the rows are built and labelled once.
-   * `current` is the resolved path of the folder druk is open on.
-   */
+  // `current` is the resolved path (`resolvedPath`) of the open folder.
   | {
       kind: 'worktreePick'
       repo: string
@@ -194,9 +120,7 @@ export type Prompt =
       current: string
     }
   | { kind: 'worktreeRemove'; repo: string; path: string; branch: string | null }
-  /** A folder typed by hand. */
   | { kind: 'workspaceOpen' }
-  /** The quit prompt's question: the remount drops unsaved buffers. */
   | { kind: 'workspaceDirty'; dir: string; names: string[] }
   | null
 

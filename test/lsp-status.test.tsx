@@ -14,14 +14,11 @@ import {
   untilGone,
 } from './helpers'
 
-// druk ships no language servers: the specs these tests override live in the
-// market, so the extension that carries them has to be registered first.
 loadMarketExtensions()
 
 const FAKE = join(import.meta.dir, 'fixtures', 'fake-lsp.ts')
 const MARKER = join(import.meta.dir, 'fixtures', 'marker-lsp.ts')
 
-/** Diagnostics cross a process boundary; give the fake server room to start. */
 const LSP_WAIT = 15_000
 
 test('the status page shows a running server, its log, and closes on Esc', async () => {
@@ -33,7 +30,6 @@ test('the status page shows a running server, its log, and closes on Esc', async
     { openFile: join(dir, 'a.ts') },
   )
 
-  // Ready for sure: the diagnostic has crossed the wire before the page opens.
   await untilFrame(t, '● 1', LSP_WAIT)
   await runCommand(t, 'Language server status')
   await untilFrame(t, 'Language servers', LSP_WAIT)
@@ -42,7 +38,6 @@ test('the status page shows a running server, its log, and closes on Esc', async
   expect(frame).toContain('typescript · ready')
   expect(frame).toContain('1 open')
   expect(frame).toContain('fake-lsp')
-  // The three log sources: a lifecycle event, the document sync, and stderr.
   expect(frame).toContain('initialized — diagnostics published')
   expect(frame).toContain('opened a.ts')
   expect(frame).toContain('fake-lsp standing by')
@@ -70,7 +65,6 @@ test('a server that could not start shows as failed, with the reason', async () 
   expect(t.captureCharFrame()).toContain('typescript · failed — is not installed')
 }, 30_000)
 
-/** Lines in the marker file: one per spawn of the server. */
 const spawns = (marker: string) =>
   existsSync(marker) ? readFileSync(marker, 'utf8').trim().split('\n').length : 0
 
@@ -108,8 +102,6 @@ test('d on the page refuses to remove a server druk did not install', async () =
   await untilFrame(t, 'Language servers', LSP_WAIT)
 
   await press(t, input => input.pressKey('d'))
-  // No confirm, because there is nothing of druk's to delete: this command was
-  // overridden onto a fixture, and one on PATH or in the project is the user's.
   const frame = t.captureCharFrame()
   expect(frame).not.toContain('Remove language server')
   expect(frame).toContain('druk did not install it')

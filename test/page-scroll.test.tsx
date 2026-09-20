@@ -8,7 +8,6 @@ const long = `${Array.from({ length: 200 }, (_, index) => `line ${index}`).join(
 const PAGE_UP = '\u001B[5~'
 const PAGE_DOWN = '\u001B[6~'
 
-/** The lines the editor shows, top to bottom. */
 const shown = (t: Harness) =>
   t
     .captureCharFrame()
@@ -29,7 +28,6 @@ describe('page keys scroll the editor', () => {
 
     await press(t, i => void i.pressKeys([PAGE_DOWN]))
     const top = first(t)
-    // A page, less the row of overlap every pager keeps.
     expect(Number(top.slice(5))).toBeGreaterThan(10)
     expect(shown(t)).toContain(top)
 
@@ -42,7 +40,7 @@ describe('page keys scroll the editor', () => {
     expect(first(t)).toBe('line 0')
   })
 
-  test('Ctrl+D and Ctrl+U page the same way, for keyboards with no page keys', async () => {
+  test('Ctrl+D pages down, for keyboards with no page keys — Ctrl+U does not page back', async () => {
     const t = await launch(fixture({ 'big.ts': long }))
     await open(t)
 
@@ -50,20 +48,23 @@ describe('page keys scroll the editor', () => {
     const top = first(t)
     expect(top).not.toBe('line 0')
 
+    // Ctrl+U is the buffer's delete-to-line-start: a Mac sends it for Cmd+Backspace.
     await press(t, i => i.pressKey('u', { ctrl: true }))
+    expect(first(t)).toBe(top)
+
+    await press(t, i => void i.pressKeys([PAGE_UP]))
     expect(first(t)).toBe('line 0')
   })
 
-  test('neither key edits the buffer', async () => {
+  test('paging does not edit the buffer', async () => {
     const t = await launch(fixture({ 'big.ts': long }))
     await open(t)
 
     await press(t, i => i.pressKey('d', { ctrl: true }))
-    await press(t, i => i.pressKey('u', { ctrl: true }))
-    await press(t, i => void i.pressKeys([PAGE_DOWN, PAGE_UP]))
+    await press(t, i => void i.pressKeys([PAGE_DOWN, PAGE_UP, PAGE_UP]))
 
     expect(shown(t)[0]).toBe('line 0')
-    expect(t.captureCharFrame()).not.toContain('●') // no unsaved-change marker
+    expect(t.captureCharFrame()).not.toContain('●')
   })
 
   test('paging stops at the end of the file instead of scrolling past it', async () => {

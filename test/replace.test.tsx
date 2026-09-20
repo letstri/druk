@@ -36,7 +36,6 @@ test('replaceMatch refuses a match whose line has moved on', () => {
   expect(replaceMatch('edited since\n', stale, 'new')).toBeNull()
 })
 
-/** Open the fixture's only file, then find `query` with the replacement typed in. */
 async function openReplace(dir: string, query: string, replacement: string) {
   const t = await launch(dir)
   await press(t, i => i.pressArrow('down'))
@@ -44,7 +43,7 @@ async function openReplace(dir: string, query: string, replacement: string) {
 
   await press(t, i => i.pressKey('f', { ctrl: true }))
   await press(t, i => void i.typeText(query))
-  await press(t, i => i.pressTab()) // switch to the replacement field
+  await press(t, i => i.pressTab())
   await press(t, i => void i.typeText(replacement))
   return t
 }
@@ -54,12 +53,9 @@ test('the replacement is shown against each hit as it is typed', async () => {
   const t = await openReplace(dir, 'old', 'fresh')
   await settle(t)
 
-  // Every row reads as the line will read: the hit, struck through, then what
-  // replaces it. Colour and strikethrough are not in a char frame; the text is.
   const frame = t.captureCharFrame()
   expect(frame).toContain('const oldfresh = 1')
   expect(frame).toContain('const oldfresh2 = old + 1')
-  // Nothing is written until Enter — the file on disk is untouched.
   expect(readFileSync(join(dir, 'a.ts'), 'utf8')).toBe('const old = 1\nconst old2 = old + 1\n')
 })
 
@@ -87,7 +83,6 @@ test('Enter replaces only the selected match, leaving the rest', async () => {
   const t = await openReplace(dir, 'old', 'fresh')
 
   await press(t, i => i.pressEnter())
-  // The panel stays open after a single replace, and it owns the keyboard.
   await pressEscape(t)
   await press(t, i => i.pressKey('s', { ctrl: true }))
 

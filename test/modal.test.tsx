@@ -10,7 +10,6 @@ const PROJECT = { 'src/alpha.ts': 'const capture = 1\n', 'src/beta.ts': '// capt
 const hex = (buf?: { buffer: Uint8Array }) =>
   buf ? Array.from(buf.buffer.slice(0, 3), v => v.toString(16).padStart(2, '0')).join('') : ''
 
-/** Colour of a piece of text behind the modal, to prove the scrim dims it. */
 function fgOf(t: Harness, needle: string): string {
   const cap = t.captureSpans() as unknown as {
     lines: { spans: { text: string; fg?: { buffer: Uint8Array } }[] }[]
@@ -22,11 +21,6 @@ function fgOf(t: Harness, needle: string): string {
   return ''
 }
 
-/**
- * Every row that is part of the modal's border box. Two verticals, not one: the
- * sidebar's drag handle is a `│` down every row of the screen, and a modal row is
- * the only one with a side on each end.
- */
 const bordered = (t: Harness) =>
   t
     .captureCharFrame()
@@ -36,13 +30,11 @@ const bordered = (t: Harness) =>
 describe('modalWidth', () => {
   test('follows the terminal between its bounds', () => {
     expect(modalWidth(200, 0.5, 60, 120)).toBe(100)
-    expect(modalWidth(300, 0.5, 60, 120)).toBe(120) // capped
-    expect(modalWidth(80, 0.5, 60, 120)).toBe(60) // floored
+    expect(modalWidth(300, 0.5, 60, 120)).toBe(120)
+    expect(modalWidth(80, 0.5, 60, 120)).toBe(60)
   })
 
   test('never draws wider than the screen, whatever the minimum says', () => {
-    // A modal wider than the terminal loses the side of its own border, so the
-    // terminal has the last word — this is the one clamp that cannot be overridden.
     expect(modalWidth(60, 0.86, 64, 160)).toBeLessThanOrEqual(58)
     expect(modalWidth(30, 0.9, 72, 160)).toBeLessThanOrEqual(28)
   })
@@ -83,9 +75,7 @@ describe('an open modal', () => {
     await settle(t)
     const behind = fgOf(t, 'EXPLORER')
 
-    // Still on screen — the scrim composites rather than painting over.
     expect(t.captureCharFrame()).toContain('EXPLORER')
-    // …and visibly darker than it was.
     expect(behind).not.toBe(before)
     expect(Number.parseInt(behind, 16)).toBeLessThan(Number.parseInt(before, 16))
   })
@@ -98,7 +88,6 @@ describe('an open modal', () => {
 
     const rows = bordered(t)
     expect(rows.length).toBeGreaterThan(3)
-    // Both sides of every row are drawn, so the box is whole.
     for (const row of rows) expect(row.trimEnd().length).toBeLessThanOrEqual(60)
     expect(rows.every(row => /[│╭╰].*[│╮╯]/.test(row))).toBe(true)
   })

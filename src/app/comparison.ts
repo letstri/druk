@@ -24,7 +24,6 @@ import type { Status } from './status'
 export type ComparisonListMode = 'files' | 'commits'
 export type ComparisonLoadState = 'idle' | 'loading' | 'ready' | 'empty' | 'error'
 
-/** Insert, dropping the oldest entry once the cache is over `limit`. */
 function remember<K, V>(cache: Map<K, V>, key: K, value: V, limit: number) {
   cache.set(key, value)
   if (cache.size > limit) cache.delete(cache.keys().next().value!)
@@ -32,7 +31,6 @@ function remember<K, V>(cache: Map<K, V>, key: K, value: V, limit: number) {
 
 const contentKey = (file: ComparisonFile) => `${file.oldOid ?? ''}:${file.newOid ?? ''}`
 
-/** Read-only branch comparison state, independent from working-tree git state. */
 export function createComparison(deps: { rootDir: string; git: Git; status: Status }) {
   const { rootDir, git, status } = deps
   const [active, setActive] = createSignal(false)
@@ -51,11 +49,7 @@ export function createComparison(deps: { rootDir: string; git: Git; status: Stat
   const [selectedContent, setSelectedContent] = createSignal<ComparisonContent | null>(null)
   const [detailFileCursor, setDetailFileCursor] = createSignal(0)
 
-  /**
-   * Repository the open comparison is of, pinned when it opens: the active one
-   * can move under it — a click in the source-control panel is enough — and every
-   * oid, path and cached blob here belongs to the repository it was resolved in.
-   */
+  // Pinned when the comparison opens: the active repository can move under it.
   let repoDir = rootDir
 
   const comparisons = new Map<string, BranchComparison>()
@@ -139,8 +133,6 @@ export function createComparison(deps: { rootDir: string; git: Git; status: Stat
     const repo = git.activeRepo()
     if (repo === null) return fail(noRepository(git))
     repoDir = repo
-    // The editor-wide comparison base, when one is set, is the branch the user
-    // has already said they are working against.
     const base = chosenBase() ?? git.diffBase() ?? defaultBranch(repoDir)
     if (base) {
       void load(base)
@@ -283,8 +275,7 @@ export function createComparison(deps: { rootDir: string; git: Git; status: Stat
     })()
   }
 
-  /** A detail page is up. A commit with an empty first-parent diff has no file,
-   * and still owns the editor slot and Esc. */
+  // A commit with an empty diff has no file and still owns the editor slot and Esc.
   const detailOpen = () => selectedFile() !== null || selectedCommit() !== null
 
   return {

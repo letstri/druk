@@ -8,12 +8,11 @@ import type { Harness } from './helpers'
 import { initRepo } from './repo'
 
 const ESC = String.fromCharCode(27)
-/** Ctrl+Opt+G as terminals spell it: an ESC prefix ahead of Ctrl+G (0x07). */
+// Ctrl+Opt+G as terminals spell it: an ESC prefix ahead of Ctrl+G (0x07).
 const TOGGLE = `${ESC}${String.fromCharCode(7)}`
 
 const git = (cwd: string, ...args: string[]) => execFileSync('git', args, { cwd })
 
-/** A repository mid-merge: `a.ts` edited on both sides of the fork, left UU. */
 function conflicted() {
   const dir = fixture({ 'a.ts': 'shared\n', 'b.ts': 'beta\n' })
   initRepo(dir)
@@ -31,7 +30,7 @@ function conflicted() {
   try {
     git(dir, 'merge', 'side')
   } catch {
-    // The conflict is the point.
+    // The merge is meant to fail: that is the state under test.
   }
   return dir
 }
@@ -49,7 +48,6 @@ test('a conflicted path sits alone under Merge Changes', async () => {
   await untilFrame(t, 'Merge Changes')
   const shown = frame(t)
   expect(shown).toContain('a.ts')
-  // One row, one heading: the conflict is not also a staged or unstaged change.
   expect(shown).not.toContain('Staged Changes')
 })
 
@@ -60,7 +58,7 @@ test('Space on a merge row stages it — the resolve moves it to Staged Changes'
   await press(t, i => void i.pressKeys([TOGGLE]))
   await untilFrame(t, 'Merge Changes')
 
-  await press(t, i => i.pressArrow('down')) // onto the file row
+  await press(t, i => i.pressArrow('down'))
   await press(t, i => void i.typeText(' '))
   await until(t, () => porcelain(dir).startsWith('M  a.ts'))
   await untilFrame(t, 'Staged Changes')
@@ -76,7 +74,5 @@ test('Enter opens a conflicted file at its first conflict marker', async () => {
   await press(t, i => i.pressArrow('down'))
   await press(t, i => i.pressEnter())
   await untilFrame(t, '<<<<<<<')
-  // The status bar's line number should be the marker's, not line 1 — the
-  // marker is the first line here, so the frame carrying it is enough.
   expect(frame(t)).toContain('main version')
 })

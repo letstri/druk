@@ -20,7 +20,6 @@ test('↑ walks back from the draft, ↓ walks out to it again', () => {
 
 test('a key with nowhere to go leaves the field alone', () => {
   expect(stepHistory([], -1, 1, 'typing', '')).toBeNull()
-  // Already on the draft: ↓ is not a way to clear the box.
   expect(stepHistory(past, -1, -1, 'typing', '')).toBeNull()
   expect(stepHistory(past, 2, 1, 'oldest', 'typing')).toBeNull()
 })
