@@ -123,7 +123,7 @@ export async function runUpgrade(
         : ['', '']
       return { code: await child.exited, output: `${out}${err}` }
     }
-    const { code, output } = live ? await withSpinner(write, command, run) : await run()
+    const { code, output } = live ? await withSpinner(write, 'Updating', run) : await run()
     if (code === 0) {
       if (live) write('✓ Updated.\n')
     } else {
