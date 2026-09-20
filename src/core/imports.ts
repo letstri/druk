@@ -228,3 +228,16 @@ export function resolveImportPath(spec: string, fromDir: string, rootDir: string
   }
   return null
 }
+
+const SPECIFIER_LINE = /\b(?:import|require|export|from)\b/
+
+/**
+ * Whether `goto.file` has anything to follow here — the footer's cue, so no disk access:
+ * a bare specifier (`'bun'`) resolves through the language server and cannot be checked.
+ */
+export function hasPathAt(lineText: string, col: number): boolean {
+  const token = pathTokenAt(lineText, col)
+  if (!token || /\s/.test(token)) return false
+  if (token.includes('/') || token.includes('\\')) return true
+  return quotedAt(lineText, col) !== null && SPECIFIER_LINE.test(lineText)
+}

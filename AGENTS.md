@@ -239,8 +239,9 @@ with the other three and Esc leaves it the way the others are left — for readi
 code with the remarks beside it: `Ctrl+Opt+A` drops a note on the line or selection under
 the cursor (issue / suggestion / question / note, each spelled out in the palette as
 well as behind the chooser), the notes show as `◆` in the gutter and after the line
-(`reviewInline`, with the panel's chord after a remark the row was too narrow for —
-the same "name the key where the text ran out" rule the diagnostics follow); a remark is
+(`reviewInline`, with the panel's chord after a remark on the caret's row —
+the same "name the key on the line being read" rule the diagnostics follow, the chord
+being taken out of the text only where the row had already cut it); a remark is
 answered with `r` in the panel (palette → Review → Reply), which makes the two a thread —
 an answer is a *note of its own* carrying the other's id in `parent`, never a field on
 the note it answers, which is what keeps a conversation append-only and so safe for two
@@ -340,11 +341,14 @@ server appends its advice to the same sentence (`help:`, `note:`, a second
 paragraph) and that half is the longer one, so the row carries `headline()`'s
 part of it and an ellipsis where there is more; the rest of it is under the
 *caret's* line, in a bordered card (`problemCard` in `src/ui/EditorPane.tsx`) —
-the whole message wrapped to the pane, taking as many rows as it needs up to half
+the whole message wrapped to the pane but never past `CARD_COLUMNS`, a line of
+prose being unreadable at the width of a wide terminal, taking as many rows as it needs up to half
 of one, since a server's sentence runs to twenty rows as easily as two and this
-is the surface that has to hold the whole of it — drawn only where
-the row was cut, so a message the line said in full is never said twice, and
-suppressing the row's own note while it is up. That is what a terminal has
+is the surface that has to hold the whole of it — drawn on the caret's line
+whatever the message's length, the row's own note being suppressed while it is
+up, so the line being read says it once and says it whole (the inline note is
+what the *other* lines get; the card falls back to it where the pane is too
+short or too narrow for one). That is what a terminal has
 instead of a hover, and it is the caret's line alone: a card under every problem
 in the file would leave no code on screen. Unlike the review card it *covers* the
 rows under it rather than opening a gap — a gap is rows the file does not have,
@@ -858,7 +862,7 @@ dependency rule, and recipes for the extension points:
 | editor-slot page | a `PageKind` in `src/app/workspace.ts`, a `Show` in `App.tsx` over the editor column (zIndex 60) keyed on `workspace.page()`, and a view that takes `width` / `focused` / `blocked` / `onClose` — Settings, LSP status, all-changes (`ChangesView`, whose `ChangeSection` the controller imports), and the commit and comparison detail pages. A page is a **tab**: its id is `druk://<kind>` (`pageId`/`pageKindOf`), it sits in `views()` beside the file paths, and one kind is one tab — `openPage` lands on the one already open, `closePage` closes it. `page()` is the kind the *active* tab names; `pageOpen(kind)` whether its tab exists at all, which is what a refresh asks — a page keeps its state while another tab is read. A page owning state outside the workspace registers `workspace.onPageClose(kind, …)` so closing the tab tears it down, and `App.tsx` mirrors the other way with an effect, so a view that closes itself takes its tab with it. `activePath()` deliberately keeps naming the file *under* the page, so landing on a page tab leaves the editor's buffer, cursor, vim mode and undo stack alone |
 | command | `src/app/commands.ts` + bind it in `src/app/actions.ts`; the implementation goes in the controller that owns the state (`workspace.ts`, `fileOps.ts`, `git.ts`, …). `withKeymap` (`commands.ts`) lays the keymap over the built tree: a rebound command's palette `hint` is replaced by the user's own chord, and every leaf run from the palette names its key in the status bar (`keyTip` in `src/ui/keys.ts`) — so a hand-written `hint` only has to be right for the defaults |
 | keybinding | a row in `BINDABLE` (`src/app/keymap.ts`) plus a handler under the same id in `src/app/keyboard.ts` — or, for an editor-only key, `src/ui/EditorPane.tsx` — advertised in `src/ui/keys.ts` (feeds the footer hints, help overlay, Ctrl+K peek and the welcome screen), with the row's `ids` naming the commands it spells out |
-| footer hint | `hint` on the key's row in `src/ui/keys.ts`, scoped to any `KeyScope` — or, for a panel letter the help table lists as one combined row, an entry in `PANEL_HINTS` there. Ranked, and the footer cuts from the tail, so a hint's rank is its survival on a narrow terminal. The status bar reads `panes.keyPane()`, so a panel's hints replace the tree's while it shows |
+| footer hint | `hint` on the key's row in `src/ui/keys.ts`, scoped to any `KeyScope` — or, for a panel letter the help table lists as one combined row, an entry in `PANEL_HINTS` there. Ranked, and the footer cuts from the tail, so a hint's rank is its survival on a narrow terminal. The status bar reads `panes.keyPane()`, so a panel's hints replace the tree's while it shows. One that depends on where the caret is goes through `hintsFor`'s `extra` argument instead, built in `StatusBar` from `chordFor` so a rebind renames it: `goto.file` is offered only while `hasPathAt` (`src/core/imports.ts`) says the cursor is on a path or a module specifier — a syntactic check, since a bare `'bun'` resolves through the language server and nothing on disk can be asked about it per keystroke |
 | git error message | a row in `KNOWN` in `src/core/git.ts`, with the git output it matches pinned in `test/git.test.tsx` |
 | workspace-switcher entry | `workspaceEntries` in `src/core/workspaces.ts` — every path there is `resolvedPath`'d, since `git worktree list` prints the symlink-resolved spelling (`/private/var/…`) and the folder druk was opened with is the other one, and without that the workspace you are in is listed twice and marked current neither time. `src/app/workspaces.ts` is the offer and the checks; the *switch* is `Root.tsx`, which remounts `<App/>` — nothing may try to move an existing controller onto another `rootDir` |
 | terminal progress | the one status slot (`src/app/status.ts`) — a git mutation, bulk file op or install occupies it. A background operation takes it with `claimBusy`, which hands back the release and refuses to hand back anything else: an install that finds the slot taken runs without it rather than clearing a bulk delete's counter, since that would idle the bar mid-rewrite *and* reopen `whileFree` for a second op. `setBusy` is for updating a count already claimed. `reportProgress` (`src/core/progress.ts`) writes OSC 9;4 so Ghostty, WezTerm, iTerm2, kitty, Windows Terminal and recent VTE draw their own loader; an unsupported terminal is a no-op, and an exit hook puts the indicator out where `onCleanup` never runs |

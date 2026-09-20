@@ -65,11 +65,7 @@ test('diagnostics reach the status bar, the problems list, and next-problem', as
   await untilFrame(t, '● 1', LSP_WAIT)
 
   await untilFrame(t, 'found oops', LSP_WAIT)
-  const row = t
-    .captureCharFrame()
-    .split('\n')
-    .find(line => line.includes('oopsconst'))
-  expect(row).toContain('found oops')
+  expect(t.captureCharFrame()).toContain('● error')
 
   await runCommand(t, 'List problems')
   await untilFrame(t, 'found oops', LSP_WAIT)
@@ -182,6 +178,34 @@ test('advice the row drops opens the card even where the whole message would fit
   const framed = t.captureCharFrame()
   expect(framed).toContain('● error')
   expect(framed.split('\n').find(line => line.includes('tipconst'))).not.toContain('short gripe')
+}, 30_000)
+
+test('a short message is a card on the caret line and a note on every other', async () => {
+  const dir = fixture({ 'a.ts': 'const a = 1\nconst b = 2\n' })
+  const t = await launch(
+    dir,
+    { lsp: true, lspServers: { typescript: [process.execPath, FAKE], eslint: [], oxlint: [] } },
+    { width: 120, height: 24 },
+    { openFile: join(dir, 'a.ts') },
+  )
+
+  await press(t, input => void input.typeText('oops'))
+  await untilFrame(t, '● error', LSP_WAIT)
+  expect(
+    t
+      .captureCharFrame()
+      .split('\n')
+      .find(line => line.includes('oopsconst')),
+  ).not.toContain('found oops')
+
+  await press(t, input => input.pressArrow('down'))
+  await untilGone(t, '● error')
+  expect(
+    t
+      .captureCharFrame()
+      .split('\n')
+      .find(line => line.includes('oopsconst')),
+  ).toContain('found oops')
 }, 30_000)
 
 test('a message longer than the cards used to hold is on screen whole', async () => {
@@ -308,6 +332,9 @@ test('a folded line with a diagnostic on it says both, one after the other', asy
   await untilFrame(t, 'found oops', LSP_WAIT)
   await runCommand(t, 'Fold block at cursor')
   await untilFrame(t, '⋯ 1 line', LSP_WAIT)
+  // The caret's own line wears the card instead of the note.
+  await press(t, input => input.pressArrow('down'))
+  await untilFrame(t, 'found oops', LSP_WAIT)
 
   const row = t
     .captureCharFrame()
@@ -384,6 +411,10 @@ test('a span crossing lines is marked on every line it covers', async () => {
       .filter(Boolean)
   }
 
+  // Off the span's first line: the card under the caret would cover the rows below it.
+  await press(t, input => input.pressArrow('down'))
+  await press(t, input => input.pressArrow('down'))
+  await press(t, input => input.pressArrow('down'))
   await until(t, () => struck().length > 1, LSP_WAIT)
   expect(struck().join(' ')).toBe('sprawl = { a: 1, }')
 }, 30_000)

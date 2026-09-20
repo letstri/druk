@@ -9,6 +9,7 @@ import { loadProjectConfig, resolveConfig } from '../core/config'
 import type { Config } from '../core/config'
 import { watchGitRefs, watchTree } from '../core/fs'
 import { isImagePath } from '../core/image'
+import { hasPathAt } from '../core/imports'
 import { isMarkdownPath } from '../core/markdown'
 import { reportProgress } from '../core/progress'
 import { watchNotes } from '../core/review'
@@ -351,6 +352,14 @@ export function App(props: {
     }
     return worst
   }
+
+  const pathUnderCursor = createMemo(() => {
+    const path = workspace.activePath()
+    if (!path || activeImage() || workspace.renderedPath()) return false
+    const at = editor.cursor()
+    const line = workspace.buffers[path]?.content.split('\n')[at.line]
+    return line !== undefined && hasPathAt(line, at.col)
+  })
 
   const problemCounts = createMemo(() => {
     const path = workspace.activePath()
@@ -905,6 +914,7 @@ export function App(props: {
         changed={git.gitStatus().size}
         problems={problemCounts()}
         focus={panes.keyPane()}
+        pathUnderCursor={panes.keyPane() === 'editor' && pathUnderCursor()}
         busy={status.busy()}
         onBranch={actions.gitSwitchBranch}
         onSync={actions.gitSync}

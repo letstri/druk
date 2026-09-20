@@ -7,7 +7,7 @@ import type { VimMode } from '../editor/vim'
 import { ui } from '../themes'
 import { useHover } from './hover'
 import type { Hint, KeyScope } from './keys'
-import { hintsFor } from './keys'
+import { chordFor, hintsFor } from './keys'
 import { SEVERITY_GLYPH } from './severity'
 import { cut } from './text'
 import { useTooltip } from './tooltip'
@@ -28,6 +28,7 @@ export interface StatusBarProps {
   changed: number
   problems?: { errors: number; warnings: number }
   focus: KeyScope
+  pathUnderCursor: boolean
   busy: { label: string; done?: number; total?: number } | null
   onBranch: () => void
   onSync: () => void
@@ -157,11 +158,17 @@ export function StatusBar(props: StatusBarProps) {
 
   const budget = createMemo(() => dimensions().width - fixedWidth() - groupWidth(messageText()) - 3)
 
+  // Rebindable, so the chord is asked for rather than spelled.
+  const contextual = (): Hint[] => {
+    const key = props.pathUnderCursor ? chordFor('goto.file') : ''
+    return key ? [{ key, label: 'open path', id: 'goto.file', rank: 2 }] : []
+  }
+
   const hints = createMemo(() => {
     const room = budget()
     const shown: Hint[] = []
     let used = 0
-    for (const hint of hintsFor(props.focus)) {
+    for (const hint of hintsFor(props.focus, contextual())) {
       const width = hint.key.length + 1 + hint.label.length + SEPARATOR.length
       if (used + width > room) break
       shown.push(hint)

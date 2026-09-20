@@ -3,7 +3,8 @@ import { execFileSync } from 'node:child_process'
 import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-import { fixture, launch, openPalette, press, runCommand, until } from './helpers'
+import { ALT } from '../src/ui/keys'
+import { fixture, launch, openPalette, press, pressTimes, runCommand, until } from './helpers'
 import type { Harness } from './helpers'
 import { initRepo } from './repo'
 import { tempDir } from './temp'
@@ -37,6 +38,17 @@ test('the source-control panel brings its keys into the footer', async () => {
   await until(t, () => bar(t).includes('Space stage'))
   expect(bar(t)).toContain('c commit')
 })
+
+test('the footer offers to follow the specifier the cursor is on', async () => {
+  const dir = fixture({ 'a.ts': "import 'bun'\n" })
+  const t = await launch(dir, {}, { width: 120 }, { openFile: join(dir, 'a.ts') })
+
+  await until(t, () => bar(t).includes('Ctrl+F find'))
+  expect(bar(t)).not.toContain('open path')
+
+  await pressTimes(t, 10, input => input.pressArrow('right'))
+  await until(t, () => bar(t).includes(`Ctrl+${ALT}+O open path`))
+}, 15_000)
 
 test('a rebound command shows its new chord in the palette', async () => {
   const t = await launch(fixture(PROJECT), { keybindings: { save: 'Ctrl+J' } })

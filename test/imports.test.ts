@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { join } from 'node:path'
 
-import { pathTokenAt, resolveImportPath } from '../src/core/imports'
+import { hasPathAt, pathTokenAt, resolveImportPath } from '../src/core/imports'
 import { normalizeDefinition } from '../src/lsp/definition'
 import { fixture } from './helpers'
 
@@ -21,6 +21,19 @@ describe('the token under the cursor', () => {
   test('nothing under the cursor is nothing', () => {
     expect(pathTokenAt('   ', 1)).toBeNull()
     expect(pathTokenAt('', 0)).toBeNull()
+  })
+})
+
+describe('whether the footer offers to follow it', () => {
+  test('a bare specifier counts on an import line, a plain string does not', () => {
+    expect(hasPathAt("import { a } from 'bun'", 20)).toBe(true)
+    expect(hasPathAt("say('warn')", 6)).toBe(false)
+  })
+
+  test('a path counts wherever it sits, a word never does', () => {
+    expect(hasPathAt('see src/core/fs.ts for the guard.', 8)).toBe(true)
+    expect(hasPathAt('const a = 1', 2)).toBe(false)
+    expect(hasPathAt("import { a } from 'bun'", 2)).toBe(false)
   })
 })
 

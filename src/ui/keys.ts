@@ -430,7 +430,7 @@ const PANEL_HINTS: (Hint & { pane: KeyScope })[] = [
   { pane: 'extensions', key: 'u', label: 'update', rank: 4 },
 ]
 
-export function hintsFor(pane: KeyScope): Hint[] {
+export function hintsFor(pane: KeyScope, extra: Hint[] = []): Hint[] {
   const fromTable = entries()
     .filter(info => info.hint && (info.hint.pane === pane || info.hint.pane === 'all'))
     .map(info => ({
@@ -439,7 +439,7 @@ export function hintsFor(pane: KeyScope): Hint[] {
       id: info.ids?.[0],
       rank: info.hint!.rank,
     }))
-  return [...fromTable, ...PANEL_HINTS.filter(hint => hint.pane === pane)].toSorted(
+  return [...fromTable, ...PANEL_HINTS.filter(hint => hint.pane === pane), ...extra].toSorted(
     (a, b) => a.rank - b.rank,
   )
 }

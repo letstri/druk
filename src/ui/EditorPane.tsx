@@ -251,6 +251,7 @@ interface ScrollEvent {
 }
 
 // OpenTUI has no double-click event; counted from consecutive downs.
+const CARD_COLUMNS = 100
 const DOUBLE_CLICK_MS = 400
 /** How long a jump's landing row stays tinted. */
 const FLASH_MS = 1000
@@ -562,12 +563,10 @@ export function EditorPane(props: EditorPaneProps) {
     const problem = displayProblems().get(cursorRow())
     const span = rowSpan(cursorRow())
     if (!problem || !span) return null
-    const room = host.width - 4
+    const width = Math.min(host.width, CARD_COLUMNS)
+    const room = width - 4
     if (room < 12) return null
     const flat = problem.message.replaceAll(/\s+/g, ' ').trim()
-    const noteLeft = el.x - host.x + 1 + (lineLayout().widths[span.last] ?? 0) + 2
-    // The row draws `headline()`, not the message: advice it dropped is cut however wide the pane.
-    if (!headline(problem.message).more && flat.length <= host.width - noteLeft - 2) return null
 
     const top = viewTop()
     const height = viewHeight() || el.height
@@ -588,7 +587,7 @@ export function EditorPane(props: EditorPaneProps) {
       // Buffer row, as `displayProblems` keys its marks.
       row: cursorRow(),
       top: el.y - host.y + (below >= rows ? span.last + 1 : span.first - rows) - top,
-      width: host.width,
+      width,
       color: SEVERITY_COLOR[problem.severity](),
       heading: ` ${SEVERITY_GLYPH[problem.severity]} ${problem.severity} `,
       lines,
@@ -707,10 +706,12 @@ export function EditorPane(props: EditorPaneProps) {
       const room = slot.room - (left - slot.left)
       if (room < 8) continue
       const flat = note.text.replaceAll(/\s+/g, ' ')
+      // A message the row said in full keeps it: the hint is only taken out of the text where it was cut.
+      const cutAway = note.more || flat.length > room
       const hint =
         note.chord &&
         row === cursorRow() &&
-        (note.more || flat.length > room) &&
+        (cutAway || flat.length + note.chord.length + 1 <= room) &&
         room - note.chord.length > 12
           ? ` ${note.chord}`
           : ''
