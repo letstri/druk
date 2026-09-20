@@ -77,7 +77,7 @@ test('Backspace drops an override and the user value comes back', async () => {
   const dir = project({ tabSize: 8 })
   const t = await launch(dir)
   await runCommand(t, 'Settings: this project')
-  await down(t, 13)
+  await down(t, 14)
   expect(rowOf(t, 'Tab size').endsWith('8')).toBe(true)
   await press(t, i => i.pressBackspace())
   expect(rowOf(t, 'Tab size').endsWith('2')).toBe(true)

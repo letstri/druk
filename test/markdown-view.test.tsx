@@ -80,3 +80,18 @@ test('a file that is not markdown says so instead of rendering', async () => {
   await until(t, () => frame(t).includes('Not a markdown file'))
   expect(frame(t)).toContain('const a = 1')
 })
+
+test('markdownPreview opens a markdown file rendered, and the toggle still reaches the source', async () => {
+  const t = await launch(fixture({ 'doc.md': DOC, 'a.ts': 'const a = 1\n' }), {
+    markdownPreview: true,
+  })
+  await openFile(t, 'doc.md')
+  await until(t, () => frame(t).includes('Title'))
+  expect(frame(t)).not.toContain('# Title')
+
+  await runCommand(t, 'Markdown: rendered')
+  await until(t, () => frame(t).includes('# Title'))
+
+  await openFile(t, 'a.ts')
+  await until(t, () => frame(t).includes('const a = 1'))
+})

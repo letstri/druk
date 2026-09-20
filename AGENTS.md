@@ -353,7 +353,9 @@ than under it, and re-placed when the modal goes), a rendered view for markdown 
 `<markdown>` renderable over the editor slot, per path so each tab keeps the view it
 was left in, rendering the buffer rather than the file so unsaved edits show, and reached
 from a `¶ preview` / `¶ source` button at the right of the tab strip that is drawn only
-while a markdown tab is up — the command alone is one nobody finds), mermaid fences drawn
+while a markdown tab is up — the command alone is one nobody finds; `markdownPreview`,
+settings → Editor → Open markdown rendered, makes that the state a `.md` tab opens in,
+restored tabs included, and the toggle still reaches the source), mermaid fences drawn
 as diagrams in that view rather than printed as source (flowcharts, state, class and ER
 through one layered graph engine; sequence diagrams and pie charts of their own; anything
 else — gantt, mindmap, timeline — falls back to the fenced source), themes that follow the OS light/dark appearance (`themeSync`, on by default, with

@@ -547,6 +547,9 @@ export function createSettings(deps: {
     },
     boolRow('Editor', 'wrap', 'Word wrap'),
     boolRow('Editor', 'scrollPastEnd', 'Scroll past end'),
+    boolRow('Editor', 'markdownPreview', 'Open markdown rendered', on =>
+      on ? 'Markdown opens rendered' : 'Markdown opens as source',
+    ),
     {
       section: 'Editor',
       key: 'tabSize',

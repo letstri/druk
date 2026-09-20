@@ -142,7 +142,9 @@ export function createWorkspace(deps: {
     return file && views().includes(file) ? file : null
   })
   const [previewPath, setPreviewPath] = createSignal<string | null>(null)
-  const [renderedPaths, setRenderedPaths] = createSignal<string[]>([])
+  const [renderedPaths, setRenderedPaths] = createSignal<string[]>(
+    config.markdownPreview ? restored.tabs.filter(isMarkdownPath) : [],
+  )
   const page = () => {
     const view = activeView()
     return view ? pageKindOf(view) : null
@@ -187,6 +189,7 @@ export function createWorkspace(deps: {
         return
       }
     }
+    const fresh = !views().includes(path)
     setViews(prev => {
       if (prev.includes(path)) return prev
       const slot = previewPath() ? prev.indexOf(previewPath()!) : -1
@@ -195,10 +198,16 @@ export function createWorkspace(deps: {
     })
     if (preview) {
       const previous = previewPath()
-      if (previous && previous !== path) discardBuffer(previous)
+      if (previous && previous !== path) {
+        discardBuffer(previous)
+        setRenderedPaths(prev => prev.filter(p => p !== previous))
+      }
       setPreviewPath(path)
     } else if (previewPath() === path) {
       setPreviewPath(null)
+    }
+    if (fresh && config.markdownPreview && isMarkdownPath(path)) {
+      setRenderedPaths(prev => [...prev, path])
     }
     tree.reveal(path)
     tree.setSelectedPath(path)

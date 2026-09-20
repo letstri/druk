@@ -229,7 +229,7 @@ test('a message longer than the cards used to hold is on screen whole', async ()
 test('the settings page shows the LSP rows and the master toggle flips', async () => {
   const dir = fixture({ 'a.ts': 'const a = 1\n' })
   // Tall: the page windows its rows and the server rows are last.
-  const t = await launch(dir, {}, { height: 47 })
+  const t = await launch(dir, {}, { height: 48 })
 
   await runCommand(t, 'Settings')
   await untilFrame(t, 'LSP diagnostics')

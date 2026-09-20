@@ -57,7 +57,7 @@ test('Enter flips a boolean, the row and the config file follow', async () => {
 test('arrows cycle a multi-value setting in both directions', async () => {
   const t = await launch(fixture(PROJECT))
   await runCommand(t, 'Settings')
-  await down(t, 13)
+  await down(t, 14)
   const size = () =>
     t
       .captureCharFrame()

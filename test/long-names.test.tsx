@@ -73,7 +73,7 @@ test('the settings page keeps a long value on its own row', async () => {
   const t = await launch(
     dir,
     { typescriptTsdk: '/a/very/long/path/that/goes/on/and/on/node_modules/typescript/lib' },
-    { width: 100, height: 46 },
+    { width: 100, height: 47 },
   )
   await runCommand(t, 'Settings')
   await untilFrame(t, 'TypeScript')

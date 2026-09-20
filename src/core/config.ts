@@ -53,6 +53,7 @@ export interface Config {
   cursorStyle: CursorStyle
   wrap: boolean
   scrollPastEnd: boolean
+  markdownPreview: boolean
   tabSize: number
   sidebarWidth: number | 'auto'
   sidebarPosition: SidebarPosition
@@ -93,6 +94,7 @@ export const DEFAULTS: Config = {
   cursorStyle: 'block',
   wrap: true,
   scrollPastEnd: true,
+  markdownPreview: false,
   tabSize: 2,
   sidebarWidth: 'auto',
   sidebarPosition: 'left',
@@ -167,6 +169,7 @@ const VALIDATORS: { [K in keyof Config]: Validator<K> } = {
   cursorStyle: among(...CURSOR_STYLES),
   wrap: bool,
   scrollPastEnd: bool,
+  markdownPreview: bool,
   tabSize: raw => (typeof raw === 'number' && raw >= 1 && raw <= 16 ? Math.floor(raw) : undefined),
   sidebarWidth: raw => {
     if (raw === 'auto') return 'auto'
