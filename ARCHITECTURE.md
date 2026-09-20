@@ -18,7 +18,7 @@ extensions/             the market: one folder per extension, served raw from ma
 bin/druk.js          npm launcher: runs the binary, fetching it first if it is missing
 bin/binary.mjs       finds or downloads the platform binary from the GitHub release
 bin/postinstall.mjs  fetches it at install time, so the first run does not have to
-install              curl | bash installer, served at druk.letstri.dev/install
+install              curl | bash installer, served at druk.sh/install
 scripts/
   release.ts         stages the npm package + release archives from dist/
   formula.ts         Homebrew formula for the current version's archives

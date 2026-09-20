@@ -48,7 +48,7 @@ const RELEASES_URL = 'https://github.com/letstri/druk/releases/latest'
 
 export function upgradeCommand(install: Install): string {
   if (install.kind === 'brew') return 'brew upgrade letstri/tap/druk'
-  if (install.kind === 'script') return 'curl -fsSL https://druk.letstri.dev/install | bash'
+  if (install.kind === 'script') return 'curl -fsSL https://druk.sh/install | bash'
   if (install.kind === 'system') return RELEASES_URL
   return ADD_GLOBAL[install.manager ?? 'npm']
 }

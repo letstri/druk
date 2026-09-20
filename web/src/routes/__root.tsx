@@ -4,7 +4,7 @@ import type { ReactNode } from 'react'
 
 import css from '../styles.css?url'
 
-const SITE = 'https://druk.letstri.dev'
+const SITE = 'https://druk.sh'
 
 const LD = {
   '@context': 'https://schema.org',

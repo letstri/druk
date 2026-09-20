@@ -7,7 +7,7 @@ import { copyText } from '../lib/clipboard'
 export const Route = createFileRoute('/')({
   component: Home,
   head: () => ({
-    links: [{ rel: 'canonical', href: 'https://druk.letstri.dev/' }],
+    links: [{ rel: 'canonical', href: 'https://druk.sh/' }],
   }),
 })
 
@@ -114,7 +114,7 @@ function Home() {
           <span className="comment"># install — click a line to copy it</span>
         </p>
         <div className="out">
-          <Cmd text="curl -fsSL https://druk.letstri.dev/install | bash" />
+          <Cmd text="curl -fsSL https://druk.sh/install | bash" />
           <Cmd text="brew install letstri/tap/druk" />
           <Cmd text="npm install -g druk" />
           <Cmd text="bunx druk" note="try it without installing anything" />

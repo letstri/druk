@@ -20,7 +20,7 @@ if (!binary) {
     `druk: could not fetch the ${target} binary for ${version}.\n` +
       `Download druk-${target} from https://github.com/letstri/druk/releases/tag/v${version}\n` +
       `and put it on your PATH as ${exe}, or install with:\n` +
-      `  curl -fsSL https://druk.letstri.dev/install | bash\n`,
+      `  curl -fsSL https://druk.sh/install | bash\n`,
   )
   process.exit(1)
 }

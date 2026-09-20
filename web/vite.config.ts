@@ -18,6 +18,15 @@ export default defineConfig({
       },
     }),
     viteReact(),
-    nitro(),
+    nitro({
+      routeRules: {
+        '/install': {
+          redirect: {
+            to: 'https://raw.githubusercontent.com/letstri/druk/main/install',
+            status: 301,
+          },
+        },
+      },
+    }),
   ],
 })

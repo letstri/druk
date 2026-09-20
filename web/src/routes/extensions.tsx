@@ -19,7 +19,7 @@ export const Route = createFileRoute('/extensions')({
         content:
           'Languages, language servers, themes and icon sets for druk. JSON manifests, not code.',
       },
-      { property: 'og:url', content: 'https://druk.letstri.dev/extensions' },
+      { property: 'og:url', content: 'https://druk.sh/extensions' },
       { name: 'twitter:title', content: 'druk extensions' },
       {
         name: 'twitter:description',
@@ -27,7 +27,7 @@ export const Route = createFileRoute('/extensions')({
           'Languages, language servers, themes and icon sets for druk. JSON manifests, not code.',
       },
     ],
-    links: [{ rel: 'canonical', href: 'https://druk.letstri.dev/extensions' }],
+    links: [{ rel: 'canonical', href: 'https://druk.sh/extensions' }],
   }),
 })
 

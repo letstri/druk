@@ -627,7 +627,13 @@ the site 404s without it.
 Two constraints on that plugin list live here rather than in the file: `viteReact()` must
 come *after* `tanstackStart()`, and `nitro()` last. A build rewrites `vite.config.ts` from
 an AST and drops its comments, so a note written in there does not survive.
-A third belongs here too: `server.fs.allow` must keep `'..'`, since
+The site is **druk.sh** — the one domain, and the absolute URLs in the meta, the
+sitemap and the install line all name it. `/install` is a route rule on that `nitro()`
+call redirecting to the installer in this repository (`install`, served raw from `main`),
+since the script is the repo's and not the site's: README, `bin/druk.js` and
+`core/upgrade.ts` all print `curl -fsSL https://druk.sh/install | bash`, so a
+release older than any redirect still installs.
+A third constraint belongs here too: `server.fs.allow` must keep `'..'`, since
 `src/routes/extensions.tsx` imports the repository's own `extensions/index.json` — the
 market catalog, above `web/` and so outside the dev server's allow list — which is also
 why `web/tsconfig.json` sets `resolveJsonModule`.

@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://druk.letstri.dev/sitemap.xml
+Sitemap: https://druk.sh/sitemap.xml

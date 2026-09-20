@@ -10,7 +10,7 @@ highlighting for 30+ languages — keyboard and mouse.
 druk is one self-contained executable. Nothing else to install — no Node, no Bun.
 
 ```bash
-curl -fsSL https://druk.letstri.dev/install | bash
+curl -fsSL https://druk.sh/install | bash
 ```
 
 Or through a package manager:

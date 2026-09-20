@@ -22,8 +22,8 @@ Options:
         --no-modify-path    Don't touch shell config files (.zshrc, .bashrc, …)
 
 Examples:
-    curl -fsSL https://druk.letstri.dev/install | bash
-    curl -fsSL https://druk.letstri.dev/install | bash -s -- --version 0.2.0
+    curl -fsSL https://druk.sh/install | bash
+    curl -fsSL https://druk.sh/install | bash -s -- --version 0.2.0
 EOF
 }
 
