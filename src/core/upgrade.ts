@@ -65,6 +65,9 @@ const packageNames = (arch: string) =>
 
 const SPINNER = [...'⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏']
 
+// The install script and brew both report a no-op on stdout; neither uses an exit code for it.
+export const changedNothing = (output: string) => /already (?:installed|up-to-date)/i.test(output)
+
 export async function withSpinner<T>(
   write: (text: string) => void,
   label: string,
@@ -125,7 +128,7 @@ export async function runUpgrade(
     }
     const { code, output } = live ? await withSpinner(write, 'Updating', run) : await run()
     if (code === 0) {
-      if (live) write('✓ Updated.\n')
+      if (live) write(changedNothing(output) ? '✓ Already up to date.\n' : '✓ Updated.\n')
     } else {
       if (output.trim()) write(`${output.trimEnd()}\n`)
       write(`\ndruk: update failed (exit ${code})\n`)

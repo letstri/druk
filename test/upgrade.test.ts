@@ -1,7 +1,13 @@
 import { describe, expect, test } from 'bun:test'
 
 import { HELP } from '../src/core/cli'
-import { detectInstall, runUpgrade, upgradeCommand, withSpinner } from '../src/core/upgrade'
+import {
+  changedNothing,
+  detectInstall,
+  runUpgrade,
+  upgradeCommand,
+  withSpinner,
+} from '../src/core/upgrade'
 
 const HOME = '/Users/dev'
 const detect = (execPath: string, scriptPath = '') => detectInstall(execPath, scriptPath, HOME)
@@ -131,5 +137,15 @@ describe('the loader', () => {
     expect(written.filter(text => text.startsWith('\r\x1B[2K')).length).toBeGreaterThan(1)
     expect(output).toContain('npm install -g druk@latest')
     expect(output.endsWith('\r\x1B[2K\x1B[?25h')).toBe(true) // and the line is left clean
+  })
+})
+
+describe('an update that changed nothing', () => {
+  test('is read off what the installer and brew say, not an exit code', () => {
+    expect(changedNothing('druk 1.30.3 is already installed')).toBe(true)
+    expect(
+      changedNothing('Warning: letstri/tap/druk 1.30.3 is already installed and up-to-date.'),
+    ).toBe(true)
+    expect(changedNothing('Installing druk 1.31.0 for darwin-arm64')).toBe(false)
   })
 })
