@@ -1,8 +1,3 @@
-/**
- * A parser for the mermaid dialects a terminal can draw. It is deliberately
- * forgiving: a line it cannot read is skipped rather than failing the diagram,
- * since a fence half-understood still tells the reader more than its source.
- */
 import { graphNode, wrapLabel } from './graph'
 import type {
   ArrowHead,
@@ -68,17 +63,12 @@ function headOf(link: string): ArrowHead {
   return 'none'
 }
 
-/**
- * A statement is a chain of nodes joined by links (`A --> B --> C`), so the
- * links are what it is split on and everything between two of them is a node.
- */
 function parseFlowStatement(
   statement: string,
   nodes: Map<string, GraphNode>,
   edges: GraphEdge[],
 ): void {
-  // `A -- text --> B` and its dotted and thick spellings are the same edge as
-  // `A -->|text| B`; rewriting them is cheaper than a second parse path.
+  // `A -- text --> B` is rewritten to `A -->|text| B`, so there is one parse path.
   const text = statement
     .replace(/--\s+([^->|]+?)\s+(-{2,}[>xo]|-{3,})/g, '$2|$1|')
     .replace(/-\.\s+([^.|]+?)\s+\.(-{0,2}[>xo]?)/g, '-.-$2|$1|')
@@ -116,7 +106,6 @@ function parseFlowStatement(
   })
 }
 
-/** Registers a node token (`A`, `A[Label]`, `A{Q}`) and answers its id. */
 function parseNode(token: string, nodes: Map<string, GraphNode>): string | null {
   const text = token.trim()
   if (!text) return null
@@ -147,7 +136,6 @@ function parseFlowchart(lines: string[], direction: Direction): GraphDiagram {
       resolved = DIRECTIONS[inner[1]!.toUpperCase()] ?? resolved
       continue
     }
-    // Styling, click handlers and subgraph frames carry nothing a box can show.
     if (/^(subgraph|end|style|classDef|class|click|linkStyle|accTitle|accDescr)\b/i.test(line)) {
       continue
     }
@@ -211,7 +199,6 @@ function parseState(lines: string[], direction: Direction): GraphDiagram {
   return { kind: 'graph', direction: resolved, nodes: [...nodes.values()], edges }
 }
 
-/** The marker at each end of a class relation, by the side it was written on. */
 const CLASS_HEADS: Record<string, ArrowHead> = {
   '|>': 'hollow',
   '<|': 'hollow',
@@ -259,8 +246,7 @@ function parseClass(lines: string[]): GraphDiagram {
       const rightMark = relation[4] ?? ''
       const style: EdgeStyle = relation[3] === '..' ? 'dotted' : 'solid'
       const label = relation[6] ? unquote(relation[6]) : undefined
-      // `A <|-- B` points at A: the marked end is the head, whichever side of
-      // the line it was written on.
+      // `A <|-- B` points at A: the marked end is the head, whichever side it is on.
       const [from, to, mark] = rightMark ? [left, right, rightMark] : [right, left, leftMark]
       edges.push({ from, to, label, style, head: CLASS_HEADS[mark] ?? 'arrow', tail: 'none' })
       continue
@@ -419,10 +405,6 @@ function parsePie(header: string, lines: string[]): PieDiagram {
   return { kind: 'pie', slices, title, showData: /\bshowdata\b/i.test(header) }
 }
 
-/**
- * Reads the source of a ```mermaid fence. Front matter and `%%{init}%%`
- * directives are dropped: they configure a renderer this one has no answer for.
- */
 export function parseMermaid(source: string): Diagram {
   const withoutFrontMatter = source.replace(/^\s*---\n[\s\S]*?\n---\n/, '')
   const lines = statements(withoutFrontMatter).filter(line => !line.startsWith('%%{'))

@@ -47,7 +47,5 @@ test('root-level and nested files start in the same column in the picker', async
     expect(row).toBeDefined()
     return row.indexOf(name.includes('/') ? name.split('/')[0]! : name)
   }
-  // A root file has no faint folder prefix, and an empty <text> still occupies
-  // a column — the name used to sit one cell right of the nested paths.
   expect(startOf('notes.md')).toBe(startOf('src/other.ts'))
 })

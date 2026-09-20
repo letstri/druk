@@ -145,9 +145,7 @@ describe('discardChange', () => {
     git(dir, 'commit', '-qam', 'main')
     try {
       git(dir, 'merge', 'other')
-    } catch {
-      // Expected content conflict.
-    }
+    } catch {}
     writeFileSync(join(dir, 'keep.txt'), 'keep staged\n')
     git(dir, 'add', 'keep.txt')
 
@@ -168,9 +166,7 @@ describe('discardChange', () => {
     git(dir, 'commit', '-qm', 'main deletes it')
     try {
       git(dir, 'merge', 'other')
-    } catch {
-      // Expected modify/delete conflict.
-    }
+    } catch {}
 
     await discard(dir, 'a.txt')
 
@@ -179,9 +175,7 @@ describe('discardChange', () => {
   })
 
   test('leaves the files a glob in the selected name would have matched alone', async () => {
-    // `[id].tsx` is what every Next.js and SvelteKit route directory is full of,
-    // and git reads a path after `--` as a pathspec: without `:(literal)` the
-    // brackets are a character class and `i.tsx` is discarded along with it.
+    // A path after `--` is a pathspec: without `:(literal)` the brackets are a character class.
     const dir = repo({ '[id].tsx': 'route\n', 'i.tsx': 'innocent\n', 'd.tsx': 'other\n' })
     writeFileSync(join(dir, '[id].tsx'), 'changed route\n')
     writeFileSync(join(dir, 'i.tsx'), 'changed innocent\n')

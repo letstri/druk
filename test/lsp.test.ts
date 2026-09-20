@@ -25,7 +25,6 @@ import { tempDir } from './temp'
 
 const FAKE = join(import.meta.dir, 'fixtures', 'fake-lsp.ts')
 
-/** Deliveries arrive when the server feels like it; `atLeast` awaits the event itself. */
 function collector<T>() {
   const items: T[] = []
   const waiters: { count: number; resolve: () => void }[] = []
@@ -100,15 +99,10 @@ describe('protocol mapping', () => {
       expect(styleIdForGroup(`druk.problem.${severity}`)).not.toBeNull()
     }
     expect(styleIdForGroup('druk.problem.unnecessary')).not.toBeNull()
-    // Registered against the native table rather than through SyntaxStyle, so
-    // the walk in styleIdForGroup can only find it through its seeded id.
     expect(styleIdForGroup(DEPRECATED_GROUP)).not.toBeNull()
   })
 
   test('a severity tint over a token is its own style, not the bare tint', () => {
-    // A highlight replaces a cell's whole style rather than merging with what is
-    // under it, so painting the bare tint over a span drops the syntax colour and
-    // a diagnostic turns the code it covers into plain text.
     const keyword = styleIdForGroup('keyword')
     const tint = styleIdForGroup('druk.problem.error')
     expect(keyword).not.toBeNull()
@@ -116,9 +110,7 @@ describe('protocol mapping', () => {
     expect(combined).not.toBeNull()
     expect(combined).not.toBe(tint)
     expect(combined).not.toBe(keyword)
-    // Memoized, or every window repaint registers another native style.
     expect(styleIdOver('druk.problem.error', keyword)).toBe(combined)
-    // Nothing underneath, so there is nothing to keep: the tint stands alone.
     expect(styleIdOver('druk.problem.error', null)).toBe(tint)
   })
 
@@ -137,8 +129,6 @@ describe('protocol mapping', () => {
     expect(isDeprecated({ ...at(0, 0), tags: [1, 2] })).toBe(true)
   })
 
-  // The market extensions are what carry the server specs now — the typescript one
-  // is this repository's own `extensions/typescript/extension.json`.
   loadExtensions(process.env.XDG_CONFIG_HOME!, [], MARKET_DIR)
 
   test('overrides replace a server command, and an empty one disables it', () => {
@@ -147,10 +137,7 @@ describe('protocol mapping', () => {
       'deno',
       'lsp',
     ])
-    // The hint names the default's package; an override would send them elsewhere.
     expect(resolveServer('typescript', { typescript: ['deno', 'lsp'] })?.install).toBeUndefined()
-    // An empty command disables that server, not every server for the language:
-    // the two linters serve typescript too, and are left where they were.
     expect(resolveServers('typescript', { typescript: [] }).map(server => server.id)).toEqual([
       'eslint',
       'oxlint',
@@ -160,16 +147,11 @@ describe('protocol mapping', () => {
   })
 
   test('a language may have several servers, the language server first', () => {
-    // All of them are spawned and all of them report; the order is what decides
-    // which one is asked for a completion first, and a linter must never be that
-    // one.
     expect(resolveServers('typescript', {}).map(server => server.id)).toEqual([
       'typescript',
       'eslint',
       'oxlint',
     ])
-    // Only the linters carry settings — eslint does nothing at all without them,
-    // and oxlint would lint on save alone.
     const eslint = resolveServers('typescript', {}).find(server => server.id === 'eslint')
     expect((eslint?.settings as { validate?: string } | undefined)?.validate).toBe('on')
     const oxlint = resolveServers('typescript', {}).find(server => server.id === 'oxlint')
@@ -177,8 +159,6 @@ describe('protocol mapping', () => {
   })
 
   test('typescript is pinned to 5, the last line that ships a tsserver.js', () => {
-    // 7.x is the native port: a platform binary and no tsserver.js, so
-    // typescript-language-server installs fine and then fails its handshake.
     const install = resolveServer('typescript', {})?.install
     expect(install).toEqual({
       kind: 'npm',
@@ -189,13 +169,10 @@ describe('protocol mapping', () => {
   test('elixir is served by expert, the official Elixir LSP', () => {
     const resolved = resolveServer('elixir', {})
     expect(resolved?.command).toEqual(['expert', '--stdio'])
-    // The machines expert publishes an asset for get a fetch offer; anything
-    // else — Windows on arm64, most of all — a hint.
     const supported = ['darwin-arm64', 'darwin-x64', 'linux-arm64', 'linux-x64', 'win32-x64']
     expect(resolved?.install?.kind).toBe(
       supported.includes(`${process.platform}-${process.arch}`) ? 'download' : 'manual',
     )
-    // An override replaces the command and drops the hint, as with any server.
     expect(resolveServer('elixir', { elixir: ['next-ls'] })?.install).toBeUndefined()
   })
 
@@ -216,9 +193,7 @@ describe('installed servers', () => {
     const bin = join(root, 'node_modules', '.bin')
     mkdirSync(bin, { recursive: true })
     writeFileSync(join(bin, 'pyright-langserver'), '')
-    // The arguments ride along; only the executable becomes a path.
     expect(installedCommand(command, root)).toEqual([join(bin, 'pyright-langserver'), '--stdio'])
-    // Downloaded binaries land in bin/ instead of node_modules/.bin.
     const downloaded = join(root, 'bin', 'expert')
     mkdirSync(join(root, 'bin'), { recursive: true })
     writeFileSync(downloaded, '')
@@ -257,8 +232,6 @@ describe('installed servers', () => {
       await removeServer({ kind: 'download', url: 'http://x/expert' }, 'expert', root),
     ).toBeNull()
     expect(existsSync(target)).toBe(false)
-    // Removing what is already gone is not a failure: the promise the caller
-    // made the user is that it is not there, and it is not.
     expect(
       await removeServer({ kind: 'download', url: 'http://x/expert' }, 'expert', root),
     ).toBeNull()
@@ -290,8 +263,6 @@ describe('installed servers', () => {
     const path = process.env.PATH
     process.env.PATH = ''
     try {
-      // bun is still installed and could fetch the packages; what it cannot do
-      // is run them, the servers being `#!/usr/bin/env node` scripts.
       expect(availablePackageManagers(root)).toEqual([])
     } finally {
       process.env.PATH = path
@@ -301,15 +272,11 @@ describe('installed servers', () => {
   test('a prefix keeps the manager that filled it, so the removal matches the install', () => {
     const root = tempDir('druk-lsp-root-')
     writeFileSync(join(root, '.manager'), 'bun')
-    // Both are a given here: bun runs this suite, and node is what the servers
-    // the list exists for are run by.
     expect(availablePackageManagers(root)).toEqual(['bun'])
   })
 
   test('installing a second server keeps the first', async () => {
     const root = tempDir('druk-lsp-root-')
-    // Local directories, so npm resolves them without a registry — the point of
-    // the test is what npm does to the tree it finds, not where it got it.
     const fake = (name: string) => {
       const dir = join(tempDir('druk-fake-pkg-'), name)
       mkdirSync(dir, { recursive: true })
@@ -323,9 +290,6 @@ describe('installed servers', () => {
 
     expect(await installServer([fake('druk-fake-a')], root)).toBeNull()
     expect(installedCommand(['druk-fake-a'], root)).not.toBeNull()
-    // npm prunes whatever the prefix's package.json does not claim, so without
-    // one this install deletes the server above — and druk offers it again on
-    // the next launch, forever.
     expect(await installServer([fake('druk-fake-b')], root)).toBeNull()
     expect(installedCommand(['druk-fake-a'], root)).not.toBeNull()
     expect(installedCommand(['druk-fake-b'], root)).not.toBeNull()
@@ -344,8 +308,6 @@ describe('installed servers', () => {
     const path = process.env.PATH
     process.env.PATH = ''
     try {
-      // The manifest is written before the manager runs, so npm going missing
-      // costs the install and not the repair.
       await installServer(['druk-no-such-package'], root)
     } finally {
       process.env.PATH = path
@@ -356,7 +318,6 @@ describe('installed servers', () => {
 
   test('an install with no npm to run it fails instead of hanging', async () => {
     const root = tempDir('druk-lsp-root-')
-    // PATH is what `spawn` searches, so emptying it is how npm goes missing.
     const path = process.env.PATH
     process.env.PATH = ''
     try {
@@ -399,9 +360,6 @@ describe('the project’s own server', () => {
   })
 
   test('TypeScript 7 is served by the compiler itself, not by tsserver', () => {
-    // 7.x is the Go port: a platform binary and no tsserver.js, so
-    // typescript-language-server cannot serve the project at all — and `tsc`
-    // speaks LSP. Preferred even where the older server is also installed.
     const dir = project({
       'node_modules/.bin/tsc': '',
       'node_modules/.bin/typescript-language-server': '',
@@ -421,6 +379,42 @@ describe('the project’s own server', () => {
       'node_modules/typescript/package.json': '{"version":"5.9.2"}',
     })
     expect(projectCommand('typescript', TLS, dir)).toBeNull()
+  })
+
+  test('the project is the nearest node_modules above the file, not the open folder', () => {
+    const dir = project({
+      'packages/app/node_modules/.bin/tsc': '',
+      'packages/app/node_modules/typescript/package.json': '{"version":"7.0.2"}',
+      'packages/app/src/index.ts': '',
+    })
+    const from = join(dir, 'packages', 'app', 'src')
+    expect(projectCommand('typescript', TLS, dir, from)).toEqual([
+      join(dir, 'packages', 'app', 'node_modules', '.bin', 'tsc'),
+      '--lsp',
+      '--stdio',
+    ])
+    const sub = join(dir, 'packages', 'app', 'src')
+    mkdirSync(sub, { recursive: true })
+    expect(projectCommand('typescript', TLS, sub)?.[0]).toBe(
+      join(dir, 'packages', 'app', 'node_modules', '.bin', 'tsc'),
+    )
+    const other = project({ 'node_modules/.bin/typescript-language-server': '' })
+    expect(projectCommand('typescript', TLS, other, dir)?.[0]).toBe(
+      join(other, 'node_modules', '.bin', 'typescript-language-server'),
+    )
+  })
+
+  test('the native preview compiler is a TypeScript 7 too', () => {
+    const dir = project({
+      'node_modules/.bin/tsgo': '',
+      'node_modules/typescript/package.json': '{"version":"5.9.2"}',
+      'node_modules/@typescript/native-preview/package.json': '{"version":"7.0.0-dev"}',
+    })
+    expect(projectCommand('typescript', TLS, dir)).toEqual([
+      join(dir, 'node_modules', '.bin', 'tsgo'),
+      '--lsp',
+      '--stdio',
+    ])
   })
 })
 
@@ -500,7 +494,6 @@ describe('client against a live server', () => {
       },
     })
 
-    // Sent while the server is still initializing, so this also proves queueing.
     client.openDocument(path, 'typescript', 'const oops = 1\n')
     await deliveries.atLeast(1)
     expect(deliveries.items[0]).toHaveLength(1)
@@ -526,12 +519,8 @@ describe('client against a live server', () => {
       onDiagnostics: () => {},
       onFail: (reason, missing) => onFail({ reason, missing }),
     })
-    // Neither runtime's raw ENOENT wording reaches the user: the status bar names
-    // the command itself and adds the server's install line.
     expect(await failed).toEqual({ reason: 'is not installed, or not on PATH', missing: true })
     expect(client.ready()).toBe(false)
-    // Dead, not merely un-ready: the document sync uses this to forget the entry,
-    // so a server installed later receives the file that first asked for it.
     expect(client.dead()).toBe(true)
     client.dispose()
   }, 10_000)

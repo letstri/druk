@@ -27,8 +27,6 @@ describe('working out how druk was installed', () => {
   })
 
   test('the shim is what names the manager, not the runtime that runs it', () => {
-    // `druk` from npm is a script node executes: execPath is node, and only
-    // argv[1] says where the package lives.
     const install = detect('/usr/local/bin/node', `${HOME}/Library/pnpm/global/druk/bin/druk.mjs`)
     expect(install).toEqual({ kind: 'package', manager: 'pnpm' })
   })
@@ -68,11 +66,9 @@ describe('the command each install is upgraded with', () => {
 describe('running it', () => {
   test('says what it detected and shows the command before running it', async () => {
     const written: string[] = []
-    // Left to the process's own execPath this really ran `bun add -g druk@latest`.
     await runUpgrade(text => written.push(text), { execPath: '/usr/bin/druk' })
     const output = written.join('')
 
-    // The guess is stated so a wrong one is obvious before anything is installed.
     expect(output).toMatch(/Updating|Re-running|Installed by/)
   })
 })
@@ -87,7 +83,6 @@ describe('the help', () => {
 describe('a system package install', () => {
   test('the packaged path is its own kind, ahead of the npm fallback', () => {
     expect(detect('/usr/bin/druk')).toEqual({ kind: 'system' })
-    // A shim at that path runs under node, whose execPath is not the binary.
     expect(detect('/usr/bin/node', '/usr/lib/node_modules/druk/bin/druk.js')).toMatchObject({
       manager: 'npm',
     })
@@ -108,7 +103,7 @@ describe('a system package install', () => {
     expect(out).toContain('system package manager')
     expect(out).toContain('amd64 .deb or x86_64 .rpm')
     expect(out).toContain('releases/latest')
-    expect(out).not.toContain('$ ') // no command was printed, none was run
+    expect(out).not.toContain('$ ')
   })
 
   test('arm64 names its own pair', async () => {
@@ -133,7 +128,6 @@ describe('the loader', () => {
 
     expect(result).toBe('done')
     expect(output).toContain('\x1B[?25l') // cursor hidden while it spins
-    // Every frame clears the line first, so nothing of the previous one survives.
     expect(written.filter(text => text.startsWith('\r\x1B[2K')).length).toBeGreaterThan(1)
     expect(output).toContain('npm install -g druk@latest')
     expect(output.endsWith('\r\x1B[2K\x1B[?25h')).toBe(true) // and the line is left clean

@@ -6,13 +6,11 @@ import { placeTooltips } from '../src/ui/tooltipLayout'
 import { fixture, launch, openFile, settle, until, untilFrame } from './helpers'
 import type { Harness } from './helpers'
 
-/** A theme colour as the captured spans report one. */
 const rgb = (hex: string) => {
   const at = (from: number) => Number.parseInt(hex.slice(from, from + 2), 16)
   return `${at(1)},${at(3)},${at(5)}`
 }
 
-/** Background of the span carrying `text`, or '' where nothing does. */
 function spanBg(t: Harness, text: string) {
   const capture = t.captureSpans() as unknown as {
     lines: { spans: { text: string; bg?: { buffer: Record<string, number> } }[] }[]
@@ -27,7 +25,6 @@ function spanBg(t: Harness, text: string) {
   return ''
 }
 
-/** Top-left cell of `text` in the frame, for pointing the mouse at it. */
 function cellOf(t: Harness, text: string) {
   const lines = t.captureCharFrame().split('\n')
   const y = lines.findIndex(line => line.includes(text))
@@ -35,23 +32,15 @@ function cellOf(t: Harness, text: string) {
   return { x: lines[y]!.indexOf(text), y }
 }
 
-/**
- * Kitty's own report for a modifier key, which is the only way one arrives:
- * `CSI <code> u` for the press, `;1:3` for the release. mockInput has no
- * spelling for a key with no character, so the bytes go in as the terminal
- * sends them.
- */
+// Kitty's modifier-key report: `CSI <code> u` for the press, `;1:3` for the release.
 const LEFT_CTRL = 57442
 const press = (t: Harness) => t.renderer.stdin.emit('data', Buffer.from(`\x1B[${LEFT_CTRL}u`))
 const release = (t: Harness) => t.renderer.stdin.emit('data', Buffer.from(`\x1B[${LEFT_CTRL};1:3u`))
 
-/** Long enough for the hold to have counted out. */
 const HELD = 700
 
-/** Long enough for the hover dwell to have counted out, had it been going to. */
 const RESTED = 600
 
-/** Point at `text` and wait out the dwell the tooltip only appears after. */
 async function rest(t: Harness, text: string) {
   const at = cellOf(t, text)
   await t.mockMouse.moveTo(at.x, at.y)
@@ -61,10 +50,6 @@ async function rest(t: Harness, text: string) {
 
 const kitty = { kittyKeyboard: true }
 
-/**
- * Chords as a tooltip draws them — padded, which is also what keeps them apart
- * from the same spelling in the footer hints or the help table.
- */
 const TIP = ' Ctrl+G '
 const GIT_TIP = ` Ctrl+${ALT}+G `
 const EXT_TIP = ` Ctrl+${ALT}+X `
@@ -107,7 +92,6 @@ describe('tooltip placement', () => {
     const [tip] = placeTooltips(
       [{ id: 1, text: ' Ctrl+Opt+Z ', x: 1, y: 0, width: 2, height: 1 }],
       { width: 40, height: 20 },
-      // The row under the tab strip is the sidebar's own strip of buttons.
       [
         { x: 1, y: 0, width: 2, height: 1 },
         { x: 1, y: 1, width: 20, height: 1 },
@@ -117,7 +101,6 @@ describe('tooltip placement', () => {
   })
 
   test('an anchor with nowhere left to go is dropped, not overlapped', () => {
-    // Two rows of screen, one already spent on the anchor itself.
     const placed = placeTooltips(
       [
         { id: 1, text: ' one ', x: 0, y: 0, width: 2, height: 1 },
@@ -141,8 +124,6 @@ describe('hover tooltips', () => {
 
   test('a sidebar view button too', async () => {
     const t = await launch(fixture({ 'a.ts': 'const a = 1\n' }))
-    // With a file open: the welcome screen lists chords too, and this is looking
-    // for one of them by its spelling.
     await openFile(t, 'a.ts')
     await rest(t, 'Git')
     expect(t.captureCharFrame()).toContain(GIT_TIP)
@@ -164,7 +145,6 @@ describe('hover tooltips', () => {
     const at = cellOf(t, 'Git')
     await t.mockMouse.moveTo(at.x, at.y)
     await settle(t, 100)
-    // On past it, the way a mouse crosses the strip on its way to the editor.
     await t.mockMouse.moveTo(60, 10)
     await settle(t, RESTED)
     expect(t.captureCharFrame()).not.toContain(GIT_TIP)
@@ -187,13 +167,9 @@ describe('hover tooltips', () => {
   test('a hover chip sits against its button, not shifted off a neighbour', async () => {
     const t = await launch(
       fixture({ 'a.ts': 'const a = 1\n', 'src/b.ts': 'const b = 2\n' }),
-      // Wide enough that the header's ▴ sits under Ext — the neighbour the chip
-      // used to walk around, landing on the file list instead of the tab.
       { sidebarWidth: 45 },
       { width: 120 },
     )
-    // Tree still has the keyboard: opening a file first would send the arrows
-    // into the editor, and the header's ▴ only exists while a folder is open.
     t.mockInput.pressArrow('down')
     t.mockInput.pressArrow('right')
     await until(t, () => t.captureCharFrame().includes('▴'))
@@ -210,20 +186,15 @@ describe('hover tooltips', () => {
 
   test("it is filled in chrome colours, not in the editor's own", async () => {
     const t = await launch(fixture({ 'a.ts': 'const a = 1\n' }))
-    // With a file open: the welcome screen lists chords too, and this is looking
-    // for one of them by its spelling.
     await openFile(t, 'a.ts')
     await rest(t, 'Git')
     expect(spanBg(t, GIT_TIP)).toBe(rgb(ui.statusBg))
-    // The tooltip must not read as part of the pane it floats over.
     expect(spanBg(t, GIT_TIP)).not.toBe(rgb(ui.bg))
     expect(spanBg(t, GIT_TIP)).not.toBe(rgb(ui.panelBg))
   })
 
   test('a button no chord reaches gets none at all', async () => {
     const t = await launch(fixture({ 'a.ts': 'const a = 1\n' }))
-    // Files is the sidebar's default view: Shift+Tab walks the strip, and no
-    // bindable command holds a key for it.
     await openFile(t, 'a.ts')
     const before = t.captureCharFrame()
     await rest(t, 'Files')
@@ -232,13 +203,9 @@ describe('hover tooltips', () => {
 
   test('the tooltip goes away with the pointer', async () => {
     const t = await launch(fixture({ 'a.ts': 'const a = 1\n' }))
-    // With a file open: the welcome screen lists chords too, and this is looking
-    // for one of them by its spelling.
     await openFile(t, 'a.ts')
     await rest(t, 'Git')
     expect(t.captureCharFrame()).toContain(GIT_TIP)
-    // Into the editor, which is nobody's button. No dwell on the way out: the
-    // chip goes with the pointer.
     await t.mockMouse.moveTo(60, 10)
     await settle(t)
     expect(t.captureCharFrame()).not.toContain(GIT_TIP)
@@ -271,11 +238,8 @@ describe('holding Ctrl', () => {
     press(t)
     await settle(t, HELD)
     const frame = t.captureCharFrame()
-    // The history arrows and the sidebar's own views.
     expect(frame).toContain(`Ctrl+${ALT}+Z`)
     expect(frame).toContain(`Ctrl+${ALT}+X`)
-    // The key alone: the buttons are labelled already, so a peek that repeated
-    // the labels would be saying nothing new.
     expect(frame).not.toContain('Extensions panel')
   })
 
@@ -283,8 +247,6 @@ describe('holding Ctrl', () => {
     const t = await launch(fixture({ 'a.ts': 'const a = 1\n' }), {}, {}, kitty)
     await openFile(t, 'a.ts')
     expect(spanBg(t, 'Git')).toBe(rgb(ui.sidebarBg))
-    // Files is the view on screen, so it is already filled: what matters is that
-    // the peek leaves it exactly as it was, having no chord to advertise.
     const files = spanBg(t, 'Files')
     press(t)
     await settle(t, HELD)

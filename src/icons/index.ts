@@ -1,65 +1,30 @@
-/**
- * File icons — the glyph the tree draws where the expansion arrow otherwise
- * goes, and the registry extensions add icon themes to.
- *
- * One ships with druk: `unicode`, whose glyphs are geometric shapes every font
- * has. It is not the default — `iconTheme: 'none'` is, because a terminal cannot
- * be asked what its font holds and a row of tofu is worse than no icons at all,
- * and a set that needs a patched font (`material-icons`, `nerd-icons`) is a
- * market extension for that same reason.
- *
- * A theme replaces the arrow rather than sitting beside it: the folder glyph
- * has an open and a closed form, so expansion is still readable and the row
- * costs no extra column.
- */
 import { createSignal } from 'solid-js'
 
 export interface IconEntry {
-  /** One cell wide. A wider glyph shifts every name in the tree by a column. */
+  // One cell wide: a wider glyph shifts every name in the tree.
   glyph: string
-  /** `#rrggbb`; the row's dim colour when absent. */
   color?: string
 }
 
 export interface IconTheme {
   id: string
   name: string
-  /**
-   * The glyphs are in a font's private-use area, so only a patched font has
-   * them. Nothing can ask a terminal what its font holds, which is why this is
-   * declared and then said out loud when the theme is picked.
-   */
   patchedFont?: boolean
-  /** Fallback for a file no rule matched. */
   file: IconEntry
   folder: IconEntry
   folderOpen: IconEntry
-  /** Whole file names, lowercase — `package.json`, `.gitignore`. */
   names: Record<string, IconEntry>
-  /**
-   * Extensions without the dot, lowercase. A compound key (`d.ts`, `test.ts`)
-   * is matched before the plain one, so the longest suffix wins.
-   */
+  // Without the dot, lowercase.
   extensions: Record<string, IconEntry>
-  /** Folder names, lowercase — `src`, `node_modules`. */
   folders: Record<string, IconEntry>
-  /**
-   * The open form of a named folder. A theme that names folders needs it or
-   * expansion stops being readable: the icon took the arrow's column, so
-   * `src` would look the same shut as open.
-   */
   foldersOpen: Record<string, IconEntry>
 }
 
-/** The value of `iconTheme` that draws nothing at all. */
 export const NO_ICONS = 'none'
 
 const entry = (glyph: string, color?: string): IconEntry => (color ? { glyph, color } : { glyph })
 
-/**
- * Shapes, not pictures: every glyph here is a BMP geometric or punctuation
- * character, which is one cell wide in any terminal and present in any font.
- */
+// BMP geometric and punctuation characters only: one cell wide, present in any font.
 const unicode: IconTheme = {
   id: 'unicode',
   name: 'Unicode shapes',
@@ -121,17 +86,15 @@ const unicode: IconTheme = {
   foldersOpen: {},
 }
 
-export const BUILTIN_ICON_THEMES: IconTheme[] = [unicode]
+const BUILTIN_ICON_THEMES: IconTheme[] = [unicode]
 
 const registry: Record<string, IconTheme> = Object.fromEntries(
   BUILTIN_ICON_THEMES.map(theme => [theme.id, theme]),
 )
 
-/** Registered by an extension, and dropped again when extensions reload. */
 const fromExtensions = new Set<string>()
 
-// A signal for the same reason the theme registry has one: the settings page's
-// list is built in a reactive scope, and a mutated object repaints nothing.
+// A signal: the settings list is reactive, and a mutated object would repaint nothing.
 const [names, setNames] = createSignal<string[]>(Object.keys(registry))
 
 export function registerIconTheme(theme: IconTheme): void {
@@ -142,8 +105,7 @@ export function registerIconTheme(theme: IconTheme): void {
 
 export function clearExtensionIconThemes(): void {
   for (const id of fromExtensions) {
-    // An extension may have registered over a shipped id; dropping it has to put the
-    // shipped theme back rather than leave the setting naming nothing.
+    // An extension may have registered over a shipped id; put the shipped theme back.
     const shipped = BUILTIN_ICON_THEMES.find(theme => theme.id === id)
     if (shipped) registry[id] = shipped
     else delete registry[id]
@@ -152,7 +114,6 @@ export function clearExtensionIconThemes(): void {
   setNames(Object.keys(registry))
 }
 
-/** `none` first: it is a value of the setting, not a theme anyone registered. */
 export const iconThemeNames = (): string[] => [NO_ICONS, ...names()]
 
 export const iconThemeLabel = (id: string): string =>
@@ -163,19 +124,9 @@ export const iconThemeNeedsFont = (id: string): boolean => registry[id]?.patched
 export const isIconThemeName = (value: unknown): value is string =>
   typeof value === 'string' && (value === NO_ICONS || value in registry)
 
-/**
- * A folder's name with the decoration projects put around it stripped:
- * `.github`, `_test` and `__tests__` are the folder a theme spells `github` and
- * `test`. Listing all five spellings is what an icon theme would otherwise have
- * to do — the upstream Material set generates exactly these variants — and it
- * multiplies a large folder map by five for nothing.
- */
+// `.github`, `_test` and `__tests__` are the folder a theme spells `github` and `test`.
 const folderKey = (name: string): string => name.replace(/^__(.+)__$/, '$1').replace(/^[._-]+/, '')
 
-/**
- * The glyph for one tree row, or null when icons are off or the theme is gone —
- * an extension can be uninstalled while its id is still in the config.
- */
 export function iconFor(
   themeId: string,
   node: { name: string; isDir: boolean; expanded?: boolean },
@@ -186,8 +137,6 @@ export function iconFor(
   const name = node.name.toLowerCase()
   if (node.isDir) {
     const key = folderKey(name)
-    // A named folder with no open form falls back to its shut one rather than to
-    // the generic open folder: the name is what the glyph is there to say.
     const named = node.expanded
       ? (theme.foldersOpen[name] ??
         theme.foldersOpen[key] ??
@@ -206,33 +155,17 @@ export function iconFor(
   return theme.file
 }
 
-/** Force the fallback on or off, for tests and a terminal guessed wrong. */
 export const ICON_FALLBACK_ENV = 'DRUK_ICON_FALLBACK'
 
-/** `TERM`s whose font is a fixed few hundred glyphs with no private-use area. */
 const CONSOLE_TERM = /^(dumb|linux|vt\d|ansi|xterm-mono)/
 
-/**
- * The icon theme this terminal can actually draw.
- *
- * Not coverage detection — nothing can ask a terminal what its font holds. It
- * is the two cases where the glyph provably cannot arrive: a console whose font
- * is a fixed few hundred glyphs has no private-use area for a patched set to
- * live in, and a locale that is not UTF-8 cannot carry even the geometric
- * shapes `unicode` is built from. Everything else is left alone — guessing from
- * the terminal's brand would take icons away from a machine that has the font.
- *
- * The config keeps the user's choice either way: the same `config.json` is read
- * over SSH from a console and locally from a patched terminal, and rewriting it
- * would cost the second one its icons.
- */
+// Never written back to the config: one `config.json` is read from both machines.
 export function usableIconTheme(id: string, env: NodeJS.ProcessEnv = process.env): string {
   const forced = env[ICON_FALLBACK_ENV]
   if (forced === '0' || forced === 'off') return id
   if (id === NO_ICONS) return id
   const locale = env.LC_ALL ?? env.LC_CTYPE ?? env.LANG
-  // Unset is not the C locale here: a terminal that inherited no LANG still
-  // draws UTF-8, and downgrading on absence would cost icons everywhere.
+  // Unset is not the C locale: a terminal that inherited no LANG still draws UTF-8.
   if (locale && !/utf-?8/i.test(locale)) return NO_ICONS
   const bare = forced === '1' || forced === 'on' || CONSOLE_TERM.test(env.TERM ?? '')
   return bare && iconThemeNeedsFont(id) ? 'unicode' : id

@@ -1,17 +1,3 @@
-/**
- * The sidebar's extensions view: the rows it draws, the cursor that walks them,
- * and what pressing one does.
- *
- * The same division the git panel keeps — this owns the list and the state,
- * `ui/ExtensionsPanel.tsx` draws it and reports clicks — and every operation a
- * row performs belongs to somebody else: `settings` writes the config and
- * reloads the manifests, `market` fetches and installs.
- *
- * `AVAILABLE` lists the whole registry minus what is already installed, so what
- * can be had is on screen without having to guess a name first. It is capped all
- * the same, with a row saying how many were left out: a fork's registry may carry
- * far more than this one, and a sidebar is no place to scroll a thousand rows.
- */
 import { createMemo, createSignal } from 'solid-js'
 
 import type { MarketEntry } from '../core/market'
@@ -29,11 +15,6 @@ export type { ExtensionRow } from '../ui/ExtensionsPanel'
 
 const SECTIONS = { installed: 'INSTALLED', available: 'AVAILABLE' } as const
 
-/**
- * Market rows the panel will list. druk's own registry is well under this, so
- * the cap is for a fork's: a sidebar is no place to scroll a thousand rows, and
- * narrowing the search is faster than paging through them.
- */
 const MAX_RESULTS = 50
 
 export function createExtensionsPanel(deps: {
@@ -47,7 +28,6 @@ export function createExtensionsPanel(deps: {
 
   const [collapsed, setCollapsed] = createSignal<Record<string, boolean>>({})
   const [cursor, setCursor] = createSignal(0)
-  /** The panel's own search field; null until `/` opens it. */
   const [query, setQuery] = createSignal<string | null>(null)
 
   const matches = (haystack: string) => {
@@ -62,8 +42,6 @@ export function createExtensionsPanel(deps: {
         const latest = market.catalog().find(entry => entry.id === extension.id)
         return {
           categories: extension.categories,
-          // The ids it registers, so a language is findable by its own name as
-          // well as by its category: `go`, `gopls`, `nerd-icons`.
           keywords: [
             ...extension.themes.map(theme => theme.id),
             ...extension.icons.map(icons => icons.id),
@@ -112,9 +90,6 @@ export function createExtensionsPanel(deps: {
   const rows = createMemo<ExtensionRow[]>(() => {
     const out: ExtensionRow[] = []
     const installed = installedList()
-    // A search that matched nothing here drops the heading too: an empty heading
-    // reads as a list that failed to load. A search also opens what it found —
-    // a hit behind a folded heading is the same as no hit at all.
     if (installed.length > 0 || !query()) {
       const shut = !query() && collapsed().installed === true
       out.push({
@@ -138,14 +113,10 @@ export function createExtensionsPanel(deps: {
     })
     if (shutMarket) return out
     out.push(...available.slice(0, MAX_RESULTS))
-    // Never a silent cap: a list that stops at fifty with nothing said reads as
-    // a market that only has fifty.
     if (available.length > MAX_RESULTS) {
       out.push({
         kind: 'note',
         id: 'more',
-        // Short: the sidebar is thirty columns and a longer line wraps. "matches"
-        // only where something was typed — the unsearched list matched nothing.
         label: query()
           ? `+${available.length - MAX_RESULTS} more matches`
           : `+${available.length - MAX_RESULTS} more — search to narrow`,
@@ -163,7 +134,6 @@ export function createExtensionsPanel(deps: {
   const toggleSection = (id: string) =>
     setCollapsed(current => ({ ...current, [id]: !current[id] }))
 
-  /** → and ←, which only ever mean "open" and "shut" — and only on a heading. */
   const fold = (shut: boolean) => {
     const current = row()
     if (current?.kind !== 'section' || current.collapsed === shut) return
@@ -180,11 +150,6 @@ export function createExtensionsPanel(deps: {
     settings.toggleExtension(current.id)
   }
 
-  /**
-   * Backspace: uninstall, where there is a folder on disk to delete. Asked
-   * first, and the question names the language servers druk fetched for it —
-   * they are deleted with it, and they are the megabytes.
-   */
   const remove = () => {
     const current = row()
     if (current?.kind !== 'installed') return
@@ -214,14 +179,6 @@ export function createExtensionsPanel(deps: {
 
   const openSearch = () => setQuery(current => current ?? '')
 
-  /**
-   * Leave the search, keeping the cursor on the row it found.
-   *
-   * The whole point of searching for an extension is to do something to it, and
-   * the keys that do — Backspace above all — belong to the field while it is
-   * up. Resetting the cursor to the top here would mean the row you searched for
-   * is the one thing you cannot act on.
-   */
   const closeSearch = () => {
     const held = row()
     setQuery(null)
@@ -231,9 +188,6 @@ export function createExtensionsPanel(deps: {
   }
   const search = (value: string) => {
     setQuery(value)
-    // Onto the first hit, not onto the heading above it: after typing a name the
-    // next key is Enter, and Enter on a heading folds a section instead of
-    // installing what was searched for.
     const first = rows().findIndex(
       entry => entry.kind === 'installed' || entry.kind === 'available',
     )
@@ -253,7 +207,6 @@ export function createExtensionsPanel(deps: {
     openSearch,
     closeSearch,
     search,
-    /** The header's count, which the search does not narrow. */
     installedCount: () => extensions().length,
     checkNow: () => void market.checkNow(),
     updateAll: () => void market.updateAll(),

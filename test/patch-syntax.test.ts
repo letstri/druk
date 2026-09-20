@@ -3,7 +3,6 @@ import { describe, expect, test } from 'bun:test'
 import { DIFF_GROUPS, filetypeForPath, getSyntaxStyle } from '../src/languages/highlight'
 import { allSegments } from './syntax'
 
-/** What each group got painted on, so a pattern change shows up as text. */
 async function painted(source: string) {
   const segments = await allSegments(source, 'diff')
   const lines = source.split('\n')
@@ -61,7 +60,6 @@ describe('painting a patch', () => {
   test('the file headers stay headers, signs and all', async () => {
     const group = await painted(PATCH)
 
-    // `--- a/x` and `+++ b/x` start with the signs, so ordering decides these two.
     expect(group(DIFF_GROUPS.meta)).toContain('--- a/dist/dom/dom.js')
     expect(group(DIFF_GROUPS.meta)).toContain('+++ b/dist/dom/dom.js')
     expect(group(DIFF_GROUPS.meta)).toContain('diff --git a/dist/dom/dom.js b/dist/dom/dom.js')

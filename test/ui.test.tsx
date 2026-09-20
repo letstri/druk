@@ -7,7 +7,6 @@ import type { CommandActions } from '../src/app/commands'
 import { fixture, launch, openPalette, press, pressTimes } from './helpers'
 import type { Harness } from './helpers'
 
-/** Row index of a top-level command, so tests survive new commands. */
 function rowOf(label: string): number {
   const actions = new Proxy({} as CommandActions, { get: () => () => {} })
   const tree = buildCommands(actions, { activeTheme: 'dark', activeIconTheme: 'none' })
@@ -19,11 +18,10 @@ const PROJECT = {
   'notes.md': '# hi\n',
 }
 
-/** Expand src/ and open src/main.ts from the tree. */
 async function openMain(t: Harness) {
-  await press(t, i => i.pressArrow('down')) // src/
+  await press(t, i => i.pressArrow('down'))
   await press(t, i => i.pressEnter())
-  await press(t, i => i.pressArrow('down')) // src/main.ts
+  await press(t, i => i.pressArrow('down'))
   await press(t, i => i.pressEnter())
 }
 
@@ -42,9 +40,7 @@ describe('editor', () => {
     const frame = t.captureCharFrame()
     expect(frame).toContain('const a = 1')
     expect(frame).toContain('main.ts')
-    expect(frame).toContain(' 1 ') // gutter
-    // The status bar, not the tab — 'main.ts' up there matches 'ts' on its own.
-    // The frame ends with a newline, so the bar is the last row but one.
+    expect(frame).toContain(' 1 ')
     expect(frame.split('\n').at(-2)).toContain('ts')
   })
 
@@ -60,11 +56,9 @@ describe('editor', () => {
 
 describe('command palette', () => {
   test('nests into submenus and applies a theme', async () => {
-    // Tall enough for the whole root list: the palette windows its rows, so a
-    // command added above Themes would otherwise push it off a 20-row terminal.
+    // Tall enough for the whole root list, which the palette otherwise windows.
     const t = await launch(fixture(PROJECT), {}, { height: 30 })
     await openPalette(t)
-    // `›`, the same glyph the title trail and the README use for nesting.
     expect(t.captureCharFrame()).toContain('Themes ›')
 
     await pressTimes(t, rowOf('Themes'), input => input.pressArrow('down'))
@@ -104,8 +98,6 @@ test('the status bar tracks the cursor, on vertical-only moves too', async () =>
   await press(t, i => i.pressEnter())
   expect(t.captureCharFrame()).toContain('Ln 1, Col 1')
 
-  // Arrow-down emits no cursor-change event, so this only holds while the
-  // readout is refreshed after the key rather than from the event payload.
   await press(t, i => i.pressArrow('down'))
   await press(t, i => i.pressArrow('down'))
   expect(t.captureCharFrame()).toContain('Ln 3, Col 1')

@@ -30,7 +30,6 @@ function repo() {
   return dir
 }
 
-/** Row and column of `text` in the status bar — the bar is the last drawn row. */
 function at(t: Harness, text: string) {
   const lines = t.captureCharFrame().split('\n')
   const y = lines.findLastIndex(line => line.includes(text))

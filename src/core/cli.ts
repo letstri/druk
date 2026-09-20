@@ -16,7 +16,6 @@ Options:
   -v, --version   show the version
 `
 
-/** Output for a flag that prints and exits, or null when there is no such flag. */
 export function flagOutput(arg: string | undefined): string | null {
   if (arg === '-h' || arg === '--help') return HELP
   if (arg === '-v' || arg === '--version') return `${currentVersion()}\n`
@@ -24,28 +23,12 @@ export function flagOutput(arg: string | undefined): string | null {
 }
 
 export interface Target {
-  /** The project: what the tree, project search and git all work against. */
   rootDir: string
-  /** Set only by `druk <file>`: the one file to open. */
   openFile: string | null
-  /** 0-based line from `druk file.ts:42`; null when none was asked for. */
   line: number | null
-  /** 0-based column from `druk file.ts:42:7`; null when none was asked for. */
   col: number | null
 }
 
-/**
- * What `druk <arg>` should open. Null when the path does not exist — the caller
- * reports that and exits, rather than starting on an empty tree the way passing a
- * typo used to.
- *
- * A file makes its own folder the project. Nothing else would give the tree, the
- * project search or git anywhere to look, and `Ctrl+B` is still allowed to bring the
- * sidebar in.
- *
- * `file.ts:42` opens the file at that line — but only when no file is literally
- * named `file.ts:42`, which is a legal (if cursed) filename.
- */
 export function resolveTarget(arg: string | undefined, cwd: string): Target | null {
   const target = resolve(cwd, arg ?? '.')
   if (exists(target)) {

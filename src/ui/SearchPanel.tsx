@@ -25,17 +25,11 @@ import { useKeys } from './useKeys'
 
 export type SearchScope = 'file' | 'project'
 
-/**
- * A search as it stood when its panel died: enough to bring the same list back
- * on the same row. The folds are in it because they move the rows — restoring
- * the index without them lands on whatever else now sits at that position.
- */
 export interface SearchMemory {
   query: string
   options: SearchOptions
-  /** Row of the selection, not match: a folded heading is a row and no match. */
+  // Row index, not match index: a folded heading is a row and no match.
   index: number
-  /** Paths hidden behind their heading; project scope only. */
   folded: readonly string[]
 }
 
@@ -44,95 +38,45 @@ export interface SearchPanelProps {
   rootDir: string
   activePath: string | null
   activeContent: string
-  /**
-   * What the panel opens carrying: the editor's selection, or the search this
-   * scope was left on. Read once at mount — the panel is built fresh each time
-   * it opens, so nothing here has to be reactive.
-   */
   initial?: SearchMemory
-  /** Open with the replacement field already showing. */
   replacing?: boolean
-  /**
-   * Open-buffer text the project scan reads instead of the disk, so the rows
-   * show what a replace would act on. A function: each rescan wants the
-   * buffers as they are now, not as they were when the panel opened.
-   */
+  // A function: each rescan wants the buffers as they are now.
   buffers?: () => ReadonlyMap<string, string>
-  /**
-   * True while a modal owns the keyboard above the panel. Every key handler
-   * in the app hears every key — nothing layers them — so the panel has to
-   * stand down itself or Enter on a confirm would also apply the selected match.
-   */
+  // Every key handler hears every key: without this, Enter on a confirm also applies the match.
   suspended?: boolean
-  /**
-   * Told what is being searched for as it changes. The caller keeps it past the
-   * panel's death so reopening lands back where this one was left; `initial` is
-   * that value coming home.
-   */
   onSearch?: (state: SearchMemory) => void
   onPick: (match: Match) => void
-  /** Replace the selected match only. */
   onReplaceOne?: (match: Match, replacement: string) => void
-  /** Replace every match in scope — the whole file, or the whole project. */
   onReplaceAll?: (query: string, replacement: string, options: SearchOptions) => void
   onClose: () => void
 }
 
 export const MIN_QUERY = 2
 
-/** Lines either side of the selected match in the preview, at its smallest. */
 const MIN_CONTEXT = 2
-/** …and at its largest: past this the list is the thing being starved. */
 const MAX_CONTEXT = 9
 
-/**
- * A preview needs the lines around the hit to be worth reading at all, and a
- * three-line window rarely is. Below this height there is no room for one.
- */
 const PREVIEW_MIN_HEIGHT = 24
 
-/** Rows left unclaimed, so the panel never grows into the edge of the screen. */
 const SLACK = 2
 
-/**
- * Documents past this size are shown uncoloured. Parsing one costs a worker
- * round-trip on every step through the results, and the preview is eleven lines
- * of a file whose colour nobody is reading it for.
- */
 const MAX_HIGHLIGHT_BYTES = 512 * 1024
 
-/** A run of preview text painted as one `<text>`. */
 interface Span {
   text: string
   fg?: string
   attributes?: number
 }
 
-/**
- * A project scan reads every file in the tree — around 90ms across 2 600 files, and
- * it grows from there. Running that on the keystroke means each character freezes
- * the editor, so the scan waits for the typing to settle. In-file search is only
- * string work on the open buffer, so it stays immediate.
- */
 const SCAN_DEBOUNCE_MS = 140
 
-/**
- * A file heading, or one of its matches. `at` indexes into `matches()` — a heading
- * points at the first of its own, so the summary and preview read the same off both.
- * Selection lands on a match, or on a heading once it is folded and stands in for them.
- */
+// `at` indexes into `matches()`; a heading points at the first of its own.
 type Row =
   | { kind: 'file'; path: string; count: number; at: number; folded: boolean }
   | { kind: 'match'; match: Match; at: number }
 
-/** An open file's heading is scenery; a folded one stands in for its matches. */
 const selectable = (row: Row) => row.kind === 'match' || row.folded
 
-/**
- * The pieces of a painted line between columns `from` and `to`, splitting whichever
- * spans straddle them. Cutting the hit out of its coloured line and trimming the
- * line to the panel's width are the same operation on different bounds.
- */
 function sliceSpans(spans: readonly Span[], from: number, to: number): Span[] {
   const out: Span[] = []
   let col = 0
@@ -147,28 +91,17 @@ function sliceSpans(spans: readonly Span[], from: number, to: number): Span[] {
 
 export function SearchPanel(props: SearchPanelProps) {
   const dimensions = useTerminalDimensions()
-  // Read once: the panel is mounted fresh each time it opens, and re-reading would
-  // fight whatever has been typed since.
+  // Read once: re-reading would fight whatever has been typed since.
   const initial = props.initial
   const opened = initial?.query ?? ''
   const [query, setQuery] = createSignal(opened)
-  /** The query the results belong to; trails `query` while a project scan is pending. */
   const [scanned, setScanned] = createSignal(opened)
   const [replacement, setReplacement] = createSignal('')
   const [replacing, setReplacing] = createSignal(props.replacing ?? false)
-  /**
-   * Which of the two inputs takes typing. In file scope the mount order used to
-   * decide this — the replace field appears on Tab and arrives focused — but a
-   * panel opened with both fields showing has no such order, so it is said
-   * outright. Starts on the replacement only when a selection prefilled the
-   * query — otherwise the query is the thing not yet typed.
-   */
   const [field, setField] = createSignal<'query' | 'replace'>(
     props.replacing && opened ? 'replace' : 'query',
   )
-  /** Row the selection is nearest to, not the match: rows outnumber matches. */
   const [index, setIndex] = createSignal(props.initial?.index ?? 0)
-  /** Paths whose matches are hidden behind their heading. */
   const [folded, setFolded] = createSignal<ReadonlySet<string>>(
     new Set(props.initial?.folded ?? []),
   )
@@ -182,8 +115,6 @@ export function SearchPanel(props: SearchPanelProps) {
   const type = (value: string) => {
     setQuery(value)
     setIndex(0)
-    // The folds belong to the result set they were made in; carrying them over
-    // leaves a fresh search with files already hidden for no visible reason.
     setFolded(new Set<string>())
     if (props.scope !== 'project') return setScanned(value)
     if (scanTimer) clearTimeout(scanTimer)
@@ -192,8 +123,7 @@ export function SearchPanel(props: SearchPanelProps) {
 
   const pending = () => props.scope === 'project' && scanned() !== query()
 
-  // Bumped after a project-scope apply: the scan reads disk and buffers, which
-  // no signal covers, so freshness after our own replace is asked for by hand.
+  // Bumped after a project-scope replace: the scan reads disk and buffers, which no signal covers.
   const [generation, setGeneration] = createSignal(0)
 
   createEffect(
@@ -213,10 +143,6 @@ export function SearchPanel(props: SearchPanelProps) {
       : searchText(props.activeContent, q, props.activePath ?? '', options())
   })
 
-  /**
-   * Matches grouped under their file. Grouping is what buys the line text the whole
-   * width: the old flat list spent 34 columns repeating the same path on every row.
-   */
   const rows = createMemo<Row[]>(() => {
     const out: Row[] = []
     const all = matches()
@@ -238,7 +164,6 @@ export function SearchPanel(props: SearchPanelProps) {
     return out
   })
 
-  /** Index into `rows()` of the selected row, or -1 when there is nothing to select. */
   const selected = createMemo(() => {
     const all = rows()
     if (all.length === 0) return -1
@@ -249,7 +174,6 @@ export function SearchPanel(props: SearchPanelProps) {
   })
 
   const cursor = () => rows()[selected()]
-  /** The selected match — a folded heading answers with the first it hides. */
   const current = () => matches()[cursor()?.at ?? -1]
 
   const move = (step: number) => {
@@ -263,17 +187,10 @@ export function SearchPanel(props: SearchPanelProps) {
     setIndex(at)
   }
 
-  /**
-   * Every file at once: fold them all, or open them all again once they are. What
-   * it buys is a list of files to walk with ↑↓ — with a hundred hits across ten
-   * files, reaching the next file otherwise means scrolling past every match in
-   * this one.
-   */
   const toggleFoldAll = () => {
     const paths = [...new Set(matches().map(match => match.path))]
     const shut = paths.length > 0 && paths.every(path => folded().has(path))
-    // The file the selection is in, read before the rows move under it: afterwards
-    // the same index is a different row, and the selection would follow it.
+    // Read before the rows move under the selection.
     const row = cursor()
     const path = row && (row.kind === 'file' ? row.path : row.match.path)
     setFolded(shut ? new Set<string>() : new Set(paths))
@@ -292,34 +209,17 @@ export function SearchPanel(props: SearchPanelProps) {
       else next.delete(path)
       return next
     })
-    // The rows just moved under the selection: folding takes its matches away, so
-    // land on the heading that now stands for them, and unfolding gives them back.
     const heading = rows().findIndex(row => row.kind === 'file' && row.path === path)
     if (heading >= 0) setIndex(folding ? heading : heading + 1)
   }
 
-  /**
-   * The widest of the modals, and deliberately so: every other one shows short
-   * labels, while this one shows lines of source that mean nothing truncated.
-   */
   const width = () => modalWidth(dimensions().width, 0.86, 64, 160)
-  /** Inside the border *and* the padding — miss either and every long row wraps. */
+  // Inside the border *and* the padding — miss either and every long row wraps.
   const contentWidth = () => width() - 2 - PAD * 2
 
-  /**
-   * The text that would take each hit's place, or '' when nothing would. Every row
-   * shows it beside the hit as it is typed, so the result is visible before anything
-   * is written — which is the whole reason to look at the list before pressing Enter.
-   */
   const swap = () => (replacing() ? replacement() : '')
 
-  /**
-   * The selected match's whole file, or null when it cannot be read. The preview is
-   * a window on it and the highlighter wants the document rather than the window:
-   * tree-sitter's error recovery misreads a fragment that starts mid-expression, so
-   * a slice would come back with half its captures missing (the same reason the
-   * diff view highlights the full texts and remaps).
-   */
+  // The whole file, not the window: tree-sitter error recovery misreads a fragment.
   type Source = { path: string; text: string } | null
   const source = createMemo<Source, Source>(
     () => {
@@ -329,32 +229,23 @@ export function SearchPanel(props: SearchPanelProps) {
       try {
         return { path: match.path, text: readFile(match.path) }
       } catch {
-        return null // deleted or unreadable since the scan
+        return null
       }
     },
     null,
-    // Stepping between two matches in one file is not a new document; without this
-    // the parse below would be restarted, and the colours dropped, on every step.
+    // Stepping between matches in one file must not restart the parse below.
     { equals: (a, b) => a?.path === b?.path && a?.text === b?.text },
   )
 
-  /** Rows the panel spends on everything that is neither the list nor the preview. */
   const chromeRows = () => 7 + topInset(dimensions().height) + (replacing() ? 1 : 0)
 
-  /**
-   * How far the preview reaches either side of the hit. It grows with the terminal:
-   * the preview is how you decide whether this is the match you were after, and on
-   * a tall window there is no reason to answer that from five lines.
-   */
   const contextLines = () => {
     const spare = dimensions().height - chromeRows() - SLACK
     return Math.max(MIN_CONTEXT, Math.min(MAX_CONTEXT, Math.floor(spare / 5)))
   }
 
-  /** Rows the preview spends: the lines themselves plus the gap and rule above them. */
   const previewRows = () => contextLines() * 2 + 3
 
-  /** Surroundings of the selected match, or null when there is no room to show them. */
   const preview = createMemo<Context | null>(() => {
     const match = current()
     const file = source()
@@ -362,13 +253,10 @@ export function SearchPanel(props: SearchPanelProps) {
     return contextIn(file.text, match.line, contextLines())
   })
 
-  /** The parsed document behind the preview's colours, once it lands. */
   const [parsed, setParsed] = createSignal<Highlighted | null>(null)
 
   createEffect(
     on(source, file => {
-      // Dropped up front: the previous file's captures are wrong for this one, and
-      // colouring one file's lines with another's is worse than no colour at all.
       setParsed(null)
       if (!file || file.text.length > MAX_HIGHLIGHT_BYTES) return
       let dropped = false
@@ -382,22 +270,13 @@ export function SearchPanel(props: SearchPanelProps) {
     }),
   )
 
-  /**
-   * Rows the list may use. Named apart from `modal.ts`'s `listRows` on purpose: this
-   * one has a preview to make room for. The panel has to fit a short terminal, and
-   * the list gives way before the preview does — a preview of nothing is useless,
-   * but a list of two rows is still a list.
-   */
   const resultRows = () => {
     const chrome = chromeRows() + SLACK + (preview() ? previewRows() : 0)
     return Math.max(2, Math.min(18, dimensions().height - chrome))
   }
 
-  /** The window of rows on screen, kept over the selected row. */
-  // Lead 2: one row of lead-in, so the file heading above the selection stays visible.
   const windowed = createMemo(() => windowAround(rows(), selected(), resultRows(), 2))
 
-  /** Ctrl+C / Ctrl+W / Ctrl+R flips an option; the results recompute from scratch. */
   const toggleOption = (name: keyof SearchOptions) => {
     setOptions(prev => ({ ...prev, [name]: !prev[name] }))
     setIndex(0)
@@ -425,18 +304,14 @@ export function SearchPanel(props: SearchPanelProps) {
     } else if (k === 'tab' && key.shift && props.scope === 'project') {
       key.preventDefault()
       toggleFoldAll()
-      // In file scope Tab is the replace toggle, as it has always been.
     } else if (k === 'tab' && props.scope === 'file' && props.onReplaceAll) {
       key.preventDefault()
       const next = !replacing()
       setReplacing(next)
       setField(next ? 'replace' : 'query')
-      // Replacing across the project, Tab moves between the two fields — the only
-      // way to edit the query when both are up, so folding gives it up here.
     } else if (k === 'tab' && props.scope === 'project' && replacing()) {
       key.preventDefault()
       setField(f => (f === 'query' ? 'replace' : 'query'))
-      // Plain project search spends Tab on folding, as it always has.
     } else if (k === 'tab' && props.scope === 'project') {
       key.preventDefault()
       toggleFold()
@@ -445,12 +320,9 @@ export function SearchPanel(props: SearchPanelProps) {
       props.onReplaceAll(query(), replacement(), options())
     } else if (k === 'return' || k === 'enter') {
       key.preventDefault()
-      // A heading is only ever selected while folded, where Enter is the way back in.
       if (cursor()?.kind === 'file') return toggleFold()
       const match = current()
       if (!match) return
-      // Replacing one match at a time is the point of the mode; the whole file goes
-      // through Ctrl+A, which is the harder move to make by accident.
       if (replacing() && props.onReplaceOne) {
         props.onReplaceOne(match, replacement())
         if (props.scope === 'project') setGeneration(g => g + 1)
@@ -461,7 +333,6 @@ export function SearchPanel(props: SearchPanelProps) {
     }
   })
 
-  /** The active toggles, said the way the footer names them. */
   const flags = () => {
     const on = options()
     const parts = [on.caseSensitive && 'case', on.wholeWord && 'word', on.regex && 'regex']
@@ -471,7 +342,6 @@ export function SearchPanel(props: SearchPanelProps) {
 
   const summary = () => {
     if (query().length < MIN_QUERY) return `Type at least 2 characters${flags()}`
-    // Say so rather than showing the previous query's count as if it were current.
     if (pending()) return `Searching…${flags()}`
     if (options().regex && !buildQuery(scanned(), options())) return `Invalid regex${flags()}`
     const all = matches()
@@ -484,26 +354,15 @@ export function SearchPanel(props: SearchPanelProps) {
 
   const label = (path: string) => relative(props.rootDir, path) || basename(path)
 
-  /**
-   * The line, cut to `room` around the match rather than from column 0. A hit 200
-   * columns into a minified line was simply not in the old fixed 38-column slice, so
-   * the row showed the query's own result without the query in it.
-   */
   const sliceAround = (text: string, col: number, room: number) => {
     if (text.length <= room) return { text, col, cut: false }
     const start = Math.max(0, Math.min(col - 12, text.length - room))
     return { text: text.slice(start, start + room), col: col - start, cut: start > 0 }
   }
 
-  /**
-   * Preview line `at` as coloured pieces: the parsed document's segments, with the
-   * gaps between them left in `plain`. A segment carrying only a background — the
-   * indent guides — is passed over, or the preview would come out striped with a
-   * fill nothing here asked for.
-   */
+  // A segment carrying only a background (indent guides) is skipped, or the preview comes out striped.
   const painted = (line: string, at: number, plain: string): Span[] => {
-    // Read so the pieces are rebuilt when the theme changes: the style ids a
-    // segment carries are the previous theme's until the table behind them is.
+    // Read for the dependency: style ids are per theme table.
     paintedTheme()
     const doc = parsed()
     const out: Span[] = []
@@ -525,26 +384,14 @@ export function SearchPanel(props: SearchPanelProps) {
     return out
   }
 
-  /** Columns of a preview line left for text, after its line number. */
   const previewRoom = () => contentWidth() - 6
 
-  /**
-   * Columns scrolled off the left of the hit's own line, so a match 200 columns
-   * into a minified line is in the preview at all. Only that line moves: shifting
-   * its neighbours by the same amount empties them, and a preview of blank rows
-   * says less about the hit than an unaligned one does.
-   */
   const previewShift = () => {
     const match = current()
     if (!match || match.col + match.length <= previewRoom()) return 0
     return Math.max(0, match.col - 12)
   }
 
-  /**
-   * A preview line, ready to paint: syntax colours, and on the selected match's own
-   * line the hit picked out — struck through beside its replacement once there is
-   * one, so the preview and the row above it agree about what the file will say.
-   */
   const previewLine = (line: string, at: number): Span[] => {
     const match = current()
     const hit = match && at === match.line
@@ -612,7 +459,6 @@ export function SearchPanel(props: SearchPanelProps) {
                   content={`${row.folded ? '▸' : '▾'} ${label(row.path)} `}
                   attributes={TextAttributes.BOLD}
                 />
-                {/* Spacer first, so the count lands on the right edge. */}
                 <box flexGrow={1} backgroundColor={bg()} />
                 <text
                   fg={active() ? ui.accent : ui.faint}
@@ -626,9 +472,7 @@ export function SearchPanel(props: SearchPanelProps) {
 
           const bg = () => (active() ? ui.treeSelectedBg : ui.panelBg)
           const gutter = () => `${row.match.line + 1}`.padStart(5)
-          // Room left after the marker (1), the line number and its gap (7) and the
-          // cut marker (1). One column over and the row wraps onto a second line —
-          // and the replacement shown beside the hit takes its share of it too.
+          // Marker 1 + number and gap 7 + cut marker 1; one column over and the row wraps.
           const cut = () =>
             sliceAround(row.match.text, row.match.col, contentWidth() - 9 - swap().length)
           const head = () => cut().text.slice(0, cut().col)
@@ -646,8 +490,6 @@ export function SearchPanel(props: SearchPanelProps) {
               />
               <text fg={ui.dim} bg={bg()} flexShrink={0} content={cut().cut ? '…' : ''} />
               <text fg={active() ? ui.text : ui.dim} bg={bg()} flexShrink={0} content={head()} />
-              {/* The hit itself, so the eye lands on why the row is here — struck
-                    through once there is a replacement to put in its place. */}
               <text
                 fg={swap() ? ui.gitDeleted : ui.accent}
                 bg={bg()}
@@ -675,18 +517,13 @@ export function SearchPanel(props: SearchPanelProps) {
       <Show when={preview()}>
         {(around: () => Context) => (
           <box flexDirection="column" marginTop={1}>
-            {/* The list and the preview are both source lines on near-identical
-                  backgrounds; without a rule between them the eye reads one column of
-                  code where there are two unrelated ones. */}
             <text
               fg={ui.border}
               bg={ui.panelBg}
               content={'─'.repeat(Math.max(0, contentWidth()))}
             />
             <box flexDirection="column" backgroundColor={ui.solidBg}>
-              {/* Index, not For: the rows are a fixed column whose *values* change as
-                  the selection moves, and keying by value tears every line down and
-                  rebuilds it on each step. */}
+              {/* Index, not For: a fixed column whose values change on every step. */}
               <Index each={around().lines}>
                 {(line, i) => {
                   const at = () => around().start + i
@@ -711,7 +548,6 @@ export function SearchPanel(props: SearchPanelProps) {
                           />
                         )}
                       </Index>
-                      {/* Spacer, so the line's background reaches the panel's edge. */}
                       <box flexGrow={1} backgroundColor={bg()} />
                     </box>
                   )

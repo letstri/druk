@@ -21,11 +21,8 @@ async function withOpenFile(content = 'const alpha = 1\nconst beta = 2\n') {
   return { t, dir }
 }
 
-/** The editor's first content row: the tab strip is 0 and the breadcrumbs 1. */
-const EDITOR_ROW = 2
+const EDITOR_ROW = 1
 
-/** Column of `word` on the editor's first content row — row 2, under the tab
- * strip and the breadcrumbs. */
 function colOf(t: Harness, word: string) {
   const row = t.captureCharFrame().split('\n')[EDITOR_ROW]!
   return row.indexOf(word)
@@ -36,12 +33,28 @@ const save = (t: Harness) => press(t, input => input.pressKey('s', { ctrl: true 
 describe('mouse selection', () => {
   test('dragging in the editor still selects, so Ctrl+C has something to copy', async () => {
     const { t } = await withOpenFile()
-    // Found from the frame rather than hard-coded: the editor's first column moves
-    // whenever the sidebar is resized or the divider changes width.
+    // Read off the frame: the editor's first column moves with the sidebar's width.
     const from = colOf(t, 'alpha')
     await t.mockMouse.drag(from, EDITOR_ROW, from + 5, EDITOR_ROW)
     await settle(t)
     expect(selected(t)).toContain('alpha')
+  })
+
+  test('a finished drag copies what it selected', async () => {
+    const { t } = await withOpenFile()
+    const from = colOf(t, 'alpha')
+    await t.mockMouse.drag(from, EDITOR_ROW, from + 5, EDITOR_ROW)
+    await settle(t)
+    expect(t.captureCharFrame()).toContain('Copied alpha')
+  })
+
+  test('a drag across many rows copies all of them', async () => {
+    const lines = Array.from({ length: 400 }, (_, at) => `const line${at} = ${at}`).join('\n')
+    const { t } = await withOpenFile(`${lines}\n`)
+    const from = colOf(t, 'const')
+    await t.mockMouse.drag(from, EDITOR_ROW, from + 8, EDITOR_ROW + 10)
+    await settle(t)
+    expect(t.captureCharFrame()).toContain('Copied 11 lines')
   })
 
   test('dragging over the file tree selects nothing', async () => {
@@ -63,10 +76,16 @@ describe('mouse selection', () => {
     const at = colOf(t, 'data')
     await t.mockMouse.doubleClick(at, EDITOR_ROW)
     await settle(t)
-    // Typing replaces the selection — the same path Ctrl+A and a drag use.
     await press(t, input => void input.typeText('X'))
     await save(t)
     expect(readFileSync(join(dir, 'a.ts'), 'utf8')).toBe('const X = []\nconst beta = 2\n')
+  })
+
+  test('double-click copies the word it selected', async () => {
+    const { t } = await withOpenFile(CONTENT)
+    await t.mockMouse.doubleClick(colOf(t, 'data'), EDITOR_ROW)
+    await settle(t)
+    expect(t.captureCharFrame()).toContain('Copied data')
   })
 
   test('triple-click selects the whole line', async () => {
@@ -88,7 +107,6 @@ describe('mouse selection', () => {
     await settle(t)
     await press(t, input => void input.typeText('X'))
     await save(t)
-    // Caret lands on a letter of the word; inserting must not wipe `data`.
     expect(readFileSync(join(dir, 'a.ts'), 'utf8')).toContain('data')
     expect(readFileSync(join(dir, 'a.ts'), 'utf8')).toContain('X')
   })
@@ -105,8 +123,6 @@ describe('mouse selection', () => {
 
   test('double-clicking past the end of a line keeps the line break', async () => {
     const { t, dir } = await withOpenFile()
-    // The caret clamps to the line's `\n`, which is not a token: selecting it
-    // would make the next keystroke pull the following line up.
     const at = colOf(t, 'const alpha = 1') + 'const alpha = 1'.length + 3
     await t.mockMouse.doubleClick(at, EDITOR_ROW)
     await settle(t)
@@ -118,7 +134,6 @@ describe('mouse selection', () => {
   test('double-clicking a blank line does not eat the blank lines around it', async () => {
     const { t, dir } = await withOpenFile('const alpha = 1\n\n\n\nconst beta = 2\n')
     const at = colOf(t, 'const alpha = 1')
-    // The row under the first line: blank, as the ones under it are.
     await t.mockMouse.doubleClick(at, EDITOR_ROW + 1)
     await settle(t)
     await press(t, input => void input.typeText('X'))

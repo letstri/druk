@@ -1,18 +1,8 @@
-/**
- * Line diff between two texts, emitted as a standard unified patch — the input
- * OpenTUI's `<diff>` renderable parses. Pure string work: git supplies the two
- * texts (HEAD side and buffer/disk side), this module never runs a subprocess,
- * which is what lets unsaved edits diff before they are saved.
- */
-
 export interface UnifiedDiff {
-  /** Unified patch text, or '' when the two sides agree. */
   patch: string
   adds: number
   dels: number
-  /** Body rows the patch carries, context included — what a pane will hold. */
   lines: number
-  /** True when `maxLines` cut the patch short; `adds`/`dels` still count everything. */
   truncated: boolean
 }
 
@@ -23,10 +13,6 @@ function splitText(text: string): string[] {
   return lines
 }
 
-/**
- * Beyond this many edit steps Myers costs more than the answer is worth —
- * a middle that different reads as a rewrite anyway, so it is reported as one.
- */
 const MAX_EDIT_DISTANCE = 2000
 
 interface Edit {
@@ -35,21 +21,12 @@ interface Edit {
   newIndex: number
 }
 
-/** The trimmed middle differs by more than `MAX_EDIT_DISTANCE`: a rewrite. */
 interface Rewrite {
   start: number
   oldEnd: number
   newEnd: number
 }
 
-/**
- * Myers O(ND) shortest edit script over lines, after trimming the common
- * prefix and suffix — which is what keeps a small edit in a large file cheap.
- *
- * A rewrite comes back as its range, never as per-line edits: at give-up size
- * the middle is the whole of a huge file twice over, and materializing an edit
- * object per line is most of what `unifiedDiff` used to spend on a lock file.
- */
 function lineEdits(oldLines: string[], newLines: string[]): Edit[] | Rewrite {
   let start = 0
   while (
@@ -78,7 +55,6 @@ function lineEdits(oldLines: string[], newLines: string[]): Edit[] | Rewrite {
   return edits
 }
 
-/** Null when the texts differ by more than `MAX_EDIT_DISTANCE` steps. */
 function myers(a: string[], b: string[], oldBase: number, newBase: number): Edit[] | null {
   const n = a.length
   const m = b.length
@@ -86,8 +62,7 @@ function myers(a: string[], b: string[], oldBase: number, newBase: number): Edit
 
   const max = Math.min(n + m, MAX_EDIT_DISTANCE)
   const offset = max
-  // v[k + offset] = furthest x on diagonal k after d steps; trace keeps a copy
-  // per d so the path can be walked back.
+  // v[k + offset] = furthest x on diagonal k after d steps; trace keeps a copy per d.
   const v = new Int32Array(2 * max + 2)
   const trace: Int32Array[] = []
 
@@ -112,10 +87,8 @@ function myers(a: string[], b: string[], oldBase: number, newBase: number): Edit
     }
   }
 
-  // The texts differ by more than MAX_EDIT_DISTANCE steps: call it a rewrite.
   if (found < 0) return null
 
-  // Walk the trace back from the end, collecting edits in reverse.
   const edits: Edit[] = []
   let x = n
   let y = m
@@ -147,14 +120,8 @@ function myers(a: string[], b: string[], oldBase: number, newBase: number): Edit
   return edits.toReversed()
 }
 
-/** Unchanged lines kept on each side of a change inside a hunk. */
 const CONTEXT = 3
 
-/**
- * The one-hunk patch of a `Rewrite`, emitted straight from the line arrays.
- * Shape-for-shape what the generic emitter produces for the same range —
- * context, header arithmetic, cap and counts — pinned by the scale tests.
- */
 function rewritePatch(
   rel: string,
   oldLines: string[],
@@ -205,17 +172,6 @@ function rewritePatch(
   }
 }
 
-/**
- * The unified patch for `rel` between two texts. Hunks carry three lines of
- * context and merge when their context would touch — the same shape `git diff`
- * prints, so any consumer of unified diffs reads it.
- *
- * `maxLines` bounds the patch *body*, not the counts: emission stops at the
- * cap — mid-hunk, with that hunk's header naming only what was emitted — while
- * `adds`/`dels` keep counting to the end. A package-lock rewrite is a hundred
- * thousand rows nobody scrolls, and every consumer downstream (the pane's
- * native buffer, its per-line maps, the hatch pass) pays per row.
- */
 export function unifiedDiff(
   rel: string,
   oldText: string,
@@ -227,8 +183,7 @@ export function unifiedDiff(
   const edits = lineEdits(oldLines, newLines)
   if (!Array.isArray(edits)) return rewritePatch(rel, oldLines, newLines, edits, maxLines)
 
-  // Hunks as index ranges into `edits`: a gap of more than twice the context
-  // between changes splits them, anything closer shares one hunk.
+  // Hunks as index ranges into `edits`: a gap of more than twice the context splits them.
   const hunks: { from: number; to: number }[] = []
   for (let i = 0; i < edits.length; i++) {
     if (edits[i]!.kind === 'same') continue
@@ -245,8 +200,6 @@ export function unifiedDiff(
     `--- ${oldLines.length === 0 ? '/dev/null' : `a/${rel}`}`,
     `+++ ${newLines.length === 0 ? '/dev/null' : `b/${rel}`}`,
   ]
-  // Positions walk forward through the edit list once; each hunk records where
-  // it starts and how much of each side it spans.
   let oldPos = 0
   let newPos = 0
   let at = 0
@@ -282,14 +235,12 @@ export function unifiedDiff(
       lines++
       advance(edit)
     }
-    // An empty side names the line *before* the hunk, unshifted — `-0,0` is how
-    // a patch for a brand-new file reads.
+    // An empty side names the line *before* the hunk, unshifted: `-0,0` is a new file's.
     const oldHeader = oldCount === 0 ? oldStart : oldStart + 1
     const newHeader = newCount === 0 ? newStart : newStart + 1
     out.push(`@@ -${oldHeader},${oldCount} +${newHeader},${newCount} @@`, ...body)
   }
-  // Whatever the cap left unemitted still counts: the header's `+N −M` must say
-  // what the change is, not how much of it fit.
+  // Whatever the cap left unemitted still counts: adds/dels describe the whole change.
   let truncated = false
   while (at < edits.length) {
     const kind = edits[at++]!.kind

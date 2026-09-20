@@ -15,13 +15,10 @@ export type ExtensionRow =
       id: string
       label: string
       version: string
-      /** What it is — `language`, `lsp`, `theme`, `icons` — drawn where there is room. */
       categories: ExtensionCategory[]
-      /** What the market has that this does not, or null. */
       update: string | null
       disabled: boolean
       builtin: boolean
-      /** What it contributes — the search matches on it too. */
       about: string
     }
   | {
@@ -32,40 +29,27 @@ export type ExtensionRow =
       about: string
       categories: ExtensionCategory[]
     }
-  /** An inert line: what the cap left out. Enter on it does nothing. */
   | { kind: 'note'; id: string; label: string }
 
-/** `Show`'s `when` takes a value, not a predicate: these hand it the narrowed row
- * (or nothing) so the block inside needs no cast. */
+// `Show`'s `when` takes a value, not a predicate: these hand it the narrowed row.
 const sectionRow = (row: ExtensionRow) => (row.kind === 'section' ? row : undefined)
 const installedRow = (row: ExtensionRow) => (row.kind === 'installed' ? row : undefined)
 
 export interface ExtensionsPanelProps {
   rows: ExtensionRow[]
   cursor: number
-  /** How many manifests are loaded, whatever the search leaves on screen. */
   installedCount: number
-  /** What the search field holds, or null while it is shut. */
   query: string | null
   focused: boolean
   width: number
   onFocus: () => void
   onSearch: (value: string) => void
-  /** The search row clicked: start typing into it. `/` does the same. */
   onOpenSearch: () => void
-  /** A row clicked: move the cursor there, and flip it, install it or fold it. */
   onActivate: (index: number) => void
 }
 
-/**
- * The sidebar's extensions view — VS Code's left-hand extensions panel, sized
- * down: what is installed under a heading, what the market has under another,
- * `Enter` to enable or install, `Backspace` to uninstall. Keys are handled in
- * `app/keyboard.ts` beside the tree's and the git panel's, so this renders and
- * reports clicks, nothing more.
- */
 export function ExtensionsPanel(props: ExtensionsPanelProps) {
-  /** A memo so the reveal below fires on the cursor's *value* — see GitPanel. */
+  // A memo so the reveal below fires on the cursor's *value* — see GitPanel.
   const cursor = createMemo(() => Math.max(0, Math.min(props.cursor, props.rows.length - 1)))
 
   const list = createScrollList(() => props.rows.length)
@@ -75,22 +59,12 @@ export function ExtensionsPanel(props: ExtensionsPanelProps) {
 
   createEffect(on(cursor, row => list.reveal(row)))
 
-  /**
-   * The version column. A pending update is drawn as the version it would move
-   * to — once one is waiting that is the whole of what the row has to say.
-   */
   const version = (row: ExtensionRow) => {
     if (row.kind === 'available') return row.version
     if (row.kind !== 'installed') return ''
     return row.update ? `→ ${row.update}` : row.version
   }
 
-  /**
-   * What the row is, drawn dim between the name and the version — and only where
-   * the columns are going spare. A sidebar this narrow has none most of the
-   * time, and a category that pushed a name out of view would cost more than it
-   * told.
-   */
   const categories = (row: ExtensionRow) => {
     if (row.kind !== 'installed' && row.kind !== 'available') return ''
     const text = row.categories.join(' ')
@@ -109,7 +83,6 @@ export function ExtensionsPanel(props: ExtensionsPanelProps) {
       flexBasis={0}
       onMouseDown={() => props.onFocus()}
     >
-      {/* VS Code's title row; what is installed is counted on its right. */}
       <PanelHeader title="Extensions" width={props.width} focused={props.focused}>
         <text
           fg={props.focused ? ui.text : ui.dim}
@@ -120,14 +93,7 @@ export function ExtensionsPanel(props: ExtensionsPanelProps) {
         />
       </PanelHeader>
 
-      {/* The panel's own search, and the only one it has: this view is about
-          extensions and nothing else, so one field covers what is installed and
-          what the market offers alike.
-
-          Always drawn, never conditionally: a search that only appears once its
-          key is pressed is a search nobody finds. It is a real input only while
-          it is being typed into, though — the panel's letters are its own the
-          rest of the time, and two focused inputs would split the typing. */}
+      {/* Always drawn, a real input only while typed into: two focused inputs split the typing. */}
       <box
         height={1}
         flexDirection="row"
@@ -188,8 +154,7 @@ export function ExtensionsPanel(props: ExtensionsPanelProps) {
                   height={1}
                   flexDirection="row"
                   backgroundColor={bg()}
-                  // Deliberately not stopped: the panel's own handler runs after
-                  // this one and focuses it, which is where the keyboard belongs.
+                  // Not stopped: the panel's own handler runs after this and focuses it.
                   onMouseDown={() => props.onActivate(index())}
                   onMouseOver={() => rowHover.enter(index())}
                   onMouseOut={() => rowHover.leave(index())}
@@ -225,8 +190,7 @@ export function ExtensionsPanel(props: ExtensionsPanelProps) {
                     <text wrapMode="none" fg={ui.faint} bg={bg()} content={`   ${row.label}`} />
                   </Show>
                   <Show when={row.kind === 'installed' || row.kind === 'available'}>
-                    {/* The state glyph never gives, as the tree's indent does not:
-                        shrinking it would slide every name a column left. */}
+                    {/* The state glyph never gives: shrinking it slides every name left. */}
                     <text
                       fg={row.kind === 'installed' && row.disabled ? ui.faint : ui.accent}
                       bg={bg()}

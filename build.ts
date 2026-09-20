@@ -2,27 +2,14 @@ import { mkdir, rm } from 'node:fs/promises'
 
 import solidPlugin from '@opentui/solid/bun-plugin'
 
-/**
- * Builds druk into a self-contained executable: the Bun runtime, OpenTUI's native
- * library and every tree-sitter grammar in one file, so installing druk never means
- * installing Bun first.
- *
- * Cross-compiling only works for platforms whose `@opentui/core-<platform>` package is
- * installed — `bun install` fetches the host's alone. Release builds therefore run one
- * native runner per target; see .github/workflows/release.yml.
- */
+// Cross-compiling needs the target's @opentui/core-<platform> package, which bun install skips.
 const TARGETS = {
   'darwin-arm64': 'bun-darwin-arm64',
   'darwin-x64': 'bun-darwin-x64',
   'linux-arm64': 'bun-linux-arm64',
   'linux-x64': 'bun-linux-x64',
   'windows-x64': 'bun-windows-x64',
-  // Bun's default x64 builds are compiled for AVX2, so on a pre-2013 CPU (Sandy/Ivy
-  // Bridge) they die at startup with "illegal hardware instruction" — issue #99. The
-  // baseline variants target Nehalem and run anywhere; the npm shim and the install
-  // script pick them on machines without avx2. No darwin pair: every Mac that runs a
-  // macOS Bun supports has AVX2 (the 2013 Mac Pro is the lone exception, and Homebrew
-  // cannot tell bottles apart by CPU feature anyway).
+  // Bun's default x64 builds need AVX2 and die on a pre-2013 CPU (#99); no darwin pair needed.
   'linux-x64-baseline': 'bun-linux-x64-baseline',
   'windows-x64-baseline': 'bun-windows-x64-baseline',
 } as const
@@ -55,9 +42,7 @@ export async function buildTarget(target: TargetName, version: string): Promise<
     compile: {
       target: TARGETS[target],
       outfile,
-      // druk is opened *inside* other people's projects, and a standalone binary
-      // otherwise picks up the bunfig.toml sitting there — including its `preload`,
-      // which then fails to resolve and kills startup before the editor draws.
+      // druk opens inside other people's projects, whose bunfig.toml `preload` would kill startup.
       autoloadBunfig: false,
       autoloadDotenv: false,
     },

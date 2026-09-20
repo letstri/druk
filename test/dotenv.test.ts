@@ -3,7 +3,6 @@ import { describe, expect, test } from 'bun:test'
 import { filetypeForPath, getSyntaxStyle } from '../src/languages/highlight'
 import { allSegments } from './syntax'
 
-/** What each group got painted on, so a pattern change shows up as text. */
 async function painted(source: string) {
   const segments = await allSegments(source, 'dotenv')
   const lines = source.split('\n')
@@ -40,7 +39,6 @@ describe('files named after what they are', () => {
   })
 
   test('and only that name', () => {
-    // bun.lockb is the old binary format — colouring it as json would be a lie.
     expect(filetypeForPath('bun.lockb')).toBeUndefined()
     expect(filetypeForPath('my-bun.lock')).toBeUndefined()
   })
@@ -68,7 +66,6 @@ EMPTY=
   })
 
   test('export stays a keyword rather than part of the key', async () => {
-    // The key rule spans `export API_URL`, so ordering decides this one.
     const group = await painted(SAMPLE)
     expect(group('keyword')).toContain('export')
   })

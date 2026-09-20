@@ -1,14 +1,9 @@
-/**
- * The shapes the LSP status page renders. In `lsp/` rather than `app/` because
- * `ui/LspStatusView` needs them and nothing in `ui/` may import from `app/` —
- * the store that fills them still lives in `app/lsp.ts`.
- */
+// In `lsp/` rather than `app/`: `ui/LspStatusView` reads these and `ui/` may not import `app/`.
 
 export type ServerState = 'starting' | 'ready' | 'stopped' | 'failed'
 
-/** One line of a server's log — stderr, a window/logMessage, or a lifecycle event. */
 export interface ServerLogLine {
-  /** HH:MM:SS, stamped when the line arrived. */
+  // HH:MM:SS
   time: string
   kind: 'stderr' | 'server' | 'event'
   text: string
@@ -16,7 +11,6 @@ export interface ServerLogLine {
 
 export interface ServerView {
   id: string
-  /** The command actually spawned — project copy, druk's install, or PATH. */
   command: string[]
   state: ServerState
   error: string | null

@@ -3,11 +3,7 @@ import { describe, expect, test } from 'bun:test'
 import { fixture, launch, openFile, press, until } from './helpers'
 import type { Harness } from './helpers'
 
-/**
- * Lines long enough to wrap several times each. That is what breaks the window:
- * `scrollY` counts visual rows while highlights are addressed by logical line,
- * so deep in such a file the two disagree by a factor of four.
- */
+// `scrollY` counts visual rows; highlights are addressed by logical line.
 const LOCKFILE = `{
   "lockfileVersion": 1,
   "packages": {
@@ -20,7 +16,6 @@ ${Array.from(
 }
 `
 
-/** Distinct foreground colours in the text area — one means it is all plain. */
 function colors(t: Harness) {
   const frame = t.captureSpans() as unknown as {
     lines: { spans: { text: string; fg?: { buffer: Uint8Array } }[] }[]
@@ -35,7 +30,6 @@ function colors(t: Harness) {
   return seen
 }
 
-/** The highlight pass is async — wait for color to arrive, not for a duration. */
 const painted = (t: Harness) => until(t, () => colors(t).size > 2)
 
 async function openLock() {
@@ -52,11 +46,6 @@ const gotoLine = async (t: Harness, line: number) => {
   await painted(t)
 }
 
-/**
- * A smoke check, not the guard. The off-screen harness wraps differently enough
- * that it kept passing with the bug in place — what actually pins the mapping is
- * `window.test.ts`, which drives `logicalWindow` directly.
- */
 describe('highlighting a file whose lines wrap', () => {
   test('is still painted hundreds of lines in', async () => {
     const t = await openLock()
@@ -64,8 +53,6 @@ describe('highlighting a file whose lines wrap', () => {
     expect(atTop).toBeGreaterThan(2)
 
     await gotoLine(t, 400)
-    // Without the visual-to-logical mapping this window lands past the end of
-    // the file and every visible line renders in the plain text colour.
     expect(colors(t).size).toBeGreaterThan(2)
   }, 60000)
 

@@ -7,7 +7,7 @@ import type { Harness } from './helpers'
 import { initRepo } from './repo'
 
 const ESC = String.fromCharCode(27)
-/** Ctrl+Opt+G as terminals spell it: an ESC prefix ahead of Ctrl+G (0x07). */
+// Ctrl+Opt+G as terminals spell it: an ESC prefix ahead of Ctrl+G (0x07).
 const TOGGLE = `${ESC}${String.fromCharCode(7)}`
 
 const git = (dir: string, ...args: string[]) => {
@@ -15,7 +15,6 @@ const git = (dir: string, ...args: string[]) => {
   if (run.exitCode !== 0) throw new Error(run.stderr.toString())
 }
 
-/** A repository with one commit and one modified file, so the panel has a row. */
 function repo() {
   const dir = fixture({ 'a.ts': 'alpha\n', 'b.ts': 'beta\n' })
   initRepo(dir)
@@ -48,8 +47,6 @@ test('outside a repository the panel says so instead of listing nothing', async 
 
 test('the cursor opens the diff for the file it lands on', async () => {
   const t = await launch(repo())
-  // The panel opens on the first change; ↓ against the end of the list counts
-  // as a landing, which is how that row gets its page without walking off it.
   await press(t, i => void i.pressKeys([TOGGLE]))
   await press(t, i => i.pressArrow('down'))
   await settle(t, 100)
@@ -57,7 +54,6 @@ test('the cursor opens the diff for the file it lands on', async () => {
   const shown = frame(t)
   expect(shown).toContain('alpha changed')
   expect(shown).toContain('+1 −1')
-  // The keyboard stays in the panel: the status bar advertises the panel's keys.
   expect(shown).toContain('Space stage')
 })
 
@@ -72,7 +68,7 @@ test('Enter opens the changed file itself, over the diff the cursor showed', asy
 
   const shown = frame(t)
   expect(shown).toContain('alpha changed')
-  expect(shown).not.toContain('+1 −1') // the file, not the page
+  expect(shown).not.toContain('+1 −1')
   expect(shown).toContain('a.ts')
 })
 
@@ -81,8 +77,6 @@ test('c commits the change from the panel, p reports on push', async () => {
   const t = await launch(dir)
   await press(t, i => void i.pressKeys([TOGGLE]))
 
-  // Commit: `c` puts the keyboard in the panel's message box, Enter offers
-  // VS Code's commit-all confirm since nothing is staged, then a clean panel.
   await press(t, i => void i.typeText('c'))
   await press(t, i => void i.typeText('panel commit'))
   await press(t, i => i.pressEnter())
@@ -94,10 +88,9 @@ test('c commits the change from the panel, p reports on push', async () => {
   const log = Bun.spawnSync(['git', 'log', '-1', '--format=%s'], { cwd: dir })
   expect(log.stdout.toString().trim()).toBe('panel commit')
 
-  // Push has no remote to reach; the point is that `p` runs it and reports.
   await press(t, i => void i.typeText('p'))
   await settle(t, 300)
-  expect(frame(t)).not.toContain('EXPLORER') // still in the panel, no paste happened
+  expect(frame(t)).not.toContain('EXPLORER')
 })
 
 test('the peek strip advertises the panel keys, not the tree ones', async () => {
@@ -128,7 +121,7 @@ test('Shift+Tab walks the strip: Files → Git → Review → Ext → Files', as
   expect(open).toContain('a.ts')
 
   await press(t, i => i.pressTab({ shift: true }))
-  expect(frame(t)).toContain('0 items') // the review panel's own header
+  expect(frame(t)).toContain('0 items')
 
   await press(t, i => i.pressTab({ shift: true }))
   expect(frame(t)).toContain('INSTALLED')
@@ -144,18 +137,17 @@ test('r in the panel opens the review, which is a button of its own', async () =
 
   await press(t, i => void i.typeText('r'))
   const open = frame(t)
-  expect(open).toContain('0 items') // the review panel's own header
-  expect(open).not.toContain('▾ Changes') // …in place of the git panel's
+  expect(open).toContain('0 items')
+  expect(open).not.toContain('▾ Changes')
   expect(open).toContain('Review')
 })
 
 test('plain Tab still hands the keyboard to the editor, from either view', async () => {
   const t = await launch(repo())
   await press(t, i => i.pressArrow('down'))
-  await press(t, i => i.pressEnter()) // a.ts open, so there is somewhere to go
+  await press(t, i => i.pressEnter())
 
   await press(t, i => i.pressTab())
-  // The editor has it: a bare letter types instead of reaching the tree's keymap.
   await press(t, i => void i.typeText('Z'))
   expect(frame(t)).toContain('Zalpha changed')
 })
@@ -175,6 +167,5 @@ test('the panel draws file icons in the glyph column', async () => {
 
   expect(open).toContain('◆ a.ts')
   expect(open).toContain('¶ notes.md')
-  // The folder row keeps its open/shut form, which is what the glyph column costs.
   expect(open).toContain('▾ src')
 })

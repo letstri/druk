@@ -2,7 +2,6 @@ import { describe, expect, test } from 'bun:test'
 
 import { logicalWindow } from '../src/editor/window'
 
-/** Visual rows for a file where every line wraps into `perLine` rows. */
 const wrapped = (lines: number, perLine: number) =>
   Array.from({ length: lines * perLine }, (_, row) => Math.floor(row / perLine))
 
@@ -16,14 +15,12 @@ describe('the window a viewport covers', () => {
   })
 
   test('translates visual rows to lines when the file wraps', () => {
-    // 3 000 lines, four visual rows each: scrolled to row 5 970, the viewport is
-    // showing line 1 492 — not line 5 970, which is past the end of the file.
+    // Four visual rows per line: row 5 970 is line 1 492, and line 5 970 is past the file's end.
     const sources = wrapped(3000, 4)
     const { from, to } = logicalWindow(5970, 22, sources, 60)
 
     expect(from).toBe(1492 - 60)
     expect(to).toBeLessThan(3000)
-    // The window has to contain what is on screen, which is the whole point.
     expect(from).toBeLessThanOrEqual(1492)
     expect(to).toBeGreaterThanOrEqual(1497)
   })

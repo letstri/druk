@@ -7,7 +7,6 @@ import { fixture, launch, settle } from './helpers'
 import type { Harness } from './helpers'
 import { initRepo } from './repo'
 
-/** The strip is the sidebar’s first row: the tab bar sits over the editor. */
 const TABS_ROW = 0
 const FILES_X = 3
 const GIT_X = 9
@@ -20,7 +19,6 @@ interface Span {
 const hex = (bg: Span['bg']) =>
   bg ? `#${Array.from(bg.buffer.slice(0, 3), v => v.toString(16).padStart(2, '0')).join('')}` : ''
 
-/** Background behind a button's label, which is what says it is the pressed one. */
 function fillBehind(t: Harness, label: string): string {
   const spans = t.captureSpans() as unknown as { lines: { spans: Span[] }[] }
   const span = spans.lines[TABS_ROW]?.spans.find(s => s.text.includes(label))

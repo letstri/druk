@@ -36,11 +36,7 @@ import type { Confirmation, Prompt, PromptKind } from './types'
 import type { Workspace } from './workspace'
 import type { Workspaces } from './workspaces'
 
-/**
- * Prompts answered with text, and the title their input box carries. Having a
- * title here is what makes a prompt a text prompt — every other kind is a
- * yes/no confirm, so the two sets can never fall out of step.
- */
+// An entry here is what makes a prompt a text prompt; every other kind is a confirm.
 const PROMPT_TITLES: Partial<Record<PromptKind, string>> = {
   newFile: 'New file name',
   newFolder: 'New folder name',
@@ -59,10 +55,6 @@ const PROMPT_TITLES: Partial<Record<PromptKind, string>> = {
   newWorktree: 'New worktree branch',
 }
 
-/**
- * The prompt signal alone, created before the controllers so that any of them can
- * open a prompt — the handlers below need those same controllers to answer one.
- */
 export function createPromptState() {
   const [prompt, setPrompt] = createSignal<Prompt>(null)
   return { prompt, setPrompt }
@@ -172,15 +164,11 @@ export function createPromptHandlers(deps: {
     } else if (p.kind === 'renameBranch') {
       branches.rename(p.from, name)
     } else if (p.kind === 'reviewReply') {
-      // Looked up now rather than held from when the prompt opened: an agent may
-      // have struck the note off while the answer was being typed, and a reply
-      // to a note that is gone is a remark hanging off nothing.
+      // Looked up now: another writer may have deleted the note while this was typed.
       const parent = review.notes().find(note => note.id === p.parent)
       if (!parent) return say('The remark this answers is gone', 'warn')
       review.reply(parent, value.trim())
     } else if (p.kind === 'reviewNote') {
-      // `value`, not the trimmed `name`: a remark is prose, and the only thing
-      // trimming it can do is lose an intended line break at the end of one.
       review.add({
         path: p.path,
         line: p.line,
@@ -229,7 +217,6 @@ export function createPromptHandlers(deps: {
     })
   }
 
-  /** A remote picked for removal: it holds config, so a confirm stands before it. */
   const chooseRemoteRemove = (name: string) => {
     const p = prompt()
     setPrompt(null)
@@ -253,7 +240,6 @@ export function createPromptHandlers(deps: {
     if (p.entries.some(entry => entry.path === dir)) workspaces.switchTo(dir)
   }
 
-  /** A checkout picked: switched to on the spot, removed behind a confirm. */
   const chooseWorktree = (path: string) => {
     const p = prompt()
     setPrompt(null)
@@ -264,7 +250,6 @@ export function createPromptHandlers(deps: {
     setPrompt({ kind: 'worktreeRemove', repo: p.repo, path: tree.path, branch: tree.branch })
   }
 
-  /** The kind chosen: the same prompt again, now asking for the words. */
   const chooseReviewKind = (kind: string) => {
     const p = prompt()
     setPrompt(null)
@@ -274,7 +259,6 @@ export function createPromptHandlers(deps: {
     setPrompt({ kind: 'reviewNote', path: p.path, line: p.line, endLine: p.endLine, noteKind })
   }
 
-  /** The side chosen: the buffer keeps it and the markers go. */
   const chooseConflictSide = (side: string) => {
     const p = prompt()
     setPrompt(null)
@@ -283,11 +267,6 @@ export function createPromptHandlers(deps: {
     workspace.acceptConflict(p.line, side)
   }
 
-  /**
-   * Install a missing server with the manager picked from the choice modal.
-   * Takes the id as the string the modal deals in and narrows it here, so the
-   * row a `ChoiceModal` hands back needs no cast on the way through.
-   */
   const chooseInstallServer = (manager: string) => {
     const p = prompt()
     setPrompt(null)
@@ -353,32 +332,24 @@ export function createPromptHandlers(deps: {
       case 'mergeBranch':
         return branches.merge(p.name)
       case 'pullPush':
-        // touchesTree: the pull half rewrites files under open buffers.
         return gitOp('Pulling and pushing', repo => pullAndPush(repo, p.branch, p.hasUpstream), {
           touchesTree: { kind: 'sync' },
           done: () => `Pulled and pushed ${p.branch}`,
         })
       case 'replaceProject':
         return workspace.applyProjectReplace(p.paths, p.query, p.replacement, p.options)
-      // An npm server is answered by the manager choice instead, and never
-      // reaches this modal — `confirmation` returns null for it.
+      // An npm server is answered by the manager choice: `confirmation` returns null for it.
       case 'installServer':
         return p.install.kind === 'download' ? void lsp.install(p.id, p.name, p.install) : undefined
       case 'uninstallServer':
         return void lsp.uninstall(p.id)
       case 'installExtension':
         return market.accept(p.id)
-      // The one-appearance case answers here; two or more are a choice modal
-      // instead, and `confirmation` returns null for those.
       case 'activateExtension':
         return market.activate(p.choices[0]!.id)
       case 'uninstallExtension': {
-        // The servers go first: removing the extension reloads the manifests,
-        // and `lsp.uninstall` reads the spec it is about out of that registry —
-        // after the reload there is nothing left to tell it what to delete.
+        // Servers first: `lsp.uninstall` reads the registry the removal reloads; one at a time.
         return void (async () => {
-          // One at a time: the servers share one prefix, and two runs of a
-          // package manager writing that tree at once is one neither can read.
           for (const server of p.servers) await lsp.uninstall(server.id)
           market.remove(p.id)
         })()
@@ -386,11 +357,6 @@ export function createPromptHandlers(deps: {
     }
   }
 
-  /**
-   * Closing a confirm without going through with it. Most kinds simply vanish —
-   * the two offers below are what have something left to say, since declining an
-   * offer to fix something is not the same as the thing not being broken.
-   */
   const cancelPrompt = () => {
     const p = prompt()
     setPrompt(null)
@@ -398,49 +364,33 @@ export function createPromptHandlers(deps: {
       say(`LSP: ${p.name} not installed — ${installHint(p.install)}`)
     }
     if (p?.kind === 'pullPush') say(PUSH_REJECTED, 'error')
-    // Nothing to say — the offer was druk's idea — but the fetched manifest has
-    // to be dropped, and the decline remembered for the session.
     if (p?.kind === 'installExtension') market.decline(p.id)
   }
 
   const promptTitle = () => {
     const p = prompt()
     if (!p) return undefined
-    // The start point is the whole point of "New branch from…", so it belongs in
-    // the title; the entry in PROMPT_TITLES is still what makes this a text prompt.
     if (p.kind === 'newBranch' && p.from) return `New branch from ${p.from}`
-    // Which of the four, and which line — a note written against the wrong line
-    // is worse than no note, and this is the last moment to notice.
     if (p.kind === 'reviewNote') {
       const span = p.endLine > p.line ? `${p.line + 1}-${p.endLine + 1}` : `${p.line + 1}`
       return `${NOTE_LABELS[p.noteKind]} · ${basename(p.path)}:${span}`
     }
-    // Which remark is being answered — a thread is only a thread if the answer
-    // is to the thing on screen, and this is the last moment to notice it is not.
     if (p.kind === 'reviewReply') return `Reply to ${p.heading}`
-    // Which remote the URL is for — the name was the previous prompt's answer.
     if (p.kind === 'remoteAddUrl') return `URL for ${p.name}`
     return PROMPT_TITLES[p.kind]
   }
   const promptValue = () => {
     const p = prompt()
     if (p?.kind === 'rename') return basename(p.target)
-    // Renaming usually adjusts a name rather than replacing it.
     if (p?.kind === 'renameBranch') return p.from
-    // Amending usually adjusts the message rather than replacing it.
     if (p?.kind === 'commitAmend') return p.subject
     return ''
   }
-  /** The prompts that are a commit message box, where ↑ walks past subjects. */
   const promptHistory = () => {
     const p = prompt()
     return p?.kind === 'commit' || p?.kind === 'commitAmend' ? git.messageHistory() : undefined
   }
 
-  /**
-   * What the confirm modal asks, per prompt kind. Narrowing on `p.kind` is what
-   * types the payload fields here, so the JSX needs no casts.
-   */
   const confirmation = createMemo<Confirmation | null>(() => {
     const p = prompt()
     switch (p?.kind) {
@@ -450,8 +400,6 @@ export function createPromptHandlers(deps: {
           title: 'Delete',
           verb: 'delete',
           danger: true,
-          // Naming several files would run past the modal; the count is the thing
-          // worth checking before agreeing to this one.
           message: only
             ? `Delete "${basename(only)}"${isDirectory(only) ? ' and its contents' : ''}?`
             : `Delete these ${p.targets.length} items and anything inside them?`,
@@ -532,8 +480,6 @@ export function createPromptHandlers(deps: {
           title: 'Remove worktree',
           verb: 'remove it',
           danger: true,
-          // The branch stays: a worktree is a checkout of one, and deleting the
-          // folder is not deleting the work that was committed to it.
           message: `Delete the checkout at ${p.path}${p.branch ? ` (${p.branch})` : ''}? The branch itself stays. Git refuses if it holds uncommitted changes.`,
         }
       case 'deleteBranch':
@@ -564,8 +510,6 @@ export function createPromptHandlers(deps: {
           title: 'Remove language server',
           verb: 'remove it',
           danger: true,
-          // Naming the packages is the point: an npm server is a tree of them,
-          // and `npm uninstall` takes what came with it as well.
           message: `Delete druk's copy of ${p.name} from ${SERVER_ROOT}? This removes ${p.packages.join(', ')}.`,
         }
       case 'uninstallExtension':
@@ -586,8 +530,7 @@ export function createPromptHandlers(deps: {
           danger: false,
           message: `${p.name} is not installed. Download it into ${SERVER_ROOT}?`,
         }
-      // One appearance is a yes/no; several are a `ChoiceModal` in Overlays,
-      // which is why this returns null for them.
+      // Several appearances are a `ChoiceModal` in Overlays, hence the null.
       case 'activateExtension': {
         const only = p.choices.length === 1 ? p.choices[0]! : null
         if (!only) return null
@@ -603,9 +546,6 @@ export function createPromptHandlers(deps: {
           title: 'Extension available',
           verb: 'install it',
           danger: false,
-          // The commands are the part worth reading before agreeing: a manifest
-          // is data and installing it runs nothing, but a language server is a
-          // program druk will spawn the next time a matching file opens.
           message: [
             p.why,
             `${p.name} adds ${p.summary}.`,

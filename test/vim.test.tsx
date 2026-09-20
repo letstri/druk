@@ -12,9 +12,6 @@ describe('vim mode basics', () => {
   })
 
   test('i enters insert mode and Esc leaves it, with the sidebar showing', async () => {
-    // Esc is also "leave the editor for the tree". App's handler runs first and
-    // focus moves synchronously, so without a vim guard the mode never changes
-    // and the next key is a tree command — `d` would offer to delete the file.
     const { t } = await vimEditor()
     await press(t, i => i.pressKey('i'))
     expect(t.captureCharFrame()).toContain('INSERT')
@@ -26,7 +23,7 @@ describe('vim mode basics', () => {
 
   test('normal mode swallows unknown keys instead of typing them', async () => {
     const { t, file } = await vimEditor()
-    await press(t, i => void i.typeText('qqq')) // no such command — must not reach the buffer
+    await press(t, i => void i.typeText('qqq'))
     await press(t, i => i.pressKey('i'))
     await press(t, i => void i.typeText('X'))
     await press(t, i => i.pressKey('s', { ctrl: true }))
@@ -54,8 +51,8 @@ describe('vim mode basics', () => {
 
   test('a count is not carried into the next command', async () => {
     const { t, file } = await vimEditor('a\nb\nc\nd\n')
-    await press(t, i => void i.typeText('2j')) // move, consuming the 2
-    await press(t, i => void i.typeText('dd')) // deletes one line, not two
+    await press(t, i => void i.typeText('2j'))
+    await press(t, i => void i.typeText('dd'))
     await press(t, i => i.pressKey('s', { ctrl: true }))
     expect(readFileSync(file, 'utf8')).toBe('a\nb\nd\n')
   })
@@ -87,7 +84,6 @@ describe('motions', () => {
   test('$ goes to line end, 0 to the start', async () => {
     const { t } = await vimEditor()
     await type(t, '$')
-    // On the last character, as vim leaves it — not past it.
     expect(at(t)).toBe('Ln 1, Col 3')
     await type(t, '0')
     expect(at(t)).toBe('Ln 1, Col 1')
@@ -264,13 +260,12 @@ describe('viewport', () => {
     expect(at(t)).toBe('Ln 100, Col 1')
     const before = shown(t)
     expect(before).toContain('line 99')
-    // G reveals the line by the smallest scroll, so it sits near the bottom.
-    expect(before[0]).not.toBe('line 91')
+    expect(before[0]).not.toBe('line 90')
 
     await type(t, 'zz')
     expect(at(t)).toBe('Ln 100, Col 1')
     const after = shown(t)
-    expect(after[0]).toBe('line 91')
+    expect(after[0]).toBe('line 90')
     const mid = after.indexOf('line 99')
     expect(Math.abs(mid - Math.floor(after.length / 2))).toBeLessThanOrEqual(1)
     expect(t.captureCharFrame()).not.toContain('●')
@@ -281,7 +276,7 @@ describe('viewport', () => {
     await type(t, '50zz')
     expect(at(t)).toBe('Ln 50, Col 1')
     const lines = shown(t)
-    expect(lines[0]).toBe('line 41')
+    expect(lines[0]).toBe('line 40')
     expect(lines).toContain('line 49')
   })
 
@@ -290,8 +285,7 @@ describe('viewport', () => {
     await type(t, '100G')
     await type(t, 'vjj')
     await type(t, 'zz')
-    expect(shown(t)[0]).toBe('line 93') // the caret is on line 102 after vjj
-    // The viewport moved; the selection is still the one `v` started.
+    expect(shown(t)[0]).toBe('line 92')
     await type(t, 'd')
     expect(await save(t, file)).toContain('line 98\nine 101\n')
   })

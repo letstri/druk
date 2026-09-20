@@ -4,11 +4,8 @@ import { filetypeForPath, segmentsIn, styleIdForGroup } from '../src/languages/h
 import { loadMarketExtensions } from './helpers'
 import { parseHighlights, WHOLE } from './syntax'
 
-// Vue and php are market plugins; the languages they inject — typescript, css,
-// html — are preinstalled.
 loadMarketExtensions()
 
-/** Text painted with `group`'s style, anywhere in the document. */
 function painter(source: string, filetype: string) {
   const lines = source.split('\n')
   return async (group: string): Promise<string[]> => {
@@ -54,19 +51,12 @@ describe('vue highlighting', () => {
 
   test('paints the template', async () => {
     expect(await painted('tag')).toContain('div')
-    // The sigil and the argument merge into one attribute-coloured span, the
-    // way VS Code paints the whole of `:class` — split, the argument half took
-    // whatever a theme gives `property`, plain text in several of them.
     expect(await painted('attribute')).toContain(':class')
     expect(await painted('attribute')).toContain('v-for')
     expect(await painted('attribute')).toContain('stop')
   })
 
-  // Identifiers in an expression are variables, not constants. They were
-  // injected as the *bundled* typescript grammar once, whose query gates its
-  // identifier captures behind `#lua-match?` predicates the worker never
-  // evaluates — so every identifier also matched `@type` and `@constant`, and
-  // the last of those painted the lot.
+  // OpenTUI's bundled typescript query gates captures behind `#lua-match?` its worker never runs.
   test('paints a template expression identifier as a variable', async () => {
     const variables = await painted('variable')
     expect(variables).toContain('tone')
@@ -74,8 +64,6 @@ describe('vue highlighting', () => {
     expect(await painted('constant')).not.toContain('tone')
   })
 
-  // The whole point: the vue grammar reads a block body as one raw_text token,
-  // so before injections everything between the script tags rendered plain.
   test('paints typescript inside <script>', async () => {
     const keywords = await painted('keyword')
     expect(keywords).toContain('import')
@@ -89,27 +77,20 @@ describe('vue highlighting', () => {
     expect(await painted('property')).toContain('color')
   })
 
-  // `(interpolation) @embedded` covers the braces and everything between them,
-  // so the injected capture has to be the one that wins the expression.
   test('paints the expression inside an interpolation', async () => {
     expect(await painted('property')).toContain('value')
   })
 
-  // A directive's value is an expression the whole of the template's logic is
-  // written in, and the outer `@string` covers it — so the injection has to win
-  // it the way the interpolation's does.
   test('paints directive values as the expressions they are', async () => {
     expect(await painted('keyword')).toContain('in')
     expect(await painted('number')).toContain('0')
     expect(await painted('operator')).toContain('>')
     expect(await painted('property')).toContain('length')
     expect(await painted('function')).toContain('shout')
-    // An object literal inside the value, whose own parts are painted apart.
     expect(await painted('property')).toContain('width')
     expect(await painted('operator')).toContain('+')
   })
 
-  // The plain attribute beside them is a literal, and reads as one.
   test('leaves a plain attribute value a string', async () => {
     expect(await painted('string')).toContain('"ts"')
   })
@@ -159,7 +140,6 @@ describe('php highlighting', () => {
     expect(await painted('type')).toContain('string')
   })
 
-  // Everything outside `<?php … ?>` is one `text` token to the php grammar.
   test('paints the html around it', async () => {
     expect(await painted('tag')).toContain('p')
     expect(await painted('attribute')).toContain('class')

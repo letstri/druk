@@ -14,8 +14,6 @@ describe('git changes down the track', () => {
   })
 
   test('the whole file is covered, not just the visible part', () => {
-    // Line 950 of 1000 belongs near the bottom of a 20-row track — the point of
-    // the column is seeing changes you would have to scroll to find.
     const rows = changeRows(marks([[950, 'modified']]), 1000, 20)
 
     expect(rows.at(-1)).toBe('modified')
@@ -41,7 +39,6 @@ describe('git changes down the track', () => {
   })
 
   test('lines outside the file are ignored rather than clamped onto a row', () => {
-    // A stale diff can name a line past the end after an edit shortens the file.
     const rows = changeRows(marks([[500, 'added']]), 100, 10)
 
     expect(rows.some(Boolean)).toBe(false)

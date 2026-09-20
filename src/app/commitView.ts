@@ -4,19 +4,12 @@ import { comparisonCommitDetail, comparisonFileContent } from '../core/git'
 import type { ComparisonCommitDetail, ComparisonContent, ComparisonFile } from '../core/git'
 import type { Status } from './status'
 
-/**
- * A commit opened from the panel's Incoming/Outgoing rows: the comparison
- * detail page without a comparison — one commit over the editor slot, its
- * files paged with ←/→, drawn by the same `ComparisonView`.
- */
 export function createCommitView(deps: { status: Status }) {
   const [commit, setCommit] = createSignal<ComparisonCommitDetail | null>(null)
   const [file, setFile] = createSignal<ComparisonFile | null>(null)
   const [content, setContent] = createSignal<ComparisonContent | null>(null)
   const [fileCursor, setFileCursor] = createSignal(0)
-  /** Where the open commit was read from — file contents come from the same place. */
   let repoDir: string | null = null
-  /** Which open/move is current; an answer from an older one is dropped. */
   let generation = 0
 
   const loadContent = async (target: ComparisonFile, run: number) => {
@@ -37,7 +30,6 @@ export function createCommitView(deps: { status: Status }) {
       setCommit(loaded.value)
       setFileCursor(0)
       setContent(null)
-      // A merge's first-parent diff can be empty: the page still opens, saying so.
       const first = loaded.value.files[0] ?? null
       setFile(first)
       if (first) void loadContent(first, run)

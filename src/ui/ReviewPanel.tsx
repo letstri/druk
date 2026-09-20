@@ -9,16 +9,12 @@ import { PanelHeader } from './PanelHeader'
 import { cut } from './text'
 
 export type ReviewRow =
-  /** A file heading: the threads written against one file. */
   | { kind: 'file'; id: string; rel: string; count: number; collapsed: boolean }
   | { kind: 'note'; id: string; note: ReviewNote; label: string; text: string }
-  /** An answer to the note above it — a note of its own, drawn a column deeper. */
   | { kind: 'reply'; id: string; note: ReviewNote; label: string; text: string }
-  /** An inert line — what the panel is for, said while the list is empty. */
   | { kind: 'hint'; id: string; label: string }
 
-/** `Show`'s `when` takes a value, not a predicate: these hand it the narrowed row
- * (or nothing) so the block inside needs no cast. */
+// `Show`'s `when` takes a value, not a predicate: these hand it the narrowed row.
 const fileRow = (row: ReviewRow) => (row.kind === 'file' ? row : undefined)
 const hintRow = (row: ReviewRow) => (row.kind === 'hint' ? row : undefined)
 type Remark = Extract<ReviewRow, { kind: 'note' | 'reply' }>
@@ -28,27 +24,16 @@ const remarkRow = (row: ReviewRow): Remark | undefined =>
 export interface ReviewPanelProps {
   rows: ReviewRow[]
   cursor: number
-  /** How many items the review holds, whatever a fold leaves on screen. */
   count: number
   focused: boolean
   width: number
   onFocus: () => void
-  /** A row clicked: move the cursor there, and jump to it or fold it. */
   onActivate: (index: number) => void
   onCollapseAll: () => void
 }
 
-/**
- * The sidebar's review view: the notes dropped on lines while reading and the
- * answers to them, under the file each belongs to.
- *
- * Two columns per row and no more — the label (`ISSUE 42`, `↳ @claude`) and the
- * remark itself, cut to what the sidebar has. A note is a sentence and a
- * sidebar is thirty columns, so the row says which and where; the whole text is
- * on the line itself, where Enter lands.
- */
 export function ReviewPanel(props: ReviewPanelProps) {
-  /** A memo so the reveal below fires on the cursor's *value* — see GitPanel. */
+  // A memo so the reveal below fires on the cursor's *value* — see GitPanel.
   const cursor = createMemo(() => Math.max(0, Math.min(props.cursor, props.rows.length - 1)))
 
   const list = createScrollList(() => props.rows.length)
@@ -58,10 +43,8 @@ export function ReviewPanel(props: ReviewPanelProps) {
 
   createEffect(on(cursor, row => list.reveal(row)))
 
-  /** The label column, which the text is cut against. */
   const labelOf = (row: ReviewRow) => remarkRow(row)?.label ?? ''
 
-  /** A reply is drawn a column deeper than the remark it answers. */
   const indentOf = (row: ReviewRow) => (row.kind === 'reply' ? 5 : 3)
 
   return (
@@ -74,8 +57,6 @@ export function ReviewPanel(props: ReviewPanelProps) {
       flexBasis={0}
       onMouseDown={() => props.onFocus()}
     >
-      {/* VS Code's title row; the count rides on its right, where the git
-          panel's branch does. */}
       <PanelHeader title="Review" width={props.width} focused={props.focused}>
         <Show when={props.rows.some(row => row.kind === 'file' && !row.collapsed)}>
           <text
@@ -113,11 +94,9 @@ export function ReviewPanel(props: ReviewPanelProps) {
           {(row, at) => {
             const index = () => list.window().start + at()
             const bg = () => rowBg(index() === cursor(), props.focused, rowHover.hovered(index()))
-            // Cut as well as unwrapped: a reply's `@name` is whatever an agent
-            // wrote into the notes file, and this column cannot shrink.
+            // Cut as well as unwrapped: a reply's `@name` is the notes file's, and this cannot shrink.
             const label = () => cut(labelOf(row), Math.max(0, props.width - indentOf(row) - 2))
-            // The remark takes what the label leaves: the indent, 1 for the gap,
-            // 1 for the trailing pad.
+            // What the label leaves: the indent, 1 for the gap, 1 for the trailing pad.
             const room = () => props.width - label().length - indentOf(row) - 2
             return (
               <box
@@ -170,8 +149,6 @@ export function ReviewPanel(props: ReviewPanelProps) {
                 <Show when={remarkRow(row)}>
                   {(remark: () => Remark) => (
                     <>
-                      {/* The remark in the accent and its answers dim: it is
-                          the note that says what the thread is about. */}
                       <text
                         fg={remark().kind === 'note' ? ui.accent : ui.dim}
                         bg={bg()}

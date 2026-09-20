@@ -13,7 +13,6 @@ const CONFLICTED = [
   '',
 ].join('\n')
 
-/** git's diff3 style, which puts the merge base between the two sides. */
 const DIFF3 = [
   '<<<<<<< HEAD',
   'ours',
@@ -45,8 +44,6 @@ describe('parsing', () => {
   })
 
   test('an unterminated block is not a conflict', () => {
-    // Prose about the markers, or a merge half-written: offering to resolve this
-    // would eat everything after it.
     expect(parseConflicts('<<<<<<< HEAD\nours\nno separator, no end\n')).toEqual([])
     expect(parseConflicts('<<<<<<< HEAD\nours\n=======\ntheirs\n')).toEqual([])
   })

@@ -10,7 +10,6 @@ import { tempDir } from './temp'
 
 const PROJECT = { 'a.ts': 'const a = 1\n' }
 
-/** A repo with one change, so the source-control panel has a row to sit on. */
 function repo() {
   const dir = tempDir('druk-hints-')
   const git = (...args: string[]) => execFileSync('git', args, { cwd: dir })

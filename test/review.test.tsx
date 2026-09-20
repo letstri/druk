@@ -33,7 +33,6 @@ test('notes survive a restart, and clearing forgets the project', () => {
   }
   saveNotes('/p', [note], { now: 1, file })
   expect(loadNotes('/p', file)).toEqual([note])
-  // Another project's notes are not this one's.
   expect(loadNotes('/other', file)).toEqual([])
   saveNotes('/p', [], { now: 2, file })
   expect(loadNotes('/p', file)).toEqual([])
@@ -53,7 +52,6 @@ const theirNote = (dir: string, id: string, body: string) => ({
 
 const PROJECT = { 'a.ts': 'const a = 1\nconst b = 2\n' }
 
-/** Write a note on the open file's current line, through the palette. */
 async function noteLine(t: Harness, kind: string, text: string) {
   await runCommand(t, `Note this line as ${kind}`)
   await press(t, i => void i.typeText(text))
@@ -65,7 +63,6 @@ test('a note lands in the panel, in the gutter and after the line', async () => 
   await openFile(t, 'a.ts')
   await noteLine(t, 'issue', 'this should be const')
 
-  // Inline, after the end of the line it is about.
   expect(t.captureCharFrame()).toContain('ISSUE: this should be const')
 
   await runCommand(t, 'Review panel')
@@ -85,7 +82,6 @@ test('a remark too long for its row names the panel that holds the whole of it',
   expect(row).toContain('…')
   expect(row).toContain(`Ctrl+${ALT}+R`)
 
-  // The hint follows the caret: the line below carries no note and no key.
   await press(t, i => i.pressArrow('down'))
   expect(
     t
@@ -107,25 +103,17 @@ test('the panel opens the remark as a card under its line, and pages files', asy
   await openFile(t, 'a.ts')
   await noteLine(t, 'question', 'why on a')
 
-  // The cursor lands on the first file's heading, and the card opens under the
-  // line of its first remark rather than waiting for a keypress.
   await runCommand(t, 'Review panel')
   await untilFrame(t, 'why on a')
   const card = t.captureCharFrame()
   expect(card).toContain('◆ QUESTION')
-  // The card sits in a gap opened for it, so the line it is about is still on
-  // screen under its own number rather than behind the box.
   expect(card).toContain('const a = 1')
 
-  // Two rows down is b.ts's heading — a file that is not the one on screen, so
-  // the cursor pages the editor to it and the card follows.
   await press(t, i => i.pressArrow('down'))
   await press(t, i => i.pressArrow('down'))
   await untilFrame(t, 'wrong on b')
   const paged = t.captureCharFrame()
   expect(paged).toContain('const b = 2')
-  // Opening the file must not hand the keyboard to the editor: the arrows are
-  // what drives the pager, and the card is only up while the panel holds them.
   expect(paged).toContain('◆ ISSUE')
 })
 
@@ -139,13 +127,10 @@ test('the gap the card sits in never reaches the file, and closes on the editor'
   await runCommand(t, 'Review panel')
   await untilFrame(t, 'must not be saved')
 
-  // The buffer is holding rows the file has not. Saving must write the file.
   await runCommand(t, 'Save file')
   await settle(t, 200)
   expect(readFileSync(join(dir, 'a.ts'), 'utf8')).toBe('Xconst a = 1\nconst b = 2\nconst c = 3\n')
 
-  // And taking the keyboard closes the card, which is what keeps those rows
-  // from ever being typed into.
   await press(t, i => i.pressTab())
   await untilGone(t, '◆ ISSUE')
   expect(t.captureCharFrame()).toContain('const c = 3')
@@ -160,15 +145,10 @@ test('leaving the panel takes the gap back out of the buffer', async () => {
   await runCommand(t, 'Review panel')
   await untilFrame(t, '◆ ISSUE')
 
-  // Closing the panel is the pass with no view left holding the file, so the
-  // buffer had to be compared against `props.content` rather than against
-  // itself — it used to keep the blank rows for good, which reads in the editor
-  // as the code below the note having been pushed down and renumbered.
   await pressEscape(t)
   await untilGone(t, '◆ ISSUE')
   const back = t.captureCharFrame()
   expect(back).toContain('const b = 2')
-  // Line 2 is `const b = 2` again, not three rows of nothing.
   expect(back).toMatch(/2\s+const b = 2/)
 
   await runCommand(t, 'Save file')
@@ -182,11 +162,8 @@ test('an empty panel says what it is for, in the keys actually bound', async () 
   await untilFrame(t, 'No notes yet')
 
   const frame = t.captureCharFrame()
-  // The chord is read off the keymap rather than spelled into the text, so a
-  // rebind renames it here too.
   expect(frame).toContain(`Ctrl+${ALT}+A notes the line`)
   expect(frame).toContain('answer a remark')
-  // And where the notes go, which is the half an agent needs to be told.
   expect(frame).toContain('review.json')
 })
 
@@ -202,7 +179,6 @@ test('Backspace in the panel drops the note under the cursor', async () => {
   await noteLine(t, 'question', 'why two?')
 
   await runCommand(t, 'Review panel')
-  // Onto the note under its file heading, then remove it.
   await press(t, i => i.pressArrow('down'))
   await press(t, i => i.pressBackspace())
   await untilFrame(t, 'Removed the question')
@@ -217,28 +193,22 @@ test('r answers the remark under the cursor, and the thread reads as one', async
   await runCommand(t, 'Review panel')
   await press(t, i => i.pressArrow('down'))
   await press(t, i => void i.typeText('r'))
-  // The prompt names what is being answered — the last chance to notice it is
-  // the wrong remark.
   expect(t.captureCharFrame()).toContain('Reply to ISSUE · a.ts:1')
   await press(t, i => void i.typeText('let is fine here'))
   await press(t, i => i.pressEnter())
 
   await untilFrame(t, '↳ you')
   const frame = t.captureCharFrame()
-  // The panel: the answer under what it answers, and the file heading counts it.
   expect(frame).toContain('let is fine here')
-  // The card: both halves of the conversation, under the line they are about.
   expect(frame).toContain('◆ ISSUE')
   expect(frame).toContain('↳ you: let is fine here')
 
-  // Answering an answer stays in the same thread rather than nesting one deeper.
   await press(t, i => i.pressArrow('down'))
   await press(t, i => void i.typeText('r'))
   expect(t.captureCharFrame()).toContain('Reply to ISSUE · a.ts:1')
   await pressEscape(t)
 })
 
-/** A note, then an answer to it — the panel's cursor left on the note itself. */
 async function noteAndReply(t: Harness, body: string, answer: string) {
   await noteLine(t, 'issue', body)
   await runCommand(t, 'Review panel')
@@ -254,8 +224,6 @@ test('an answered note says so after its line', async () => {
   await openFile(t, 'a.ts')
   await noteAndReply(t, 'wrong', 'no it is not')
 
-  // The inline mark is one line whatever the thread holds: the count is all a
-  // row after the code has space to say.
   await press(t, i => i.pressTab())
   await untilGone(t, '◆ ISSUE')
   expect(t.captureCharFrame()).toContain('ISSUE ↳1: wrong')
@@ -267,8 +235,6 @@ test('deleting a note takes its answers with it', async () => {
   await openFile(t, 'a.ts')
   await noteAndReply(t, 'answer this', 'answered')
 
-  // The cursor never left the note, and Backspace on it clears the thread — a
-  // reply to nothing is a remark nobody can read.
   await press(t, i => i.pressBackspace())
   await untilFrame(t, 'and its 1 reply')
   expect(t.captureCharFrame()).toContain('No notes yet')
@@ -307,7 +273,6 @@ test("an agent's answer arrives under the note it answers", async () => {
 test('a note taken on a selection carries the whole span', async () => {
   const t = await launch(fixture(PROJECT), {}, { width: 100, height: 24 })
   await openFile(t, 'a.ts')
-  // Select both lines: the note is about the pair, so its title says 1-2.
   await pressTimes(t, 2, i => i.pressArrow('down', { shift: true }))
   await runCommand(t, 'Note this line as issue')
   expect(t.captureCharFrame()).toContain('a.ts:1-2')
@@ -337,8 +302,6 @@ test('a stale overwrite gives back the note it never saw', async () => {
   await noteLine(t, 'issue', 'written here')
   await untilFrame(t, 'written here')
 
-  // An agent that read the file before the note existed writes its stale copy
-  // back — with its own note, without druk's.
   writeFileSync(
     NOTES_PATH,
     JSON.stringify({ [dir]: { notes: [theirNote(dir, 'x2', 'left by an agent')], touchedAt: 1 } }),
@@ -346,7 +309,6 @@ test('a stale overwrite gives back the note it never saw', async () => {
   await runCommand(t, 'Review panel')
   await untilFrame(t, 'left by an agent')
   await untilFrame(t, 'written here')
-  // And the rescue reached the disk, not just the panel.
   await until(t, () => readFileSync(NOTES_PATH, 'utf8').includes('written here'))
 })
 
@@ -359,14 +321,11 @@ test('an agent may delete a note druk wrote, once it is not a race', async () =>
   await untilFrame(t, 'fix this')
   expect(readFileSync(NOTES_PATH, 'utf8')).toContain('fix this')
 
-  // Long enough that the note is no longer young enough to rescue — the whole
-  // point being that past that age an absence is a delete and not a clobber,
-  // which is the flow the notes exist for: the agent fixes and strikes off.
   await settle(t, 2300)
   writeFileSync(NOTES_PATH, JSON.stringify({ [dir]: { notes: [], touchedAt: 2 } }))
 
   await untilGone(t, 'fix this')
-  // And it stays gone: no save puts it back behind the panel.
+  // Fixed wait: the assertion is that no save puts it back.
   await settle(t, 200)
   expect(readFileSync(NOTES_PATH, 'utf8')).not.toContain('fix this')
 })
@@ -384,7 +343,7 @@ test('an unreadable notes file changes nothing on screen', async () => {
   await untilFrame(t, 'held before the tear')
 
   writeFileSync(NOTES_PATH, '{ torn mid-write')
-  // The assertion is that nothing happened, so the fixed wait is the right tool.
+  // Fixed wait: the assertion is that nothing happened.
   await settle(t, 300)
   expect(t.captureCharFrame()).toContain('held before the tear')
 })

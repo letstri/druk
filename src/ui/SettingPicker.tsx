@@ -8,17 +8,10 @@ import { listRows, modalWidth, PAD } from './modal'
 import { ModalPanel } from './Overlay'
 import { TextInput } from './TextInput'
 
-/**
- * Fuzzy pick between a setting's values — the long lists (26 themes) that ←→
- * would take a dozen presses to cross. The value in force starts selected, so
- * a bare Enter keeps things as they are.
- */
 export function SettingPicker(props: {
   title: string
   options: string[]
-  /** Index of the value in force, marked and selected first. */
   activeIndex: number
-  /** The overlay is confined to the settings pane, so the modal sizes to it. */
   paneWidth: number
   onPick: (index: number) => void
   onClose: () => void
@@ -53,13 +46,9 @@ export function SettingPicker(props: {
     }
   })
 
-  // On the way out, not on Escape: `onPick` closes the list before it applies the
-  // value, so the restore lands first and a pick that paints nothing itself — the
-  // light and dark theme rows, which only take effect when the OS appearance
-  // flips — is left showing the theme in force rather than the one it previewed.
+  // On cleanup, not on Escape: `onPick` closes the list before applying, so the restore lands first.
   onCleanup(() => props.onRestore?.())
 
-  /** First row shown: slides so the selection stays inside the window. */
   const windowStart = () => Math.max(0, selected() - visibleRows() + 1)
 
   useListKeys({

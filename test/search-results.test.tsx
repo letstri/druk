@@ -10,7 +10,6 @@ const PROJECT = {
   'docs/long.md': `${'x'.repeat(200)}capture${'y'.repeat(60)}\nplain line\n`,
 }
 
-/** Open the project search and let the debounced scan land. */
 async function search(query: string, size: { width?: number; height?: number } = {}) {
   const t = await launch(fixture(PROJECT), {}, { width: 100, height: 30, ...size })
   await press(t, input => input.pressKey('r', { ctrl: true }))
@@ -19,7 +18,6 @@ async function search(query: string, size: { width?: number; height?: number } =
   return t
 }
 
-/** Rows inside the panel border, trimmed. */
 const panel = (t: Harness) =>
   t
     .captureCharFrame()
@@ -32,10 +30,8 @@ describe('project search results', () => {
     const t = await search('capture')
     const rows = panel(t)
 
-    // The path is a heading, not a column repeated on every match row.
     expect(rows.some(row => row.includes('src/alpha.ts') && row.includes('3 matches'))).toBe(true)
     expect(rows.some(row => row.includes('src/beta.ts') && row.includes('1 match'))).toBe(true)
-    // Three matches in alpha.ts, and its path appears once.
     expect(rows.filter(row => row.includes('src/alpha.ts')).length).toBe(1)
   })
 
@@ -48,8 +44,6 @@ describe('project search results', () => {
     const t = await search('capture')
     const rows = panel(t)
 
-    // The hit sits at column 200. Slicing from column 0 — what the old fixed
-    // 38-column window did — would show only filler and never the query itself.
     const row = rows.find(r => r.includes('…'))
     expect(row).toBeDefined()
     expect(row).toContain('capture')
@@ -68,21 +62,17 @@ describe('project search results', () => {
 
 describe('the preview under the results', () => {
   test('shows the lines around the selected match', async () => {
-    const t = await search('other') // src/beta.ts line 2
+    const t = await search('other')
     const rows = panel(t)
 
-    // Line 1 is context, not a match, so it can only have come from the preview.
     expect(rows.some(row => row.includes('// capture notes'))).toBe(true)
     expect(rows.some(row => row.includes('const other = 2'))).toBe(true)
   })
 
   test('follows the selection', async () => {
     const t = await search('capture')
-    // Selection starts on the docs/long.md hit, so its neighbour is previewed.
     expect(panel(t).some(row => row.includes('plain line'))).toBe(true)
 
-    // Last of the five matches is in src/beta.ts, whose neighbour is `const other`.
-    // Neither line is a match, so each can only be coming from the preview.
     await press(t, input => input.pressArrow('up'))
     await settle(t)
     const rows = panel(t)
@@ -95,11 +85,9 @@ describe('the preview under the results', () => {
     const t = await search('capture', { height: 16 })
     const rows = panel(t)
 
-    // Results and the footer survive; the preview is what goes.
     expect(rows.some(row => row.includes('src/alpha.ts'))).toBe(true)
     expect(rows.some(row => row.includes('Enter jump'))).toBe(true)
     expect(rows.some(row => row.includes('plain line'))).toBe(false)
-    // And the whole panel still fits the screen.
     expect(t.captureCharFrame().split('\n').length).toBeLessThanOrEqual(17)
   })
 })
@@ -107,15 +95,11 @@ describe('the preview under the results', () => {
 describe('folding a file in the results', () => {
   test('Tab hides its matches behind the heading, and gives them back', async () => {
     const t = await search('capture')
-    // Selection sits on the one hit in docs/long.md.
     await press(t, input => input.pressTab())
     let rows = panel(t)
 
     expect(rows.some(row => row.includes('docs/long.md') && row.includes('▸'))).toBe(true)
-    // The hit's row is gone; the one left is the preview, which a folded heading
-    // still stands in for.
     expect(rows.filter(row => row.includes('…') && row.includes('capture')).length).toBe(1)
-    // The other files are untouched.
     expect(rows.some(row => row.includes('const capture = 1'))).toBe(true)
 
     await press(t, input => input.pressTab())
@@ -126,15 +110,12 @@ describe('folding a file in the results', () => {
 
   test('the selection lands on the heading, and moves past the hidden matches', async () => {
     const t = await search('capture')
-    await press(t, input => input.pressArrow('down')) // src/alpha.ts, first of three
+    await press(t, input => input.pressArrow('down'))
     await press(t, input => input.pressTab())
 
-    // The heading stands in for the matches it hides: the count still reads as the
-    // first of them, and the preview still shows it. Only the result rows are gone.
     expect(panel(t).some(row => row.includes('2 of 5'))).toBe(true)
     expect(panel(t).filter(row => row.includes('function captureAll')).length).toBe(1)
 
-    // One step down skips all three and reaches src/beta.ts, not alpha's second hit.
     await press(t, input => input.pressArrow('down'))
     expect(panel(t).some(row => row.includes('5 of 5'))).toBe(true)
   })
@@ -146,11 +127,9 @@ describe('folding a file in the results', () => {
 
     expect(rows.filter(row => row.includes('▸')).length).toBe(3)
     expect(rows.some(row => row.includes('const capture = 1'))).toBe(false)
-    // One step down is now the next file, not the next hit in this one.
     await press(t, input => input.pressArrow('down'))
     expect(panel(t).some(row => row.includes('2 of 5'))).toBe(true)
 
-    // And again to open them all back up, with the selection still in that file.
     await press(t, input => input.pressTab({ shift: true }))
     rows = panel(t)
     expect(rows.some(row => row.includes('▸'))).toBe(false)
@@ -163,7 +142,6 @@ describe('folding a file in the results', () => {
     await press(t, input => input.pressEnter())
 
     const rows = panel(t)
-    // Still the search panel, with the file unfolded — not the editor.
     expect(rows.some(row => row.includes('docs/long.md') && row.includes('▾'))).toBe(true)
     expect(rows.some(row => row.includes('Enter jump'))).toBe(true)
   })

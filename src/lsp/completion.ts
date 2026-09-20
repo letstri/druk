@@ -1,18 +1,10 @@
-/**
- * Everything about completion that is pure computation: normalizing the server's
- * reply, fuzzy-filtering it against what the user typed, and turning the chosen
- * item into a new document. No Solid, no OpenTUI — `test/completion.test.ts`
- * exercises this file directly.
- */
 import type { CompletionItem, CompletionList, MarkupContent, Position } from './protocol'
 
 export interface CompletionReply {
   items: CompletionItem[]
-  /** The server wants to be asked again as the prefix grows. */
   isIncomplete: boolean
 }
 
-/** The wire result is `CompletionItem[] | CompletionList | null`; make it one shape. */
 export function normalizeCompletion(result: unknown): CompletionReply | null {
   if (result == null) return null
   if (Array.isArray(result)) return { items: result as CompletionItem[], isIncomplete: false }
@@ -21,34 +13,22 @@ export function normalizeCompletion(result: unknown): CompletionReply | null {
   return { items: list.items, isIncomplete: list.isIncomplete === true }
 }
 
-/** Characters that make up the word being completed — the prefix the menu filters on. */
 const WORD_CHAR = /[A-Za-z0-9_$]/
 
-/**
- * Typing one of these asks the server for members/paths right away, prefix or
- * not. A fixed set rather than the server's advertised `triggerCharacters`:
- * the useful ones are common to every language, and quote/space triggers fire
- * in prose far too often for a popup that sits over the text.
- */
+// A fixed set, not the server's `triggerCharacters`: quote/space triggers fire in prose.
 export const TRIGGER_CHARS = new Set(['.', ':', '/', '@'])
 
 export function isWordChar(char: string): boolean {
   return WORD_CHAR.test(char)
 }
 
-/** Start column of the word ending at `col`, so `col - wordStart` is the prefix. */
 export function wordStart(lineText: string, col: number): number {
   let at = col
   while (at > 0 && WORD_CHAR.test(lineText[at - 1]!)) at--
   return at
 }
 
-/**
- * True when everything between `from` and `to` is word characters — a reply
- * asked at `from` still describes the word the cursor sits in at `to`. A `.` or
- * `(` typed during the round trip fails this: the reply was computed for the
- * scope before it, and showing it puts globals in a member list.
- */
+// A `.` or `(` typed during the round trip fails this: the reply was computed for the old scope.
 export function extendsWord(lineText: string, from: number, to: number): boolean {
   if (to < from) return false
   for (let at = from; at < to; at++) if (!WORD_CHAR.test(lineText[at] ?? ' ')) return false
@@ -58,27 +38,12 @@ export function extendsWord(lineText: string, from: number, to: number): boolean
 export interface Match {
   item: CompletionItem
   score: number
-  /** Indexes into the label that matched, for highlighting. */
   positions: number[]
 }
 
-/** Characters a match may sit behind and still count as starting a word. */
 const SEPARATORS = new Set(['_', '-', '.', '/', '\\', ':', ' '])
 
-/**
- * Subsequence match of `query` in `text`, scored as VS Code's `fuzzyScore` does:
- * a character that lands where a prefix match would put it, on a camelCase hump,
- * or straight after a separator is worth 7 when the case agrees and 5 when it
- * does not; anything else is worth 1. A hit that continues the previous one earns
- * a little more, and skipped characters cost, so `map` beats `meltAtPressure`.
- *
- * Length is deliberately not part of the score. VS Code leaves items that match
- * the prefix equally well to the server's own order, and that is what keeps a
- * type's own members above the hundreds of auto-import candidates that spell the
- * same letters — scoring them apart here would overrule the server for good.
- *
- * Returns null when `query` is not a subsequence at all.
- */
+// Length is not scored: equal prefix matches keep the server's order.
 export function fuzzyMatch(
   query: string,
   text: string,
@@ -98,20 +63,14 @@ export function fuzzyMatch(
     const strong = found === q || hump || (prev !== undefined && SEPARATORS.has(prev))
     let step = strong ? (char === query[q] ? 7 : 5) : 1
     if (positions.length > 0 && found === positions.at(-1)! + 1) step += 2
-    score += step - (found - at) // skipped characters push the item down
+    score += step - (found - at)
     positions.push(found)
     at = found + 1
   }
   return { score, positions }
 }
 
-/**
- * The server's own ranking, and the whole order when nothing has been typed:
- * `sortText` (the label when the server sent none, per the spec), then the label,
- * then the kind — VS Code's `defaultComparator`. Comparison is by code unit, not
- * locale: `sortText` is an opaque sort key, so `localeCompare`'s ideas about
- * digits and punctuation only corrupt it.
- */
+// By code unit, not `localeCompare`: `sortText` is an opaque sort key.
 function serverOrder(a: CompletionItem, b: CompletionItem): number {
   const aSort = (a.sortText ?? a.label).toLowerCase()
   const bSort = (b.sortText ?? b.label).toLowerCase()
@@ -120,19 +79,7 @@ function serverOrder(a: CompletionItem, b: CompletionItem): number {
   return (a.kind ?? 0) - (b.kind ?? 0)
 }
 
-/**
- * Filter and rank the server's items against the typed prefix, in VS Code's two
- * stages: the fuzzy score, and `serverOrder` under it — so items the prefix matches
- * equally well stay in the order the server asked for, which is the point of the
- * arrangement and why a prefix that fits a member and an auto-import alike still
- * shows the member. Sorting the survivors rather than the items first is the same
- * order for far less work: a global completion is thousands of items and this runs
- * on every keystroke.
- *
- * The text matched is `filterText ?? label` (the spec's rule), but the positions
- * returned are label indexes — when the two differ the highlight is dropped
- * rather than lied about.
- */
+// Positions are label indexes: when `filterText` differs, the highlight is dropped.
 export function filterCompletions(items: CompletionItem[], prefix: string): Match[] {
   const matches: Match[] = []
   for (const item of items) {
@@ -148,12 +95,7 @@ export function filterCompletions(items: CompletionItem[], prefix: string): Matc
   return matches.toSorted((a, b) => b.score - a.score || serverOrder(a.item, b.item))
 }
 
-/**
- * Flatten snippet syntax to plain text: `${1:name}` keeps its placeholder text,
- * `$1`/`${1}` vanish, `${1|a,b|}` keeps the first choice. `caret` is where the
- * first tab stop sat, so accepting `foo(${1})` can land the cursor inside the
- * parentheses; null when the snippet named no stop.
- */
+// `caret` is where the first tab stop sat; null when there was none or it was at the end.
 export function stripSnippet(text: string): { text: string; caret: number | null } {
   let caret: number | null = null
   let out = ''
@@ -169,7 +111,6 @@ export function stripSnippet(text: string): { text: string; caret: number | null
   return { text: out, caret: caret === out.length ? null : caret }
 }
 
-/** Absolute offset of a `Position`, clamped to the document. */
 function offsetOf(content: string, position: Position): number {
   let at = 0
   for (let line = 0; line < position.line; line++) {
@@ -191,15 +132,7 @@ function positionOf(content: string, offset: number): Position {
   return { line, character: offset - lineStart }
 }
 
-/**
- * Prepends `indent` to every line after the first. Servers author multi-line
- * snippets at column 0 — expert's do/end block is `do\n  $0\nend` — so
- * accepted under an indented `def` the body and `end` would land at their
- * absolute columns without this. The first line is left alone: the range
- * starts after the indent that is already on the line, so its own leading
- * whitespace is relative to that point. Empty lines stay empty — trailing
- * whitespace is never wanted.
- */
+// Servers author multi-line snippets at column 0; the first line sits after the line's own indent.
 function reindentContinuationLines(text: string, indent: string): string {
   const lines = text.split('\n')
   for (let at = 1; at < lines.length; at++) {
@@ -208,20 +141,13 @@ function reindentContinuationLines(text: string, indent: string): string {
   return lines.join('\n')
 }
 
-/** The leading whitespace of `line`, which `^\s*` always matches. */
 function indentOf(content: string, line: number): string {
   const start = offsetOf(content, { line, character: 0 })
   const end = content.indexOf('\n', start)
   return /^\s*/.exec(content.slice(start, end < 0 ? undefined : end))![0]
 }
 
-/**
- * Apply `item` to the document: the primary edit replaces the server's range —
- * or, without one, the word from `anchorCol` to the cursor — and every
- * `additionalTextEdit` (auto-imports) lands too. All ranges address the
- * document as it was before any of them, per the spec, so the edits are applied
- * back-to-front. Returns the new text and where the cursor belongs.
- */
+// Every range addresses the document before any edit (the spec), hence back-to-front.
 export function applyCompletion(
   content: string,
   cursor: Position,
@@ -239,10 +165,7 @@ export function applyCompletion(
             start: { line: cursor.line, character: anchorCol },
             end: cursor,
           }
-  // The server measured its range when the request went out; characters typed
-  // during the round trip sit past its end and would survive the replacement
-  // ("consolele"). The menu only stays open while the cursor extends the same
-  // word, so pulling the end forward to the cursor is always the right repair.
+  // Characters typed during the round trip sit past the server's range end ("consolele").
   if (
     primaryRange.start.line === cursor.line &&
     primaryRange.end.line === cursor.line &&
@@ -252,10 +175,7 @@ export function applyCompletion(
   }
 
   const isSnippet = item.insertTextFormat === 2 || raw.includes('$')
-  // Multi-line snippets are re-indented to the line they land on before the
-  // stops are stripped, so the caret offset stays correct. Plain text is
-  // inserted verbatim — newlines a server sends outside a snippet are the text
-  // it means, and VS Code adjusts whitespace only for snippet insertion.
+  // Re-indented before the stops are stripped, so the caret offset stays correct.
   const adjusted =
     isSnippet && raw.includes('\n')
       ? reindentContinuationLines(raw, indentOf(content, primaryRange.start.line))
@@ -365,21 +285,12 @@ export function isDeprecated(item: CompletionItem): boolean {
   return item.deprecated === true || item.tags?.includes(1) === true
 }
 
-/**
- * Markdown flattened for a terminal panel. Only the inline marks a doc comment
- * actually carries are undone — fences, code spans, emphasis, headings, list
- * bullets — because the panel draws one colour and anything left is read as
- * literal text by the user. Line structure survives: the wrapper needs the
- * paragraph breaks the server wrote.
- */
 export function plainMarkup(doc: string | MarkupContent | undefined): string {
   const raw = typeof doc === 'string' ? doc : doc?.value
   if (!raw) return ''
   return (
     raw
-      // Anchored on spaces and tabs rather than `\s`: that class matches
-      // newlines too, and a bullet pattern allowed to eat them takes the blank
-      // line above the list with the marker.
+      // `[ \t]` rather than `\s`, which matches newlines and would eat the blank line above a list.
       .replaceAll(/^[ \t]*```[^\n]*$/gm, '')
       .replaceAll(/^[ \t]{0,3}#{1,6}[ \t]*/gm, '')
       .replaceAll(/^[ \t]*[-*+][ \t]+/gm, '• ')
@@ -396,7 +307,6 @@ export function plainMarkup(doc: string | MarkupContent | undefined): string {
 export interface ItemInfo {
   detail: string
   documentation: string
-  /** Where the symbol comes from — the module a row shows cut, if it shows it at all. */
   source: string
   deprecated: boolean
 }
@@ -404,11 +314,7 @@ export interface ItemInfo {
 export function itemInfo(item: CompletionItem): ItemInfo {
   const detail = item.detail ?? item.labelDetails?.detail ?? ''
   return {
-    // Servers send the signature with the newlines they format it over; the
-    // panel wraps it itself, so they are only extra blank rows here. The single
-    // spaces left behind are what let the panel colour it: the highlighter parses
-    // this string and the panel slices the spans onto the rows it wrapped into,
-    // which only lines up while a break costs exactly one character.
+    // Single spaces are load-bearing: the panel's row offsets hold only if a break costs one char.
     detail: detail.replaceAll(/\s+/g, ' ').trim(),
     documentation: plainMarkup(item.documentation),
     source: item.labelDetails?.description ?? '',
@@ -416,12 +322,10 @@ export function itemInfo(item: CompletionItem): ItemInfo {
   }
 }
 
-/** Nothing to show yet — the panel stays out of the way rather than drawing empty. */
 export function hasInfo(info: ItemInfo | null): info is ItemInfo {
   return info !== null && (info.detail.length > 0 || info.documentation.length > 0)
 }
 
-/** `label` cut into runs for the menu: matched runs draw in the accent color. */
 export function matchRuns(label: string, positions: number[]): { text: string; hit: boolean }[] {
   if (positions.length === 0) return [{ text: label, hit: false }]
   const runs: { text: string; hit: boolean }[] = []

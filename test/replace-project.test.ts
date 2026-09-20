@@ -15,7 +15,7 @@ const files = (count: number, perFile: number) =>
 
 describe('planProjectReplace', () => {
   test('counts every match, not the first 200', () => {
-    const dir = fixture(files(30, 10)) // 300 matches
+    const dir = fixture(files(30, 10))
     const { targets, matches } = planProjectReplace(dir, 'OLD')
     expect(matches).toBe(300)
     expect(targets.length).toBe(30)
@@ -76,7 +76,7 @@ describe('replaceProject', () => {
     const plan = planProjectReplace(dir, 'OLD')
     expect(plan.matches).toBe(1)
 
-    writeFileSync(path, 'OLD OLD OLD\n') // grows between plan and apply
+    writeFileSync(path, 'OLD OLD OLD\n')
     const result = replaceProject(
       plan.targets.map(t => t.path),
       'OLD',
@@ -105,7 +105,7 @@ describe('replaceProject', () => {
 
     const result = replaceProject([locked, open], 'OLD', 'NEW')
     chmodSync(locked, 0o644)
-    // Root ignores file modes; the write "succeeds" there and the test has nothing to see.
+    // Root ignores file modes, so the write succeeds there.
     if (process.getuid?.() !== 0) {
       expect(result.failed.length).toBe(1)
       expect(result.failed[0]).toContain('locked.ts')
@@ -128,8 +128,6 @@ describe('replaceProject', () => {
     expect(readFileSync(path, 'utf8')).toBe('bX b\n')
   })
 
-  // The confirm states a count before anything is written, so a pattern counted per
-  // line and replaced per file would promise matches the pass never makes.
   test('an anchored regex replaces every line it was counted on', () => {
     const dir = fixture({ 'a.ts': 'const a = 1\nconst b = 2\nconst c = 3\n' })
     const path = join(dir, 'a.ts')

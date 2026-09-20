@@ -1,51 +1,24 @@
-/**
- * Every keybinding druk advertises, in one table. The status-bar hints, the
- * help overlay and the Ctrl+K peek strip all render from here — a key added
- * anywhere else is a key one of them will not know about. The real handlers
- * live in App and EditorPane; `test/hotkeys.test.tsx` sweeps the two together.
- *
- * Entries sit grouped by `section`, which is what the help overlay and the Ctrl+K
- * peek render under headings — a new entry belongs beside its section mates, not at
- * the end. Both split the table where `section` changes, so an entry filed away from
- * its mates opens the heading a second time.
- *
- * A row that names bindable commands carries their `ids`, so a custom shortcut
- * shows up here instead of leaving the table advertising the key it replaced:
- * `src/app/settings.ts` pushes the effective spellings in through
- * `setKeyOverrides`, and `src/app/keymap.ts` owns the ids and their defaults.
- */
 import { createSignal } from 'solid-js'
 
 type Pane = 'tree' | 'editor'
 
-/** The panes plus the sidebar's other views: the source-control, review and
- * extensions panels replace the tree's keys while they show, so the peek strip
- * has to tell them apart. */
 export type KeyScope = Pane | 'git' | 'review' | 'extensions'
 
-/** What the key next to the space bar is called on this machine's keyboard. */
 export const ALT = process.platform === 'darwin' ? 'Opt' : 'Alt'
 
 export interface KeyInfo {
   key: string
   label: string
-  /** Heading the help overlay files this under. */
   section: string
-  /** Pane(s) the key is alive in; 'help' rows show in the help table only. */
   where: KeyScope | 'all' | 'help'
-  /** Bindable commands this row's key column spells out, in the order shown. */
   ids?: string[]
-  /** Footer advertisement: which pane shows it, as what, in what order.
-   * `key` overrides the display key where the full spelling is too wide. */
   hint?: { pane: KeyScope | 'all'; label: string; rank: number; key?: string }
-  /** Row on the empty-editor welcome screen. Same `key` override as `hint`. */
   welcome?: { label: string; rank: number; key?: string }
 }
 
 export const KEYS: KeyInfo[] = [
   {
-    // Ctrl+Shift+P reaches only kitty-protocol terminals; the Opt spelling and
-    // F1 are what work everywhere, so F1 is the one the hint advertises.
+    // Ctrl+Shift+P reaches only kitty-protocol terminals; F1 works everywhere.
     key: `F1 · Ctrl+${ALT}+P`,
     label: 'Command palette (+ themes)',
     section: 'General',
@@ -69,15 +42,11 @@ export const KEYS: KeyInfo[] = [
     section: 'General',
     where: 'all',
     ids: ['open'],
-    // Late rank on purpose: in the panels, the panel's own keys are the ones
-    // nobody knows, and the footer cuts from the tail when room runs out.
     hint: { pane: 'all', label: 'open', rank: 8, key: 'Ctrl+P' },
     welcome: { label: 'Open a file by name', rank: 1, key: 'Ctrl+P' },
   },
   { key: 'Ctrl+G', label: 'Go to line', section: 'General', where: 'all', ids: ['goto'] },
-  // One row for the pair, not two: the table is as tall as the terminals people
-  // have, and `test/help-scroll.test.tsx` measures how tall one has to be for
-  // the whole of it — every row added costs a row there.
+  // Short labels: the help table only just fits a 60-row terminal (test/help-scroll.test.tsx).
   {
     key: `F12 / Ctrl+${ALT}+O`,
     label: 'Definition / file under cursor',
@@ -86,18 +55,16 @@ export const KEYS: KeyInfo[] = [
     ids: ['goto.definition', 'goto.file'],
   },
   {
-    key: `Ctrl+${ALT}+I`,
-    label: 'Show problem at cursor',
+    key: `F8 / Ctrl+${ALT}+I`,
+    label: 'Next problem / read it',
     section: 'General',
     where: 'editor',
-    ids: ['problems.detail'],
+    ids: ['problems.next', 'problems.detail'],
   },
   {
     key: `Ctrl+${ALT}+W`,
     label: 'Switch workspace',
     section: 'General',
-    // Not the peek: one more row re-deals its columns and clips every label, and
-    // it names this chord anyway through the project name's tooltip.
     where: 'help',
     ids: ['workspace.switch'],
   },
@@ -108,7 +75,7 @@ export const KEYS: KeyInfo[] = [
   { key: 'Ctrl+A', label: 'Select all', section: 'Editing', where: 'editor' },
   {
     key: `Ctrl+${ALT}+B`,
-    label: 'Go to beginning of line',
+    label: 'Line start · Ctrl+U deletes',
     section: 'Editing',
     where: 'editor',
     ids: ['editor.lineStart'],
@@ -156,7 +123,7 @@ export const KEYS: KeyInfo[] = [
     hint: { pane: 'editor', label: 'find', rank: 3 },
   },
   {
-    key: 'Ctrl+R',
+    key: `Ctrl+${ALT}+F`,
     label: 'Find in project',
     section: 'Search & replace',
     where: 'all',
@@ -237,8 +204,6 @@ export const KEYS: KeyInfo[] = [
     section: 'File tree',
     where: 'tree',
   },
-  // Deliberately without `ids`: the command is bindable, but its key here is the
-  // tree's own Space, which no global chord can replace.
   {
     key: 'Space · PgUp/Dn',
     label: 'Preview file, no tab · scroll it',
@@ -276,25 +241,18 @@ export const KEYS: KeyInfo[] = [
     ids: ['view.git'],
     welcome: { label: 'Review changes and commit', rank: 4 },
   },
-  // Short labels on purpose: a label that wraps costs the help table a second row,
-  // and the table only just fits a 60-row terminal — `test/help-scroll.test.tsx`
-  // measures exactly that.
   {
     key: '↑↓ · Enter · →←',
     label: 'Diff a change · open it · fold',
     section: 'Source control',
     where: 'git',
   },
-  // Space folded into the row rather than given one of its own: the help table
-  // only just fits a 70-row terminal, and the peek strip cuts what does not fit.
   {
     key: 'Space a c d p s b B Esc',
     label: 'Stage/commit/discard/push/sync/branch/compare/back',
     section: 'Source control',
     where: 'git',
   },
-  // One row for the three, as the source-control keys are: the help table only
-  // just fits a 70-row terminal and a wrapped label costs it a second row.
   {
     key: `Ctrl+${ALT}+U / J`,
     label: 'Resolve conflict · next one',
@@ -303,9 +261,6 @@ export const KEYS: KeyInfo[] = [
     ids: ['git.conflictResolve', 'git.conflictNext'],
   },
 
-  // One row for the pair, and short labels, as the source-control rows are: the
-  // help table only just fits a 70-row terminal, and a wrapped label costs it a
-  // second row — `test/help-scroll.test.tsx` measures exactly that.
   {
     key: `Ctrl+${ALT}+R / A`,
     label: 'Review panel / note this line',
@@ -313,8 +268,6 @@ export const KEYS: KeyInfo[] = [
     where: 'all',
     ids: ['view.review', 'review.note'],
   },
-  // Short labels on purpose, as the source-control rows are: the help table only
-  // just fits a 60-row terminal, and a wrapped label costs it a second row.
   {
     key: 'Enter · r · ⌫ · Esc',
     label: 'Jump · reply · drop · back',
@@ -336,15 +289,12 @@ export const KEYS: KeyInfo[] = [
     where: 'editor',
     ids: ['view.markdown'],
   },
-  // Ctrl+U / Ctrl+D too: MacBook keyboards have no page keys at all.
   {
-    key: 'PgUp/Dn · Ctrl+U/D',
+    key: 'PgUp/Dn · Ctrl+D',
     label: 'Scroll a page',
     section: 'View',
     where: 'editor',
   },
-  // One row, not two: the help table only just fits a 60-row terminal, and
-  // `test/help-scroll.test.tsx` measures exactly that.
   {
     key: 'Tab / Shift+Tab',
     label: 'Tree → editor · walk views',
@@ -353,8 +303,7 @@ export const KEYS: KeyInfo[] = [
   },
   { key: 'Esc', label: 'Editor → tree', section: 'View', where: 'editor' },
 
-  // Last, so the sections above keep the rows they had: the help table only just
-  // fits a 60-row terminal and its tests measure the window from the top.
+  // Last: the help tests measure the window from the top.
   {
     key: `Ctrl+${ALT}+X`,
     label: 'Extensions panel',
@@ -362,8 +311,6 @@ export const KEYS: KeyInfo[] = [
     where: 'all',
     ids: ['view.extensions'],
   },
-  // Short labels on purpose, as the source-control rows are: the help table only
-  // just fits a 60-row terminal, and a wrapped label costs it a second row.
   {
     key: 'Enter · →←',
     label: 'On/off or install · fold',
@@ -378,48 +325,25 @@ export const KEYS: KeyInfo[] = [
   },
 ]
 
-/** One bindable command's effective key, as `src/app/keymap.ts` resolved it. */
-export interface KeyOverride {
-  /** Spelling in force; '' when the command has no key. */
+interface KeyOverride {
   key: string
   label: string
-  /** The user rebound it, so this spelling outranks the table's own. */
   changed: boolean
 }
 
-/**
- * A signal, not a plain object: the peek strip and the help table read this while
- * rendering, and an assignment they cannot see would leave them advertising keys
- * the editor no longer has.
- */
+// A signal, not a plain object: the peek and the help table read it while rendering.
 const [overrides, setOverrides] = createSignal<Record<string, KeyOverride>>({})
 
 export { setOverrides as setKeyOverrides }
 
-/**
- * The chord one command answers to, for a surface that has to name a key in its
- * own text rather than in the key table — the diagnostic note beside a line says
- * how to read the rest of itself. Empty before the overrides are pushed and for
- * a command with no key at all, which callers draw nothing for.
- */
 export const chordFor = (id: string): string => overrides()[id]?.key ?? ''
 
-/**
- * What the status bar says after a command ran the slow way — from the palette,
- * where the key that would have done it is learnable at the one moment it is
- * wanted. '' for a command with no key, which callers say nothing for.
- */
 export const keyTip = (id: string): string => {
   const override = overrides()[id]
   return override?.key ? `${override.key} — ${override.label}` : ''
 }
 
-/**
- * The chord the palette should print for a bindable command: the user's own
- * spelling once they rebound it — '' when they unbound it — and null while the
- * default stands, where the palette's hand-written hint is the better text
- * ("Ctrl+F then Tab" says more than a chord column can).
- */
+// '' when the user unbound the command, null while the default stands.
 export const rebound = (id: string): string | null => {
   const override = overrides()[id]
   return override?.changed ? override.key : null
@@ -427,11 +351,6 @@ export const rebound = (id: string): string | null => {
 
 const UNBOUND = '—'
 
-/**
- * The key column for one row. The table's own spelling stands until a command on
- * the row is rebound, so nothing moves for the people who changed nothing — and
- * `test/keymap.test.ts` holds the two spellings to each other.
- */
 function displayKey(info: KeyInfo): string {
   const map = overrides()
   const ids = info.ids
@@ -440,11 +359,6 @@ function displayKey(info: KeyInfo): string {
   return joinKeys(spellings)
 }
 
-/**
- * Several commands' keys as one column. A shared modifier is written once —
- * "Ctrl+Opt+← / →" rather than twice its width, which the help table's key column
- * has no room for.
- */
 function joinKeys(spellings: string[]): string {
   if (spellings.length === 1) return spellings[0]!
   const split = spellings.map(spelling => {
@@ -460,10 +374,6 @@ function joinKeys(spellings: string[]): string {
   return spellings.join(' / ')
 }
 
-/**
- * The table as it stands now: every row at its effective spelling, plus a row for
- * each command the user gave a key that the table does not otherwise advertise.
- */
 function entries(): KeyInfo[] {
   const map = overrides()
   const advertised = new Set(KEYS.flatMap(info => info.ids ?? []))
@@ -478,7 +388,6 @@ function entries(): KeyInfo[] {
   return [...KEYS.map(info => ({ ...info, key: displayKey(info) })), ...extra]
 }
 
-/** The help table: every row, key and long label. */
 export const helpRows = (): [string, string][] =>
   entries().map(info => [info.key, info.label] as [string, string])
 
@@ -487,7 +396,7 @@ export interface HelpSection {
   rows: [string, string][]
 }
 
-/** Rows split where their `section` changes. `KEYS` keeps a section contiguous. */
+// Split where `section` changes: KEYS must keep a section contiguous.
 const sectionsOf = (rows: KeyInfo[]): HelpSection[] =>
   rows.reduce<HelpSection[]>((out, info) => {
     if (out.at(-1)?.title !== info.section) out.push({ title: info.section, rows: [] })
@@ -495,30 +404,18 @@ const sectionsOf = (rows: KeyInfo[]): HelpSection[] =>
     return out
   }, [])
 
-/** The table split at its section boundaries, for the help overlay's headings. */
 export const helpSections = (): HelpSection[] => sectionsOf(entries())
 
-/**
- * The short spelling a hint or welcome row asked for — dropped once the command is
- * rebound, since the abbreviation was written for the key it used to have.
- */
 const shortKey = (info: KeyInfo, short: string | undefined): string =>
   info.ids?.some(id => overrides()[id]?.changed) ? info.key : (short ?? info.key)
 
 export interface Hint {
   key: string
   label: string
-  /** Command the hint's key runs, so a click on it does what the key does. */
   id?: string
   rank: number
 }
 
-/**
- * Footer hints for the panel scopes, whose keys the help table lists as one
- * combined row per panel — a row a hint cannot borrow, since it advertises one
- * key with one word. Single letters only alive inside the panel, so none of
- * them is bindable and none needs the override treatment.
- */
 const PANEL_HINTS: (Hint & { pane: KeyScope })[] = [
   { pane: 'git', key: 'Space', label: 'stage', rank: 2 },
   { pane: 'git', key: 'c', label: 'commit', rank: 3 },
@@ -533,7 +430,6 @@ const PANEL_HINTS: (Hint & { pane: KeyScope })[] = [
   { pane: 'extensions', key: 'u', label: 'update', rank: 4 },
 ]
 
-/** Footer hints for `pane`, most useful first. */
 export function hintsFor(pane: KeyScope): Hint[] {
   const fromTable = entries()
     .filter(info => info.hint && (info.hint.pane === pane || info.hint.pane === 'all'))
@@ -548,7 +444,6 @@ export function hintsFor(pane: KeyScope): Hint[] {
   )
 }
 
-/** Rows for the welcome screen, most useful first. */
 export function welcomeKeys(): ReadonlyArray<readonly [string, string]> {
   return entries()
     .filter(info => info.welcome)
@@ -556,10 +451,8 @@ export function welcomeKeys(): ReadonlyArray<readonly [string, string]> {
     .map(info => [shortKey(info, info.welcome!.key), info.welcome!.label] as const)
 }
 
-/** Everything alive in `pane`, for the peek strip. */
-export function keysFor(pane: KeyScope): KeyInfo[] {
+function keysFor(pane: KeyScope): KeyInfo[] {
   return entries().filter(info => info.where === pane || info.where === 'all')
 }
 
-/** What `pane` answers to, under the help overlay's headings — the peek panel. */
 export const keySectionsFor = (pane: KeyScope): HelpSection[] => sectionsOf(keysFor(pane))

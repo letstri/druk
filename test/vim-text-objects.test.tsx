@@ -5,7 +5,6 @@ import { fixture, launch, press, pressEscape } from './helpers'
 import { at, save, type, vimEditor } from './vim-harness'
 
 describe('text objects', () => {
-  // "const x = { hello }\n": 'h' at col 12, '{' at col 10, '}' at col 18
   const BRACE = 'const x = { hello }\n'
   const PAREN = 'const x = ( hello )\n'
   const BRACKET = 'const x = [ hello ]\n'
@@ -199,8 +198,8 @@ describe('text objects', () => {
 
   test('diw cancels the prefix: a later { is a paragraph motion again', async () => {
     const { t } = await vimEditor('a { b }\n\nc { d }\ne\n')
-    await type(t, 'jj04l') // Ln 3, cursor inside { d }
-    await type(t, 'diw') // w is not a text-object target — the prefix must cancel
+    await type(t, 'jj04l')
+    await type(t, 'diw')
     await type(t, '{')
     expect(at(t)).toContain('Ln 2')
   })

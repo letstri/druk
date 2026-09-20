@@ -3,13 +3,10 @@ import { join } from 'node:path'
 
 import { fixture, launch, loadMarketExtensions, openFile, press, until } from './helpers'
 
-// The fake server is declared by the market's typescript extension, whose spec
-// the `lspServers` override replaces.
 loadMarketExtensions()
 
 const FAKE = join(import.meta.dir, 'fixtures', 'fake-lsp.ts')
 
-/** Diagnostics cross a process boundary; give the fake server room to start. */
 const LSP_WAIT = 15_000
 
 const tabRow = (t: Awaited<ReturnType<typeof launch>>) => t.captureCharFrame().split('\n')[0]!
@@ -28,7 +25,6 @@ test('a tab wears the mark of its file worst diagnostic', async () => {
   await press(t, input => void input.typeText('nag'))
   await until(t, () => tabRow(t).includes('▲ a.ts'), LSP_WAIT)
 
-  // An error outranks the warning already there: one mark per tab, the worst.
   await press(t, input => void input.typeText('oops'))
   await until(t, () => tabRow(t).includes('● a.ts'), LSP_WAIT)
 }, 30000)

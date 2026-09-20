@@ -13,7 +13,6 @@ const PROJECT = {
 
 const SIZE = { width: 100, height: 30 }
 
-/** Open `name` and type at its start, leaving the tab dirty. */
 async function dirty(t: Harness, name: string) {
   await openFile(t, name)
   await press(t, i => void i.typeText('x'))
@@ -24,7 +23,7 @@ test('saves every dirty tab and counts them', async () => {
   const t = await launch(dir, { autoSaveOnBlur: false }, SIZE)
   await dirty(t, 'a.ts')
   await dirty(t, 'b.ts')
-  await openFile(t, 'c.ts') // open and clean
+  await openFile(t, 'c.ts')
 
   await runCommand(t, 'Save all')
   await untilFrame(t, 'Saved 2 files')

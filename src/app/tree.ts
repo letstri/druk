@@ -8,17 +8,6 @@ import type { TreeNode } from '../core/fs'
 import { ignoredPaths } from '../core/git'
 import { enclosingRepo } from '../core/repos'
 
-/**
- * The tree's row filter for the current settings, or null when nothing is hidden.
- * Reads the config store, so a memo calling this recomputes when either setting
- * flips. The ignored sets are re-read from git on every call — the callers' memo
- * already re-runs on each tree refresh, which is the same cadence `statusMap`
- * runs on, and a stale set would hide files whose ignore rules are gone.
- *
- * One set per repository, filled as a row inside that repository is tested: with
- * a folder of repositories open there is no single set to ask for, and asking
- * eagerly would spend an `ls-files` on every repository whose folder is shut.
- */
 export function hiddenNodes(
   rootDir: string,
   config: Pick<Config, 'showDotfiles' | 'respectGitignore'>,
@@ -30,13 +19,10 @@ export function hiddenNodes(
   const ignored = new Map<string, Set<string>>()
   const isIgnored = (path: string) => {
     if (!config.respectGitignore) return false
-    // The repository of the row's *parent*: a repository's own root is never
-    // ignored by itself, and asking would fill its set for a folder still shut.
+    // The *parent's* repository: a repository's own root is never ignored by itself.
     const repo = enclosingRepo(dirname(path), repos)
     if (repo === null) return false
-    // Asked from the opened folder when that sits inside the repository, for the
-    // reason `ignoredPaths` documents: from the repository root it would list —
-    // and walk — every ignored entry outside the folder on screen as well.
+    // From the opened folder when it sits inside the repository — see `ignoredPaths`.
     const cwd = repo.startsWith(rootDir) ? repo : rootDir
     let paths = ignored.get(cwd)
     if (!paths) {
@@ -51,26 +37,14 @@ export function hiddenNodes(
 export function createTree(
   rootDir: string,
   initial: { expanded: string[]; selected: string | null },
-  /** Current row filter — see `hiddenNodes`. Absent means list everything. */
   hidden?: () => ((node: TreeNode) => boolean) | null,
 ) {
   const [expanded, setExpanded] = createSignal<Set<string>>(new Set(initial.expanded))
   const [selectedPath, setSelectedPath] = createSignal<string | null>(initial.selected)
-  /**
-   * Rows picked out with Shift+↑/↓, in tree order. Empty for the ordinary case of
-   * one row under the cursor — `actionTargets` is what reconciles the two, so no
-   * action has to care which of the pair it is looking at.
-   */
   const [marked, setMarked] = createSignal<string[]>([])
-  /** Row the current range grows from; null when there is no range. */
   const [anchor, setAnchor] = createSignal<string | null>(null)
 
-  /**
-   * Rows an unchanged path had last time keep their object identity. The tree's
-   * `<For>` keys rows by object, so handing it a fresh `TreeNode` per path on
-   * every watcher refresh tore down and rebuilt every visible row — hundreds of
-   * renderables per tick on a busy repository, for a list that rarely changed.
-   */
+  // Unchanged paths keep node identity: `<For>` keys rows by object and rebuilds otherwise.
   let prevNodes = new Map<string, TreeNode>()
   const nodes = createMemo(() => {
     const fresh = flattenVisible(rootDir, expanded(), hidden?.() ?? undefined)
@@ -103,7 +77,6 @@ export function createTree(
       return next
     })
 
-  /** Expand every folder above `path` so the tree actually has a row for it. */
   const reveal = (path: string) => {
     const parts = path.startsWith(rootDir) ? path.slice(rootDir.length + 1).split('/') : []
     if (parts.length < 2) return
@@ -114,9 +87,7 @@ export function createTree(
         dir = join(dir, part)
         next.add(dir)
       }
-      // Same identity when nothing opened: `expanded` also drives the git-status
-      // effect, so a fresh Set here costs a whole-repo `git status` on every file
-      // open and every tab switch, neither of which touches the working tree.
+      // Same identity when nothing opened: `expanded` also drives the git-status effect.
       return next.size === prev.size ? prev : next
     })
   }
@@ -126,11 +97,6 @@ export function createTree(
     setAnchor(null)
   }
 
-  /**
-   * Shut every folder. The cursor is usually inside one of them, and a selection
-   * with no row on screen reads as no selection at all — so it walks out to the
-   * top-level entry that swallowed it.
-   */
   const collapseAll = () => {
     setExpanded(new Set<string>())
     clearMarks()
@@ -143,20 +109,11 @@ export function createTree(
     const rows = nodes()
     if (rows.length === 0) return
     const idx = rows.findIndex(n => n.path === selectedPath())
-    // From no selection, land on the first row regardless of direction.
     const next = idx < 0 ? 0 : Math.max(0, Math.min(rows.length - 1, idx + delta))
     setSelectedPath(rows[next]!.path)
     clearMarks()
   }
 
-  /**
-   * Shift+↑/↓: move the cursor and drag a range along behind it.
-   *
-   * Over the rows as they are displayed, so a range is exactly what you saw between
-   * the two ends — a collapsed folder counts as the one row it draws, not as the
-   * files inside it. The anchor is where the range started and does not move, so
-   * reversing direction shrinks the range instead of leaving a stranded end.
-   */
   const extendSelection = (delta: number) => {
     const rows = nodes()
     const head = rows.findIndex(n => n.path === selectedPath())
@@ -172,7 +129,6 @@ export function createTree(
     setSelectedPath(rows[next]!.path)
   }
 
-  /** Everything an action should apply to: the marked rows, else the cursor's row. */
   const actionTargets = (): string[] => {
     const all = marked()
     if (all.length > 0) return all
@@ -188,7 +144,6 @@ export function createTree(
     return node.isDir ? node.path : dirname(node.path)
   }
 
-  /** Fresh Set identity, so this doubles as the tree refresh. */
   const remapExpanded = (remap: (path: string) => string) =>
     setExpanded(prev => new Set([...prev].map(remap)))
 

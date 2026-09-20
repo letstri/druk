@@ -1,11 +1,3 @@
-/**
- * Per-project workspace state — which files were open and which folders were
- * expanded — so reopening a project looks the way you left it.
- *
- * Stored next to the config as `sessions.json`, keyed by absolute project path.
- * Everything here is best-effort: a missing, unreadable or stale entry just
- * means druk starts empty.
- */
 import fs from 'node:fs'
 import { dirname, join } from 'node:path'
 
@@ -14,7 +6,6 @@ import { exists } from './fs'
 
 const SESSIONS_FILE = join(dirname(CONFIG_FILE), 'sessions.json')
 
-/** Projects remembered before the oldest are dropped — also the switcher's list. */
 const MAX_PROJECTS = 50
 
 export interface Session {
@@ -78,6 +69,6 @@ export function saveSession(rootDir: string, session: Session, now = Date.now())
     fs.mkdirSync(dirname(SESSIONS_FILE), { recursive: true })
     fs.writeFileSync(SESSIONS_FILE, `${JSON.stringify(Object.fromEntries(trimmed), null, 2)}\n`)
   } catch {
-    // best-effort — losing the session is never worth interrupting the editor
+    // best-effort
   }
 }

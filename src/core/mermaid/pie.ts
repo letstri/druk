@@ -1,7 +1,3 @@
-/**
- * Pie charts as bars: a circle drawn in cells is unreadable at terminal
- * resolution, and the share each slice holds is what the chart is for.
- */
 import type { Line } from './canvas'
 import type { PieDiagram } from './model'
 

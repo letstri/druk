@@ -21,36 +21,25 @@ export interface StatusBarProps {
   cursor?: { line: number; col: number }
   dirty: boolean
   vimMode: VimMode | null
-  /** Repository the branch belongs to, when the folder holds more than one. */
   repo: string | null
   branch: string | null
-  /** Commits the branch is ahead of / behind its upstream. */
   ahead: number
   behind: number
-  /** Files differing from HEAD in the working tree. */
   changed: number
-  /** LSP diagnostics in the active file; hidden while both counts are zero. */
   problems?: { errors: number; warnings: number }
-  /** The keymap that is live — the panel scopes bring their own footer hints. */
   focus: KeyScope
-  /** A long operation in flight; replaces the message while it runs. */
   busy: { label: string; done?: number; total?: number } | null
-  /** What each group does when it is clicked — VS Code's status bar, where the
-   * branch is the branch switcher and the counts are the commands behind them. */
   onBranch: () => void
   onSync: () => void
   onChanges: () => void
   onProblems: () => void
   onSave: () => void
   onGotoLine: () => void
-  /** A footer hint clicked: run the command its key advertises. */
   onHint: (id: string) => void
 }
 
-/** One frame per tick, so a stalled spinner is visibly stalled. */
 const SPINNER = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
 
-// `dirty` is the palette's amber, already meaning "needs attention, nothing broke".
 const TONE_COLORS: Record<Tone, () => string> = {
   info: () => ui.dim,
   warn: () => ui.dirty,
@@ -59,12 +48,7 @@ const TONE_COLORS: Record<Tone, () => string> = {
 
 const SEPARATOR = '  '
 
-/**
- * One group of the bar: its text, its padding, and — where it stands for a
- * command — the click that runs it. The padding belongs to the box so the tint
- * covers the whole target rather than the glyphs alone, and the widths the
- * layout below is computed from count it.
- */
+// Padding belongs to the box: the tint covers the whole target and the widths count it.
 function Group(props: {
   text: string
   fg: string
@@ -72,7 +56,6 @@ function Group(props: {
   padRight?: number
   attributes?: number
   onClick?: () => void
-  /** Command the group runs; left out for the groups that are not buttons. */
   command?: string
 }) {
   const hover = useTooltip(props.command)
@@ -97,16 +80,9 @@ export function StatusBar(props: StatusBarProps) {
   const dimensions = useTerminalDimensions()
 
   const [frame, setFrame] = createSignal(0)
-  /**
-   * Whether to spin at all — a boolean, so the effect below sees one change per
-   * operation. Tracking `props.busy` itself re-ran it on every progress tick,
-   * which cleared and restarted the interval faster than it could ever fire:
-   * the spinner sat on its first frame for the whole run.
-   */
+  // A boolean, so the effect sees one change per operation: `props.busy` ticks restarted it.
   const spinning = createMemo(() => props.busy !== null)
 
-  // Only ticking while there is something to spin: an idle editor should not
-  // wake up ten times a second to redraw a character.
   createEffect(() => {
     if (!spinning()) return
     const timer = setInterval(() => setFrame(at => (at + 1) % SPINNER.length), 100)
@@ -125,16 +101,9 @@ export function StatusBar(props: StatusBarProps) {
     return `${SPINNER[frame()]} ${busy.label}${count}`
   }
 
-  /**
-   * The branch is the one group here made of somebody's own words, and its box
-   * cannot shrink: a branch named after a whole issue title filled the bar on
-   * its own and pushed the message, the hints and the cursor off the right edge.
-   * A quarter of the row, so a wide terminal still shows most names whole.
-   */
+  // The branch is the user's own words and cannot shrink: uncut it pushes the bar off screen.
   const branchText = () => {
     if (!props.branch) return ''
-    // `repo/branch` where several are open: "main" on its own would be whichever
-    // of them the editor happens to be in, with nothing saying which.
     const label = `${props.repo ? `${props.repo}/` : ''}${props.branch}`
     return cut(label, Math.max(12, Math.round(dimensions().width * 0.25)))
   }
@@ -148,11 +117,7 @@ export function StatusBar(props: StatusBarProps) {
 
   const changedText = () => (props.changed > 0 ? `~${props.changed}` : '')
 
-  /**
-   * The git group as one string. It is drawn as three click targets — branch,
-   * sync counts, changed count — whose paddings stand in for the spaces here,
-   * so this stays what the whole group costs the row.
-   */
+  // Drawn as three click targets, but this stays the one string the row's width comes from.
   const gitText = () => {
     if (!props.branch) return ''
     return [`⎇ ${branchText()}`, syncText(), changedText()].filter(Boolean).join(' ')
@@ -170,10 +135,8 @@ export function StatusBar(props: StatusBarProps) {
     return parts.join(' ')
   }
 
-  /** A group's columns: its text plus the two of padding every group carries. */
   const groupWidth = (text: string) => (text ? text.length + 2 : 0)
 
-  /** Everything that never gives way — the vim badge, git, and the right-hand groups. */
   const fixedWidth = createMemo(
     () =>
       groupWidth(props.vimMode ? MODE_LABELS[props.vimMode] : '') +
@@ -184,33 +147,16 @@ export function StatusBar(props: StatusBarProps) {
       groupWidth(props.filetype ?? ''),
   )
 
-  /**
-   * The message, cut to the room the fixed groups leave. Its box cannot shrink, so a
-   * long one — a filesystem error is reported verbatim — would push `unsaved`, the
-   * cursor and the filetype off the right edge rather than being clipped itself.
-   * Whitespace collapses for the same reason: the bar is one row, and a stray
-   * newline in a message from anywhere would break it.
-   */
+  // Cut and whitespace-collapsed: the box cannot shrink, and a newline would push the groups off.
   const messageText = createMemo(() => {
-    // A running operation owns this slot: its progress is the only thing worth
-    // reading while it runs, and it ends with a message of its own.
     const flat = (busyText() || props.message).replaceAll(/\s+/g, ' ').trim()
     const room = dimensions().width - fixedWidth() - 2
     if (!flat || room < 2) return ''
     return flat.length > room ? `${flat.slice(0, room - 1)}…` : flat
   })
 
-  /**
-   * Columns left for hints once everything that must be shown has its space.
-   * Hints are the only part of the bar that may vanish, so they are measured
-   * against what is left rather than being given a share of their own.
-   */
-  const budget = createMemo(
-    // One spare column so the last hint never butts against the next group.
-    () => dimensions().width - fixedWidth() - groupWidth(messageText()) - 3,
-  )
+  const budget = createMemo(() => dimensions().width - fixedWidth() - groupWidth(messageText()) - 3)
 
-  /** As many hints as fit, in order. None at all on a narrow terminal. */
   const hints = createMemo(() => {
     const room = budget()
     const shown: Hint[] = []
@@ -239,8 +185,6 @@ export function StatusBar(props: StatusBarProps) {
         )}
       </Show>
 
-      {/* Left: the repository. Right: the file. The message and the hints share
-          what is between them, and the hints give way first. */}
       <Show when={props.branch}>
         <Group text={`⎇ ${branchText()}`} fg={ui.dim} padLeft={2} onClick={props.onBranch} />
         <Show when={syncText()}>
@@ -280,8 +224,6 @@ export function StatusBar(props: StatusBarProps) {
                 onMouseOut={hover.leave}
               >
                 <text fg={ui.dim} bg={bg()} content={hint.key} />
-                {/* The separator is outside the tint: it is the gap to the next
-                    hint, not part of this one's target. */}
                 <text fg={ui.faint} bg={bg()} content={` ${hint.label}`} />
                 <text fg={ui.faint} bg={ui.barBg} content={SEPARATOR} />
               </box>

@@ -1,27 +1,12 @@
-/**
- * The file a path in the text points at: the token under the cursor, and where
- * that token resolves to on disk — relative, absolute, or through the aliases a
- * `tsconfig.json` / `jsconfig.json` declares (`@/foo` → `src/foo`). No Solid, no
- * OpenTUI; `test/imports.test.ts` exercises this file directly.
- *
- * Deliberately not a module resolver: nothing here walks `node_modules` or reads
- * a package's `exports`. A specifier this cannot place is handed to the language
- * server, which resolves it the way the project's own toolchain does.
- */
 import { readFileSync, statSync } from 'node:fs'
 import { homedir } from 'node:os'
 import { dirname, isAbsolute, join, resolve } from 'node:path'
 
 const QUOTES = new Set(['"', "'", '`'])
 
-/** What an unquoted path may be made of — anything else ends the token. */
 const PATH_CHAR = /[\w@~./\\#$+-]/
 
-/**
- * Extensions tried against a specifier that carries none, in the order a
- * bundler would: source before compiled output, so `./foo` lands on `foo.ts`
- * rather than a `foo.js` built beside it.
- */
+/** Source before compiled output, so `./foo` lands on `foo.ts` and not a built `foo.js`. */
 const EXTENSIONS = [
   '.ts',
   '.tsx',
@@ -40,7 +25,6 @@ const EXTENSIONS = [
   '.md',
 ]
 
-/** Nothing on the filesystem answers for these, and a URL is not a typo either. */
 const URL_SCHEME = /^[a-z][a-z\d+.-]*:\/\//i
 
 const isFile = (path: string): boolean => {
@@ -57,19 +41,13 @@ function quotedAt(lineText: string, col: number): string | null {
     if (!QUOTES.has(quote)) continue
     const close = lineText.indexOf(quote, at + 1)
     if (close < 0) return null
-    // Inclusive of both quotes: a cursor resting on one still means the string
-    // it opens, and the caret sits *before* its character.
+    // Inclusive of both quotes: the caret sits *before* its character.
     if (col >= at && col <= close) return lineText.slice(at + 1, close)
     at = close
   }
   return null
 }
 
-/**
- * The path-like token at `col` — a quoted specifier where there is one, else the
- * bare run of path characters around the cursor. Null when there is nothing
- * there to open.
- */
 export function pathTokenAt(lineText: string, col: number): string | null {
   const quoted = quotedAt(lineText, col)
   if (quoted !== null) return quoted.trim() || null
@@ -79,13 +57,11 @@ export function pathTokenAt(lineText: string, col: number): string | null {
   while (start > 0 && PATH_CHAR.test(lineText[start - 1]!)) start--
   let end = at
   while (end < lineText.length && PATH_CHAR.test(lineText[end]!)) end++
-  // Sentence punctuation belongs to the prose around a path, not to the path —
-  // `see src/core/fs.ts.` names a file that exists, with a full stop after it.
+  // Sentence punctuation is the prose's: `see src/core/fs.ts.` names a file that exists.
   const token = lineText.slice(start, end).replace(/[.,;:]+$/, '')
   return token || null
 }
 
-/** `candidate` itself, the same name with an extension, or its index file. */
 function fileAt(candidate: string): string | null {
   if (isFile(candidate)) return candidate
   for (const ext of EXTENSIONS) {
@@ -103,12 +79,7 @@ type Json = Record<string, unknown>
 const objectAt = (value: unknown): Json | null =>
   typeof value === 'object' && value !== null && !Array.isArray(value) ? (value as Json) : null
 
-/**
- * JSON with what tsconfig files actually hold: comments and trailing commas,
- * neither of which `JSON.parse` accepts. One pass, because stripping comments
- * with a regex would also gut any string holding a slash pair — a `paths` entry
- * mapping onto a URL-ish target is not far off.
- */
+// One pass: a regex stripping comments would gut a string holding a slash pair.
 function parseJsonc(text: string): unknown {
   let out = ''
   let inString = false
@@ -165,10 +136,8 @@ function nextMeaningful(text: string, from: number): string {
 }
 
 interface Aliases {
-  /** What `paths` entries are relative to: `baseUrl`, else the config's folder. */
   base: string
   paths: Record<string, string[]>
-  /** Set only when the config has one; a bare specifier resolves against it. */
   baseUrl: string | null
 }
 
@@ -178,11 +147,7 @@ function stringList(value: unknown): string[] | null {
   return list.length > 0 ? list : null
 }
 
-/**
- * The alias map `file` supplies, following a *relative* `extends` when it has
- * none of its own. A package-name `extends` is not followed: resolving it means
- * walking `node_modules`, which is the job this module leaves to the server.
- */
+// Only a relative `extends` is followed: a package name would mean walking node_modules.
 function loadAliases(file: string, depth = 0): Aliases | null {
   if (depth > 4 || !isFile(file)) return null
   let json: unknown
@@ -207,18 +172,11 @@ function loadAliases(file: string, depth = 0): Aliases | null {
   }
   const extend = root.extends
   if (typeof extend !== 'string' || !extend.startsWith('.')) return null
-  // `.json` and nothing else: `extends: "./tsconfig.base"` has an extension as
-  // far as `extname` is concerned, and the file it names is `tsconfig.base.json`.
+  // `extends: "./tsconfig.base"` already has an extname; the file is tsconfig.base.json.
   const parent = resolve(dir, extend.endsWith('.json') ? extend : `${extend}.json`)
   return loadAliases(parent, depth + 1)
 }
 
-/**
- * Every place `spec` could land through the project's aliases. TypeScript's own
- * rule: at most one `*` per pattern, the longest matching prefix winning — which
- * only matters when two patterns match, so the candidates are simply tried in
- * that order.
- */
 function aliasCandidates(spec: string, rootDir: string): string[] {
   const aliases =
     loadAliases(join(rootDir, 'tsconfig.json')) ?? loadAliases(join(rootDir, 'jsconfig.json'))
@@ -244,17 +202,10 @@ function aliasCandidates(spec: string, rootDir: string): string[] {
   const resolved = candidates
     .toSorted((a, b) => b.length - a.length)
     .map(candidate => resolve(aliases.base, candidate.path))
-  // `baseUrl` alone makes every path under it importable by name, which is how
-  // a project with no `paths` at all still writes `src/core/fs`.
   if (aliases.baseUrl) resolved.push(resolve(aliases.baseUrl, spec))
   return resolved
 }
 
-/**
- * The file `spec` names, or null. Tried in the order that costs least and is
- * least likely to be wrong: the folder holding the file it was written in, then
- * the project root, then the project's aliases.
- */
 export function resolveImportPath(spec: string, fromDir: string, rootDir: string): string | null {
   const token = spec.trim()
   if (!token || URL_SCHEME.test(token)) return null

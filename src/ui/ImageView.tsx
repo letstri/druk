@@ -11,22 +11,14 @@ import { ui } from '../themes'
 
 export interface ImageViewProps {
   path: string
-  /** Columns the pane owns — the editor slot, not the terminal. */
   width: number
-  /** Rows the pane owns. */
   height: number
   onFocus: () => void
 }
 
-/** One decoded image, or the reason there is none. */
 type Loaded = { image: RawImage; kb: string } | { error: string }
 
-/**
- * Half-block image preview: every cell is `▀`, its foreground the upper pixel and
- * its background the lower. Cells are painted straight into the frame buffer from
- * a `renderAfter` hook — per-cell `<text>` renderables would hit the Zig core's
- * renderable cap on the first real photo.
- */
+// Painted into the frame buffer: per-cell `<text>` hits the Zig core's renderable cap.
 export function ImageView(props: ImageViewProps) {
   const [box, setBox] = createSignal<BoxRenderable | null>(null)
 
@@ -39,14 +31,12 @@ export function ImageView(props: ImageViewProps) {
     }
   })
 
-  // The info line takes the pane's first row; the image gets the rest.
   const view = createMemo<CellImage | null>(() => {
     const l = loaded()
     if ('error' in l) return null
     return toCells(l.image, Math.max(1, props.width), Math.max(1, props.height - 1))
   })
 
-  /** Cell colors as RGBA, computed once per decode/resize rather than per frame. */
   const painted = createMemo(() => {
     const cells = view()
     if (!cells) return null
@@ -71,8 +61,7 @@ export function ImageView(props: ImageViewProps) {
     return { cols: cells.cols, rows: cells.rows, colors }
   })
 
-  // Runs on every frame, outside Solid's tracking — it reads the memos' latest
-  // values and the box's laid-out position, both settled by render time.
+  // Runs every frame outside Solid's tracking; the memos and the box's position are settled by then.
   const draw = (buffer: OptimizedBuffer) => {
     const host = box()
     const image = painted()

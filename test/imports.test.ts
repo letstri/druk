@@ -9,14 +9,12 @@ describe('the token under the cursor', () => {
   test('a quoted specifier wins wherever in it the cursor sits', () => {
     const line = "import { a } from './core/fs'"
     for (const col of [19, 22, 28]) expect(pathTokenAt(line, col)).toBe('./core/fs')
-    // Including on either quote: the caret sits before its character.
     expect(pathTokenAt(line, 18)).toBe('./core/fs')
   })
 
   test('an unquoted path is read out of prose', () => {
     const line = 'see src/core/fs.ts for the guard.'
     expect(pathTokenAt(line, 8)).toBe('src/core/fs.ts')
-    // The full stop belongs to the sentence, not to the path.
     expect(pathTokenAt('read src/app/lsp.ts.', 12)).toBe('src/app/lsp.ts')
   })
 
@@ -54,8 +52,6 @@ describe('where a specifier resolves', () => {
 
   test('a path written against the project root', () => {
     const root = project()
-    // The file it is written in is elsewhere; a path in prose is usually
-    // relative to the repository, not to the note holding it.
     expect(resolveImportPath('src/a.ts', root, root)).toBe(join(root, 'src/a.ts'))
   })
 
@@ -64,9 +60,7 @@ describe('where a specifier resolves', () => {
     const from = join(root, 'src/nested')
     expect(resolveImportPath('@/a', from, root)).toBe(join(root, 'src/a.ts'))
     expect(resolveImportPath('@/deep', from, root)).toBe(join(root, 'src/deep/index.ts'))
-    // A pattern with no star maps one specifier onto one file.
     expect(resolveImportPath('~lib', from, root)).toBe(join(root, 'src/lib/index.ts'))
-    // baseUrl alone makes every path under it importable by name.
     expect(resolveImportPath('src/nested/b', from, root)).toBe(join(root, 'src/nested/b.tsx'))
     expect(resolveImportPath('@/nope', from, root)).toBeNull()
   })
@@ -83,7 +77,6 @@ describe('where a specifier resolves', () => {
   test('what is not a file on disk', () => {
     const root = project()
     expect(resolveImportPath('https://example.com/x.ts', root, root)).toBeNull()
-    // A package: the language server resolves these, not this module.
     expect(resolveImportPath('solid-js', root, root)).toBeNull()
     expect(resolveImportPath('   ', root, root)).toBeNull()
   })
@@ -103,8 +96,6 @@ describe('a definition reply', () => {
   })
 
   test('the selection range wins over the declaration range', () => {
-    // targetRange starts at the doc comment above the symbol; landing there
-    // would put the cursor on a comment rather than on the name.
     const declaration = { start: { line: 1, character: 0 }, end: { line: 6, character: 1 } }
     expect(
       normalizeDefinition([

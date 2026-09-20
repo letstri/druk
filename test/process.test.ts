@@ -3,9 +3,7 @@ import { expect, test } from 'bun:test'
 import { firstLine, notInstalled, run } from '../src/core/process'
 
 test('a timeout is a timeout, not a spawn failure', async () => {
-  // `error` is what every caller checks first, and 'close' hands its listener the
-  // signal as a second argument: taking it as the error made a killed process
-  // report itself as a spawn failure with no message at all.
+  // 'close' hands its listener the signal as a second argument, not an error.
   const result = await run('sleep', ['30'], { timeout: 100 })
   expect(result.timedOut).toBe(true)
   expect(result.error).toBeNull()

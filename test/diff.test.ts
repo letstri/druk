@@ -44,7 +44,6 @@ describe('unifiedDiff', () => {
     far[29] = 'LAST'
     const twoHunks = unifiedDiff('a.ts', `${lines.join('\n')}\n`, `${far.join('\n')}\n`)
     expect(twoHunks.patch.match(/^@@ /gm)).toHaveLength(2)
-    // The middle of the file is not in the patch at all.
     expect(twoHunks.patch).not.toContain('line15')
 
     const near = [...lines]
@@ -57,10 +56,9 @@ describe('unifiedDiff', () => {
   test('hunk positions stay correct after earlier insertions', () => {
     const lines = Array.from({ length: 30 }, (_, i) => `line${i}`)
     const changed = [...lines]
-    changed.splice(2, 0, 'INSERTED') // shifts everything below down one
-    changed[25] = 'CHANGED' // line24 in the original
+    changed.splice(2, 0, 'INSERTED')
+    changed[25] = 'CHANGED'
     const diff = unifiedDiff('a.ts', `${lines.join('\n')}\n`, `${changed.join('\n')}\n`)
-    // Second hunk: old side still counts from the original file, new side is shifted.
     expect(diff.patch).toContain('@@ -22,7 +23,7 @@')
     expect(diff.patch).toContain('-line24')
     expect(diff.patch).toContain('+CHANGED')
@@ -93,7 +91,6 @@ describe('scale', () => {
     const a = Array.from({ length: 4000 }, (_, i) => `alpha ${i}`).join('\n')
     const b = Array.from({ length: 4000 }, (_, i) => `beta ${i}`).join('\n')
     const diff = unifiedDiff('a.ts', `${a}\n`, `${b}\n`, 100)
-    // The counts are the change's, the body is the cap's.
     expect(diff.adds).toBe(4000)
     expect(diff.dels).toBe(4000)
     expect(diff.lines).toBe(100)
@@ -102,7 +99,6 @@ describe('scale', () => {
       .split('\n')
       .filter(l => /^[ +-]/.test(l) && !l.startsWith('+++') && !l.startsWith('---'))
     expect(body).toHaveLength(100)
-    // The cut hunk's header names what was emitted, so the patch still parses.
     expect(diff.patch).toContain('@@ -1,100 +0,0 @@')
   })
 
@@ -113,15 +109,12 @@ describe('scale', () => {
   })
 
   test('a rewrite keeps its context rows and hunk arithmetic', () => {
-    // Shared prefix and suffix around a >MAX_EDIT_DISTANCE middle: the rewrite
-    // fast path must emit the same shape the generic emitter would.
     const shared = ['keep0', 'keep1', 'keep2', 'keep3', 'keep4']
     const a = [...shared, ...Array.from({ length: 3000 }, (_, i) => `alpha ${i}`), ...shared]
     const b = [...shared, ...Array.from({ length: 3000 }, (_, i) => `beta ${i}`), ...shared]
     const diff = unifiedDiff('a.ts', `${a.join('\n')}\n`, `${b.join('\n')}\n`)
     expect(diff.adds).toBe(3000)
     expect(diff.dels).toBe(3000)
-    // Three context rows each side: 5 shared lines, CONTEXT takes 3.
     expect(diff.patch).toContain('@@ -3,3006 +3,3006 @@')
     expect(diff.patch).toContain(' keep2\n keep3\n keep4\n-alpha 0')
     expect(diff.patch).toContain('+beta 2999\n keep0\n keep1\n keep2\n')
@@ -135,7 +128,6 @@ describe('scale', () => {
     changed[0] = 'FIRST'
     changed[59] = 'LAST'
     const diff = unifiedDiff('a.ts', `${lines.join('\n')}\n`, `${changed.join('\n')}\n`, 6)
-    // The first hunk (5 rows) fits; the second begins and is cut after one row.
     expect(diff.patch).toContain('+FIRST')
     expect(diff.patch).not.toContain('+LAST')
     expect(diff.adds).toBe(2)

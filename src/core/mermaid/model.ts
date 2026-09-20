@@ -1,5 +1,4 @@
-/** The shapes mermaid's node syntaxes collapse into for a terminal. */
-export type NodeShape = 'rect' | 'round' | 'decision' | 'point'
+type NodeShape = 'rect' | 'round' | 'decision' | 'point'
 
 export type EdgeStyle = 'solid' | 'dotted' | 'thick'
 
@@ -17,18 +16,12 @@ export interface GraphEdge {
   to: string
   label?: string
   style: EdgeStyle
-  /** The head at the `to` end, and at the `from` end for the relations that
-   * carry one there (class diagrams point their diamonds back at the owner). */
   head: ArrowHead
   tail: ArrowHead
 }
 
 export type Direction = 'TD' | 'BT' | 'LR' | 'RL'
 
-/**
- * Flowcharts, state, class and ER diagrams are all a graph of labelled boxes —
- * they differ in the syntax that spells one, not in what gets drawn.
- */
 export interface GraphDiagram {
   kind: 'graph'
   direction: Direction
@@ -37,7 +30,7 @@ export interface GraphDiagram {
   title?: string
 }
 
-export interface SequenceParticipant {
+interface SequenceParticipant {
   id: string
   label: string
 }
@@ -52,7 +45,6 @@ export type SequenceEvent =
       head: ArrowHead
     }
   | { type: 'note'; targets: string[]; text: string }
-  /** `loop`, `alt`, `opt`, `par`, `else`, `end` — drawn as a labelled rule. */
   | { type: 'block'; keyword: string; text: string; closing: boolean }
 
 export interface SequenceDiagram {
@@ -62,7 +54,7 @@ export interface SequenceDiagram {
   title?: string
 }
 
-export interface PieSlice {
+interface PieSlice {
   label: string
   value: number
 }
@@ -74,8 +66,7 @@ export interface PieDiagram {
   showData: boolean
 }
 
-/** A diagram type nothing here draws: the fence falls back to its source. */
-export interface UnsupportedDiagram {
+interface UnsupportedDiagram {
   kind: 'unsupported'
   type: string
   reason: string

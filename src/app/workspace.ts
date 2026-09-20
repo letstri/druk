@@ -3,8 +3,6 @@ import { basename } from 'node:path'
 import { createEffect, createMemo, createSignal, on } from 'solid-js'
 import { createStore, produce, unwrap } from 'solid-js/store'
 
-// Aliased: `resolveConflict` below is the *disk* conflict — a file changed under
-// a dirty buffer — and the two would read as one thing under one name.
 import { parseConflicts, resolveConflict as keepSide } from '../core/conflicts'
 import type { ConflictSide, MergeConflict } from '../core/conflicts'
 import { formatterFor, runFormatter } from '../core/format'
@@ -31,25 +29,16 @@ import type { Status } from './status'
 import type { Tree } from './tree'
 import type { Conflict, DiskSync, FileBuffer, Prompt } from './types'
 
-/**
- * Prefixes of the watcher's clash warnings, so it can recognise its own message and
- * clear it again. A deleted file is not a changed one — saying "changed" for a file
- * that is gone sends the user looking for a diff that does not exist.
- */
+// App.tsx matches these prefixes to clear the watcher's own warning.
 export const CLASH_CHANGED = 'Changed on disk with unsaved edits: '
 export const CLASH_DELETED = 'Deleted on disk with unsaved edits: '
 
-/** The editor-slot pages, each a tab of its own — one per kind, never two. */
 export type PageKind = 'settings' | 'lspStatus' | 'allChanges' | 'commit' | 'compare'
 
-/**
- * A page's tab id. Tabs are keyed by string and a file's key is its absolute
- * path, so a scheme no path can carry is what keeps the two apart — every
- * reader asks `pageKindOf` rather than guessing from the shape of the id.
- */
+// A scheme no path can carry is what keeps page ids apart from file paths.
 const PAGE_PREFIX = 'druk://'
 
-export const pageId = (kind: PageKind) => `${PAGE_PREFIX}${kind}`
+const pageId = (kind: PageKind) => `${PAGE_PREFIX}${kind}`
 
 export const pageKindOf = (id: string): PageKind | null =>
   id.startsWith(PAGE_PREFIX) ? (id.slice(PAGE_PREFIX.length) as PageKind) : null
@@ -67,24 +56,15 @@ const unreadableReason = (e: unknown) =>
     ? 'It is binary, or uses an encoding druk cannot read.'
     : (e as Error).message
 
-/** A clean buffer for a file on disk. Throws whatever reading it throws. */
 const loadBuffer = (path: string): FileBuffer => {
   const { text, encoding } = readTextFile(path)
   return { content: text, saved: text, dirty: false, mtime: mtimeOf(path), encoding }
 }
 
-/**
- * What the editor mounts with. Restored synchronously: the editor must mount with
- * its buffers already in place, otherwise it renders an empty document and marks
- * it modified.
- */
+// Synchronous on purpose: the editor mounts with these buffers, or it renders an empty document.
 export function restoreWorkspace(rootDir: string, single: string | null) {
-  // Asked for one file, so that is what opens: no saved tabs, no expanded folders,
-  // and the sidebar out of the way. The session is neither read nor written — the
-  // folder's own layout is not this invocation's to inherit or to overwrite.
   if (single) {
     try {
-      // A viewer opens with no buffer, so nothing can write it back.
       const buffers: Record<string, FileBuffer> = isImagePath(single)
         ? {}
         : { [single]: loadBuffer(single) }
@@ -97,8 +77,6 @@ export function restoreWorkspace(rootDir: string, single: string | null) {
         failed: null as string | null,
       }
     } catch (e) {
-      // Unreadable or not text. The editor still starts — with nothing open, and
-      // the reason on the status bar once there is a status bar to put it on.
       return {
         buffers: {},
         tabs: [],
@@ -112,7 +90,7 @@ export function restoreWorkspace(rootDir: string, single: string | null) {
   const saved = loadSession(rootDir)
   const buffers: Record<string, FileBuffer> = {}
   for (const path of saved.tabs) {
-    if (isImagePath(path)) continue // a viewer tab has no buffer to restore
+    if (isImagePath(path)) continue
     try {
       buffers[path] = loadBuffer(path)
     } catch {
@@ -132,11 +110,10 @@ export function restoreWorkspace(rootDir: string, single: string | null) {
   }
 }
 
-export type RestoredWorkspace = ReturnType<typeof restoreWorkspace>
+type RestoredWorkspace = ReturnType<typeof restoreWorkspace>
 
 export function createWorkspace(deps: {
   rootDir: string
-  /** `druk file.ts`: single-file mode leaves the folder's saved session alone. */
   single: string | null
   restored: RestoredWorkspace
   settings: Settings
@@ -152,56 +129,28 @@ export function createWorkspace(deps: {
   const { config } = settings
 
   const [buffers, setBuffers] = createStore<Record<string, FileBuffer>>(restored.buffers)
-  /** Every tab in strip order — files and pages alike. */
   const [views, setViews] = createSignal<string[]>(restored.tabs)
   const [activeView, setActiveView] = createSignal<string | null>(restored.activePath)
-  /** The file tabs alone: what the session persists and what the watcher walks. */
   const tabs = () => views().filter(id => !pageKindOf(id))
-  /** The file tab last landed on — see `activePath`. */
   const [lastFile, setLastFile] = createSignal<string | null>(restored.activePath)
-  /**
-   * The open *file*: what the editor holds. A page tab covers the editor slot
-   * rather than emptying it, so landing on one leaves the file underneath — and
-   * with it the cursor, the vim mode and the undo stack the editor is holding.
-   * Null once that file's own tab is gone.
-   */
-  // A memo, not a plain accessor: landing on a page tab re-evaluates this without
-  // changing it, and an `on(activePath)` effect re-runs on *dependencies* rather
-  // than on the value — the blur autosave would fire for a file nobody left.
+  // A memo, not an accessor: an `on(activePath)` effect would blur-autosave on landing on a page tab.
   const activePath = createMemo(() => {
     const view = activeView()
     if (view && !pageKindOf(view)) return view
     const file = lastFile()
     return file && views().includes(file) ? file : null
   })
-  // Preview tab (VS Code style): opened from the tree, reused by the next
-  // preview, and promoted to a permanent tab on click, double-click or edit.
   const [previewPath, setPreviewPath] = createSignal<string | null>(null)
-  /**
-   * Markdown tabs reading as the rendered document rather than as their text.
-   * Per path, not one flag for the editor: a file switched away from and back to
-   * comes back the way it was left. Both halves are the one buffer — this says
-   * which of the two the editor slot is showing, nothing more.
-   */
   const [renderedPaths, setRenderedPaths] = createSignal<string[]>([])
-  /** The page the editor slot is showing, or null when a file (or nothing) is. */
   const page = () => {
     const view = activeView()
     return view ? pageKindOf(view) : null
   }
-  /** Whether a page's tab is open, active or not — a page keeps its state while
-   * another tab is read, so what it shows has to keep being refreshed. */
   const pageOpen = (kind: PageKind) => views().includes(pageId(kind))
-  /**
-   * State a page owns outside this controller (the commit and comparison views,
-   * built after it), torn down when its tab closes.
-   */
   const pageClosers = new Map<PageKind, () => void>()
   const onPageClose = (kind: PageKind, close: () => void) => void pageClosers.set(kind, close)
-  /** A file that would not open, shown over the editor until the next keypress. */
   const [notice, setNotice] = createSignal<{ name: string; reason: string } | null>(null)
   const [conflict, setConflict] = createSignal<Conflict | null>(null)
-  /** Paths of closed tabs, oldest first, for "reopen closed tab". */
   const [recentlyClosed, setRecentlyClosed] = createSignal<string[]>([])
 
   const activeBuffer = () => {
@@ -211,30 +160,16 @@ export function createWorkspace(deps: {
 
   const dirtyPaths = () => Object.keys(unwrap(buffers)).filter(path => buffers[path]?.dirty)
 
-  /**
-   * In-flight formatters for a path. Bumped when a newer format starts or when a
-   * write deliberately skips formatting; the AbortController kills the child so
-   * Save without formatting cannot lose to a formatter that finishes afterward
-   * and the watcher pulls formatted text back in.
-   */
+  // The abort kills the child, so Save without formatting cannot lose to a later flush.
   const formatEpoch: Record<string, number> = {}
   const formatAbort: Record<string, AbortController> = {}
-  /** Settles when the latest format task for a path ends (success, fail, or abort). */
   const formatWait: Record<string, Promise<void>> = {}
-  /**
-   * Content we insist stays on disk/buffer after aborting a formatter. The watcher
-   * must not pull a late flush into a clean tab before reassert rewrites the file.
-   * Cleared by hold id — content equality would drop a newer hold that happens to
-   * carry the same bytes (Save without formatting after Ctrl+S).
-   */
+  // Cleared by id: content equality would drop a newer hold carrying the same bytes.
   const holdDisk: Record<string, { content: string; id: number }> = {}
   let holdSeq = 0
 
   const discardBuffer = (path: string) => {
-    // Abort the child but leave epoch, holdDisk and formatWait: a pending
-    // reassertAfterFormat must still rewrite disk after SIGKILL. Closing the
-    // tab is not a newer write — bumping the epoch here would skip that
-    // rewrite and leave a late formatter flush on disk.
+    // Epoch, holdDisk and formatWait stay: a pending reassertAfterFormat still rewrites disk.
     formatAbort[path]?.abort()
     delete formatAbort[path]
     setBuffers(produce(draft => void delete draft[path]))
@@ -242,24 +177,17 @@ export function createWorkspace(deps: {
 
   const openFile = (path: string, preview = false) => {
     setNotice(null)
-    // An image gets a viewer tab and no buffer — the door stays shut to a
-    // FileBuffer for anything that is not text, which is what keeps "never written
-    // back" structural. The tab itself uses the same preview/pin/session logic.
+    // An image gets a tab and no buffer: nothing without a buffer is written back.
     if (!buffers[path] && !isImagePath(path)) {
       try {
         setBuffers(path, loadBuffer(path))
       } catch (e) {
-        // Nothing druk can show, so no tab and no buffer — which is what keeps a file
-        // like this from ever being written back. The refusal goes over the editor
-        // rather than into the status bar: down there it reads as a footnote to the
-        // file still on screen, and the answer to "open this" was no.
         setNotice({ name: basename(path), reason: unreadableReason(e) })
         return
       }
     }
     setViews(prev => {
       if (prev.includes(path)) return prev
-      // A preview tab takes the previous preview's slot instead of stacking up.
       const slot = previewPath() ? prev.indexOf(previewPath()!) : -1
       if (preview && slot >= 0) return prev.map((p, i) => (i === slot ? path : p))
       return [...prev, path]
@@ -288,10 +216,6 @@ export function createWorkspace(deps: {
     else openFile(node.path, true)
   }
 
-  /**
-   * Closing drops the buffer, and sessions persist only paths — so unsaved edits
-   * are gone for good. `discardUnsaved` is the caller promising that is intended.
-   */
   const closeTab = (path: string, discardUnsaved = false) => {
     if (!discardUnsaved && buffers[path]?.dirty) {
       return setPrompt({ kind: 'closeDirty', paths: [path], names: [basename(path)] })
@@ -313,17 +237,12 @@ export function createWorkspace(deps: {
     setRecentlyClosed(prev => [...prev.filter(p => p !== path), path])
   }
 
-  /**
-   * Put a page over the editor slot as a tab of its own. One tab per kind: the
-   * id *is* the kind, so asking twice for Settings lands on the tab already open.
-   */
   const openPage = (kind: PageKind) => {
     const id = pageId(kind)
     setViews(prev => (prev.includes(id) ? prev : [...prev, id]))
     setActiveView(id)
   }
 
-  /** Close a page's tab — by default whichever one the slot is showing. */
   const closePage = (kind?: PageKind) => {
     const target = kind ?? page()
     if (!target || !pageOpen(target)) return
@@ -352,10 +271,6 @@ export function createWorkspace(deps: {
     say(done)
   }
 
-  /**
-   * The path the editor slot should render as markdown, or null for the text.
-   * The pages sit above this one, so it answers only for a file tab.
-   */
   const renderedPath = () => {
     const path = activePath()
     return path && isMarkdownPath(path) && renderedPaths().includes(path) ? path : null
@@ -368,14 +283,10 @@ export function createWorkspace(deps: {
     }
     const rendered = !renderedPaths().includes(path)
     setRenderedPaths(prev => (rendered ? [...prev, path] : prev.filter(p => p !== path)))
-    // The editor keeps the keyboard while its own text is up; taking focus back
-    // is what lets the reader scroll without clicking first.
     panes.setFocus('editor')
     say(rendered ? `Rendering ${basename(path)}` : `Source of ${basename(path)}`)
   }
 
-  /** Land on a tab the way a click on the strip does — a page keeps the keyboard
-   * where `openPage` leaves it, since the panels page their own views. */
   const showView = (id: string) => {
     const kind = pageKindOf(id)
     if (!kind) return openFile(id)
@@ -392,58 +303,35 @@ export function createWorkspace(deps: {
     showView(list[(at + delta + list.length) % list.length]!)
   }
 
-  /**
-   * Take edited text into a buffer. Dirtiness is `content !== saved`, never a flag
-   * an edit sets: undoing back to the loaded text leaves a buffer that is what the
-   * file holds, and a `●` on it offers to save nothing.
-   */
+  // Dirty is `content !== saved`, never a flag: undoing back to the loaded text clears it.
   const setContent = (path: string, text: string) => {
     setBuffers(path, { content: text, dirty: text !== buffers[path]!.saved })
   }
 
   const onEditorChange = (text: string) => {
     const path = activePath()
-    // No buffer means a viewer tab — creating one here would hand its bytes to the
-    // save path. The editor is blocked while a viewer is up, but this is the guard
-    // that makes the invariant hold rather than depend on that.
     if (!path || !buffers[path] || buffers[path].content === text) return
     pinTab(path)
     setContent(path, text)
   }
 
-  /** Put replaced text into the buffer. The tab is pinned first: an edited preview
-   * tab must never be recycled out from under the edit. */
+  // Pinned first: an edited preview tab must not be recycled out from under the edit.
   const applyReplacement = (path: string, next: string) => {
     pinTab(path)
     setContent(path, next)
     editor.pushEdit(next)
   }
 
-  /**
-   * The merge conflicts in the buffer on screen. One parse shared by the editor's
-   * highlighting, the conflict navigation and the accept commands — three readers
-   * that must agree on where a block starts, since one of them edits it.
-   *
-   * The buffer rather than the file: a conflict is resolved by rewriting text
-   * that may already be dirty, and it is the buffer the reader is looking at.
-   */
   const mergeConflicts = createMemo<MergeConflict[]>(() =>
     parseConflicts(activeBuffer()?.content ?? ''),
   )
 
-  /** What each side is called once the markers naming it are gone. */
   const SIDE_LABELS: Record<ConflictSide, string> = {
     ours: 'current change',
     theirs: 'incoming change',
     both: 'both changes',
   }
 
-  /**
-   * Keep one side of the conflict at `line` and drop the markers, as one
-   * undoable step — the caret is left where the block began, since the lines it
-   * was on are gone. Reports what it did, or why it did nothing: the chooser and
-   * the three direct commands both come through here, so the message is one.
-   */
   const acceptConflict = (line: number, side: ConflictSide) => {
     const path = activePath()
     const buffer = path ? buffers[path] : undefined
@@ -457,13 +345,6 @@ export function createWorkspace(deps: {
     say(`Kept the ${SIDE_LABELS[side]}${rest}`)
   }
 
-  /**
-   * The buffers a project search or replace must read instead of the disk:
-   * dirty ones, whose edits the disk does not have, and the active one, whose
-   * undo history is the one place a replace can stay reversible. A clean
-   * non-active buffer is deliberately absent — its disk copy says the same
-   * thing, and the disk route leaves no unsaved tab behind.
-   */
   const replaceOverlay = (): Map<string, string> => {
     const overlay = new Map<string, string>()
     const active = activePath()
@@ -509,12 +390,7 @@ export function createWorkspace(deps: {
     delete formatWait[path]
   }
 
-  /**
-   * After killing an in-flight formatter, put `content` back on disk once the
-   * child has exited — SIGKILL is async, and a late flush would otherwise let
-   * the watcher pull formatted text into a clean buffer. `epoch`/`hold` cancel
-   * the rewrite when a newer write or format supersedes this one.
-   */
+  // SIGKILL is async: put `content` back once the child exits, or a late flush reaches a clean buffer.
   const reassertAfterFormat = (
     path: string,
     content: string,
@@ -532,8 +408,7 @@ export function createWorkspace(deps: {
         clearHold(path, hold)
         return
       }
-      // A move remapped this buffer and the file is gone from `path`. Writing
-      // would recreate it next to the destination.
+      // A move remapped this buffer; writing would recreate the file at the old path.
       if (!buffers[path] && !exists(path)) {
         clearHold(path, hold)
         return
@@ -542,7 +417,6 @@ export function createWorkspace(deps: {
       const buffer = buffers[path]
       if (buffer) {
         if (buffer.dirty) {
-          // Typed after the save — keep those edits; only heal disk for the hold.
           setBuffers(path, 'mtime', mtimeOf(path))
         } else {
           setBuffers(path, {
@@ -559,11 +433,6 @@ export function createWorkspace(deps: {
     })
   }
 
-  /**
-   * Run the in-place formatter and pull the result into the buffer when nothing
-   * was typed over it. Callers announce — format-on-save names the file, a batch
-   * of open tabs counts them instead. `epoch`/`signal` are from `beginFormat`.
-   */
   const applyFormat = async (
     path: string,
     saved: string,
@@ -578,25 +447,21 @@ export function createWorkspace(deps: {
       if (announce) say(`Format failed: ${error}`, 'error')
       return { failed: error }
     }
-    if (!buffers[path]) return 'noop' // closed while the formatter ran
+    if (!buffers[path]) return 'noop'
     let written: FileBuffer
     try {
-      // The formatter's own spelling wins: prettier writes LF by default, and a
-      // buffer still claiming CRLF would convert its work back on the next save.
+      // The formatter's own encoding wins, or a buffer claiming CRLF converts its work back.
       written = loadBuffer(path)
     } catch {
-      return 'noop' // unreadable now — the watcher's sync will report it
+      return 'noop'
     }
     const disk = written.content
     const buffer = buffers[path]!
-    // A keystroke while the tool ran wins; the next save reformats anyway.
     if (buffer.dirty) {
       setBuffers(path, 'mtime', mtimeOf(path))
       return 'busy'
     }
     if (disk === buffer.content) {
-      // Nothing to pull in: the formatter changed nothing, or the watcher's
-      // sync raced this callback and already applied its write.
       setBuffers(path, { mtime: written.mtime, encoding: written.encoding })
       return disk !== saved ? 'formatted' : 'noop'
     }
@@ -606,21 +471,11 @@ export function createWorkspace(deps: {
     return 'formatted'
   }
 
-  /**
-   * Save-then-format: the formatter rewrites the file in place, and the result
-   * comes back into the buffer only if nothing typed over it while the tool ran
-   * — a keystroke during the run wins, and the next save reformats anyway. The
-   * mtime is re-synced in every branch, so the formatter's own write is never
-   * mistaken for an outside edit by the next save's conflict check.
-   */
   const formatAfterSave = (path: string, saved: string, command: string[]) => {
     const { epoch, signal, prior } = beginFormat(path)
-    // Same shield Save without formatting uses: a late flush from `prior` must
-    // not reach the buffer via the watcher before we rewrite `saved` onto disk.
+    // A late flush from the killed `prior` child must not reach the buffer before `saved` is on disk.
     const hold = setHold(path, saved)
     const task = (async () => {
-      // Wait out the killed child, then put `saved` back on disk — a late flush
-      // after SIGKILL would otherwise leave formatted bytes for the watcher.
       if (prior) await prior
       if (formatEpoch[path] !== epoch) {
         clearHold(path, hold)
@@ -655,8 +510,7 @@ export function createWorkspace(deps: {
     opts?: { runFormat?: boolean; quiet?: boolean },
   ): boolean => {
     const final = config.trimOnSave ? trimTrailing(content) : content
-    // The file goes back spelled the way it was read: a CRLF working tree or a
-    // BOM the user never touched must not turn into a whole-file diff.
+    // Written back as read: a CRLF tree or a BOM must not become a whole-file diff.
     const encoding = buffers[path]?.encoding ?? DEFAULT_ENCODING
     const err = writeFile(path, final, encoding)
     if (err) {
@@ -665,45 +519,28 @@ export function createWorkspace(deps: {
     }
     setBuffers(path, { content: final, saved: final, dirty: false, mtime: mtimeOf(path) })
     const runFormat = opts?.runFormat ?? config.formatOnSave
-    // Spawned before anything else this save does: the formatter is the longest
-    // thing on the path between Ctrl+S and the reformatted text, and every line
-    // below it — the editor push, the git refresh — is work that can happen while
-    // the child runs. Started after them, it waits for all of it first.
-    // Manual format writes with runFormat: false so it is not started twice.
+    // Spawned first: the formatter is the slow half, and everything below runs while the child does.
     if (runFormat) {
       const command = formatterFor(path, config.formatters)
       if (command) formatAfterSave(path, final, command)
       else {
-        // Format-on-save is on but nothing matches — still abort any in-flight
-        // format (manual Format document, etc.) the same way a plain save does.
         const epoch = invalidateFormat(path)
         const hold = setHold(path, final)
         reassertAfterFormat(path, final, encoding, epoch, hold)
       }
     } else {
-      // Drop any in-flight format for this path — a plain save or Save without
-      // formatting must not lose to a formatter that flushes after the write.
+      // A plain save must not lose to a formatter that flushes after the write.
       const epoch = invalidateFormat(path)
       const hold = setHold(path, final)
       reassertAfterFormat(path, final, encoding, epoch, hold)
     }
-    // The trim changed the text on disk; the editor has to show the same thing —
-    // and as an undoable step, not a history-wiping reload.
     if (final !== content && path === activePath()) editor.pushEdit(final)
     git.bump()
-    // Format flushes a dirty buffer only so the in-place tool sees it — that is
-    // not a save the user asked for, so quiet skips the status line.
     if (!opts?.quiet) say(`Saved ${basename(path)}`)
     return true
   }
 
-  /**
-   * True when disk no longer matches the buffer. mtime alone is not enough: a
-   * touch or a reload that already reconciled identical text leaves the stamp
-   * stale without a real clash, and Format open must not skip those tabs.
-   * While holdDisk is asserting the buffer's own save, a late formatter flush is
-   * not a clash — reassertAfterFormat will put the held text back.
-   */
+  // mtime alone is not enough, and a late formatter flush under a hold is not a clash.
   const clashes = (path: string, buffer: FileBuffer): boolean => {
     if (mtimeOf(path) === buffer.mtime) return false
     const hold = holdDisk[path]
@@ -716,9 +553,7 @@ export function createWorkspace(deps: {
     }
   }
 
-  /** True when the buffer may be written; opens the conflict modal when not. */
   const prepareSave = (path: string, buffer: FileBuffer): boolean => {
-    // Someone else touched the file since we loaded it — ask before clobbering.
     if (mtimeOf(path) === buffer.mtime) return true
     const hold = holdDisk[path]
     if (hold && buffer.content === hold.content) return true
@@ -746,7 +581,6 @@ export function createWorkspace(deps: {
     writeBuffer(path, buffer.content)
   }
 
-  /** Write the active buffer without running the formatter, even when format-on-save is on. */
   const saveWithoutFormatting = () => {
     const path = activePath()
     const buffer = activeBuffer()
@@ -755,17 +589,12 @@ export function createWorkspace(deps: {
     writeBuffer(path, buffer.content, { runFormat: false })
   }
 
-  /**
-   * Flush a dirty buffer to disk (no format-on-save), then run its formatter.
-   * Returns false when there is nothing to do for this path.
-   */
   const formatPath = (path: string): boolean => {
     const buffer = buffers[path]
     if (!buffer) return false
     const command = formatterFor(path, config.formatters)
     if (!command) return false
-    // Clean tabs too: an in-place formatter reads disk, and without this check a
-    // clash would silently reformat the outside edit into the buffer.
+    // Clean tabs too: an in-place formatter reads disk and would fold an outside edit into the buffer.
     if (!prepareSave(path, buffer)) return false
     if (buffer.dirty) {
       if (!writeBuffer(path, buffer.content, { runFormat: false, quiet: true })) return false
@@ -795,16 +624,12 @@ export function createWorkspace(deps: {
       let skipped = 0
       let interrupted = 0
       const failNotes: string[] = []
-      // One formatter at a time: they share the status bar, and a parallel run
-      // would race both the announces and any overlapping writes.
+      // Sequential: parallel formatters would race the status bar and overlapping writes.
       for (const path of paths) {
         const buffer = buffers[path]
         if (!buffer) continue
         const command = formatterFor(path, config.formatters)
         if (!command) continue
-        // A clash mid-batch skips rather than opening the conflict modal — the
-        // user is not answering N prompts for one palette command. Matches
-        // prepareSave: content must disagree, not just mtime.
         if (clashes(path, buffer)) {
           skipped++
           continue
@@ -815,7 +640,6 @@ export function createWorkspace(deps: {
             continue
           }
         }
-        // eslint-disable-next-line no-await-in-loop -- sequential on purpose, see above
         const { epoch, signal, prior } = beginFormat(path)
         const saved = buffers[path]!.content
         const hold = setHold(path, saved)
@@ -842,6 +666,7 @@ export function createWorkspace(deps: {
           () => undefined,
           () => undefined,
         )
+        // eslint-disable-next-line no-await-in-loop -- one formatter at a time, on purpose
         const result = await task
         if (result === 'formatted') done.push(path)
         else if (typeof result === 'object') {
@@ -856,8 +681,6 @@ export function createWorkspace(deps: {
           interrupted++
         }
       }
-      // One status line for the whole batch: lead with the main outcome, then
-      // footnotes for everything else that happened in the same run.
       const bits: string[] = []
       if (done.length === 1) bits.push(`Formatted ${basename(done[0]!)}`)
       else if (done.length > 1) bits.push(`Formatted ${done.length} files`)
@@ -883,18 +706,12 @@ export function createWorkspace(deps: {
     })()
   }
 
-  /**
-   * Auto-save is deliberately quieter than Ctrl+S: a buffer whose file changed on
-   * disk is skipped with a warning instead of opening the conflict modal — the
-   * user has just switched away and is not there to answer it.
-   */
   const autoSave = (path: string): 'saved' | 'skipped' | 'failed' => {
     const buffer = buffers[path]!
     if (mtimeOf(path) !== buffer.mtime) return 'skipped'
     return writeBuffer(path, buffer.content) ? 'saved' : 'failed'
   }
 
-  /** Every dirty buffer through the clash-safe autoSave; the callers pick the voice. */
   const saveDirty = () => {
     const skipped: string[] = []
     const failed: string[] = []
@@ -911,7 +728,6 @@ export function createWorkspace(deps: {
 
   const saveDirtyOnBlur = () => {
     const { saved, skipped, failed } = saveDirty()
-    // One file keeps writeBuffer's own message; several get a count instead.
     if (saved > 1) say(`Saved ${saved} files`)
     if (skipped.length > 0) say(`${CLASH_CHANGED}${skipped.join(', ')}`, 'warn')
     if (failed.length > 0) say(`Save failed: ${failed.join(', ')}`, 'error')
@@ -920,7 +736,6 @@ export function createWorkspace(deps: {
   const saveAll = () => {
     const { saved, skipped, failed } = saveDirty()
     if (saved === 0 && skipped.length === 0 && failed.length === 0) return say('Nothing to save')
-    // As on blur: one file keeps writeBuffer's own named message.
     if (saved > 1) say(`Saved ${saved} files`)
     if (skipped.length > 0) say(`${CLASH_CHANGED}${skipped.join(', ')}`, 'warn')
     if (failed.length > 0) say(`Save failed: ${failed.join(', ')}`, 'error')
@@ -946,11 +761,6 @@ export function createWorkspace(deps: {
     }
   }
 
-  /**
-   * Pull disk changes into open buffers — used by the watcher and after a checkout.
-   * Returns the dirty buffers it refused to touch, for the caller to report: every
-   * caller follows this with its own `say`, which would bury a warning said here.
-   */
   const syncFromDisk = (): DiskSync => {
     const updates: [string, FileBuffer][] = []
     const changed: string[] = []
@@ -958,10 +768,6 @@ export function createWorkspace(deps: {
     const vanished: string[] = []
     for (const path of Object.keys(buffers)) {
       const buffer = buffers[path]!
-      // The file is gone — deleted here, removed by a checkout, or cleaned up
-      // outside. A clean buffer has nothing left to show, so its tab goes with it.
-      // A dirty one keeps the tab: saving recreates the file, which is exactly what
-      // the deleted-on-disk conflict prompt offers.
       if (!exists(path)) {
         if (buffer.dirty) deleted.push(basename(path))
         else vanished.push(path)
@@ -971,33 +777,27 @@ export function createWorkspace(deps: {
       try {
         fresh = loadBuffer(path)
       } catch {
-        continue // unreadable, or binary now — the tree refresh below reflects it
+        continue
       }
       if (fresh.content === buffer.content) {
-        // Same text, spelled differently: something outside converted the endings
-        // or dropped the BOM. Nothing to repaint, but the next save has to follow
-        // suit rather than convert the file back.
+        // Same text, other encoding: the next save must follow suit, not convert back.
         if (
           fresh.encoding.eol !== buffer.encoding.eol ||
           fresh.encoding.bom !== buffer.encoding.bom
         )
           setBuffers(path, 'encoding', fresh.encoding)
-        // Do not clear holdDisk here: only the hold id's owner may drop it.
+        // holdDisk is not cleared here: only the hold id's owner may drop it.
         continue
       }
-      // An aborted formatter may still flush; keep the unformatted save until
-      // reassertAfterFormat rewrites disk, rather than letting the watcher win.
-      // Dirty tabs still surface a clash warning — the hold only blocks clean pulls.
+      // An aborted formatter may still flush: the hold blocks clean pulls until reassert rewrites disk.
       if (holdDisk[path] !== undefined) {
         if (buffer.dirty) changed.push(basename(path))
         continue
       }
-      // Unsaved edits stay untouched; the user is warned and asked on save.
       if (buffer.dirty) changed.push(basename(path))
       else updates.push([path, fresh])
     }
-    // Viewer tabs have no buffer, so the walk above never sees them; a deleted
-    // image has nothing to show and its tab goes the way of a clean buffer's.
+    // Viewer tabs have no buffer, so the walk above never sees them.
     for (const path of tabs()) {
       if (!buffers[path] && !exists(path)) vanished.push(path)
     }
@@ -1015,11 +815,6 @@ export function createWorkspace(deps: {
     return { changed, deleted }
   }
 
-  /**
-   * Make one open tab follow an intentional destructive git operation. Unlike
-   * the watcher sync, unsaved text does not win here: the confirmation named its
-   * loss. Reloading through the bridge also drops the editor's undo/redo history.
-   */
   const followDisk = (path: string) => {
     clearFormatState(path)
     if (conflict()?.path === path) setConflict(null)
@@ -1036,11 +831,6 @@ export function createWorkspace(deps: {
     tree.refreshTree()
   }
 
-  /**
-   * Replace the one match a panel row points at, wherever its file is: the
-   * overlay's text for buffered paths, a fresh encoding-preserving read for the
-   * rest. The drift guard runs against whichever text the apply would touch.
-   */
   const applyMatchReplace = (match: Match, replacement: string) => {
     const open = replaceOverlay().get(match.path)
     if (open != null) {
@@ -1065,11 +855,6 @@ export function createWorkspace(deps: {
     git.bump()
   }
 
-  /**
-   * Replace across the planned `paths`. Reported counts are what the pass did,
-   * not what the confirm promised — the two drift whenever the tree moves while
-   * the modal is up.
-   */
   const applyProjectReplace = (
     paths: readonly string[],
     query: string,
@@ -1089,14 +874,11 @@ export function createWorkspace(deps: {
       }
       pinTab(file.path)
       setContent(file.path, file.content)
-      // Any other buffer is updated in the store alone: pushEdit targets the
-      // active editor, and would paint this file's text over the one on screen.
+      // pushEdit targets the active editor; another file's text would paint over it.
       if (file.path === active) editor.pushEdit(file.content)
       pending++
     }
     if (wroteDisk) {
-      // The watcher would get there in a debounce anyway; syncing now means the
-      // reloaded clean buffers and the git marks never lag the status message.
       syncFromDisk()
       git.bump()
     }
@@ -1113,7 +895,6 @@ export function createWorkspace(deps: {
     }
   }
 
-  /** The watcher's warning for a sync, or null when nothing clashed. */
   const clashWarning = (sync: DiskSync): string | null => {
     const parts: string[] = []
     if (sync.changed.length > 0) parts.push(`${CLASH_CHANGED}${sync.changed.join(', ')}`)
@@ -1128,8 +909,7 @@ export function createWorkspace(deps: {
       const next = remap(path)
       if (next === path) continue
       setBuffers(next, { ...buffers[path]! })
-      // discardBuffer keeps a pending reassertAfterFormat so a closed tab still
-      // heals disk; that write would recreate the file at the pre-move path.
+      // discardBuffer keeps a pending reassertAfterFormat, which recreates the file at the old path.
       clearFormatState(path)
       discardBuffer(path)
     }
@@ -1142,11 +922,8 @@ export function createWorkspace(deps: {
     setRenderedPaths(prev => prev.map(remap))
   }
 
-  /** The buffer the user has just left, through the clash-safe autoSave. */
   const autoSaveLeft = (path: string) => {
     if (!config.autoSaveOnBlur) return
-    // A closing tab lands here too — by now it is gone from tabs() and its
-    // edits were saved or knowingly discarded; it must not be resurrected.
     if (!tabs().includes(path)) return
     if (!buffers[path]?.dirty) return
     if (autoSave(path) === 'skipped') say(`${CLASH_CHANGED}${basename(path)}`, 'warn')
@@ -1162,9 +939,6 @@ export function createWorkspace(deps: {
     ),
   )
 
-  // Leaving the editor for the sidebar is a blur like any other — clicking the
-  // file tree or tabbing to the git panel is the user putting the file down, and
-  // waiting for the *next* tab switch to write it is what loses the edit.
   createEffect(
     on(
       panes.focus,
@@ -1181,8 +955,7 @@ export function createWorkspace(deps: {
     on(
       () => [tabs(), activePath(), tree.expanded(), panes.sidebar()] as const,
       ([openTabs, active, folders, showTree]) => {
-        // Single-file mode leaves no trace: `druk one.ts` would otherwise save a
-        // one-tab, sidebar-hidden layout over whatever the folder had.
+        // `druk one.ts` must not save a one-tab layout over the folder's session.
         if (single) return
         saveSession(rootDir, {
           tabs: openTabs,

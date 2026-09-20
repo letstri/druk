@@ -1,22 +1,4 @@
-/**
- * The extensions that ship inside the binary.
- *
- * Same manifests as the market's — these are `extensions/<id>/extension.json` in this
- * repository, imported as JSON so `bun build --compile` inlines them. A
- * preinstalled extension is listed and can be disabled like any other, but it is
- * part of the binary: it updates with druk itself, so the market never offers it
- * an update and a disk copy of the same id never replaces it.
- *
- * What is here is a judgement about a first run: the languages most projects
- * open, so a fresh druk highlights code with no network and no installs. Every
- * other language is an extension away, and costs one small JSON to fetch — the
- * grammars themselves are embedded either way (`src/languages/grammars.ts`),
- * since a wasm cannot be downloaded into a running tree-sitter worker.
- *
- * The static imports are the point. A computed path resolves to nothing inside
- * the compiled binary, so this list is deliberately spelled out rather than
- * globbed from the folder.
- */
+// Spelled out rather than globbed: a computed path resolves to nothing in the compiled binary.
 import cssManifest from '../../extensions/css/extension.json'
 import diffManifest from '../../extensions/diff/extension.json'
 import dotenvManifest from '../../extensions/dotenv/extension.json'
@@ -41,18 +23,11 @@ const MANIFESTS: unknown[] = [
   diffManifest,
 ]
 
-/** Where a built-in says it came from, since there is no file to point at. */
 const BUILTIN_SOURCE = 'built in'
 
 let parsed: Extension[] | null = null
 
-/**
- * The embedded extensions, parsed once.
- *
- * A problem here is druk's own bug, not a user's, so it is dropped rather than
- * reported: `test/extensions-repo.test.ts` parses every manifest in the repository
- * and fails the build, which is where a broken one is caught.
- */
+// A problem here is druk's own bug (test/extensions-repo.test.ts), so it is dropped, not reported.
 export function builtinExtensions(): Extension[] {
   parsed ??= MANIFESTS.map(raw => parseManifest(raw, BUILTIN_SOURCE).extension)
     .filter(extension => extension !== null)

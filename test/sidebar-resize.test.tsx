@@ -20,10 +20,6 @@ interface Span {
 const hex = (bg: Span['bg']) =>
   bg ? `#${Array.from(bg.buffer.slice(0, 3), v => v.toString(16).padStart(2, '0')).join('')}` : ''
 
-/**
- * Column the tree ends at, found by where the panel background stops. The drag
- * handle paints nothing, so there is no glyph to look for — which is the point.
- */
 function dividerAt(t: Harness): number {
   const frame = t.captureSpans() as unknown as { lines: { spans: Span[] }[] }
   const panel = ui.panelBg.toLowerCase()
@@ -76,7 +72,6 @@ describe('resizing the sidebar', () => {
   })
 
   test('a width saved on a wider screen is clamped to fit this one', async () => {
-    // 80 columns here, so a 200-column sidebar has to give the editor room.
     const t = await launch(fixture(PROJECT), { sidebarWidth: 200 })
     const at = dividerAt(t)
     expect(at).toBeGreaterThanOrEqual(SIDEBAR_MIN)
@@ -98,7 +93,6 @@ describe('resizing the sidebar', () => {
     const drawn = column.filter(glyph => glyph === '│').length
     expect(drawn).toBeGreaterThanOrEqual(3)
     expect(drawn).toBeLessThan(column.length)
-    // Contiguous and centred, so it reads as one grip rather than as gaps in a rule.
     const first = column.indexOf('│')
     expect(column.slice(first, first + drawn).every(glyph => glyph === '│')).toBe(true)
     expect(Math.abs(first - (column.length - first - drawn))).toBeLessThanOrEqual(1)
@@ -120,7 +114,6 @@ describe('resizing the sidebar', () => {
     const t = await launch(fixture(PROJECT))
     const at = dividerAt(t)
 
-    // Row 1 is far above the grip — the target is the column, the grip is a hint.
     await t.mockMouse.drag(at, 1, 40, 1)
     await settle(t)
     expect(dividerAt(t)).toBe(40)
@@ -137,11 +130,6 @@ describe('resizing the sidebar', () => {
   })
 })
 
-/**
- * Column the tree starts at when it sits on the right — where panel colour
- * begins after the editor and runs to the edge. The tab strip's own cells are
- * interrupted by accent/bar colours, so only a solid run to the end counts.
- */
 function sidebarStart(t: Harness): number {
   const frame = t.captureSpans() as unknown as { lines: { spans: Span[] }[] }
   const panel = ui.panelBg.toLowerCase()
@@ -164,9 +152,7 @@ function sidebarStart(t: Harness): number {
 describe('sidebar on the right', () => {
   test('the panel sits at the terminal edge, past the editor', async () => {
     const t = await launch(fixture(PROJECT), { sidebarPosition: 'right', sidebarWidth: 30 })
-    // 80-column terminal: editor, one-column divider, then 30 of sidebar.
     expect(sidebarStart(t)).toBe(50)
-    // Left side is not the tree — the first column is the editor background.
     expect(dividerAt(t)).toBe(-1)
   })
 
@@ -214,12 +200,10 @@ describe('sidebar on the right', () => {
     const t = await launch(fixture(PROJECT), { sidebarPosition: 'right', sidebarWidth: 30 })
     expect(sidebarStart(t)).toBe(50)
 
-    // Pointer at column 39 → width = 80 − 39 − 1 = 40, sidebar starts at 40.
     await t.mockMouse.drag(sidebarStart(t) - 1, 5, 39, 5)
     await settle(t)
     expect(sidebarStart(t)).toBe(40)
 
-    // Pointer at column 57 → width = 22, sidebar starts at 58.
     await t.mockMouse.drag(sidebarStart(t) - 1, 5, 57, 5)
     await settle(t)
     expect(sidebarStart(t)).toBe(58)
@@ -231,7 +215,6 @@ describe('sidebar on the right', () => {
 
     await press(t, input => void input.typeText(']'))
     await settle(t)
-    // Wider sidebar starts further left.
     const wider = sidebarStart(t)
     expect(wider).toBeLessThan(start)
 
@@ -252,11 +235,8 @@ describe('what must not move when the sidebar does', () => {
     }
     await settle(t)
 
-    /** Where the strip's first button — the history's ← — is drawn. */
     const stripStart = (t: Harness) => t.captureCharFrame().split('\n')[0]!.indexOf('←')
 
-    // The strip is the editor's own, as VS Code's is, so it begins after the
-    // divider and gives way as the sidebar takes columns — never over the tree.
     await t.mockMouse.drag(dividerAt(t), 5, 50, 5)
     await settle(t)
     expect(stripStart(t)).toBeGreaterThan(dividerAt(t))
@@ -264,7 +244,6 @@ describe('what must not move when the sidebar does', () => {
     await t.mockMouse.drag(dividerAt(t), 5, 20, 5)
     await settle(t)
     expect(stripStart(t)).toBeGreaterThan(dividerAt(t))
-    // Narrower sidebar, more room for tabs: the active one is still drawn.
     expect(t.captureCharFrame().split('\n')[0]).toContain('file-number-4.ts')
   })
 
@@ -282,7 +261,6 @@ describe('what must not move when the sidebar does', () => {
     const t = await launch(dir)
     await settle(t)
 
-    /** Column of the mark on each row that carries one. */
     const markColumns = () =>
       t
         .captureCharFrame()
@@ -291,10 +269,8 @@ describe('what must not move when the sidebar does', () => {
         .filter(at => at >= 0)
 
     const before = markColumns()
-    // Two files of very different name lengths, both marked: same column.
     expect(before.length).toBe(2)
     expect(new Set(before).size).toBe(1)
-    // And that column is the panel's right edge, not somewhere mid-panel.
     expect(before[0]).toBeGreaterThan(dividerAt(t) - 4)
 
     await t.mockMouse.drag(dividerAt(t), 5, 46, 5)
@@ -307,7 +283,6 @@ describe('what must not move when the sidebar does', () => {
 })
 
 describe('rows hold their shape when names overflow', () => {
-  /** Long and short names nested together, so overflow differs row to row. */
   const NAMES = {
     'tests/b.ts': 'x\n',
     'tests/config.ts': 'x\n',
@@ -315,13 +290,6 @@ describe('rows hold their shape when names overflow', () => {
     'tests/deeply-long-filename-here.ts': 'x\n',
   }
 
-  /**
-   * Column each file row's name starts at. A file row is an indent and then a
-   * lower-case letter: the folder rows lead with their arrowhead, and the
-   * chrome rows around the tree (the strip, `EXPLORER`, the project, the status
-   * bar) all lead with a capital. Sixteen columns because the narrowest sidebar
-   * these tests set is eighteen.
-   */
   const nameColumns = (t: Harness) =>
     t
       .captureCharFrame()
@@ -331,14 +299,11 @@ describe('rows hold their shape when names overflow', () => {
       .map(row => row.search(/\S/))
 
   test('a name starts at one column whatever the names do', async () => {
-    // Narrow enough that the long names cannot fit.
     const t = await launch(fixture(NAMES), { sidebarWidth: 22 })
     await press(t, input => input.pressArrow('down'))
     await press(t, input => input.pressEnter())
     await settle(t)
 
-    // Every file row is at the same depth, so every name shares a column. A
-    // long name used to squeeze the indent and pull its row's glyphs left.
     expect(new Set(nameColumns(t)).size).toBe(1)
   })
 
@@ -360,11 +325,6 @@ describe('rows hold their shape when names overflow', () => {
 })
 
 describe('the automatic default width', () => {
-  /**
-   * A flat default is wrong at one end or the other: 30 columns is a reasonable
-   * third of an 80-column window and a cramped eighth of a 240-column one, where
-   * two columns per nesting level leave a deep path almost nothing for its name.
-   */
   test('is unchanged on an 80-column terminal', async () => {
     const t = await launch(fixture(PROJECT))
     expect(dividerAt(t)).toBe(30)
@@ -380,7 +340,6 @@ describe('the automatic default width', () => {
 
   test('never takes more than the editor can spare', async () => {
     const t = await launch(fixture(PROJECT), {}, { width: 200 })
-    // Still a minority of the window, however wide it gets.
     expect(dividerAt(t)).toBeLessThan(100)
   })
 
@@ -388,7 +347,6 @@ describe('the automatic default width', () => {
     const t = await launch(fixture(PROJECT), { sidebarWidth: 22 }, { width: 200 })
     expect(dividerAt(t)).toBe(22)
 
-    // `]` from an automatic width converts it to a number rather than staying auto.
     const auto = await launch(fixture(PROJECT), {}, { width: 200 })
     const before = dividerAt(auto)
     await press(auto, input => void input.typeText(']'))

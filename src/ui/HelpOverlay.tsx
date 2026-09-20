@@ -17,7 +17,6 @@ type Line =
 export function HelpOverlay() {
   const dimensions = useTerminalDimensions()
   const width = () => modalWidth(dimensions().width, 0.52, 58, 84)
-  /** The sections flattened to display lines, so one window can scroll them all. */
   const lines = createMemo<Line[]>(() =>
     helpSections().flatMap((section, index) => [
       ...(index > 0 ? [{ kind: 'gap' } as const] : []),
@@ -25,7 +24,6 @@ export function HelpOverlay() {
       ...section.rows.map(([key, label]) => ({ kind: 'key', key, label }) as const),
     ]),
   )
-  // The full table outgrows a 24-row terminal, so only a window is drawn.
   const visible = () => Math.max(3, Math.min(lines().length, dimensions().height - 7))
   const [top, setTop] = createSignal(0)
   const overflowing = () => visible() < lines().length

@@ -18,12 +18,6 @@ function repo() {
   return { dir, git }
 }
 
-/**
- * `.git` is otherwise unwatched — reading status rewrites `.git/index`, which would
- * feed the watcher its own tail. HEAD and the refs are the exception, and these are
- * why: a commit or a checkout made elsewhere touches no working-tree file, so
- * nothing else would ever tell druk that history moved.
- */
 describe('git work done in another terminal', () => {
   test('a commit clears the tree marks and the changed count', async () => {
     const { dir, git } = repo()
@@ -43,8 +37,7 @@ describe('git work done in another terminal', () => {
       await new Promise(resolve => setTimeout(resolve, 200))
       for (let n = 0; n < 5; n++) git('status', '--porcelain')
       await new Promise(resolve => setTimeout(resolve, 400))
-      // `git status` refreshes .git/index. If that reached the watcher, the refresh
-      // it triggers would write the index again, and this would never settle.
+      // `git status` rewrites .git/index: watched, the refresh rewrites it and never settles.
       expect(hits).toBe(0)
     } finally {
       stop()

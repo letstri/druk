@@ -1,30 +1,7 @@
 import { createHash } from 'node:crypto'
 import { chmod, cp, mkdir, rm } from 'node:fs/promises'
 
-/**
- * Writes the Homebrew formula for the current version to dist/release/druk.rb, with the
- * checksums of the archives `bun run release` produced, and the bottles that formula
- * pours — built here, into the same directory, from the binaries in dist/<target>/. The
- * release workflow runs this between packaging and upload, so druk.rb and its bottles
- * ship as release assets, and its `tap` job commits druk.rb to letstri/homebrew-tap as
- * Formula/druk.rb — when TAP_TOKEN is set, which is the only thing that step needs and
- * the only credential the release stores. Without the secret the formula is still on the
- * release, to be copied over by hand.
- *
- * The formula installs the prebuilt binary; brew never compiles druk, so a machine that
- * installs it this way needs neither Bun nor Node.
- *
- * The bottles are what make that true. A formula with no bottle for the running platform
- * is a *source build* as far as brew is concerned, whatever its `install` does, and
- * `FormulaInstaller#install` runs `perform_build_from_source_checks` before it looks at
- * one — which is fatal on a machine whose Xcode is older than the running macOS wants
- * (issue #40: a macOS 27 beta rejecting Xcode 26.6), and raises `UnbottledError` on a
- * machine with no developer tools at all. Pouring a bottle skips both. Bottles are also
- * the only way brew installs anything without a compiler, so this is the arrangement,
- * not a workaround.
- */
-// Only the *outputs* move with DRUK_DIST, matching release.ts — the tests package into a
-// temp directory through it so a run never rewrites the dist/ a developer just built.
+// Only the *outputs* move with DRUK_DIST, so a test run never rewrites the dist/ just built.
 const DIST = process.env.DRUK_DIST ?? './dist'
 const RELEASE_DIR = `${DIST}/release`
 const BOTTLE_STAGE = `${DIST}/bottle`
@@ -38,11 +15,7 @@ const ARCHIVES = {
   'linux-x64': 'druk-linux-x64.tar.gz',
 } as const
 
-// One bottle tag per architecture, naming the *oldest* system the binary runs on rather
-// than the one it was built on: brew pours the newest bottle at or below the running
-// macOS, so a single `ventura` pair covers every later release — including the ones this
-// version of druk predates, which is what keeps a macOS beta from falling back to a
-// source build. Linux tags carry no version and match exactly.
+// The *oldest* system each binary runs on; brew pours the newest bottle at or below the host.
 const BOTTLE_TAGS = {
   'darwin-arm64': 'arm64_ventura',
   'darwin-x64': 'ventura',
@@ -63,12 +36,9 @@ async function sha256(path: string): Promise<string> {
     .digest('hex')
 }
 
-// Homebrew derives the URL of a bottle from the formula, not the other way round: for a
-// `root_url` that is not GitHub Packages it appends `<name>-<version>.<tag>.bottle.tar.gz`
-// — one dash, where the file brew itself builds has two. The name has to be this.
+// Brew derives the bottle URL as `<name>-<version>.<tag>.bottle.tar.gz` — one dash, not two.
 const bottleName = (tag: string) => `druk-${version}.${tag}.bottle.tar.gz`
 
-/** Tars the binary as a keg — `druk/<version>/bin/druk`, what brew unpacks into Cellar. */
 async function bottle(target: Target, tag: string): Promise<string> {
   const binary = `${DIST}/${target}/druk`
   if (!(await Bun.file(binary).exists())) {
@@ -84,8 +54,7 @@ async function bottle(target: Target, tag: string): Promise<string> {
   await chmod(`${stage}/druk/${version}/bin/druk`, 0o755)
 
   const path = `${RELEASE_DIR}/${bottleName(tag)}`
-  // COPYFILE_DISABLE keeps macOS tar from writing ._ AppleDouble members for extended
-  // attributes; brew would pour them into the keg alongside the binary.
+  // Without COPYFILE_DISABLE macOS tar writes ._ AppleDouble members into the keg.
   await Bun.$`tar -czf ${path} -C ${stage} druk`.env({ ...process.env, COPYFILE_DISABLE: '1' })
   return path
 }
@@ -108,9 +77,7 @@ await rm(BOTTLE_STAGE, { recursive: true, force: true })
 
 const base = `${homepage}/releases/download/v${version}`
 
-// `brew audit --strict` fails a desc that opens with an article, and package.json's
-// opens with "A". Trimming it here keeps one description in package.json rather than a
-// second one spelled out for Homebrew, which would drift.
+// `brew audit --strict` fails a desc that opens with an article, and package.json's does.
 const desc = description
   .replace(/"/g, "'")
   .split('—')[0]!
@@ -118,9 +85,7 @@ const desc = description
   .replace(/^(a|an|the) /i, '')
   .replace(/^./, (c: string) => c.toUpperCase())
 
-// `any_skip_relocation`, not a cellar path: the binary is one self-contained executable
-// with nothing linked against the Cellar, so it pours into any prefix untouched. A cellar
-// that named this machine's prefix would send everyone else back to a source build.
+// `any_skip_relocation`: a cellar path naming this machine's prefix sends everyone else to source.
 const sha256s = targets
   .map(
     target =>
@@ -128,12 +93,7 @@ const sha256s = targets
   )
   .join('\n')
 
-// The `version` stanza has to stay, however redundant it reads next to a URL carrying
-// the tag. Homebrew scans the version out of the archive's *stem*, not the tag: the
-// parser for `foobar4.5.1` matches trailing digits, and druk-darwin-arm64 ends in one,
-// so a formula without this reports `stable 64` — same for every release, which leaves
-// `brew upgrade letstri/tap/druk` with nothing to upgrade to, and fails the test block
-// below, which compares `version` against what the binary prints.
+// Keep `version`: brew scans the archive stem, and `druk-darwin-arm64` ends in digits (stable 64).
 const formula = `# Generated by scripts/formula.ts — do not edit by hand.
 class Druk < Formula
   desc "${desc}"

@@ -11,12 +11,6 @@ import { tempDir } from './temp'
 
 const PROJECT = { 'src/main.ts': 'const a = 1\n', '.DS_Store': 'junk\n', '.gitignore': 'dist\n' }
 
-/**
- * By default the tree lists what is on disk, and the guard sits at the point of
- * opening instead — hiding a file the user can see in their shell only makes druk
- * look broken when they go looking for it. Hiding dotfiles or git-ignored files
- * is strictly opt-in.
- */
 describe('the tree lists everything by default', () => {
   test('dotfiles included', async () => {
     const frame = (await launch(fixture(PROJECT))).captureCharFrame()
@@ -92,17 +86,10 @@ describe('respectGitignore: true', () => {
   })
 })
 
-/**
- * Not the same question as the tree's `respectGitignore`, and not gated on it:
- * a hit in `dist/` or in an agent's worktree checkout is noise nobody asked for,
- * and the checkout is a second copy of every file in the project.
- */
 describe('project search and the fuzzy picker skip ignored files', () => {
   function repo() {
     const dir = tempDir('druk-searchignore-')
     initRepo(dir)
-    // Deliberately not `dist`: SKIPPED_DIRS drops that by name, which would pass
-    // this test without gitignore being consulted at all.
     writeFileSync(join(dir, '.gitignore'), 'generated\n.worktrees\n')
     writeFileSync(join(dir, 'a.ts'), 'const alpha = 1\n')
     mkdirSync(join(dir, 'generated'))
@@ -146,7 +133,6 @@ describe('the VCS store is not project content', () => {
     const t = await launch(repo())
     const frame = t.captureCharFrame()
     expect(frame).toContain('.gitignore')
-    // Nothing in the frame is a row for `.git` itself.
     const rows = frame.split('\n').map(row => row.slice(0, 30).trim())
     expect(rows).not.toContain('.git')
   })
@@ -159,8 +145,6 @@ describe('the VCS store is not project content', () => {
 
   test('the fuzzy picker and project search never walk into it', () => {
     const dir = repo()
-    // `.git` holds far more files than the project does, so this is what keeps the
-    // picker and a project-wide search usable at all.
     const files = listFiles(dir).map(path => path.slice(dir.length + 1))
     expect(files).toContain('.gitignore')
     expect(files.some(path => path.startsWith('.git/'))).toBe(false)
@@ -168,8 +152,6 @@ describe('the VCS store is not project content', () => {
 
   test('a file named like a VCS directory is still a file', () => {
     const dir = tempDir('druk-vcsfile-')
-    // A worktree or submodule checkout has `.git` as a *file* pointing elsewhere.
-    // It is text, and there is no reason to pretend it is not there.
     writeFileSync(join(dir, '.git'), 'gitdir: /elsewhere\n')
     expect(listDir(dir).map(node => node.name)).toContain('.git')
   })

@@ -8,7 +8,6 @@ import { decodeImage, isImagePath, toCells } from '../src/core/image'
 import type { RawImage } from '../src/core/image'
 import { tempDir } from './temp'
 
-/** A PNG on disk with the given RGBA pixels. */
 function pngFixture(width: number, height: number, rgba: number[]): string {
   const dir = tempDir('druk-img-')
   const path = join(dir, 'img.png')
@@ -54,7 +53,6 @@ describe('decodeImage', () => {
 
 describe('toCells', () => {
   test('maps two pixel rows onto one cell row', () => {
-    // 1x2: red above, blue below — one cell, red foreground, blue background.
     const img = raw(1, 2, [255, 0, 0, 255, 0, 0, 255, 255])
     const cells = toCells(img, 10, 10)
     expect(cells.cols).toBe(1)
@@ -66,7 +64,6 @@ describe('toCells', () => {
     const img = raw(1, 1, [10, 20, 30, 255])
     const cells = toCells(img, 10, 10)
     expect(cells.rows).toBe(1)
-    // Upper pixel set, lower untouched: alpha 0.
     expect([...cells.cells]).toEqual([10, 20, 30, 255, 0, 0, 0, 0])
   })
 
@@ -82,7 +79,6 @@ describe('toCells', () => {
   })
 
   test('downscales to fit and keeps the aspect ratio', () => {
-    // 100x100 into 10 columns: 10x10 pixels -> 10 cols, 5 cell rows.
     const img = raw(
       100,
       100,
@@ -94,8 +90,6 @@ describe('toCells', () => {
   })
 
   test('box-averages the source pixels a target pixel covers', () => {
-    // 2x4 greys into one column: halving keeps the aspect, so the cell's upper
-    // half averages the top 2x2 block and the lower half the bottom one.
     const grey = (v: number) => [v, v, v, 255]
     const img = raw(2, 4, [
       ...grey(100),

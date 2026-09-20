@@ -8,7 +8,6 @@ import type { Harness } from './helpers'
 import { initRepo } from './repo'
 import { tempDir } from './temp'
 
-/** A real repository with one committed file. */
 function repo(committed: string) {
   const dir = tempDir('druk-git-')
   const git = (...args: string[]) => execFileSync('git', args, { cwd: dir })
@@ -24,9 +23,7 @@ const subject = (dir: string) =>
 const porcelain = (dir: string) =>
   execFileSync('git', ['status', '--porcelain'], { cwd: dir }).toString()
 
-/** Git mutations finish off the render clock; poll instead of guessing a delay.
- * The budget is generous because a full run spawns git under load — at 5s the
- * stash test failed there and nowhere else, which reads as a flake and is not. */
+// A generous budget: git under a full run's load blew the 5s default.
 async function until(t: Harness, cond: () => boolean, ms = 15000) {
   const start = Date.now()
   while (!cond() && Date.now() - start < ms) await settle(t, 25)
@@ -61,8 +58,8 @@ test('a file unchecked in the picker stays out of the commit', async () => {
 
   const t = await launch(dir)
   await runCommand(t, 'Commit')
-  await press(t, i => i.pressArrow('down')) // onto b.ts
-  await press(t, i => void i.typeText(' ')) // uncheck it
+  await press(t, i => i.pressArrow('down'))
+  await press(t, i => void i.typeText(' '))
   expect(t.captureCharFrame()).toContain('1 of 2 files')
   expect(t.captureCharFrame()).toContain('[ ] U b.ts')
 
@@ -82,11 +79,11 @@ test('the picker refuses an empty selection and A toggles everything', async () 
 
   const t = await launch(dir)
   await runCommand(t, 'Commit')
-  await press(t, i => void i.typeText('a')) // uncheck all
+  await press(t, i => void i.typeText('a'))
   expect(t.captureCharFrame()).toContain('0 of 1 files')
-  await press(t, i => i.pressEnter()) // must not open the message prompt
+  await press(t, i => i.pressEnter())
   expect(t.captureCharFrame()).not.toContain('Commit message')
-  await press(t, i => void i.typeText('a')) // back to all checked
+  await press(t, i => void i.typeText('a'))
   expect(t.captureCharFrame()).toContain('1 of 1 files')
 }, 20000)
 
@@ -98,8 +95,6 @@ test('a hand-built index is the selection: no picker, and it commits just that',
 
   const t = await launch(dir)
   await runCommand(t, 'Commit')
-  // Straight to the message — staging is a selection already made, and the
-  // panel's Space is how it is made.
   const shown = t.captureCharFrame()
   expect(shown).toContain('Commit message')
   expect(shown).not.toContain('of 2 files')
@@ -119,7 +114,6 @@ test('undo last commit asks first, then leaves the changes staged', async () => 
 
   const t = await launch(dir)
   await runCommand(t, 'Undo last commit')
-  // The confirm modal names the commit it is about to undo.
   expect(t.captureCharFrame()).toContain('second')
   await press(t, i => i.pressEnter())
 
@@ -138,7 +132,6 @@ test('stash reverts the working tree and pop brings it back', async () => {
 
   await runCommand(t, 'Stash changes')
   await until(t, () => readFileSync(join(dir, 'a.ts'), 'utf8') === 'one\ntwo\n')
-  // The open buffer follows the disk, without waiting for the watcher.
   await until(t, () => !t.captureCharFrame().includes('CHANGED'))
 
   await runCommand(t, 'Stash pop')

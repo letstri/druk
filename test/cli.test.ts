@@ -9,7 +9,6 @@ import { GRAMMARS } from '../src/languages/grammars'
 
 describe('flags', () => {
   test('--version prints a bare version, which the installers compare against', () => {
-    // `install` and the Homebrew formula both parse this exact output.
     expect(flagOutput('--version')).toMatch(/^\d+\.\d+\.\d+.*\n$/)
     expect(flagOutput('-v')).toBe(flagOutput('--version')!)
   })
@@ -27,9 +26,6 @@ describe('flags', () => {
 
 describe('grammar assets', () => {
   test('every registered grammar resolves to a file that exists', () => {
-    // These are `with { type: 'file' }` imports, so a wrong path is a build-time error
-    // in a normal run — but the shipped binary embeds whatever they point at, and an
-    // entry missing from GRAMMARS ships a language with no grammar behind it.
     for (const [name, grammar] of Object.entries(GRAMMARS)) {
       expect(`${name}: ${existsSync(grammar.wasm)}`).toBe(`${name}: true`)
       expect(`${name}: ${existsSync(grammar.query)}`).toBe(`${name}: true`)

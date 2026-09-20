@@ -4,11 +4,8 @@ import { isRepoRoot } from './repos'
 
 export interface Match {
   path: string
-  /** 0-based line index. */
   line: number
-  /** 0-based column of the match start. */
   col: number
-  /** Characters matched — equals the query's length except in regex mode. */
   length: number
   text: string
 }
@@ -19,18 +16,11 @@ export interface SearchOptions {
   regex?: boolean
 }
 
-/**
- * The query as a per-line RegExp, or null when it is an invalid pattern.
- * One place builds it so search, replace-one and replace-all can never
- * disagree about what a match is.
- */
 export function buildQuery(query: string, options: SearchOptions = {}): RegExp | null {
   const escaped = options.regex ? query : query.replace(/[\\^$.*+?()[\]{}|]/g, '\\$&')
   const wrapped = options.wholeWord ? `\\b(?:${escaped})\\b` : escaped
   try {
-    // `m` because searchText counts per line while replaceAll runs over the whole
-    // file: without it `^`/`$` anchor to the string, so an anchored regex is counted
-    // on every line and replaced on one — a confirm promising matches it never makes.
+    // `m`: searchText counts per line while replaceAll runs over the whole file.
     return new RegExp(wrapped, options.caseSensitive ? 'gm' : 'gim')
   } catch {
     return null
@@ -38,16 +28,10 @@ export function buildQuery(query: string, options: SearchOptions = {}): RegExp |
 }
 
 export interface Context {
-  /** 0-based index of `lines[0]`. */
   start: number
   lines: string[]
 }
 
-/**
- * `radius` lines either side of `line`. The text is passed in rather than carried on
- * every `Match`: a 200-match scan would drag the surroundings of each along, and only
- * the selected one is ever shown.
- */
 export function contextIn(text: string, line: number, radius: number): Context {
   const lines = text.split('\n')
   const start = Math.max(0, line - radius)
@@ -56,7 +40,6 @@ export function contextIn(text: string, line: number, radius: number): Context {
 
 const DEFAULT_LIMIT = 200
 
-/** Directories never worth walking, for both the search and the fuzzy finder. */
 const SKIPPED_DIRS = new Set([
   'node_modules',
   'dist',
@@ -85,8 +68,7 @@ export function searchText(
     const raw = lines[line]!
     pattern.lastIndex = 0
     for (let hit = pattern.exec(raw); hit && matches.length < limit; hit = pattern.exec(raw)) {
-      // A pattern like `a*` matches the empty string at every column; skipping
-      // those (and stepping past them) is what keeps this loop finite.
+      // `a*` matches the empty string at every column; stepping past is what keeps this finite.
       if (hit[0].length === 0) {
         pattern.lastIndex++
         continue
@@ -97,21 +79,7 @@ export function searchText(
   return matches
 }
 
-/*
- * Breadth-first, so the files nearest the root are found before any limit cuts off.
- *
- * Git-ignored entries are left out whatever `respectGitignore` says — that setting
- * is about what the tree *shows*, and a build directory or a worktree checkout
- * parked inside the project is nobody's search result either way. `ignoredPaths`
- * collapses a fully-ignored directory to a single entry, which is all this needs:
- * a directory that is skipped is never queued, so nothing under it is walked.
- *
- * Each directory carries the ignore rules of the repository it is in, picked up
- * as the walk enters one: with a folder of repositories open there is no single
- * set, and `ignoredPaths(root)` would be empty — every repository's node_modules
- * a search result. Asking as the walk arrives is also what keeps the cost to the
- * repositories actually reached.
- */
+// Ignore rules are picked up per repository: ignoredPaths(root) is empty for a folder of checkouts.
 function* filesUnder(root: string): Generator<string> {
   const queue: Array<[dir: string, ignored: Set<string>]> = [[root, ignoredPaths(root)]]
   while (queue.length > 0) {
@@ -128,12 +96,6 @@ function* filesUnder(root: string): Generator<string> {
   }
 }
 
-/**
- * Search every text file under `root`, breadth-first, stopping at the limit.
- * `buffers` overlays open-buffer text over the disk copy, so what the results
- * show is what a replace would act on — scanning disk under an edited buffer
- * lists matches the buffer no longer has, and misses the ones it gained.
- */
 export function searchProject(
   root: string,
   query: string,
@@ -154,7 +116,7 @@ export function searchProject(
       try {
         content = readFile(path)
       } catch {
-        continue // binary or unreadable
+        continue
       }
     }
     matches.push(...searchText(content, query, path, options, limit - matches.length))
@@ -162,17 +124,12 @@ export function searchProject(
   return matches
 }
 
-/** One file a project replace would touch, counted on the text the apply will see. */
 export interface ReplaceTarget {
   path: string
   count: number
 }
 
-/**
- * Every file a project replace would touch, with true counts — deliberately not
- * `searchProject`, whose limit exists for a panel that shows 200 rows: a confirm
- * that says "N matches" must have counted all of them.
- */
+// True counts, not `searchProject`'s: a confirm saying "N matches" must have counted all of them.
 export function planProjectReplace(
   root: string,
   query: string,
@@ -203,35 +160,20 @@ export function planProjectReplace(
   return { targets, matches }
 }
 
-/** A file transformed by `replaceProject`; `content` means the caller owns applying it. */
-export interface ReplacedFile {
+interface ReplacedFile {
   path: string
-  /** Occurrences replaced, counted on the text actually transformed. */
   count: number
-  /**
-   * New text for a path the caller supplied a buffer for. The write is the
-   * caller's: a buffered file's truth is the buffer, and writing its disk copy
-   * here would hand the watcher an edit the buffer does not have.
-   */
+  // Buffered paths only: writing the disk copy would hand the watcher an edit the buffer lacks.
   content?: string
 }
 
 export interface ReplaceProjectResult {
   replaced: ReplacedFile[]
-  /** Occurrences replaced across every file — apply-time counts, not the plan's. */
   matches: number
-  /** `path — reason` for every file that could not be read or written. */
   failed: string[]
 }
 
-/**
- * Replace across the planned `paths`. Each file is re-read at apply time and
- * counted on the text actually transformed — the plan's counts age the moment
- * the confirm goes up, and only what happened here is worth reporting. Files
- * that appeared after the plan are not touched: the confirm approved a set.
- * Failures are collected, never thrown — the files before them are already
- * written, so stopping would neither undo nor finish.
- */
+// Failures are collected, never thrown: the files before them are already written.
 export function replaceProject(
   paths: readonly string[],
   query: string,
@@ -262,8 +204,7 @@ export function replaceProject(
     }
     const count = searchText(text, query, path, options, Infinity).length
     if (count === 0) continue
-    // The encoding read is written back: a CRLF or BOM file rewritten with the
-    // default would diff on every line, not just the replaced ones.
+    // The encoding read is written back: a CRLF or BOM file would otherwise diff on every line.
     const error = writeFile(path, replaceAll(text, query, replacement, options), encoding)
     if (error) {
       failed.push(`${path} — ${error}`)
@@ -275,10 +216,6 @@ export function replaceProject(
   return { replaced, matches, failed }
 }
 
-/**
- * Subsequence match, VS Code style: every character of `query` must appear in
- * order. Returns a score (lower is better) or null when it does not match.
- */
 export function fuzzyScore(text: string, query: string): number | null {
   if (!query) return 0
   const haystack = text.toLowerCase()
@@ -288,14 +225,12 @@ export function fuzzyScore(text: string, query: string): number | null {
   for (const char of needle) {
     const next = haystack.indexOf(char, at + 1)
     if (next < 0) return null
-    score += next - at - 1 // reward characters that sit close together
+    score += next - at - 1 // sums the gaps, so a lower score is a closer match
     at = next
   }
-  // Prefer matches late in the path (the file name) and shorter paths.
   return score + text.length - at
 }
 
-/** Every file under `root`, breadth-first, so the nearest ones survive the limit. */
 export function listFiles(root: string, limit = 5000): string[] {
   const files: string[] = []
   for (const path of filesUnder(root)) {
@@ -318,11 +253,6 @@ export function replaceAll(
   return text.replace(pattern, hit => (hit.length === 0 ? hit : replacement))
 }
 
-/**
- * Replace the one occurrence `match` points at, leaving every other alone.
- * A match whose line has since changed is refused rather than applied at a
- * drifted offset.
- */
 export function replaceMatch(text: string, match: Match, replacement: string): string | null {
   const lines = text.split('\n')
   if (lines[match.line] !== match.text) return null

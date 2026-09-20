@@ -10,26 +10,21 @@ import { listRows, modalWidth, PAD } from './modal'
 import { ModalPanel, topInset } from './Overlay'
 import { TextInput } from './TextInput'
 
-/** 0-based, the way the editor counts — the query writes them 1-based. */
-export interface PickPosition {
+// 0-based, the way the editor counts — the query writes them 1-based.
+interface PickPosition {
   line: number
   col: number
 }
 
 export interface FilePickerProps {
   rootDir: string
-  /** Candidates to choose from. Defaults to every file in the project. */
   files?: string[]
   title?: string
   onPick: (path: string, position?: PickPosition) => void
   onClose: () => void
 }
 
-/**
- * A trailing `:line` or `:line:col` is a destination, not part of the path — the
- * shape every compiler and stack trace prints, so it is what gets pasted in here.
- * Anchored and digits-only, or a file actually named `foo:bar` would stop matching.
- */
+// A trailing `:line` or `:line:col` is a destination: anchored and digits-only, or `foo:bar` breaks.
 const POSITION = /:(\d+)(?::(\d+))?$/
 
 export function FilePicker(props: FilePickerProps) {
@@ -38,18 +33,14 @@ export function FilePicker(props: FilePickerProps) {
   const [index, setIndex] = createSignal(0)
 
   const width = () => modalWidth(dimensions().width, 0.62, 72, 110)
-  /** Border, input, blank line and footer. */
   const visibleRows = () => listRows(dimensions().height - topInset(dimensions().height), 8, 18)
 
-  // Scanned once per open: a project's file list does not move under you mid-search.
-  // Relativised once too — `relative()` is not cheap, and doing it inside the
-  // filter meant a keystroke paid for it 5 000 times before scoring anything.
+  // Scanned and relativised once per open: `relative()` in the filter cost 5 000 calls a keystroke.
   const files = (props.files ?? listFiles(props.rootDir, 5000)).map(path => ({
     path,
     label: relative(props.rootDir, path),
   }))
 
-  /** The query split into what it searches for and where in the file it lands. */
   const target = createMemo(() => {
     const raw = query().trim()
     const at = POSITION.exec(raw)
@@ -106,8 +97,7 @@ export function FilePicker(props: FilePickerProps) {
         }}
       />
       <text fg={ui.panelBg} bg={ui.panelBg} content="" />
-      {/* Fixed height, not content height: the panel is centered, so a list that
-            shrinks with every keystroke moves the input field the user is typing in. */}
+      {/* Fixed height: a list that shrinks per keystroke moves the input being typed in. */}
       <box flexDirection="column" height={visibleRows()}>
         <Show
           when={matches().length > 0}
@@ -117,14 +107,12 @@ export function FilePicker(props: FilePickerProps) {
             {(match, i) => {
               const active = () => i() === selected()
               const bg = () => (active() ? ui.treeSelectedBg : ui.panelBg)
-              /** The name reads first; the folders it sits in are context. */
               const shown = () => match.label.slice(0, width() - PAD * 2 - 4)
               const cut = () => shown().lastIndexOf('/') + 1
               return (
                 <box flexDirection="row" backgroundColor={bg()}>
                   <text fg={ui.accent} bg={bg()} flexShrink={0} content={active() ? '▌ ' : '  '} />
-                  {/* Only when there is a folder: an empty <text> still occupies
-                        one column, which shifted root-level files a cell right. */}
+                  {/* Only when there is a folder: an empty <text> still occupies a column. */}
                   <Show when={cut() > 0}>
                     <text
                       fg={ui.faint}
@@ -146,7 +134,6 @@ export function FilePicker(props: FilePickerProps) {
           </For>
         </Show>
       </box>
-      {/* The destination is echoed so a mistyped suffix reads as one before Enter. */}
       <text
         fg={ui.dim}
         bg={ui.panelBg}

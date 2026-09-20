@@ -5,15 +5,9 @@ import { parseMermaid } from './parse'
 import { renderPie } from './pie'
 import { renderSequence } from './sequence'
 
-export type { Line, Role, Segment } from './canvas'
-export type { Diagram } from './model'
+export type { Line, Role } from './canvas'
 export { parseMermaid } from './parse'
 
-/**
- * A ```mermaid fence drawn into terminal cells, or null when the diagram is one
- * nothing here draws — the caller falls back to the source, which is still the
- * whole of what mermaid was given.
- */
 export function renderMermaid(source: string): Line[] | null {
   return renderDiagram(parseMermaid(source))
 }

@@ -25,7 +25,7 @@ function repoWithWorktree(branch: string) {
   return { main, side }
 }
 
-/** Ctrl+Opt+<letter>: the Opt modifier is an ESC prefix ahead of the Ctrl byte. */
+// The Opt modifier is an ESC prefix ahead of the Ctrl byte.
 const ctrlOpt = (letter: string) =>
   `${String.fromCharCode(27)}${String.fromCharCode(letter.toUpperCase().charCodeAt(0) - 64)}`
 
@@ -164,7 +164,6 @@ test('a new worktree is created and opened, and the branch comes with it', async
 
   const at = worktreePath(resolvedPath(main), 'spike')
   await until(t, () => existsSync(join(at, 'a.ts')))
-  // The switch is a remount on the new folder: its name heads the explorer.
   await untilFrame(t, basename(at))
 })
 
@@ -176,7 +175,6 @@ test('the worktree switcher lists the other checkouts, not the one you are in', 
   await settle(t)
 
   const frame = t.captureCharFrame()
-  // One row: the checkout druk is open on is not something to switch to.
   expect(frame).toContain('Switch worktree — 1')
   expect(frame).toContain('feat')
 })

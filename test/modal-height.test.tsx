@@ -5,10 +5,6 @@ import type { Harness } from './helpers'
 
 const PROJECT = { 'src/alpha.ts': 'const a = 1\n', 'src/beta.ts': 'const b = 2\n' }
 
-/**
- * Rows of the one open modal's top and bottom border. The rounded corners exist
- * nowhere else on screen, so their line numbers are the panel's position and height.
- */
 function frame(t: Harness) {
   const rows = t.captureCharFrame().split('\n')
   return {
@@ -26,11 +22,9 @@ describe('modal height', () => {
     expect(before.top).toBeGreaterThanOrEqual(0)
     expect(before.bottom).toBeGreaterThan(before.top)
 
-    // Narrowing the list must not shrink the panel or move the input.
     await press(t, input => void input.typeText('e'))
     expect(frame(t)).toEqual(before)
 
-    // Even with nothing matching, the fallback row sits in a full-size panel.
     await press(t, input => void input.typeText('zzzz'))
     expect(t.captureCharFrame()).toContain('No matching commands')
     expect(frame(t)).toEqual(before)

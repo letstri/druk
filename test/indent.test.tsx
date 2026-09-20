@@ -8,7 +8,6 @@ import { allSegments } from './syntax'
 
 const NESTED = 'function f() {\n  if (x) {\n    return 1\n  }\n}\n'
 
-/** Every (line, column) carrying the indent-guide style. */
 async function guideColumns(content: string, tabSize: number) {
   const segs = await allSegments(content, 'typescript', tabSize)
   const guide = getSyntaxStyle().getStyleId('indent.guide')
@@ -20,19 +19,14 @@ async function guideColumns(content: string, tabSize: number) {
 }
 
 test('guides mark every indent stop at the configured width', async () => {
-  // "  if (x) {" starts at flat offset 14 -> guide at its column 0 only.
-  // "    return 1" is two levels -> guides at columns 0 and 2.
   const two = await guideColumns(NESTED, 2)
   expect(two.length).toBe(4) // 1 + 2 + 1 for the closing "  }"
 
-  // At width 4 the same source has fewer stops: nothing lands on column 2.
   const four = await guideColumns(NESTED, 4)
   expect(four.length).toBeLessThan(two.length)
 })
 
 test('a tab indent is tinted by the renderer alone', async () => {
-  // The tab already carries a guide in its first cell, so a highlight over it
-  // would tint the whole tab and make tab files look unlike space files.
   const tabbed = 'function f() {\n\tif (x) {\n\t\treturn 1\n\t}\n}\n'
   const segs = await allSegments(tabbed, 'typescript', 2)
   const guide = getSyntaxStyle().getStyleId('indent.guide')
@@ -40,7 +34,6 @@ test('a tab indent is tinted by the renderer alone', async () => {
 })
 
 test('tab size is configurable and shown on the settings page', async () => {
-  // Tall, so the row is on the page without walking to it first.
   const t = await launch(fixture({ 'a.ts': NESTED }), { tabSize: 4 }, { height: 40 })
   await runCommand(t, 'Settings')
   const row = () =>
@@ -60,10 +53,6 @@ test('tab size is configurable and shown on the settings page', async () => {
 })
 
 test('tab indents keep drawing guides after the view scrolls', async () => {
-  // Tabs are painted by OpenTUI, not the highlighter: it writes the indicator
-  // glyph into the first cell of the tab and spaces after it. A code point it
-  // cannot print leaves those cells untouched, so the previous frame shows
-  // through and the file looks different at every scroll position.
   const filler = Array.from({ length: 40 }, (_, i) => `\tconst x${i} = ${i}`).join('\n')
   const content = `${filler}\n\t\t<marker/>\n${filler}\n`
   const dir = fixture({ 'a.tsx': content })
@@ -77,7 +66,6 @@ test('tab indents keep drawing guides after the view scrolls', async () => {
   expect(control).toEqual([])
 })
 
-/** The foreground of each character of `needle`, once per row that draws it. */
 function coloursOf(t: Harness, needle: string): string[][] {
   const frame = t.captureSpans() as unknown as {
     lines: { spans: { text: string; fg?: { buffer: Uint8Array } }[] }[]
@@ -99,9 +87,7 @@ function coloursOf(t: Harness, needle: string): string[][] {
 }
 
 test('a tab-indented line is coloured where its text is drawn', async () => {
-  // OpenTUI addresses highlights in rendered cells and draws a tab as two of
-  // them, so handing it character columns slid every colour on this line one
-  // cell left per tab — the deeper the nesting, the further off.
+  // OpenTUI addresses highlights in rendered cells and draws a tab as two.
   const body = 'KV: KVNamespace'
   const source = `interface A {\n\t${body}\n}\ninterface B {\n  ${body}\n}\n`
   const t = await launch(fixture({ 'a.ts': source }), {}, { width: 70, height: 16 })
@@ -109,7 +95,6 @@ test('a tab-indented line is coloured where its text is drawn', async () => {
   await until(t, () => new Set(coloursOf(t, body).flat()).size > 1)
 
   const [tabbed, spaced] = coloursOf(t, body)
-  // Same text, same indent width: only the tab can make the two disagree.
   expect(tabbed).toEqual(spaced!)
 })
 
@@ -120,8 +105,6 @@ test('indent guides are visible in every theme', () => {
   for (const [id, theme] of Object.entries(THEMES)) {
     const [bg, guide] = [rgb(theme.ui.bg), rgb(theme.ui.indentGuide)]
     const delta = Math.max(...bg.map((v, i) => Math.abs(v - guide[i]!)))
-    // Lower bound only: an invisible guide is a bug, a strong one is taste, and
-    // themes are meant to be copied from a published palette verbatim.
     expect(`${id}:${delta >= 6}`).toBe(`${id}:true`)
   }
 })

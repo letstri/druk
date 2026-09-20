@@ -9,64 +9,39 @@ import { ModalPanel } from './Overlay'
 import { SEVERITY_COLOR, SEVERITY_GLYPH } from './severity'
 import { cut, wrapText } from './text'
 
-/** A problem with the path it belongs to already relativised for drawing. */
 export interface ProblemEntry extends Problem {
   rel: string
 }
 
 export interface ProblemsModalProps {
   problems: ProblemEntry[]
-  /** What this list is: every open file's problems, or the cursor's line alone. */
   title: string
   onPick: (problem: ProblemEntry) => void
   onCancel: () => void
 }
 
-/** Most rows the selected problem's whole message may take under the list. */
 const DETAIL_LINES = 10
 
-/** `eslint(import/no-cycle)` — whichever half the server sent. */
 const origin = (problem: Problem): string =>
   problem.code ? `${problem.source ?? ''}(${problem.code})` : (problem.source ?? '')
 
 const location = (problem: ProblemEntry) => `${problem.rel}:${problem.line + 1}:${problem.col + 1}`
 
-/** One line of message, however the server spaced and wrapped it. */
 const oneLine = (message: string) => message.replaceAll(/\s+/g, ' ').trim()
 
-/**
- * Every open file's diagnostics, with the selected one spelled out in full.
- *
- * A server's message is routinely longer than a row — the rule it broke and the
- * fix it suggests both live in there — so the list carries as much of each as it
- * has columns for and the detail block under it carries the rest. Without that
- * the list is a column of sentences cut mid-word, which is what a diagnostic
- * that cannot be read is.
- */
 export function ProblemsModal(props: ProblemsModalProps) {
   const dimensions = useTerminalDimensions()
   const [index, setIndex] = createSignal(0)
 
   const width = () => modalWidth(dimensions().width, 0.7, 64, 120)
-  /** Columns inside the border, less the selection bar and the severity glyph. */
   const room = () => width() - PAD * 2 - 4
-  /**
-   * Rows the detail block reserves: as tall as the wordiest message in the list,
-   * capped. Fixed for as long as the list is up rather than sized to whatever is
-   * selected, or the rows above it would jump on every ↑↓. Estimated from the
-   * length instead of wrapping each message: a project's worth of diagnostics
-   * would be wrapped on open for four rows of answer.
-   */
+  // As tall as the wordiest message and fixed while the list is up, or the rows above jump on ↑↓.
   const detailRows = createMemo(() => {
     const longest = props.problems.reduce((most, p) => Math.max(most, oneLine(p.message).length), 0)
-    // The rows come out of the list, which keeps three of its own whatever
-    // happens, so an unbounded block on a short window is a modal taller than
-    // the screen — and this is the one place a whole message has to fit.
     const spare = Math.max(1, dimensions().height - 18)
     return Math.max(1, Math.min(DETAIL_LINES, spare, Math.ceil(longest / room())))
   })
 
-  /** The border, the heading, the detail block, the blanks and the key hints. */
   const visibleRows = () =>
     Math.min(listRows(dimensions().height, 12 + detailRows(), 24), props.problems.length)
 
@@ -89,12 +64,7 @@ export function ProblemsModal(props: ProblemsModalProps) {
     return parts.join(' · ')
   })
 
-  /**
-   * One width for every location, so the messages start in the same column —
-   * ragged ones read as unrelated lines rather than as a table. Bounded by
-   * share rather than by content: a deeply nested path would otherwise leave
-   * the message a few columns.
-   */
+  // One width for every location, bounded so a deeply nested path still leaves message room.
   const locationWidth = createMemo(() => {
     const longest = props.problems.reduce((most, p) => Math.max(most, location(p).length), 0)
     return Math.min(longest, Math.floor(room() * 0.45))
@@ -112,14 +82,12 @@ export function ProblemsModal(props: ProblemsModalProps) {
     close: () => props.onCancel(),
   })
 
-  /** The whole message of the selected problem, cut to the rows the block has. */
   const detail = createMemo(() => {
     const problem = current()
     if (!problem) return []
     const rows = detailRows()
     const lines = wrapText(oneLine(problem.message), room())
-    // The estimate can come in a row short of what wrapping needs; the last
-    // visible row says so rather than dropping the tail silently.
+    // The estimate can come a row short of what wrapping needs; the last row carries the rest.
     if (lines.length <= rows) return lines
     return [...lines.slice(0, rows - 1), cut(lines.slice(rows - 1).join(' '), room())]
   })
@@ -137,8 +105,7 @@ export function ProblemsModal(props: ProblemsModalProps) {
             const place = () => cut(location(problem), locationWidth()).padEnd(locationWidth())
             const message = () =>
               cut(oneLine(problem.message), room() - locationWidth() - note().length - 2)
-            /** The gap belongs to the note: at the widths where both sides are
-                cut there is no slack left in the message's box to space them. */
+            // The gap is the note's: where both sides are cut there is no slack to space them.
             const noteText = () => (note() ? ` ${note()}` : '')
             return (
               <box flexDirection="row" backgroundColor={bg()}>
@@ -171,8 +138,6 @@ export function ProblemsModal(props: ProblemsModalProps) {
         </For>
       </box>
       <text fg={ui.panelBg} bg={ui.panelBg} content="" />
-      {/* Fixed height: the block is as tall as its longest message whatever the
-          selected one says, or the list below jumps a row on every ↑↓. */}
       <box flexDirection="column" height={detailRows()}>
         <For each={detail()}>
           {line => <text wrapMode="none" fg={ui.text} bg={ui.panelBg} content={line} />}

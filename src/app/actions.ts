@@ -60,20 +60,13 @@ export function createCommands(ctx: AppContext) {
   const { say } = status
   const { config } = settings
 
-  /** For commands that act on the tree selection, which the palette can run without one. */
   const withNode = (run: (node: TreeNode) => void) => () => {
     const node = tree.selectedNode()
     if (node) run(node)
     else say('Select a file in the tree first', 'warn')
   }
 
-  /**
-   * "This file" for the copy-path commands: the row the tree's cursor is on while
-   * the tree has the keyboard, and the open file otherwise — either standing in for
-   * the other when it is empty, so the palette answers with something wherever it
-   * was opened from. The git and extensions panels borrow the tree's focus slot but
-   * have no file under the cursor, hence the view check.
-   */
+  // The git and extensions panels borrow the tree's focus slot with no file under the cursor.
   const withCopyTarget = (run: (path: string) => void) => {
     const onTree = panes.focus() === 'tree' && panes.view() === 'files'
     const path = onTree
@@ -83,13 +76,7 @@ export function createCommands(ctx: AppContext) {
     else say('No file to copy the path of', 'warn')
   }
 
-  /**
-   * The panel's cursor calls `diffFileFor` on every landing, and the old side is
-   * a `git show` subprocess — 20ms of spawn for a text that cannot have changed
-   * unless something bumped `revision`. The key is everything the texts are made
-   * from; a hit also returns the *same object*, which is what lets the page
-   * downstream skip its own recomputation and the renderable its rebuild.
-   */
+  // A hit returns the *same object*: the page downstream skips its recomputation on identity.
   interface DiffFileSlot {
     revision: number
     reloadKey: number
@@ -102,15 +89,7 @@ export function createCommands(ctx: AppContext) {
   const diffFileCache = new Map<string, DiffFileSlot>()
   const DIFF_FILE_CACHE_LIMIT = 4
 
-  /**
-   * The old sides of the changes page, keyed `<repo>\0<spec>`. A blob is
-   * whatever `revision` says it is, so the whole map goes when git moves — the
-   * same contract `diffFileCache` above is written against.
-   *
-   * `prefetchBlobs` is why this exists: the page's walk asks for every changed
-   * file at once, and one subprocess per file is what froze the panel for a
-   * quarter of a second on forty of them.
-   */
+  // Keyed `<repo>\0<spec>`; the whole map goes when git moves — a blob is whatever `revision` says.
   const blobs = new Map<string, string | null>()
   let blobRevision = -1
   /** ponytail: FIFO cap on whole file texts; a byte budget if a repo needs one. */
@@ -135,12 +114,7 @@ export function createCommands(ctx: AppContext) {
     return blobs.get(key) ?? null
   }
 
-  /**
-   * Read every old side the coming walk will ask for, one subprocess per
-   * repository. The specs mirror `diffFileFor`'s below; a condition that drifts
-   * out of step costs a batched read and falls back to a single one, never an
-   * answer.
-   */
+  // The specs mirror `diffFileFor`'s below; drift costs a batched read, never an answer.
   const prefetchBlobs = (changes: Change[]) => {
     freshBlobs()
     const ref = git.diffBase() ?? 'HEAD'
@@ -162,17 +136,7 @@ export function createCommands(ctx: AppContext) {
     }
   }
 
-  /**
-   * Both texts of one file's diff. The new side prefers the open buffer over the
-   * disk, so unsaved edits show — that is the diff the user is looking at. Null
-   * for a file that cannot be read (binary), which the callers skip.
-   *
-   * `area` is which of the panel's two headings the row came from, and it decides
-   * what the diff is *between*: a staged row is HEAD against the index, an
-   * unstaged one the index against the working tree. Without that the same file
-   * half-staged draws the same diff under both headings, which is the one thing
-   * the split exists to tell apart.
-   */
+  // Null for a file that cannot be read; `area` is what the diff is between (staged: HEAD vs index).
   const diffFileFor = (
     path: string,
     fileStatus: FileStatus,
@@ -196,13 +160,10 @@ export function createCommands(ctx: AppContext) {
       return hit.file
     }
 
-    // Two spellings of the same path: the repository's, which is what git can be
-    // asked about, and the opened folder's, which is what a row says — and with
-    // several repositories open those are not the same string.
+    // `rel` is from the opened folder, `repoRel` from the repository: with several repos they differ.
     const repo = git.repoFor(path)
     const rel = relative(rootDir, path)
     const repoRel = repo === null ? null : relative(repo, path)
-    /** The index's copy, when this path has one — null says it has none. */
     const staged =
       repo === null || repoRel === null || !git.statusEntries().get(path)?.staged
         ? null
@@ -212,8 +173,7 @@ export function createCommands(ctx: AppContext) {
         ? ''
         : area === 'staged'
           ? (blobText(repo, `${base ?? 'HEAD'}:./${repoRel}`) ?? '')
-          : // Unstaged is measured from whatever `git diff` would measure it from:
-            // the index when something is staged there, HEAD otherwise.
+          : // As `git diff` measures it: the index when something is staged, else HEAD.
             (staged ?? blobText(repo, `${base ?? 'HEAD'}:./${repoRel}`) ?? '')
     let newText = ''
     if (fileStatus !== 'deleted') {
@@ -232,9 +192,7 @@ export function createCommands(ctx: AppContext) {
     const file: DiffFile = { path, rel, status: fileStatus, oldText, newText }
     diffFileCache.delete(key)
     diffFileCache.set(key, { revision, reloadKey, base, buffer, status: fileStatus, area, file })
-    // Oldest out first — the texts are the whole file twice over, so the cap is
-    // what bounds a walk across many huge changes. The all-changes page is the
-    // exception: it *is* that walk, and rebuildAllChanges prunes to the batch.
+    // The all-changes page *is* that walk, and `rebuildAllChanges` prunes it instead.
     while (diffFileCache.size > DIFF_FILE_CACHE_LIMIT && !workspace.pageOpen('allChanges')) {
       diffFileCache.delete(diffFileCache.keys().next().value!)
     }
@@ -248,18 +206,11 @@ export function createCommands(ctx: AppContext) {
     dels: 0,
   })
 
-  /**
-   * Every file row in panel order, as sections the all-changes page stacks.
-   * Stops adding once the patches would exceed the per-page row cap — one
-   * lockfile rewrite is enough to fill the slot, and the header says how many
-   * were left out. The file under the panel cursor is kept even past that cap:
-   * arrows that land on an omitted row would otherwise scroll nowhere.
-   */
+  // The file under the panel cursor is kept past the cap, or arrows land on an omitted row.
   const rebuildAllChanges = () => {
     const changes = git.changes()
     const prev = new Map(allChanges().map(section => [section.key, section]))
-    // Panel order, but every file: a folded folder's files are not in `rows`
-    // and this page is the one that shows them all.
+    // Panel order, but every file: a folded folder's files are not in `rows`.
     const ordered = (['merge', 'staged', 'unstaged'] as const).flatMap(area =>
       changes.filter(entry => entry.area === area),
     )
@@ -277,25 +228,14 @@ export function createCommands(ctx: AppContext) {
     }
   }
 
-  /**
-   * Show the changes over the editor slot. There is one diff page and it holds
-   * every change: the source-control panel's cursor is what pages through it, so
-   * everything that shows a change moves that cursor first and calls this second
-   * — a page the arrows cannot move from is a dead end.
-   */
+  // Every caller moves the panel's cursor first and calls this second, or the arrows have nowhere to go.
   const showChanges = () => {
-    // Page first so diffFileFor keeps the batch instead of pruning to four.
+    // Page first, so `diffFileFor` keeps the batch instead of pruning to four.
     ctx.workspace.openPage('allChanges')
     rebuildAllChanges()
   }
 
-  /**
-   * Move the panel's cursor to `row`, scrolling the changes page to it when it is
-   * a file — and rebuilding the stack when that file was past the row cap, so the
-   * page and the cursor cannot disagree about which change is on screen. A folder
-   * or heading row leaves the page as it was: folding is what `gitActivateRow` is
-   * for, and a mere pass must not fold one.
-   */
+  // Rebuilds when the file was past the row cap, so the page and the cursor cannot disagree.
   const gitMoveTo = (row: number) => {
     const rows = git.rows()
     const at = Math.max(0, Math.min(row, rows.length - 1))
@@ -308,12 +248,7 @@ export function createCommands(ctx: AppContext) {
     if (!allChanges().some(section => section.key === key)) rebuildAllChanges()
   }
 
-  /**
-   * Fold every folder in the source-control panel. The cursor is moved rather
-   * than clamped: its row is usually one of the ones just hidden, and the folder
-   * that swallowed it is where it was. Deliberately not `gitMoveTo`, which would
-   * throw a diff over whatever page is up for a mere fold.
-   */
+  // Not `gitMoveTo`: that would throw a diff up for a fold.
   const gitCollapseAll = () => {
     const row = git.cursorRow()
     const rel = row ? rowRel(row) : null
@@ -325,23 +260,12 @@ export function createCommands(ctx: AppContext) {
     git.setGitCursor(at >= 0 ? at : Math.min(git.gitCursor(), Math.max(0, rows.length - 1)))
   }
 
-  /**
-   * Space, or a click on a row's `+`/`−`: stage the row, or take it back out of
-   * the index. A heading or a folder carries everything under it, folded or not
-   * — which is VS Code's `+` on a group header, and the only way to stage a
-   * subtree without walking it. `at` is the row the mouse pressed; the key
-   * leaves it unset and the cursor is the row.
-   */
-  /** Stage or unstage `targets`, which all came from one heading. The area is
-   * only read for which way round it goes, so a commit group — which carries no
-   * changes and stops at the guard below — is as welcome as a heading. */
   const stageChanges = (area: ChangeArea | CommitGroup, targets: Change[]) => {
     if (comparison.active()) return say('Staging is unavailable while comparing branches', 'warn')
     if (!git.staging())
       return say('Staging compares against HEAD — reset the comparison base', 'warn')
     if (targets.length === 0) return say('Nothing to stage', 'warn')
-    // One repository's paths per call: `git add` runs in a repository, and a
-    // folder of checkouts can put two of them under one heading.
+    // One repository's paths per call: a folder of checkouts can put two under one heading.
     const repo = git.repoFor(targets[0]!.path)
     if (repo === null) return say(noRepository(git), 'warn')
     const paths = [...new Set(targets.filter(c => git.repoFor(c.path) === repo).map(c => c.path))]
@@ -381,12 +305,7 @@ export function createCommands(ctx: AppContext) {
     stageChanges(rowArea(row), changesFor(git.changes(), row))
   }
 
-  /**
-   * The same, for a file on the changes page: its `+`/`−` and Space name a
-   * section rather than a panel row, and a row is not always there to name —
-   * a folded folder keeps its files out of `rows` while the page still stacks
-   * them.
-   */
+  // A folded folder keeps its files out of `rows`, so the page names a section, not a row.
   const gitToggleStageKey = (key: string) => {
     const at = key.indexOf(':')
     const area = key.slice(0, at) as ChangeArea
@@ -413,30 +332,16 @@ export function createCommands(ctx: AppContext) {
     ctx.prompts.setPrompt({ kind: 'discardChange', target })
   }
 
-  /** The commit's push half was refused; offer VS Code's pull-then-push. */
   const pullPushOffer = (branch: string, hasUpstream: boolean) =>
     ctx.prompts.setPrompt({ kind: 'pullPush', branch, hasUpstream })
 
-  /**
-   * The palette's way into a commit, `variant` saying what follows it. A
-   * hand-built index is a selection already made — and now that Space builds one
-   * from the panel itself, it is *the* selection: the message prompt goes
-   * straight up and the picker never appears. VS Code's rule, and the reason
-   * staging is worth doing at all.
-   */
   const startCommit = (variant: CommitVariant) => {
     const repo = git.activeRepo()
     if (repo === null) return say(noRepository(git), 'warn')
-    // The message prompt is a commit box too, and ↑ walks the same history there.
     void git.loadMessageHistory()
     const staged = stagedPaths(repo)
     if (staged.size > 0) return ctx.prompts.setPrompt({ kind: 'commit', paths: null, variant })
-    // One repository's changes: a commit is one repository's, and offering
-    // another's files would stage nothing and fail on the path.
-    //
-    // Deliberately not `git.diffBase()`: the index is built against HEAD no
-    // matter which branch is being reviewed, so offering the files that differ
-    // from some other branch would stage work that is already committed.
+    // `statusMap`, not the diff base: the index is built against HEAD whatever is being reviewed.
     const changes = [...statusMap(repo)]
       .map(([path, fileStatus]) => ({
         path,
@@ -450,8 +355,6 @@ export function createCommands(ctx: AppContext) {
     git.setCommitPick(changes)
   }
 
-  /** A click: a file diffs, a folder or heading folds. */
-  /** A sync row names a commit; put its detail page over the editor slot. */
   const openCommitRow = (oid: string) => {
     const repo = git.activeRepo()
     if (repo === null) return say(noRepository(git), 'warn')
@@ -466,12 +369,6 @@ export function createCommands(ctx: AppContext) {
     if (target.kind !== 'file') git.toggleCollapsed(rowArea(target), rowRel(target))
   }
 
-  /**
-   * Enter: a folder or heading folds, a file opens for editing, a sync commit
-   * opens its page. The diff is already on screen — moving the cursor put it
-   * there — so Enter is the way past it into the file itself, and a deleted one
-   * keeps the diff, which is all that is left of it.
-   */
   const gitOpenRow = (row: number) => {
     const rows = git.rows()
     const at = Math.max(0, Math.min(row, rows.length - 1))
@@ -482,8 +379,6 @@ export function createCommands(ctx: AppContext) {
     if (target.kind !== 'file') return git.toggleCollapsed(rowArea(target), rowRel(target))
     if (target.change.status === 'deleted') return say('File was deleted', 'warn')
     workspace.openFile(target.change.path)
-    // A conflicted file opens on its first conflict, which is what it is open
-    // to resolve — the markers are what the merge left to find.
     if (target.change.area === 'merge') {
       const content = workspace.buffers[target.change.path]?.content
       const first = parseConflicts(content ?? '')[0]
@@ -494,15 +389,9 @@ export function createCommands(ctx: AppContext) {
     }
   }
 
-  /**
-   * Land on a position in a file, from wherever the editor slot was. A page
-   * gives way to it — `openFile` closes one, but a jump inside the file already
-   * open never calls it — and a file that would not open leaves the goto unsent,
-   * or it would aim at the file still on screen.
-   */
+  // A file that would not open leaves the goto unsent, or it would aim at the file on screen.
   const openAt = (path: string, line: number, col: number) => {
-    // A jump inside the file already open changes no tab, so nothing else would
-    // record where it started — and the way back is what the jump is half of.
+    // A jump inside the open file changes no tab, so nothing else records where it started.
     if (path === workspace.activeView()) ctx.navigation.mark()
     if (path !== workspace.activePath()) workspace.openFile(path)
     if (workspace.activePath() !== path) return
@@ -515,11 +404,6 @@ export function createCommands(ctx: AppContext) {
     return workspace.buffers[path]?.content.split('\n')[at.line] ?? ''
   }
 
-  /**
-   * The lines a review note would attach to: the editor's selection while there
-   * is one, else the line the caret is on. A note is about code, so there has to
-   * be a file open — the tree's selection is a filename, not a line.
-   */
   const noteTarget = (run: (target: { path: string; line: number; endLine: number }) => void) => {
     const path = workspace.activePath()
     if (!path) return say('Open a file to note a line in it', 'warn')
@@ -530,26 +414,11 @@ export function createCommands(ctx: AppContext) {
 
   const openNote = (path: string, line: number) => openAt(path, line, 0)
 
-  /**
-   * The review panel's cursor as a pager, the way the git panel's cursor pages
-   * the diff: the remark's file goes up beside the list, at its line, so the
-   * comment is read in the code it is about rather than in a thirty-column row.
-   *
-   * Two differences from `openAt`, and both are what make it a pager rather than
-   * a jump: a preview tab, so walking a list of twenty remarks does not leave
-   * twenty tabs on the strip, and the keyboard stays where it was — the arrows
-   * belong to the panel or there is nothing left to page with. Enter is the way
-   * in.
-   */
   const showNote = () => {
     const target = ctx.review.targetOf()
     if (!target) return
     if (target.path !== workspace.activePath()) {
-      // The source-control panel's pager keeps the keyboard for free: the changes
-      // are a page, so it never goes near `openFile`. This one opens a real tab, and
-      // `openFile` ends by handing the keyboard to the editor — right for every
-      // other caller, and here it would stop the arrows driving the moment a
-      // remark was in another file, and take the card down with them.
+      // `openFile` hands the keyboard to the editor, which would stop the arrows and drop the card.
       const had = panes.focus()
       workspace.openFile(target.path, true)
       panes.setFocus(had)
@@ -570,7 +439,6 @@ export function createCommands(ctx: AppContext) {
     say(target.message.replaceAll(/\s+/g, ' '), tone)
   }
 
-  /** Walk to the next conflict in the open file, wrapping as the problems do. */
   const jumpConflict = (direction: 1 | -1) => {
     const conflicts = workspace.mergeConflicts()
     const target = conflictFrom(conflicts, editor.cursor().line, direction)
@@ -613,13 +481,7 @@ export function createCommands(ctx: AppContext) {
         openAt(target.path, target.line, target.col)
       })
     },
-    /**
-     * Open the file the path under the cursor names. Disk first — a relative
-     * import is placed without asking anyone — and the language server second,
-     * for the specifiers no amount of path joining resolves: an alias declared
-     * somewhere this cannot read, a bundler's own map, a package in
-     * `node_modules`. The server resolves those the way the project does.
-     */
+    // Disk first, then the server, which is what places a bare package or an alias.
     openFileUnderCursor: () => {
       const path = workspace.activePath()
       if (!path) return say('No file open', 'warn')
@@ -658,8 +520,6 @@ export function createCommands(ctx: AppContext) {
     navForward: ctx.navigation.forward,
     toggleFocus: () => (panes.focus() === 'tree' ? panes.setFocus('editor') : panes.focusTree()),
     toggleSidebar: panes.toggleSidebar,
-    // One command for the button every sidebar view carries: which of them is up
-    // is what "collapse everything" means.
     collapseSidebar: () => {
       if (panes.view() === 'git') return gitCollapseAll()
       if (panes.view() === 'review') return ctx.review.collapseAll()
@@ -667,11 +527,6 @@ export function createCommands(ctx: AppContext) {
     },
     gitCollapseAll,
     toggleGitView: () => panes.toggleView('git'),
-    /**
-     * Quick look on or off. Turning it on shows the file tree and hands it the
-     * keyboard: the preview follows that cursor, so from the editor there would
-     * otherwise be nothing to preview and no way to walk to the next file.
-     */
     togglePreview: () => {
       if (ctx.preview.on()) {
         ctx.preview.close()
@@ -702,7 +557,6 @@ export function createCommands(ctx: AppContext) {
     removeWorktree: () => ctx.workspaces.pickWorktree('remove'),
     openSettings: () => {
       settings.setScope('user')
-      // One page at a time: the slot under the settings page is the editor's.
       ctx.workspace.openPage('settings')
       panes.setFocus('editor')
     },
@@ -720,7 +574,6 @@ export function createCommands(ctx: AppContext) {
       if (!any) return say('No problems')
       ctx.overlays.setProblemsOpen('all')
     },
-    /** The whole of what the inline note beside this line could only start. */
     problemsAtCursor: () => {
       const path = workspace.activePath()
       const list = path ? ctx.lsp.problems[path] : undefined
@@ -730,11 +583,6 @@ export function createCommands(ctx: AppContext) {
     },
     problemsNext: () => jumpProblem(1),
     problemsPrev: () => jumpProblem(-1),
-    /**
-     * Delete druk's own copy of a server. Only ever druk's: one on PATH or in
-     * the project is not druk's to remove, and the row says so rather than
-     * offering a confirm that would do nothing.
-     */
     uninstallServer: (id: string) => {
       const target = ctx.lsp.removable(id)
       if (!target) return say(`${id}: druk did not install it — nothing to remove`, 'warn')
@@ -760,28 +608,15 @@ export function createCommands(ctx: AppContext) {
     gitDiscard: () => offerDiscard(),
     gitToggleStage,
     gitToggleStageKey,
-    /**
-     * Not a command: `App` runs it as the panel opens. A heading under the cursor
-     * is a row with no diff behind it, so the panel would come up showing nothing
-     * until an arrow was pressed.
-     */
     gitLandOnFile: () => {
       const row = git.cursorRow()
       if (row?.kind === 'file') return
       const at = git.rows().findIndex(entry => entry.kind === 'file')
-      // The cursor alone, not `gitMoveTo`: opening the panel is not a landing,
-      // and throwing a diff over the editor for merely showing the sidebar is
-      // not what the panel has ever done.
+      // The cursor alone, not `gitMoveTo`: showing the sidebar must not throw a diff up.
       if (at >= 0) git.setGitCursor(at)
     },
     conflictNext: () => jumpConflict(1),
     conflictPrev: () => jumpConflict(-1),
-    /**
-     * The chooser over the conflict at the caret. The three sides are commands
-     * of their own as well, the way the review note's four kinds are — this is
-     * the one that gets the chord, since a reader who has just landed on a
-     * conflict wants to be asked rather than to remember three keys.
-     */
     conflictResolve: () => {
       const at = workspace
         .mergeConflicts()
@@ -795,24 +630,17 @@ export function createCommands(ctx: AppContext) {
       })
     },
     conflictAccept: (side: ConflictSide) => workspace.acceptConflict(editor.cursor().line, side),
-    /**
-     * "Diff current file" — the palette's way into the panel: it opens the
-     * source-control view with the cursor on the file being edited, so the
-     * arrows carry on from there like any other diff.
-     */
     gitDiffFile: () => {
       if (!git.inRepo()) return say('Not a git repository', 'warn')
       const path = workspace.activePath()
       if (!path) return say('No file open', 'warn')
-      // Unstaged first: what is being edited is what "diff this file" is about,
-      // and a file with both has one row under each heading.
+      // Unstaged first: a file with both has one row under each heading.
       const change =
         git.changes().find(entry => entry.path === path && entry.area === 'unstaged') ??
         git.changes().find(entry => entry.path === path)
       if (!change) return say(`No changes in ${relative(rootDir, path)}`)
       panes.showView('git')
-      // A folded folder would leave the cursor pointing at a row that is not on
-      // screen — the file's own row has to exist before it can be landed on.
+      // The file's own row has to exist before the cursor can be put on it.
       git.revealChange(change.area, change.rel)
       git.setGitCursor(
         git
@@ -824,41 +652,20 @@ export function createCommands(ctx: AppContext) {
       )
       showChanges()
     },
-    /**
-     * Cursor's Changes page: every file in one scroll over the editor slot, and
-     * the only diff there is. The panel stays the list; its arrows move the
-     * cursor and the page follows.
-     */
     gitDiffAll: () => {
       if (!git.inRepo()) return say('Not a git repository', 'warn')
       panes.showView('git')
       showChanges()
-      // The panel keeps the keyboard: its arrows are what pages the stack. Tab
-      // is the way into the page to scroll it.
     },
     allChanges,
     allChangesMeta,
-    /**
-     * Rebuild the changes page from the repository as it is now. The page is a
-     * snapshot taken when it opened, so a commit, stash or save made anywhere
-     * else would otherwise leave it showing changes that no longer exist. Not a
-     * palette command: `App` runs it whenever git or a buffer moves.
-     */
     refreshChanges: () => {
       if (!workspace.pageOpen('allChanges')) return
-      // Opening an empty page from the palette still explains itself; a
-      // commit, stash or discard that cleared the last change should not
-      // leave that message covering the editor.
+      // Only close a page that had changes: an empty one opened from the palette explains itself.
       const had = allChangesMeta().total > 0
       rebuildAllChanges()
       if (had && git.changes().length === 0) workspace.closePage('allChanges')
     },
-    /**
-     * Point everything at another branch: the tree marks, the gutter, the
-     * source-control list and the diff page all compare against it until this is
-     * put back. Reviewing a whole branch is what this is for — "what does my work
-     * add to main", rather than "what have I not committed yet".
-     */
     gitDiffBase: () => ctx.branches.open('diffBase'),
     gitDiffBaseReset: () => {
       if (!git.inRepo()) return say('Not a git repository', 'warn')
@@ -877,12 +684,6 @@ export function createCommands(ctx: AppContext) {
       void git.loadMessageHistory()
       ctx.prompts.setPrompt({ kind: 'commitAmend', subject, repo })
     },
-    /**
-     * The panel's commit box: `c` (or a click) puts the keyboard in it, Enter
-     * hands its message to the same commit path the prompt uses. The box is only
-     * offered while the index is in play — against a comparison base there is
-     * nothing a commit could be about.
-     */
     gitFocusMessage: () => {
       if (!git.inRepo()) return say('Not a git repository', 'warn')
       if (!git.staging()) return say('Comparing against a branch — nothing to commit here', 'warn')
@@ -916,7 +717,6 @@ export function createCommands(ctx: AppContext) {
       const name = git.branch()
       if (!name) return say('No branch to sync', 'warn')
       const hasUpstream = git.upstream()?.name != null
-      // Sync on a branch origin has never seen is a publish, VS Code's own turn.
       gitOp('Syncing', r => (hasUpstream ? pullAndPush(r, name, true) : push(r, name, false)), {
         repo,
         touchesTree: { kind: 'sync' },
@@ -934,14 +734,11 @@ export function createCommands(ctx: AppContext) {
     gitPush: () => {
       if (git.activeRepo() === null) return say(noRepository(git), 'warn')
       const name = git.branch()
-      // Detached HEAD and an unborn branch both land here; neither is pushable.
       if (!name) return say('No branch to push', 'warn')
       const hasUpstream = git.upstream()?.name != null
       gitOp('Pushing', repo => push(repo, name, hasUpstream), {
         done: () =>
           hasUpstream ? `Pushed ${name}` : `Pushed ${name} — upstream set to origin/${name}`,
-        // Rejected because origin moved on: the fix is the same two commands
-        // every time, so offer to run them rather than name them and stop.
         handleFailure: result => {
           if (result.detail !== PUSH_REJECTED) return false
           ctx.prompts.setPrompt({ kind: 'pullPush', branch: name, hasUpstream })
@@ -1010,8 +807,6 @@ export function createCommands(ctx: AppContext) {
       ),
     reviewReply: () => {
       const parent = ctx.review.replyTarget()
-      // Nothing under the cursor to answer — `replyTarget` has already said so
-      // for the one case where there is something and it is not druk's.
       if (!parent) return
       const span = `${basename(parent.path)}:${parent.line + 1}`
       ctx.prompts.setPrompt({
@@ -1037,8 +832,6 @@ export function createCommands(ctx: AppContext) {
     quit: ctx.prompts.quit,
   }
 
-  // The IntelliJ key promoter: a command run from the palette names its key in
-  // the status bar, since the moment of use is when a chord actually sticks.
   const promote = (id: string) => {
     const tip = keyTip(id)
     if (tip) say(`Tip: ${tip}`)

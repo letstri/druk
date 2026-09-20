@@ -5,7 +5,6 @@ import { join } from 'node:path'
 import { FILE_TOKEN, formatArgs, formatterFor, resolveBin, runFormatter } from '../src/core/format'
 import { tempDir } from './temp'
 
-/** A command whose script file sees the target path as argv[2], as real ones do. */
 function script(code: string): { command: string[]; dir: string } {
   const dir = tempDir('druk-fmt-')
   const file = join(dir, 'tool.js')
@@ -76,7 +75,6 @@ describe('formatArgs', () => {
   })
 })
 
-/** A project whose `node_modules/.bin` holds an executable `name`. */
 function projectWithBin(name: string, code: string): string {
   const dir = tempDir('druk-proj-')
   const bin = join(dir, 'node_modules', '.bin')
@@ -117,8 +115,7 @@ describe('runFormatter', () => {
   })
 
   test('a failing command reports the first stderr line', async () => {
-    // Not `console.error`: Bun decorates it with a source frame, which would be
-    // the first stderr line instead of the message.
+    // Not `console.error`: Bun decorates it with a source frame.
     const { command, dir } = script('process.stderr.write("boom\\nmore\\n"); process.exit(2)')
     const error = await runFormatter(command, '/p/a.ts', dir)
     expect(error).toBe('boom')

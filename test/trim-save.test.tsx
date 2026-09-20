@@ -6,7 +6,6 @@ import { fixture, launch, press } from './helpers'
 
 async function opened(content: string, trimOnSave: boolean) {
   const dir = fixture({ 'a.ts': 'placeholder\n' })
-  // Written directly: fixture() content would be normalised by the editor anyway.
   writeFileSync(join(dir, 'a.ts'), content)
   const t = await launch(dir, { trimOnSave })
   await press(t, i => i.pressArrow('down'))
@@ -27,8 +26,6 @@ test('the trim reaches the editor as one undoable step', async () => {
   await save()
   expect(t.captureCharFrame()).not.toContain('unsaved')
 
-  // Undo brings the untrimmed text back — a reload-style adoption would have
-  // wiped the history and left nothing to undo.
   await press(t, i => i.pressKey('z', { ctrl: true }))
   expect(t.captureCharFrame()).toContain('unsaved')
 })

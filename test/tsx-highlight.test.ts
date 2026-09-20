@@ -33,7 +33,6 @@ async function captured(source: string) {
   return (group: string) => byGroup.get(group) ?? []
 }
 
-/** Whether some occurrence of `text` is painted with `group`'s style. */
 function paintedAs(source: string, parsed: Awaited<ReturnType<typeof parseHighlights>>) {
   const lines = source.split('\n')
   return (text: string, group: string) => {
@@ -51,8 +50,6 @@ describe('tsx highlighting', () => {
   test('paints the tokens a component file is mostly made of', async () => {
     const group = await captured(SOURCE)
 
-    // A template literal is a string like any other — without it the tailwind
-    // class lists that fill a component render as unpainted text.
     expect(group('string').some(text => text.includes('border-b transition-colors'))).toBe(true)
     expect(group('variable')).toContain('props')
     expect(group('variable.member')).toContain('className')
@@ -78,18 +75,12 @@ describe('tsx highlighting', () => {
     expect(painted('data-slot', 'attribute')).toBe(true)
   })
 
-  // A dotted tag is one `member_expression`, whose halves the generic
-  // `(identifier)` / `(property_identifier)` rules capture as well — and an inner
-  // capture is painted after the span containing it, so naming the whole name @tag
-  // left `<Slider.Root>` painted as a variable and a property.
   test('a dotted tag name paints as a tag on both sides of the dot', async () => {
     const source =
       'const A = () => (\n  <Slider.Root>\n    <Radix.Slider.Thumb />\n  </Slider.Root>\n)\n'
     const parsed = await parseHighlights(source, 'typescriptreact')
     const painted = paintedAs(source, parsed)
 
-    // The delimiters carry the tag's own style, so `<` and `>` merge into the
-    // neighbouring run; the dot stays punctuation, as it is anywhere else.
     expect(painted('<Slider', 'tag')).toBe(true)
     expect(painted('Root>', 'tag')).toBe(true)
     expect(painted('</Slider', 'tag')).toBe(true)
@@ -98,11 +89,7 @@ describe('tsx highlighting', () => {
     expect(painted('Thumb', 'tag')).toBe(true)
   })
 
-  // `.ts` and `.js` go through the same vendored grammar as `.tsx` now, on
-  // purpose: OpenTUI's bundled typescript query gates its identifier captures
-  // behind `#lua-match?` predicates the parser worker never evaluates, so every
-  // lowercase identifier also matched `@type` and `@constant` — and the last of
-  // those painted every identifier in the file as a constant.
+  // `.ts` uses the vendored tsx grammar: the bundled query gates captures behind `#lua-match?`.
   test('a plain .ts identifier paints as a variable, not a constant', async () => {
     const source = 'const title = other\n'
     const parsed = await parseHighlights(source, 'typescript')

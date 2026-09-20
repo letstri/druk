@@ -19,7 +19,6 @@ test('on a short terminal the table windows instead of clipping the footer', asy
   expect(frame).toContain('Keyboard shortcuts')
   expect(frame).toContain('General')
   expect(frame).toContain('↑↓ scroll · Esc close')
-  // The last section is off-screen until scrolled to.
   expect(frame).not.toContain('Editor → tree')
 
   await pressTimes(t, 60, i => i.pressArrow('down'))
@@ -27,8 +26,6 @@ test('on a short terminal the table windows instead of clipping the footer', asy
 })
 
 test('a tall terminal shows every section with the plain footer', async () => {
-  // Exactly the height the whole table needs: the overlay draws a window of
-  // `height - 7` lines, so a row added to `KEYS` costs a row here too.
   const t = await openHelp(83)
   const frame = t.captureCharFrame()
 

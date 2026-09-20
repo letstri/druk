@@ -1,15 +1,4 @@
-/**
- * Runs the suite one test file per process, sequentially.
- *
- * Not `bun test` (one process): the files interfere — ~140 tests fail on
- * leaked stdin/signal state that separate processes would isolate, and
- * `--isolate`'s fresh global is not enough. Not `bun test --parallel`
- * either: its concurrent workers can busy-spin at 100% CPU forever on
- * macOS ARM (oven-sh/bun#27766, still present in 1.3.14) — the spin is
- * synchronous, so bun's own per-test timeout never fires and only SIGKILL
- * ends the worker. A single bun process at a time has never triggered it;
- * the per-file cap below is a backstop, not an expected path.
- */
+// One file per process: bun test leaks state between files; --parallel busy-spins (bun#27766).
 import { spawnSync } from 'bun'
 
 const FILE_CAP_MS = 90 * 1000

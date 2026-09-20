@@ -42,15 +42,15 @@ describe('wordStart', () => {
 
 describe('extendsWord', () => {
   test('word characters typed past the request keep the reply valid', () => {
-    expect(extendsWord('d.tab(', 2, 5)).toBe(true) // "tab" typed after asking at the dot
-    expect(extendsWord('d.tab(', 5, 5)).toBe(true) // nothing typed at all
+    expect(extendsWord('d.tab(', 2, 5)).toBe(true)
+    expect(extendsWord('d.tab(', 5, 5)).toBe(true)
   })
 
   test('a scope change or a retreat invalidates it', () => {
-    expect(extendsWord('d.snakeCase.', 2, 12)).toBe(false) // a `.` landed mid-flight
-    expect(extendsWord('druk(', 4, 5)).toBe(false) // a `(` landed mid-flight
-    expect(extendsWord('druk', 4, 2)).toBe(false) // cursor moved back past the ask
-    expect(extendsWord('ab', 1, 4)).toBe(false) // cursor past the line the ask saw
+    expect(extendsWord('d.snakeCase.', 2, 12)).toBe(false)
+    expect(extendsWord('druk(', 4, 5)).toBe(false)
+    expect(extendsWord('druk', 4, 2)).toBe(false)
+    expect(extendsWord('ab', 1, 4)).toBe(false)
   })
 })
 
@@ -117,8 +117,6 @@ describe('filterCompletions', () => {
   })
 
   test('sortText decides between items the prefix fits equally well', () => {
-    // What tsserver sends for `x.tab|`: the type's own property ranks 11, the
-    // auto-import candidates 16. The property must not sink under 200 of them.
     const got = filterCompletions(
       [
         { label: 'TableAliasProxyHandler', sortText: '16' },
@@ -142,7 +140,7 @@ describe('filterCompletions', () => {
   })
 })
 
-// The `${1:...}` strings below are LSP snippet syntax, not template literals.
+// LSP snippet syntax below, not template literals.
 /* oxlint-disable no-template-curly-in-string */
 describe('stripSnippet', () => {
   test('placeholders keep their text, stops vanish, caret lands on the first stop', () => {
@@ -150,7 +148,6 @@ describe('stripSnippet', () => {
     expect(stripSnippet('foo(${1:arg})')).toEqual({ text: 'foo(arg)', caret: 4 })
     expect(stripSnippet('${1|red,green|}')).toEqual({ text: 'red', caret: 0 })
     expect(stripSnippet('plain')).toEqual({ text: 'plain', caret: null })
-    // A trailing $0 is where the cursor would land anyway.
     expect(stripSnippet('done$0')).toEqual({ text: 'done', caret: null })
   })
 })
@@ -177,7 +174,6 @@ describe('applyCompletion', () => {
   })
 
   test('extends a stale textEdit to cover characters typed during the request', () => {
-    // Range measured at "con|", cursor has since reached "console|".
     const got = applyCompletion('consol\n', { line: 0, character: 6 }, 0, {
       label: 'console',
       textEdit: {
@@ -213,9 +209,6 @@ describe('applyCompletion', () => {
   })
 
   test('multi-line snippets are re-indented to the line they land on', () => {
-    // expert's do/end block, accepted under an indented def: the body must sit
-    // one level deeper than the def and the end must line up with it, not
-    // land at the absolute columns the server authored.
     const got = applyCompletion('  def name() do\n', { line: 0, character: 15 }, 13, {
       label: 'do/end block',
       textEdit: {
@@ -242,8 +235,6 @@ describe('applyCompletion', () => {
   })
 
   test('a plain-text multi-line insert is not re-indented', () => {
-    // Only snippets are re-indented: newlines outside one are the text the
-    // server means, so adding the line's indent would corrupt it.
     const got = applyCompletion('    foo\n', { line: 0, character: 7 }, 4, {
       label: 'block',
       insertText: 'a\nb\nc',
@@ -269,7 +260,6 @@ describe('plainMarkup', () => {
     expect(itemInfo({ label: 'a', detail: '(x: number)\n  => void' }).detail).toBe(
       '(x: number) => void',
     )
-    // labelDetails is the fallback: the panel wants a signature either way.
     expect(itemInfo({ label: 'a', labelDetails: { detail: '(x)' } }).detail).toBe('(x)')
     expect(isDeprecated({ label: 'a', tags: [1] })).toBe(true)
     expect(isDeprecated({ label: 'a', deprecated: true })).toBe(true)
@@ -295,7 +285,6 @@ describe('layoutMenu', () => {
   test('caps the list and adds the counter row', () => {
     const layout = layoutMenu(many, null, roomy, false)
     expect(layout.rows).toBe(12)
-    // border pair + rows + counter
     expect(layout.height).toBe(15)
     expect(layout.documentation).toEqual([])
   })
@@ -308,8 +297,6 @@ describe('layoutMenu', () => {
   })
 
   test('a wrapped signature keeps each row offset into the string it was cut from', () => {
-    // The panel paints from those offsets: the highlighter parses the signature
-    // as one line, and a row of it is a slice of that line's captures.
     const long = 'const draw: <Value extends number>(props: Props<Value>) => Element'
     const layout = layoutMenu(many, { ...info, detail: long }, { width: 40, height: 40 }, true)
     expect(layout.signature.length).toBeGreaterThan(1)
@@ -319,13 +306,10 @@ describe('layoutMenu', () => {
   })
 
   test('the signature grows into the rows the documentation left blank', () => {
-    // Capped at three regardless, a generic ended in an ellipsis while the panel
-    // drew four blank rows under a one-line doc comment.
     const wordy = { ...info, detail: 'word '.repeat(60).trim() }
     const layout = layoutMenu(many, wordy, roomy, true)
     expect(layout.signature.length).toBe(6)
     expect(layout.signature.at(-1)!.text).not.toContain('…')
-    // Long docs win the space back: the signature never starves them.
     const both = layoutMenu(many, { ...wordy, documentation: 'doc. '.repeat(200) }, roomy, true)
     expect(both.signature.length).toBe(3)
     expect(both.documentation.length).toBe(both.panelRows - 3)
@@ -343,22 +327,25 @@ describe('layoutMenu', () => {
     expect(full.origin).toBe('')
   })
 
-  test('the box is the same size whatever the selected item resolved to', () => {
-    // The size may not follow the selection: walking the list would resize the
-    // popup under the cursor on every keystroke.
+  test('the panel is sized to the item, and the floor keeps it from shrinking', () => {
     const empty = layoutMenu(many, null, roomy, true)
+    expect(empty.panelRows).toBe(0)
+    expect(empty.height).toBe(layoutMenu(many, null, roomy, false).height)
     const filled = layoutMenu(many, info, roomy, true)
+    expect(filled.panelRows).toBe(2)
     const wordy = layoutMenu(
       many,
       { detail: 'x '.repeat(200), documentation: 'y '.repeat(400), source: '', deprecated: false },
       roomy,
       true,
     )
-    expect(empty.height).toBe(filled.height)
-    expect(empty.width).toBe(filled.width)
-    expect(wordy.height).toBe(filled.height)
-    expect(wordy.width).toBe(filled.width)
-    expect(empty.panelRows).toBeGreaterThan(0)
+    expect(wordy.panelRows).toBe(9)
+    const kept = layoutMenu(many, info, roomy, true, wordy.panelRows)
+    expect(kept.panelRows).toBe(9)
+    expect(kept.height).toBe(wordy.height)
+    expect(kept.width).toBe(wordy.width)
+    expect(layoutMenu(many, null, roomy, true, 4).panelRows).toBe(4)
+    expect(layoutMenu(many, info, { width: 120, height: 19 }, true, 9).panelRows).toBe(3)
   })
 
   test('a short pane drops the panel before it drops the list', () => {

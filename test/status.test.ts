@@ -17,8 +17,6 @@ test('a claim takes the free slot and its release gives it back', () => {
 test('an install that finds the slot taken never clears the counter in it', () => {
   const root = createRoot(dispose => ({ status: createStatus(), dispose }))
   const { status } = root
-  // A bulk delete has the slot; `whileFree` is what keeps a second one off the
-  // tree while it runs, so an install releasing it would be reopening that gate.
   const deleting = status.claimBusy({ label: 'Deleting', done: 0, total: 500 })
   const installing = status.claimBusy({ label: 'Installing catppuccin' })
 

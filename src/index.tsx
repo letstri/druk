@@ -3,15 +3,7 @@ import './core/assets'
 import { flagOutput, resolveTarget } from './core/cli'
 import { runUpgrade } from './core/upgrade'
 
-/*
- * Only argument handling lives here; the app is a dynamic import at the bottom.
- * That split is what makes the asset staging in ./core/assets effective: bundled
- * statically, Bun's scope hoisting runs @opentui/core's top-level code *before*
- * this entry module's — source import order notwithstanding — so the env var it
- * needs would be set after it had already looked. A dynamic import cannot be
- * hoisted past this file's own statements. It also keeps `druk --version` from
- * evaluating the whole UI graph.
- */
+// Dynamic import: bundled statically, @opentui/core runs before ./core/assets sets OTUI_ASSET_ROOT.
 
 const flag = flagOutput(process.argv[2])
 if (flag !== null) {

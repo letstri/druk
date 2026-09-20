@@ -15,7 +15,6 @@ import {
 } from './helpers'
 import type { Harness } from './helpers'
 
-/** An in-place formatter, as `formatters` commands must be: uppercases the file. */
 const UPPERCASE = `
 const fs = require('fs')
 const file = process.argv[2]
@@ -23,7 +22,7 @@ fs.writeFileSync(file, fs.readFileSync(file, 'utf8').toUpperCase())
 `
 
 const ESC = String.fromCharCode(27)
-/** Ctrl+Opt+L: Opt is an ESC prefix ahead of the Ctrl byte (0x0c). */
+// Opt is an ESC prefix ahead of the Ctrl byte (0x0c).
 const CTRL_OPT_L = `${ESC}${String.fromCharCode(12)}`
 const F6 = `${ESC}[17~`
 
@@ -148,7 +147,6 @@ test('Save without formatting writes even when format-on-save is on', async () =
 test('closing a tab still heals a late formatter flush after Save without formatting', async () => {
   const dir = fixture({
     'a.ts': 'const a = 1\n',
-    // Stays alive until SIGKILL so formatWait is still pending when the tab closes.
     'fmt.js': 'setTimeout(() => {}, 5000)\n',
   })
   const t = await launch(dir, {
@@ -161,9 +159,7 @@ test('closing a tab still heals a late formatter flush after Save without format
 
   await openPalette(t)
   await press(t, i => void i.typeText('Save without formatting'))
-  // Enter, the late flush, and Ctrl+W in one turn: the child's close has not
-  // fired yet, so reassertAfterFormat is still waiting. A flush between them
-  // would let it run (or skip) before the tab closes.
+  // One turn, no flush between: a flush would let reassertAfterFormat run before the tab closes.
   t.mockInput.pressEnter()
   writeFileSync(join(dir, 'a.ts'), 'EDIT CONST A = 1\n')
   t.mockInput.pressKey('w', { ctrl: true })
@@ -190,8 +186,6 @@ test('renaming does not recreate the old path from a pending format reassert', a
   await runCommand(t, 'Rename…')
   await untilFrame(t, 'Rename to')
 
-  // Save without formatting, then confirm the rename, before the killed
-  // child's close lets reassertAfterFormat write the captured path.
   t.mockInput.pressKeys([F6])
   for (let n = 0; n < 4; n++) t.mockInput.pressBackspace()
   t.mockInput.pressKey('b')

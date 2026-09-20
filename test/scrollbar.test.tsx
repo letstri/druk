@@ -5,8 +5,7 @@ import type { Harness } from './helpers'
 
 const long = `${Array.from({ length: 200 }, (_, index) => `line ${index}`).join('\n')}\n`
 
-/** Rightmost column of the editor rows: the scrollbar track. The editor starts
- * at row 2 — the tab strip is row 0 and the breadcrumbs row 1. */
+// The scrollbar track: the rightmost column, from row 2 down.
 const track = (t: Harness) =>
   t
     .captureCharFrame()
@@ -26,7 +25,6 @@ describe('the editor scrollbar', () => {
 
     const bar = track(t)
     expect(bar).toContain('█')
-    // At the top of the file the thumb sits at the top of the track.
     expect(bar.indexOf('█')).toBe(0)
   })
 

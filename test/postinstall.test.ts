@@ -4,26 +4,21 @@ import { readdirSync } from 'node:fs'
 import type { Server } from 'node:http'
 import { createServer } from 'node:http'
 
-// Accepts the request and never responds: headers never arrive.
 const silent = createServer(() => {})
-// Headers arrive, the body never finishes — the shape of a stalled mirror.
 const stalled = createServer((_req, res) => {
   res.writeHead(200, { 'content-type': 'application/octet-stream' })
   res.write('partial')
 })
-// Answers at once, with nothing to download.
 const missing = createServer((_req, res) => {
   res.writeHead(404)
   res.end()
 })
-// A 404 that remembers what was asked for, so a test can see which asset was picked.
 const requested: string[] = []
 const recording = createServer((req, res) => {
   requested.push(req.url ?? '')
   res.writeHead(404)
   res.end()
 })
-// A transient 504 — what GitHub's asset CDN serves under load — counted per hit.
 let flaky = 0
 const failing = createServer((_req, res) => {
   flaky += 1
@@ -42,8 +37,7 @@ function port(server: Server) {
 
 function closeServer(server: Server) {
   server.closeAllConnections()
-  // Bun's http close reports ERR_SERVER_NOT_RUNNING even after a clean
-  // listen/close pair (verified on 1.3.14); anything else is a real failure.
+  // Bun's http close reports ERR_SERVER_NOT_RUNNING after a clean listen/close pair (1.3.14).
   return new Promise<void>((resolve, reject) => {
     server.close(error => {
       if (error && !('code' in error && error.code === 'ERR_SERVER_NOT_RUNNING')) reject(error)
@@ -56,8 +50,7 @@ afterAll(async () => {
   await Promise.all(servers.map(server => closeServer(server)))
 })
 
-// binary.mjs bakes DRUK_DOWNLOAD_BASE into its URL at module evaluation, so each
-// base needs its own import: env first, then a cache-busted dynamic import.
+// binary.mjs bakes DRUK_DOWNLOAD_BASE in at evaluation: each base needs a cache-busted import.
 async function binaryAgainst(server: Server) {
   process.env.DRUK_DOWNLOAD_BASE = `http://127.0.0.1:${port(server)}`
   return import(`../bin/binary.mjs?base=${port(server)}`)
@@ -65,8 +58,6 @@ async function binaryAgainst(server: Server) {
 
 describe('fetchBinary timeout', () => {
   test('the machine running the suite has a binary to fetch', async () => {
-    // On a target with no release asset fetchBinary returns before it reaches the
-    // network, and every test below would pass without exercising a timeout at all.
     const { supported } = await binaryAgainst(missing)
     expect(supported).toBe(true)
   })
@@ -76,8 +67,6 @@ describe('fetchBinary timeout', () => {
     const started = Date.now()
     expect(await fetchBinary({ timeout: 250 })).toBeNull()
     const elapsed = Date.now() - started
-    // Waiting out the bound is the point: returning early would mean the connection
-    // was refused and the null proved nothing.
     expect(elapsed).toBeGreaterThanOrEqual(200)
     expect(elapsed).toBeLessThan(5_000)
   })
@@ -97,7 +86,6 @@ describe('fetchBinary timeout', () => {
     expect(await fetchBinary({ timeout: 30_000 })).toBeNull()
     expect(flaky).toBe(3)
 
-    // The missing-asset answer must stay one request: the baseline fallback reads it.
     const { fetchBinary: probe } = await binaryAgainst(recording)
     requested.length = 0
     expect(await probe({ timeout: 30_000 })).toBeNull()
@@ -106,7 +94,6 @@ describe('fetchBinary timeout', () => {
   }, 30_000)
 
   test('a server that answers is not held to the bound', async () => {
-    // The 60s an install may spend waiting must not also be 60s of not installing.
     const { fetchBinary } = await binaryAgainst(missing)
     const started = Date.now()
     expect(await fetchBinary({ timeout: 60_000 })).toBeNull()
@@ -117,7 +104,6 @@ describe('fetchBinary timeout', () => {
 describe('the baseline variant', () => {
   test('a cpuinfo without avx2 wants the baseline build', async () => {
     const { wantsBaseline } = await binaryAgainst(missing)
-    // The flags line of an i5-2500 (issue #99): AVX but no AVX2.
     expect(wantsBaseline('flags\t\t: fpu vme sse sse2 avx aes lahf_lm')).toBe(true)
     expect(wantsBaseline('flags\t\t: fpu sse sse2 avx avx2 bmi1 bmi2')).toBe(false)
   })
@@ -125,7 +111,6 @@ describe('the baseline variant', () => {
   test('recognises the illegal-instruction crash on both platforms', async () => {
     const { illegalInstruction } = await binaryAgainst(missing)
     expect(illegalInstruction({ signal: 'SIGILL', status: null })).toBe(true)
-    // STATUS_ILLEGAL_INSTRUCTION as Windows reports it, unsigned and sign-extended.
     expect(illegalInstruction({ signal: null, status: 3221225501 })).toBe(true)
     expect(illegalInstruction({ signal: null, status: -1073741795 })).toBe(true)
     expect(illegalInstruction({ signal: null, status: 0 })).toBe(false)
@@ -147,8 +132,6 @@ describe('the baseline variant', () => {
 })
 
 describe('the published package', () => {
-  // release.ts stages bin/ file by file, and `files: ['bin']` publishes whatever it
-  // staged: a module added here but not there leaves the shim importing nothing.
   test('stages every module bin/ holds', async () => {
     const release = await Bun.file(new URL('../scripts/release.ts', import.meta.url)).text()
     const staged = [...release.matchAll(/cp\('\.\/bin\/([\w.-]+)'/g)].map(match => match[1])

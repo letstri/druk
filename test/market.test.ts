@@ -36,13 +36,12 @@ const INDEX = {
       name: 'Nim',
       version: '1.2.0',
       description: 'nimlangserver',
-      provides: { themes: [], icons: [], filetypes: ['nim'] },
+      provides: { themes: [], icons: [], filetypes: ['nim'], extensions: ['.nim'] },
       categories: ['language', 'lsp'],
     },
   ],
 }
 
-/** A fetcher answering from a fixed url → body map; anything else 404s. */
 const serving = (bodies: Record<string, unknown>, seen: string[] = []): Fetcher =>
   (url => {
     seen.push(url)
@@ -66,13 +65,12 @@ test('a malformed catalog row is dropped, not fatal', () => {
     ],
   })
   expect(parsed.map(entry => entry.id)).toEqual(['ok'])
-  // The gaps are filled rather than left undefined: every reader shows these.
   expect(parsed[0]).toEqual({
     id: 'ok',
     name: 'ok',
     version: '1.0.0',
     description: '',
-    provides: { themes: [], icons: [], filetypes: [] },
+    provides: { themes: [], icons: [], filetypes: [], extensions: [] },
     categories: [],
   })
 })
@@ -108,8 +106,8 @@ test('a manifest is fetched from <registry><id>/extension.json and validated', a
 
 test('a manifest druk would reject is refused before anything is written', async () => {
   for (const body of [
-    { id: 'nim' }, // contributes nothing
-    { id: 'other', languageServers: [{ id: 'nim', command: ['x'], filetypes: ['nim'] }] }, // wrong id
+    { id: 'nim' },
+    { id: 'other', languageServers: [{ id: 'nim', command: ['x'], filetypes: ['nim'] }] },
     'not json at all',
   ]) {
     const result = await fetchExtension('nim', {
@@ -120,7 +118,6 @@ test('a manifest druk would reject is refused before anything is written', async
   }
 })
 
-/** `fetchExtension`'s answer for a manifest, without going through a fetch. */
 async function fetchedOk(manifest: unknown, id = 'nim') {
   const result = await fetchExtension(id, {
     registry: REGISTRY,
@@ -136,19 +133,14 @@ test('a fetched manifest is written where loadExtensions finds it', async () => 
   expect(await writeExtension('nim', await fetchedOk(MANIFEST), root)).toBeNull()
   expect(JSON.parse(readFileSync(join(root, 'nim', 'extension.json'), 'utf8'))).toEqual(MANIFEST)
 
-  // The folder shape is the one the loader walks — that is the whole contract
-  // between an install and the next startup.
   const load = loadExtensions(project, [], root)
   expect(load.problems).toEqual([])
-  // Beside the extensions druk ships inside the binary, which are always loaded.
   expect(
     load.extensions.filter(extension => !extension.builtin).map(extension => extension.id),
   ).toEqual(['nim'])
 
   expect(removeFromDisk('nim', root)).toBeNull()
   expect(existsSync(join(root, 'nim'))).toBe(false)
-  // Removing one that is already gone is not an error: the palette and the
-  // filesystem can disagree, and the answer to both is the same.
   expect(removeFromDisk('nim', root)).toBeNull()
 })
 
@@ -169,6 +161,5 @@ test('only an installed extension with a lower version is an update', () => {
   expect(updatesFor([{ id: 'nim', version: '1.1.0' }], catalog, isNewer)).toHaveLength(1)
   expect(updatesFor([{ id: 'nim', version: '1.2.0' }], catalog, isNewer)).toEqual([])
   expect(updatesFor([{ id: 'nim', version: '2.0.0' }], catalog, isNewer)).toEqual([])
-  // Not installed is not an update — it is an offer, and a different question.
   expect(updatesFor([], catalog, isNewer)).toEqual([])
 })

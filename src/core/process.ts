@@ -1,39 +1,20 @@
-/**
- * One subprocess wrapper for everything druk shells out to asynchronously — git
- * mutations and comparison queries, the user's formatter, an npm install of a
- * language server.
- *
- * They all need the same four things, and each hand-rolled copy got one of them
- * subtly wrong at some point: a timeout that kills, output collected without
- * growing without bound, a spawn failure reported as itself rather than as
- * "exited with no output", and exactly one settle — `error` and `close` can both
- * fire, and whichever comes first has to be the answer.
- */
 import { spawn } from 'node:child_process'
 
 export interface ProcessResult {
-  /** Exit status; null when the process was killed or never started at all. */
   status: number | null
   stdout: string
   stderr: string
-  /** The timeout fired and the process was killed — the output is partial. */
   timedOut: boolean
-  /** More than `maxOutput` bytes; killed, and the output is partial. */
   overflow: boolean
-  /** The spawn itself failed. Nothing ran, so the streams say nothing. */
   error: NodeJS.ErrnoException | null
 }
 
 export interface RunOptions {
   cwd?: string
   env?: NodeJS.ProcessEnv
-  /** Milliseconds before the process is killed. */
   timeout: number
-  /** Bytes of combined output past which the process is killed. */
   maxOutput?: number
-  /** When aborted, the child is killed the same way a timeout is. */
   signal?: AbortSignal
-  /** Written to the child's stdin, which is closed after — otherwise stdin is ignored. */
   input?: string
 }
 
@@ -45,8 +26,7 @@ export function run(bin: string, args: string[], options: RunOptions): Promise<P
       stdio: [options.input === undefined ? 'ignore' : 'pipe', 'pipe', 'pipe'],
     })
     if (options.input !== undefined) {
-      // EPIPE surfaces here when the child exits without reading; 'close' still
-      // fires with the real exit status, so the write error itself is not news.
+      // EPIPE lands here when the child exits without reading; 'close' still gives the real status.
       child.stdin?.on('error', () => {})
       child.stdin?.end(options.input)
     }
@@ -56,8 +36,7 @@ export function run(bin: string, args: string[], options: RunOptions): Promise<P
     let timedOut = false
     let overflow = false
     let settled = false
-    // Declared before `finish`, which clears it: the timer's own callback is one
-    // of the ways the process ends, so the two have to close over each other.
+    // Declared before `finish`, which clears it: the timer's own callback also ends the process.
     let timer: ReturnType<typeof setTimeout>
 
     const onAbort = () => child.kill('SIGKILL')
@@ -102,14 +81,11 @@ export function run(bin: string, args: string[], options: RunOptions): Promise<P
     child.stdout?.on('data', (chunk: Buffer) => collect(stdout, chunk))
     child.stderr?.on('data', (chunk: Buffer) => collect(stderr, chunk))
     child.on('error', error => finish(null, error))
-    // Not `finish` itself: 'close' hands the listener (code, signal), and the
-    // signal would land in `error` — a killed process would then report itself
-    // as a spawn failure with no `.message`, swallowing the timeout it really is.
+    // Not `finish` itself: 'close' passes (code, signal), and the signal would land in `error`.
     child.on('close', code => finish(code))
   })
 }
 
-/** Whether `result` failed because the program is not there at all. */
 export const notInstalled = (result: ProcessResult): boolean => result.error?.code === 'ENOENT'
 
 export function firstLine(text: string): string {

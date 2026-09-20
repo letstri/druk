@@ -6,7 +6,6 @@ import { ui } from '../src/themes'
 import { fixture, launch, press, settle } from './helpers'
 import type { Harness } from './helpers'
 
-/** Open the only file, type into it, then have someone else rewrite it on disk. */
 async function clash(outside: string | null = 'theirs from outside\n') {
   const dir = fixture({ 'a.ts': 'mine\n' })
   const file = join(dir, 'a.ts')
@@ -17,7 +16,6 @@ async function clash(outside: string | null = 'theirs from outside\n') {
 
   if (outside === null) rmSync(file)
   else writeFileSync(file, outside)
-  // The watcher notices and warns; it must not touch the dirty buffer.
   await new Promise(resolve => setTimeout(resolve, 300))
   await settle(t)
 
@@ -46,7 +44,6 @@ describe('saving a file that changed underneath', () => {
     const { t, file } = await clash()
     expect(t.captureCharFrame()).toContain('unsaved edits')
 
-    // Someone puts the file back to what the buffer holds.
     writeFileSync(file, 'EDITmine\n')
     await new Promise(resolve => setTimeout(resolve, 300))
     await settle(t)
@@ -93,7 +90,6 @@ describe('saving a file that was deleted underneath', () => {
     const frame = t.captureCharFrame()
     expect(frame).toContain('was deleted on disk')
     expect(frame).toContain('recreate the file')
-    // "Reload" here would replace the buffer with an empty file.
     expect(frame).not.toContain('discard my changes')
   })
 

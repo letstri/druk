@@ -1,16 +1,9 @@
-/**
- * Layered layout for the diagrams that are a graph of boxes — flowcharts, state,
- * class and ER. Layers, then an ordering pass that pulls each node toward its
- * neighbours, then orthogonal edges routed through the band between two layers.
- */
 import { Canvas } from './canvas'
 import type { Line, Role, Stroke } from './canvas'
 import type { ArrowHead, EdgeStyle, GraphDiagram, GraphEdge, GraphNode } from './model'
 
-/** Columns between two boxes side by side, and rows between two stacked ones. */
 const CROSS_GAP_X = 3
 const CROSS_GAP_Y = 1
-/** Rows a layer transition takes in a vertical layout: exit, run, entry. */
 const BAND = 3
 const MAX_LABEL_WIDTH = 28
 
@@ -31,7 +24,7 @@ const HEADS: Record<ArrowHead, { down: string; up: string; right: string; left: 
 }
 
 const BORDERS: Record<string, string[]> = {
-  // corners clockwise from top-left, then horizontal and vertical.
+  // Corners clockwise from top-left, then horizontal and vertical.
   rect: ['┌', '┐', '┘', '└', '─', '│'],
   round: ['╭', '╮', '╯', '╰', '─', '│'],
   decision: ['╔', '╗', '╝', '╚', '═', '║'],
@@ -39,8 +32,6 @@ const BORDERS: Record<string, string[]> = {
 
 interface Placed {
   id: string
-  /** null for a routing dummy: a node that exists only to carry an edge across
-   * the layer it would otherwise jump over. */
   node: GraphNode | null
   layer: number
   width: number
@@ -53,9 +44,7 @@ interface Segment {
   from: string
   to: string
   style: EdgeStyle
-  /** The glyph at the far end of the whole edge, on its last segment only. */
   head: ArrowHead
-  /** The glyph at the near end, on the first segment only. */
   tail: ArrowHead
   label?: string
 }
@@ -81,11 +70,6 @@ export function wrapLabel(text: string, max = MAX_LABEL_WIDTH): string[] {
 
 const width = (text: string) => [...text].length
 
-/**
- * Longest-path layering, with the edges that would close a cycle turned around
- * first: mermaid graphs are routinely cyclic, and a layering that never resolves
- * is what an unbroken cycle gives.
- */
 function assignLayers(
   ids: string[],
   edges: GraphEdge[],
@@ -127,8 +111,6 @@ function assignLayers(
   return { layer, back }
 }
 
-/** Barycentre sweeps: each node drifts toward the mean position of the ones it
- * is joined to, which is what stops the edges crossing each other needlessly. */
 function orderLayers(layers: string[][], segments: Segment[]): void {
   const neighbours = (down: boolean) => {
     const map = new Map<string, string[]>()
@@ -190,8 +172,7 @@ function layout(diagram: GraphDiagram): Layout {
     return flip ? depth - at : at
   }
 
-  // Every edge is drawn along the layer axis, so one that runs against it is
-  // turned around here and keeps its arrowhead on the end it started at.
+  // An edge running against the layer axis is turned around here, keeping its head where it was.
   const segments: Segment[] = []
   const dummies: Placed[] = []
   diagram.edges.forEach((edge, index) => {
@@ -245,9 +226,6 @@ function layout(diagram: GraphDiagram): Layout {
   for (const item of placed.values()) layers[item.layer]!.push(item.id)
   orderLayers(layers, segments)
 
-  // Main axis: layers laid end to end with a routing band between them. A
-  // horizontal layout widens the band to hold its edge labels, which have
-  // nowhere else to sit; a vertical one puts them beside the run.
   const labelRoom = (index: number) =>
     vertical
       ? 0
@@ -272,8 +250,6 @@ function layout(diagram: GraphDiagram): Layout {
   })
   const mainTotal = main - BAND
 
-  // Cross axis: packed in order, each node pulled toward the mean of the ones it
-  // joins in the layer before it, so a tree comes out centred over its children.
   const gap = vertical ? CROSS_GAP_X : CROSS_GAP_Y
   const crossStart = new Map<string, number>()
   const centre = (id: string) => crossStart.get(id)! + crossOf(placed.get(id)!) / 2
@@ -314,8 +290,6 @@ function layout(diagram: GraphDiagram): Layout {
         item.x = start
         item.y = crossStart.get(id)!
       }
-      // A dummy is a piece of edge, not a box: it spans the whole layer so the
-      // line it carries is unbroken.
       if (!item.node) {
         const extent = Math.max(1, ...layerIds.map(other => mainOf(placed.get(other)!)))
         if (vertical) item.height = extent
@@ -353,8 +327,6 @@ function drawBox(canvas: Canvas, item: Placed): void {
   canvas.set(right, bottom, br!, 'border')
   canvas.set(item.x, bottom, bl!, 'border')
   node.label.forEach((text, index) => {
-    // A box with more than one row is a class or an entity: the first row is its
-    // name and the rest are members, which read as a list only left-aligned.
     const pad = index > 0 ? 1 : Math.floor((item.width - 2 - width(text)) / 2)
     canvas.text(item.x + 1 + pad, item.y + 1 + index, text, 'label')
   })
@@ -379,10 +351,7 @@ function drawSegment(canvas: Canvas, layout: Layout, segment: Segment): void {
     if (head) canvas.set(tx, entry, head, role)
     const tail = HEADS[segment.tail]!.up
     if (tail) canvas.set(sx, top, tail, role)
-    // The label goes at the end the edge points at, not the middle of the run:
-    // two edges out of one node share their run rows, and a label in the middle
-    // of each is a label written over the other. An edge that was turned round
-    // to be drawn keeps its label with its arrowhead for the same reason.
+    // At the end the edge points at, not the run's middle: sibling edges share run rows.
     if (segment.label) {
       if (head) canvas.text(tx + 2, entry, segment.label, 'edgeLabel')
       else canvas.text(sx + 2, top, segment.label, 'edgeLabel')
@@ -402,8 +371,6 @@ function drawSegment(canvas: Canvas, layout: Layout, segment: Segment): void {
   if (head) canvas.set(entry, ty, head, role)
   const tail = HEADS[segment.tail]!.left
   if (tail) canvas.set(left, sy, tail, role)
-  // Sideways there is no room beside the run, so the label sits on it — the
-  // band was widened to hold exactly this.
   if (segment.label) canvas.text(run + 1, ty, ` ${segment.label} `, 'edgeLabel')
 }
 
@@ -414,8 +381,7 @@ export function renderGraph(diagram: GraphDiagram): Line[] {
     if (item.node) drawBox(canvas, item)
   }
   for (const segment of model.segments) drawSegment(canvas, model, segment)
-  // The dummies are drawn last so a line crossing a layer stays unbroken over
-  // whatever the ordering put beside it.
+  // Last, so a line crossing a layer stays unbroken over whatever sits beside it.
   for (const item of model.placed.values()) {
     if (item.node) continue
     if (model.vertical) canvas.vline(item.y, item.y + item.height - 1, item.x, 'solid', 'edge')

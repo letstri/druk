@@ -12,12 +12,10 @@ describe('a non-Latin layout', () => {
     expect(latinKey({ name: 'і' })).toBe('s')
     expect(latinKey({ name: 'ы' })).toBe('s')
     expect(latinKey({ name: 'з' })).toBe('p')
-    // Shift is a separate flag, so the uppercase form is the same key.
     expect(latinKey({ name: 'Ф' })).toBe('a')
   })
 
   test('a base code from the kitty protocol wins over the table', () => {
-    // Layouts the table knows nothing about are covered by this alone.
     expect(latinKey({ name: 'ф', baseCode: 115 })).toBe('s')
     expect(latinKey({ name: 'α', baseCode: 97 })).toBe('a')
     expect(latinKey({ name: 'α' })).toBe('α')
@@ -31,7 +29,6 @@ describe('a non-Latin layout', () => {
 
   test('Ctrl+<Cyrillic> runs the shortcut the key holds', async () => {
     const t = await launch(fixture({ 'a.ts': 'const a = 1\n' }), {}, {}, { kittyKeyboard: true })
-    // Ctrl+з — з is the Ukrainian key at P, so this is Ctrl+P.
     await press(t, i => i.pressKey('з', { ctrl: true }))
     expect(t.captureCharFrame()).toContain('Open file')
   })
@@ -41,7 +38,6 @@ describe('a non-Latin layout', () => {
     const t = await launch(dir, {}, {}, { kittyKeyboard: true })
     await openFile(t, 'a.ts')
     await press(t, i => i.pressKey('x'))
-    // і is the Ukrainian key at S.
     await press(t, i => i.pressKey('і', { ctrl: true }))
     await settle(t, 100)
     expect(readFileSync(join(dir, 'a.ts'), 'utf8')).toContain('x')
@@ -54,11 +50,9 @@ describe('a non-Latin layout', () => {
     expect(t.captureCharFrame()).toContain('ф')
   })
 
-  // The panels spend bare letters on commands, which no chord translation reaches.
   test("a panel's bare letter runs its command", async () => {
     const t = await launch(fixture({ 'a.ts': 'const a = 1\n' }), {}, {}, { kittyKeyboard: true })
     await press(t, i => i.pressArrow('down'))
-    // к is the Ukrainian key at R, which renames the tree's selection.
     await press(t, i => i.pressKey('к'))
     expect(t.captureCharFrame()).toContain('Rename to')
   })
@@ -67,7 +61,6 @@ describe('a non-Latin layout', () => {
     const dir = fixture({ 'a.ts': 'one\ntwo\nthree\n' })
     const t = await launch(dir, { vim: true }, {}, { kittyKeyboard: true })
     await openFile(t, 'a.ts')
-    // в is the Ukrainian key at D: `dd` deletes the line the caret is on.
     await press(t, i => i.pressKey('в'))
     await press(t, i => i.pressKey('в'))
     await press(t, i => i.pressKey('і', { ctrl: true }))
@@ -78,18 +71,13 @@ describe('a non-Latin layout', () => {
   test('vim insert mode still types Cyrillic', async () => {
     const t = await launch(fixture({ 'a.ts': 'one\n' }), { vim: true }, {}, { kittyKeyboard: true })
     await openFile(t, 'a.ts')
-    // ш is the Ukrainian key at I, which enters insert mode; ф then types.
     await press(t, i => i.pressKey('ш'))
     await press(t, i => i.pressKey('ф'))
     expect(t.captureCharFrame()).toContain('ф')
   })
 })
 
-/**
- * A caps-locked key as the kitty protocol reports it *without* the associated-text
- * flag: the key's own codepoint, and the lock as a modifier (64, sent one-based).
- * mockInput has no Caps Lock, so the sequence goes in as bytes.
- */
+// A caps-locked key as kitty reports one: own codepoint, lock as modifier 64 (one-based).
 const capsKey = (t: Harness, char: string, shift = false) => {
   const mods = 1 + 64 + (shift ? 1 : 0)
   t.renderer.stdin.emit('data', Buffer.from(`\x1B[${char.codePointAt(0)};${mods}u`))
@@ -99,7 +87,6 @@ describe('Caps Lock', () => {
   test('locks a letter and is reversed by Shift', () => {
     expect(capsChar('a', false)).toBe('A')
     expect(capsChar('a', true)).toBe('a')
-    // Already uppercase: the terminal reported the text, so this changes nothing.
     expect(capsChar('A', false)).toBe('A')
     expect(capsChar('ф', false)).toBe('Ф')
   })
@@ -128,8 +115,6 @@ describe('Caps Lock', () => {
   })
 })
 
-// Layout text the mock keyboard cannot encode. Flushed, so a save after it
-// reads the edited buffer and not the one before.
 async function send(t: Harness, bytes: string) {
   t.renderer.stdin.emit('data', Buffer.from(bytes))
   await settle(t)
@@ -165,8 +150,6 @@ describe('layout text', () => {
     const dir = fixture({ 'a.txt': '' })
     const t = await launch(dir, {}, {}, { kittyKeyboard: true })
     await openFile(t, 'a.txt')
-    // A control anywhere in the text disqualifies it — after the first code
-    // point and in the C1 range alike — so all three Enters stay Enter.
     await send(t, '\x1B[97;1;97u\x1B[13;1;13u\x1B[13;1;13:97u\x1B[13;1;133u')
     await send(t, '\x1B[9;1;9u\x1B[98;1;98u')
     await press(t, i => i.pressKey('s', { ctrl: true }))

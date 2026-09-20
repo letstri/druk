@@ -4,7 +4,6 @@ import { extname } from 'node:path'
 import { convertIndexedToRgb, decode as decodePng } from 'fast-png'
 import { decode as decodeJpeg } from 'jpeg-js'
 
-/** Formats the viewer can decode. GIF and friends still refuse at the door. */
 const IMAGE_EXTS = new Set(['.png', '.jpg', '.jpeg'])
 
 export function isImagePath(path: string): boolean {
@@ -14,13 +13,11 @@ export function isImagePath(path: string): boolean {
 export interface RawImage {
   width: number
   height: number
-  /** RGBA, 8 bits per channel, row-major. */
+  // RGBA, 8 bits per channel, row-major.
   pixels: Uint8Array
-  /** Size of the file on disk, for the viewer's caption. */
   bytes: number
 }
 
-/** Decode a PNG or JPEG from disk. Throws with a readable message on anything else. */
 export function decodeImage(path: string): RawImage {
   const bytes = readFileSync(path)
   const ext = extname(path).toLowerCase()
@@ -39,7 +36,6 @@ export function decodeImage(path: string): RawImage {
   return { width: jpg.width, height: jpg.height, pixels: jpg.data, bytes: bytes.byteLength }
 }
 
-/** Expand grey/grey-alpha/rgb and 16-bit data to plain RGBA8. */
 function toRgba(
   data: Uint8Array | Uint8ClampedArray | Uint16Array,
   count: number,
@@ -70,18 +66,10 @@ function toRgba(
 export interface CellImage {
   cols: number
   rows: number
-  /**
-   * 8 bytes per cell, row-major: the upper pixel's RGBA then the lower's. A cell
-   * renders as `▀` with the upper pixel as foreground and the lower as background.
-   */
+  // 8 bytes per cell, row-major: the upper pixel's RGBA then the lower's; drawn as `▀`.
   cells: Uint8Array
 }
 
-/**
- * Scale an image onto a cell grid, two pixels per cell vertically — a terminal
- * cell is about twice as tall as wide, so a half-block pixel comes out square.
- * Box-average scaling, never upscaled past one image pixel per half-block.
- */
 export function toCells(img: RawImage, maxCols: number, maxRows: number): CellImage {
   const scale = Math.min(maxCols / img.width, (maxRows * 2) / img.height, 1)
   const cols = Math.max(1, Math.round(img.width * scale))
@@ -95,8 +83,7 @@ export function toCells(img: RawImage, maxCols: number, maxRows: number): CellIm
       cells.set(rgba, cell)
     }
   }
-  // An odd pixel count leaves every lower half of the last row untouched: alpha 0,
-  // which the viewer draws as the pane background.
+  // An odd pixel count leaves the last row's lower halves at alpha 0: the viewer's pane background.
   return { cols, rows, cells }
 }
 

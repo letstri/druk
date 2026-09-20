@@ -8,19 +8,17 @@ import {
   press,
   pressTimes,
   runCommand,
+  spansOf,
+  until,
   untilFrame,
 } from './helpers'
 
-// druk ships no language servers: the specs these tests override live in the
-// market, so the extension that carries them has to be registered first.
 loadMarketExtensions()
 
 const FAKE = join(import.meta.dir, 'fixtures', 'fake-lsp.ts')
 
-/** A definition answer crosses a process boundary; give the fake server room. */
 const LSP_WAIT = 15_000
 
-/** Put the cursor inside the specifier of `import './b'` on the first line. */
 const intoSpecifier = (t: Parameters<typeof pressTimes>[0]) =>
   pressTimes(t, 10, input => input.pressArrow('right'))
 
@@ -38,8 +36,6 @@ test('the file under the cursor opens, relative specifier and alias alike', asyn
   await runCommand(t, 'Open file under cursor')
   await untilFrame(t, 'const beta = 2')
 
-  // The alias goes through the project's own tsconfig, which is the case a
-  // plain path join cannot answer.
   await runCommand(t, 'Open file')
   await untilFrame(t, 'Open file')
   const picker = t.mockInput
@@ -74,8 +70,6 @@ test('go to definition opens where the server points', async () => {
 
   await runCommand(t, 'Go to definition')
   await untilFrame(t, 'const beta = 1', LSP_WAIT)
-  // The fake answers with a LocationLink whose selection range is line 2,
-  // col 7 — the name, not the comment the declaration range starts at.
   await untilFrame(t, 'Ln 2, Col 7', LSP_WAIT)
 }, 30_000)
 
@@ -151,10 +145,6 @@ const gotoLine = async (t: Awaited<ReturnType<typeof launch>>, line: string) => 
   await press(t, input => input.pressEnter())
 }
 
-// The buffer scrolls a moved caret into view by itself, so "the target is on
-// screen" holds without any of this and cannot tell the two apart. What the
-// reveal adds is where it lands: pinned to the bottom edge, only three rows
-// follow it, and the point of jumping to a line is reading what comes after.
 test('a jump off screen centres the target, with the lines after it drawn', async () => {
   const dir = fixture({ 'big.ts': `${numbered(200)}\n` })
   const t = await launch(dir, {}, {}, { openFile: join(dir, 'big.ts') })
@@ -173,8 +163,6 @@ test('a jump to a line already drawn leaves the viewport alone', async () => {
   const top = 'const line91 = 91'
   expect(t.captureCharFrame()).toContain(top)
 
-  // Four lines on — well inside what is already drawn, the step walking search
-  // hits or the problems list takes. Recentring here would slide the text.
   await gotoLine(t, '104')
   await untilFrame(t, 'Ln 104')
   expect(t.captureCharFrame()).toContain(top)
@@ -191,8 +179,6 @@ test('the file picker takes a :line:col suffix and lands on it', async () => {
   const t = await launch(dir)
 
   await pick(t, 'big.ts:111:7')
-  // The suffix is a destination rather than part of the path, so the row is
-  // still there to open — and the footer says where Enter will land.
   expect(t.captureCharFrame()).toContain('at 111:7')
   await press(t, input => input.pressEnter())
   await untilFrame(t, 'Ln 111, Col 7')
@@ -216,3 +202,19 @@ test('a line past the end of the file lands on its last one', async () => {
   await press(t, input => input.pressEnter())
   await untilFrame(t, 'Ln 3')
 }, 20_000)
+
+test('a jump tints its landing row for a moment', async () => {
+  const lines = `${Array.from({ length: 40 }, (_, i) => `const line${i} = ${i}`).join('\n')}\n`
+  const dir = fixture({ 'a.ts': lines })
+  const t = await launch(dir, {}, { width: 100, height: 24 }, { openFile: join(dir, 'a.ts') })
+  await untilFrame(t, 'const line0 = 0')
+
+  await runCommand(t, 'Go to line')
+  t.mockInput.typeText('30')
+  t.mockInput.pressEnter()
+  await untilFrame(t, 'Ln 30, Col 1')
+  const bg = (row: string) => spansOf(t, row).find(span => span.text.trim() === 'const')?.bg
+  const other = bg('const line31 = 31')
+  expect(bg('const line29 = 29')).not.toBe(other)
+  await until(t, () => bg('const line29 = 29') === other, 3_000)
+}, 15_000)

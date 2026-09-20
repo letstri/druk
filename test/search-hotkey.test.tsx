@@ -18,7 +18,6 @@ describe('search hotkeys', () => {
     expect(t.captureCharFrame()).toContain('Search in project')
 
     await press(t, input => void input.typeText('hello'))
-    // The scan is debounced, so the results land a moment after the typing.
     await settle(t, 300)
     const frame = t.captureCharFrame()
     expect(frame).toContain('a.ts')
@@ -33,7 +32,7 @@ describe('search hotkeys', () => {
 
   test('Ctrl+Opt+F reaches the project search, as Terminal.app spells it', async () => {
     const t = await openedProject()
-    // Esc-prefixed Ctrl+F: the bytes Opt puts on the wire.
+    // Esc-prefixed Ctrl+F: what Opt puts on the wire.
     await press(t, input => void input.pressKeys(['\u001B\u0006']))
     expect(t.captureCharFrame()).toContain('Search in project')
   })

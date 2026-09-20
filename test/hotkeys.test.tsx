@@ -19,11 +19,6 @@ async function opened() {
 }
 const frame = (t: Harness) => t.captureCharFrame()
 
-/**
- * One sweep over every key HelpOverlay and the palette advertise. It exists because
- * a dead key is invisible: Tab did nothing in the editor for a long time, and Ctrl+X
- * was once silently swallowed before it could reach the clipboard.
- */
 test('every advertised hotkey does something', async () => {
   const report: string[] = []
   const check = (name: string, ok: boolean) => report.push(`${ok ? 'ok  ' : 'DEAD'}  ${name}`)
@@ -32,7 +27,7 @@ test('every advertised hotkey does something', async () => {
   await press(t, i => void i.pressKeys([F1]))
   check('F1 palette', frame(t).includes('Commands'))
 
-  // Ctrl+Opt+P: Opt sends an ESC prefix ahead of Ctrl+P (0x10).
+  // Opt is an ESC prefix ahead of Ctrl+P (0x10).
   t = await tree()
   await press(t, i => void i.pressKeys([`${ESC}${String.fromCharCode(16)}`]))
   check('Ctrl+Opt+P palette', frame(t).includes('Commands'))
@@ -61,7 +56,7 @@ test('every advertised hotkey does something', async () => {
   await press(t, i => i.pressKey('n', { ctrl: true }))
   check('Ctrl+N new file', frame(t).includes('New file name'))
 
-  // Ctrl+Opt+N: Opt sends an ESC prefix ahead of Ctrl+N (0x0e).
+  // ESC prefix ahead of Ctrl+N (0x0e).
   t = await tree()
   await press(t, i => void i.pressKeys([`${ESC}${String.fromCharCode(14)}`]))
   check('Ctrl+Opt+N new folder', frame(t).includes('New folder name'))
@@ -70,7 +65,7 @@ test('every advertised hotkey does something', async () => {
   await press(t, i => i.pressKey('t', { ctrl: true }))
   check('Ctrl+T switch tab', frame(t).includes('Switch tab'))
 
-  // Ctrl+Opt+G: ESC prefix ahead of Ctrl+G (0x07).
+  // ESC prefix ahead of Ctrl+G (0x07).
   t = await tree()
   await press(t, i => void i.pressKeys([`${ESC}${String.fromCharCode(7)}`]))
   check('Ctrl+Opt+G source control', frame(t).includes('open a repository to use git'))
@@ -97,7 +92,7 @@ test('every advertised hotkey does something', async () => {
   await press(t, i => void i.typeText('a'))
   check('a new file (tree)', frame(t).includes('New file name'))
 
-  // Shift+A should mean "new folder" — terminals send a bare uppercase letter.
+  // Terminals send Shift+A as a bare uppercase letter.
   t = await tree()
   await press(t, i => i.pressArrow('down'))
   await press(t, i => void i.typeText('A'))
@@ -118,8 +113,6 @@ test('every advertised hotkey does something', async () => {
   await press(t, i => i.pressArrow('down'))
   check('Esc editor → tree', frame(t).includes('EXPLORER'))
 
-  // Cut and paste go through the system clipboard, so they can only be swept on
-  // a machine that has one — headless CI has no pbcopy/xclip to round-trip through.
   const clipboard = ['pbcopy', 'wl-copy', 'xclip', 'xsel'].some(tool => Bun.which(tool))
   if (!clipboard) {
     const dead = report.filter(line => line.startsWith('DEAD'))
@@ -128,15 +121,12 @@ test('every advertised hotkey does something', async () => {
     return
   }
 
-  // Cut: select with the mouse, since that is the only way to select now, then
-  // Ctrl+X should remove it.
   const dirCut = fixture(PROJECT)
   t = await launch(dirCut)
   await openFile(t, 'a.ts')
-  // Row 2: the tab strip is row 0 and the breadcrumbs row 1.
-  const alphaAt = frame(t).split('\n')[2]!.indexOf('alpha')
-  await t.mockMouse.drag(alphaAt, 2, alphaAt + 5, 2)
-  await t.mockMouse.release(alphaAt + 5, 2)
+  const alphaAt = frame(t).split('\n')[1]!.indexOf('alpha')
+  await t.mockMouse.drag(alphaAt, 1, alphaAt + 5, 1)
+  await t.mockMouse.release(alphaAt + 5, 1)
   await settle(t)
   await press(t, i => i.pressKey('x', { ctrl: true }))
   await press(t, i => i.pressKey('s', { ctrl: true }))
@@ -150,8 +140,6 @@ test('every advertised hotkey does something', async () => {
 
   await settle(t)
   const dead = report.filter(line => line.startsWith('DEAD'))
-  // Print the whole table only when something is wrong: the failure message names
-  // the dead keys, but the surrounding oks say how far the sweep got.
   if (dead.length > 0) console.error(`\n${report.join('\n')}\n`)
   expect(dead).toEqual([])
 }, 120000)
@@ -161,8 +149,6 @@ test('the help table does not list one key twice with different meanings', () =>
   const keys = rows.map(([key]) => key)
   expect(new Set(keys).size).toBe(keys.length)
 
-  // Ctrl+C both copies and quits; the row has to say so, or it reads as a bug
-  // when the editor exits. This is the row that misled once already.
   const copyRow = rows.find(([key]) => key.includes('Ctrl+C'))!
   expect(copyRow[1].toLowerCase()).toContain('quit')
 })

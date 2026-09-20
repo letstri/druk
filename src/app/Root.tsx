@@ -9,10 +9,7 @@ import { loadExtensions } from '../extensions'
 import { setTheme } from '../themes'
 import { App } from './App'
 
-// Every mounted component reading the terminal size or the keyboard is one
-// `resize` and one `keypress` listener, and the diff page with a prompt over it
-// is past Node's ten without leaking (letstri/druk#100). Finite, so a real leak
-// still lands in the log; `test/listeners.test.tsx` says the count comes back down.
+// Each component reading the terminal or keyboard adds a `resize` and a `keypress` listener (#100).
 const LISTENER_CAP = 64
 
 interface Opened {
@@ -23,16 +20,10 @@ interface Opened {
   config: Config
   project: Partial<Config>
   notice: string | null
-  /** The launch's own workspace — the startup checks belong to it alone. */
   first: boolean
 }
 
-/**
- * `App` on whichever folder is open, remounted when another one is: every
- * controller is built from `rootDir` once, and the keyed `Show` is what runs
- * their `onCleanup` — watchers, servers — the way quitting does. Extensions and
- * the theme are per-project global registries, so they reload ahead of the mount.
- */
+// Controllers are built from `rootDir` once: the keyed `Show` is what runs their `onCleanup`.
 export function Root(props: {
   rootDir: string
   openFile?: string | null
@@ -41,7 +32,6 @@ export function Root(props: {
   initialConfig: Config
   initialProject?: Partial<Config>
   checkUpdates?: boolean
-  /** Read again on a switch — the settings page persists as it edits. */
   reloadConfig?: () => Config
 }) {
   const renderer = useRenderer()

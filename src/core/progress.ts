@@ -1,17 +1,8 @@
-/**
- * The terminal's own progress indicator — OSC 9;4, the tab/title-bar loader
- * Ghostty, WezTerm, iTerm2, kitty, Windows Terminal and recent VTE draw.
- *
- * Always emitting it would be the obvious thing, but old VTE treats OSC 9 as a
- * notification and prints the rest, so a commit would spray `4;3` into the
- * buffer. Only terminals that actually implement the sequence get one.
- */
 export type ProgressState =
   | { kind: 'off' }
   | { kind: 'indeterminate' }
   | { kind: 'percent'; value: number }
 
-/** Force the indicator on or off, for tests and for a terminal we cannot detect. */
 export const PROGRESS_ENV = 'DRUK_PROGRESS'
 
 const BEL = '\x07'
@@ -53,23 +44,13 @@ export function supportsProgress(
 let last = ''
 let exitHookInstalled = false
 
-/**
- * The indicator is the terminal's state rather than ours, so it outlives us: a
- * throw or a `process.exit` while an operation is counting leaves the tab lit
- * until something else resets it. `App`'s `onCleanup` covers the ordinary quit
- * alone. Installed on first use and once, as `src/lsp/client.ts` installs its
- * own — a run that never lit the indicator adds no listener, and a listener per
- * report would trip Node's ten-listener warning over the TUI's frame. A signal
- * that kills us outright still gets no say: `exit` is not emitted then, and a
- * handler for it would be restoring the alt screen too, which is its own job.
- */
+// Once, on first use: a listener per report would trip Node's ten-listener warning.
 function installExitHook(): void {
   if (exitHookInstalled) return
   exitHookInstalled = true
   process.on('exit', () => reportProgress({ kind: 'off' }))
 }
 
-/** Write the sequence for `state`, skipping a no-op repeat and unsupported terminals. */
 export function reportProgress(
   state: ProgressState,
   write: (text: string) => void = text => {
@@ -86,7 +67,6 @@ export function reportProgress(
   if (state.kind !== 'off') installExitHook()
 }
 
-/** So a test can assert one run without the next inheriting its last sequence. */
 export function resetProgress(): void {
   last = ''
 }

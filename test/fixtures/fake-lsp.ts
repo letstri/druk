@@ -1,40 +1,16 @@
-/**
- * A minimal language server for tests: speaks the stdio protocol, answers the
- * handshake, publishes one error diagnostic wherever a document says "oops",
- * answers completion with a fixed list (one item carrying an auto-import
- * style additionalTextEdit, so the whole insertion path is exercised), and
- * sends every definition query to `def.ts` in the project root.
- * Run with `bun test/fixtures/fake-lsp.ts` — the tests point `lspServers` at it.
- */
 import type { CompletionItem, Diagnostic } from '../../src/lsp/protocol'
 import { createDecoder, encodeMessage } from '../../src/lsp/transport'
 
 const send = (message: object) => process.stdout.write(encodeMessage(message))
 
-// Chatter on stderr, the way real servers do — the status page's log shows it.
 process.stderr.write('fake-lsp standing by\n')
 
-/**
- * A message no list row can hold, so the problems modal's detail block has
- * something to spell out. As wordy as a real linter's help text, which is what
- * makes a one-row list unreadable in the first place.
- */
 const NAG = `this is a very wordy diagnostic help: real servers append the rule they
   applied and the fix they suggest to the sentence, which is why one row of a
   list is never enough to read one`
 
-/**
- * One long sentence with no advice in it: `headline` has nothing to drop, so
- * this is the message only the terminal's width can shorten — the other half of
- * what earns the inline note its "there is more" hint.
- */
 const NOT_FOUND = `Cannot find module '@fake/core' or its corresponding type declarations`
 
-/**
- * A wall of a message, the shape rustc and TypeScript's overload errors send:
- * longer than the four rows the problems modal used to reserve, so the card and
- * that block both have to grow to hold the whole of it.
- */
 const WALL = `Argument of type '{ alpha: number; beta: string; gamma: boolean; delta: number[]; epsilon: Record<string, unknown> }' is not assignable to parameter of type 'Options'. Object literal may only specify known properties, and 'epsilon' does not exist in type 'Options'. Consider changing the shape of the object, widening the parameter, or declaring the property on the interface the call site expects, which is the fix a real server spends three paragraphs suggesting to anybody who will read that far.`
 
 const publish = (uri: string, text: string) => {
@@ -61,8 +37,6 @@ const publish = (uri: string, text: string) => {
         code: 'no-oops',
       })
     }
-    // Tagged Deprecated, at the severity a real server sends one at: a hint,
-    // whose whole mark is the strikethrough over the span.
     const stale = lines[line]!.indexOf('stale')
     if (stale >= 0) {
       diagnostics.push({
@@ -73,8 +47,6 @@ const publish = (uri: string, text: string) => {
         source: 'fake',
       })
     }
-    // A range over a whole block, the shape a server sends for "this object is
-    // wrong" — tagged Deprecated so the mark it leaves is assertable as text.
     const sprawl = lines[line]!.indexOf('sprawl')
     if (sprawl >= 0 && line + 2 < lines.length) {
       diagnostics.push({
@@ -93,6 +65,16 @@ const publish = (uri: string, text: string) => {
         message: WALL,
         source: 'fake',
         code: 2345,
+      })
+    }
+    const tip = lines[line]!.indexOf('tip')
+    if (tip >= 0) {
+      diagnostics.push({
+        range: { start: { line, character: tip }, end: { line, character: tip + 3 } },
+        severity: 1,
+        message: 'short gripe help: with advice the row drops',
+        source: 'fake',
+        code: 'terse',
       })
     }
     const nag = lines[line]!.indexOf('nag')
@@ -114,8 +96,6 @@ const COMPLETIONS: CompletionItem[] = [
     kind: 3,
     detail: '() => void',
     insertText: 'drukAlpha()',
-    // The signature/origin pair a modern server draws beside the label; its
-    // documentation is withheld until resolve, as tsserver's is.
     labelDetails: { detail: '(alpha)', description: 'druk/alpha' },
   },
   { label: 'drukBeta', kind: 6, detail: 'number' },
@@ -130,15 +110,9 @@ const COMPLETIONS: CompletionItem[] = [
       },
     ],
   },
-  // No additionalTextEdits here: they arrive only via completionItem/resolve,
-  // the way typescript-language-server serves auto-imports.
   { label: 'drukLazy', kind: 7, detail: 'resolve-import' },
 ]
 
-/**
- * Answered for a prefix of "long": every user-facing string at a hostile length,
- * so `test/long-names.test.tsx` can draw the menu at one.
- */
 const LONG: CompletionItem[] = [
   {
     label: `long${'Name'.repeat(30)}`,
@@ -152,20 +126,13 @@ const LONG: CompletionItem[] = [
   },
 ]
 
-/**
- * Members answered when the position sits after a `.` — distinguishable from
- * the global list above, so a test can tell which scope the server was asked
- * about. sortText mimics tsserver's "own member" rank.
- */
 const MEMBERS: CompletionItem[] = [
   { label: 'memTable', kind: 2, detail: '(n: string) => void', sortText: '11' },
   { label: 'memOther', kind: 5, detail: 'number', sortText: '11' },
 ]
 
-/** Last synced text per uri, to see what character sits before a position. */
 const documents = new Map<string, string>()
 
-/** Where the definition answers point — the project root, from the handshake. */
 let rootUri = ''
 
 process.stdin.on(
@@ -185,8 +152,6 @@ process.stdin.on(
         },
       })
     } else if (message.method === 'textDocument/definition') {
-      // A LocationLink rather than a Location: it is the shape linkSupport asks
-      // for, and the one whose selection range the client has to prefer.
       send({
         jsonrpc: '2.0',
         id: message.id,
@@ -212,8 +177,6 @@ process.stdin.on(
         send({ jsonrpc: '2.0', id: message.id, result: { isIncomplete: false, items } })
       if (line[wordAt - 1] === '.') reply(MEMBERS)
       else if (line.slice(wordAt, position.character).startsWith('long')) reply(LONG)
-      // Globals answer slowly, the way a big project's server does — so a test
-      // can type past the request and prove the stale reply gets dropped.
       else setTimeout(() => reply(COMPLETIONS), 400)
     } else if (message.method === 'completionItem/resolve') {
       const item = message.params as CompletionItem

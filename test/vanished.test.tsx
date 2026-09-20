@@ -7,12 +7,10 @@ import type { Harness } from './helpers'
 
 const PROJECT = { 'a.ts': 'const a = 1\n', 'b.ts': 'const b = 2\n' }
 
-/** Open a file by name through the picker, so it becomes a permanent tab. */
 async function open(t: Harness, name: string) {
   await openFile(t, name)
 }
 
-/** Let the watcher's 80ms debounce fire. */
 async function watcherSettles(t: Harness) {
   await new Promise(resolve => setTimeout(resolve, 300))
   await settle(t)
@@ -31,7 +29,7 @@ describe('a file deleted outside the editor', () => {
 
     const bar = t.captureCharFrame().split('\n')[0]!
     expect(bar).not.toContain('a.ts')
-    expect(bar).toContain('b.ts') // the others are left alone
+    expect(bar).toContain('b.ts')
   })
 
   test('the last tab closing leaves the empty state, not a ghost buffer', async () => {
@@ -57,8 +55,6 @@ describe('a file deleted outside the editor', () => {
     rmSync(join(dir, 'a.ts'))
     await watcherSettles(t)
 
-    // Closing here would throw the edits away; saving is meant to bring the file
-    // back, which is what the deleted-on-disk prompt offers.
     const frame = t.captureCharFrame()
     expect(frame.split('\n')[0]).toContain('a.ts')
     expect(frame).toContain('EDITconst a = 1')

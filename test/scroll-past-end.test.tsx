@@ -6,17 +6,14 @@ import type { Harness } from './helpers'
 
 const long = `${Array.from({ length: 400 }, (_, index) => `line ${index}`).join('\n')}\n`
 
-/** Publishes and clears one diagnostic on a timer, the way a busy server does. */
 const TICK = join(import.meta.dir, 'fixtures', 'tick-lsp.ts')
 
-/** First line number in the gutter, i.e. where the viewport sits. Row 2: the
- * tab strip is row 0 and the breadcrumbs row 1. */
+// First line number in the gutter: where the viewport sits. Row 1, under the tab strip.
 function topLine(t: Harness): number {
-  const row = t.captureCharFrame().split('\n')[2]!
+  const row = t.captureCharFrame().split('\n')[1]!
   return Number(row.trim().split(/\s+/)[0])
 }
 
-/** Open with the sidebar hidden, so the gutter is the first thing on a row. */
 async function openAlone(name: string, content: string, config: Parameters<typeof launch>[1] = {}) {
   const t = await launch(fixture({ [name]: content }), config)
   await openFile(t, name)
@@ -25,7 +22,6 @@ async function openAlone(name: string, content: string, config: Parameters<typeo
   return t
 }
 
-/** Wheel the editor down until it stops moving. */
 async function scrollToBottom(t: Harness) {
   let last = -1
   for (let turn = 0; turn < 200 && topLine(t) !== last; turn++) {
@@ -40,11 +36,9 @@ describe('scrolling past the last line', () => {
   test('the wheel carries on until the last line is at the top', async () => {
     const t = await openAlone('big.ts', long)
 
-    // The file's last line, with only the trailing empty one under it.
     expect(await scrollToBottom(t)).toBe(400)
     const frame = t.captureCharFrame()
     expect(frame).toContain('line 399')
-    // Everything under it is empty: the line before the last is off screen.
     expect(frame).not.toContain('line 398')
   })
 
@@ -66,7 +60,6 @@ describe('scrolling past the last line', () => {
 
     const frame = t.captureCharFrame()
     expect(topLine(t)).toBeLessThan(384)
-    // Full again: the row above the status bar carries a line of the file.
     expect(frame.split('\n').at(-3)).toContain('line ')
   })
 
@@ -82,9 +75,7 @@ describe('scrolling past the last line', () => {
     const top = await scrollToBottom(t)
     expect(top).toBeGreaterThan(395)
 
-    // The server publishes and clears the same error on a timer, which is what
-    // adds and removes the problem track beside the scrollbar — a one-column
-    // resize of the pane, and one that used to re-clamp the viewport.
+    // Fixed wait: the problem track resizes the pane and must not re-clamp the viewport.
     await settle(t, 600)
     expect(topLine(t)).toBe(top)
   }, 30_000)

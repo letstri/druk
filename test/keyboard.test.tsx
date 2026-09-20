@@ -17,7 +17,6 @@ async function openedFile(dir: string) {
 }
 
 describe('focus after an overlay closes', () => {
-  /** Every overlay mounts its own focused input, which takes focus off the textarea. */
   const reopensTyping = (open: (input: Input) => void) => async () => {
     const dir = fixture(PROJECT)
     const t = await openedFile(dir)
@@ -49,11 +48,9 @@ describe('focus after an overlay closes', () => {
 })
 
 describe('chords while the tree has focus', () => {
-  // The tree switches on the bare key name, so a Ctrl chord that reached it used
-  // to fire the plain-letter case: Ctrl+D opened Delete, Ctrl+R Rename, Ctrl+A New.
   const leavesTreeAlone = (letter: string) => async () => {
     const t = await launch(fixture(PROJECT))
-    await press(t, i => i.pressArrow('down')) // select a.ts, focus stays on the tree
+    await press(t, i => i.pressArrow('down'))
 
     await press(t, i => i.pressKey(letter, { ctrl: true }))
     const frame = t.captureCharFrame()
@@ -77,7 +74,6 @@ describe('closing a tab with unsaved edits', () => {
     expect(t.captureCharFrame()).toContain('Unsaved changes')
     expect(t.captureCharFrame()).toContain('a.ts')
 
-    // Cancelling keeps the tab and the edits.
     await pressEscape(t)
     expect(t.captureCharFrame()).toContain('QQQconst a = 1')
   })
@@ -129,9 +125,9 @@ test('go to line rejects something that is not a line number', async () => {
 test('the palette keeps its input and footer on screen when a filter matches everything', async () => {
   const t = await launch(fixture(PROJECT))
   await openPalette(t)
-  await press(t, i => void i.typeText('e')) // matches most of the 50-odd leaves
+  await press(t, i => void i.typeText('e'))
 
   const frame = t.captureCharFrame()
-  expect(frame).toContain('Esc close') // the footer survived
+  expect(frame).toContain('Esc close')
   expect(frame.split('\n').length).toBeLessThanOrEqual(21) // 20 rows plus the trailing newline
 })

@@ -4,10 +4,8 @@ import { filetypeForPath, getSyntaxStyle } from '../src/languages/highlight'
 import { loadMarketExtensions } from './helpers'
 import { allSegments } from './syntax'
 
-// tsrx is a market extension, not one of the preinstalled languages.
 loadMarketExtensions()
 
-/** What each group got painted on, so a pattern change shows up as text. */
 async function painted(source: string) {
   const segments = await allSegments(source, 'tsrx')
   const lines = source.split('\n')
@@ -34,7 +32,6 @@ describe('recognising tsrx files', () => {
 })
 
 describe('painting tsrx files', () => {
-  // Octane indents with tabs, as every file in its repo does.
   const SAMPLE = `import { use } from 'octane';
 
 // Prose naming @for and @try and @{ stays prose.
@@ -71,9 +68,7 @@ export function App(props: { rows: Row[]; step: string }) @{
 }
 `
 
-  // A grammar that names a node it does not have matches nothing, silently. The
-  // whole point of the tsx grammar here is that everything inside `@{ … }` keeps
-  // highlighting, so assert the ordinary tsx tokens as well as the directives.
+  // A grammar that names a node it does not have matches nothing, silently.
   test('the body inside @{ … } highlights as ordinary tsx', async () => {
     const group = await painted(SAMPLE)
 
@@ -105,19 +100,12 @@ export function App(props: { rows: Row[]; step: string }) @{
 
   test('the @ of the body marker, and key, are keywords too', async () => {
     const group = await painted(SAMPLE)
-    // `{` belongs to the grammar as a bracket; only the `@` is ours.
     expect(group('keyword')).toContain('@')
     expect(group('keyword')).toContain('key')
   })
 
   test('a directive named in a comment stays a comment', async () => {
     const group = await painted(SAMPLE)
-    // The overlay is regex-driven and cannot tell prose from code by itself. Left
-    // to specificity alone, `keyword.directive` outranks `comment` and lights up
-    // every mention of a directive in a doc comment. Asserting the line survives
-    // *whole* is what catches that: lighting `@for` inside it splits the comment
-    // into fragments, and the same directive really does appear in the code below,
-    // so no assertion about the keyword group alone can tell the two apart.
     expect(group('comment')).toContain('// Prose naming @for and @try and @{ stays prose.')
   })
 
@@ -137,8 +125,6 @@ export function App(props: { rows: Row[]; step: string }) @{
   })
 
   test('key in an ordinary statement on one line stays plain', async () => {
-    // `; key` is exactly how the clause sits in a `@for` header, so the pattern
-    // needs the `key <expr>)` shape to tell the two apart.
     const group = await painted(
       `export function A() @{\n\trun(); key.press(); key = 2;\n\t@for (const r of rows; key r.id) {\n\t\t<li>{r.id}</li>\n\t}\n}\n`,
     )

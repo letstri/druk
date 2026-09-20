@@ -17,8 +17,31 @@ import {
   untilGone,
 } from './helpers'
 
-// druk ships no language servers: the specs these tests override live in the
-// market, so the extension that carries them has to be registered first.
+const FAKELANG_EXTENSION = {
+  id: 'fakelang',
+  name: 'Fakelang',
+  version: '1.0.0',
+  description: 'a language whose server is never installed',
+  languages: [
+    {
+      id: 'fakelang',
+      extensions: ['.fakelang'],
+      patterns: [{ group: 'keyword', re: '\\bhello\\b', flags: 'g' }],
+    },
+  ],
+  languageServers: [
+    {
+      id: 'fakelang',
+      command: ['druk-no-such-fakelang-server', '--stdio'],
+      filetypes: ['fakelang'],
+      install: { kind: 'npm', packages: ['druk-no-such-fakelang-server'] },
+    },
+  ],
+}
+const fakelangDir = join(process.env.XDG_CONFIG_HOME!, '.druk', 'extensions', 'fakelang')
+mkdirSync(fakelangDir, { recursive: true })
+writeFileSync(join(fakelangDir, 'extension.json'), JSON.stringify(FAKELANG_EXTENSION))
+
 loadMarketExtensions()
 
 const FAKE = join(import.meta.dir, 'fixtures', 'fake-lsp.ts')
@@ -27,7 +50,6 @@ const INIT = join(import.meta.dir, 'fixtures', 'init-lsp.ts')
 const PULL = join(import.meta.dir, 'fixtures', 'pull-lsp.ts')
 const CONFIG = join(import.meta.dir, 'fixtures', 'config-lsp.ts')
 
-/** Diagnostics cross a process boundary; give the fake server room to start. */
 const LSP_WAIT = 15_000
 
 test('diagnostics reach the status bar, the problems list, and next-problem', async () => {
@@ -39,13 +61,9 @@ test('diagnostics reach the status bar, the problems list, and next-problem', as
     { openFile: join(dir, 'a.ts') },
   )
 
-  // The edit reaches the server through the debounced didChange, so this
-  // exercises the whole pipeline, not just the didOpen snapshot.
   await press(t, input => void input.typeText('oops'))
   await untilFrame(t, '● 1', LSP_WAIT)
 
-  // The message is drawn inline after the line's end, before any list opens —
-  // on the same row as the code it belongs to.
   await untilFrame(t, 'found oops', LSP_WAIT)
   const row = t
     .captureCharFrame()
@@ -57,13 +75,11 @@ test('diagnostics reach the status bar, the problems list, and next-problem', as
   await untilFrame(t, 'found oops', LSP_WAIT)
   expect(t.captureCharFrame()).toContain('a.ts:1:1')
 
-  // Enter jumps to the diagnostic and closes the list.
   await press(t, input => input.pressEnter())
   await untilFrame(t, 'Ln 1, Col 1', LSP_WAIT)
   await untilGone(t, 'Enter jumps')
 
-  // Next problem wraps to the same diagnostic and reads it out.
-  await runCommand(t, 'Next problem')
+  await press(t, input => void input.pressKeys(['F8']))
   await untilFrame(t, 'found oops', LSP_WAIT)
 }, 30_000)
 
@@ -76,8 +92,6 @@ test('the problems list carries the rule, the path and the whole message', async
     { openFile: join(dir, 'src/deep/a.ts') },
   )
 
-  // A warning on the first line and an error on the second, so the list has to
-  // put them in an order of its own rather than the file's.
   await press(t, input => void input.typeText('nag'))
   await press(t, input => input.pressArrow('down'))
   await press(t, input => void input.typeText('oops'))
@@ -86,21 +100,15 @@ test('the problems list carries the rule, the path and the whole message', async
   await runCommand(t, 'List problems')
   await untilFrame(t, 'found oops', LSP_WAIT)
   const list = t.captureCharFrame()
-  // The severity tally, the rule that fired, and the path from the project root
-  // rather than the bare file name two directories can share.
   expect(list).toContain('1 error · 1 warning')
   expect(list).toContain('fake(no-oops)')
   expect(list).toContain('src/deep/a.ts:2:')
-  // The error is above the warning whatever order the file has them in. Counted
-  // from the modal's heading: the editor's own inline text is on screen above it.
   const rows = list.split('\n')
   const inList = rows.slice(rows.findIndex(row => row.includes('1 error · 1 warning')))
   expect(inList.findIndex(row => row.includes('found oops'))).toBeLessThan(
     inList.findIndex(row => row.includes('this is a very wordy')),
   )
 
-  // The wordy one's tail fits in no row, so it is only readable once the
-  // selection reaches it and the detail block spells the message out.
   expect(list).not.toContain('never enough to read one')
   await press(t, input => input.pressArrow('down'))
   await untilFrame(t, 'never enough to read one', LSP_WAIT)
@@ -118,10 +126,6 @@ test('the inline note is what broke, and the card under the line says the rest',
 
   await press(t, input => void input.typeText('nag'))
   await untilFrame(t, '▲ 1', LSP_WAIT)
-  // The caret's line is the one the card is under, so the cut row is read from a
-  // line the caret has left: the server's advice is dropped there, an ellipsis
-  // says there is more, and the chord goes with the caret rather than being
-  // repeated down the file.
   await press(t, input => input.pressArrow('down'))
   const row = t
     .captureCharFrame()
@@ -133,8 +137,6 @@ test('the inline note is what broke, and the card under the line says the rest',
   await runCommand(t, 'Show problem at cursor')
   await untilFrame(t, 'No problem on this line', LSP_WAIT)
 
-  // Back on the line, the whole message is on screen — advice included — and
-  // the row above the card no longer says the half of it that fitted.
   await press(t, input => input.pressArrow('up'))
   await untilFrame(t, 'real servers append', LSP_WAIT)
   const framed = t.captureCharFrame()
@@ -144,7 +146,6 @@ test('the inline note is what broke, and the card under the line says the rest',
     'this is a very wordy',
   )
 
-  // The modal is still there for the pane with no room for a card.
   await runCommand(t, 'Show problem at cursor')
   await untilFrame(t, 'Problem at cursor', LSP_WAIT)
   expect(t.captureCharFrame()).toContain('list is never enough to read one')
@@ -154,8 +155,7 @@ test('the inline note is what broke, and the card under the line says the rest',
 
 test('a message only the width shortened is spelled out in the card', async () => {
   const dir = fixture({ 'a.ts': 'const a = 1\n' })
-  // Wide enough for the note to be drawn, narrow enough for it to be cut: the
-  // message carries no advice, so nothing but the terminal shortens it.
+  // Wide enough for the note to be drawn, narrow enough for it to be cut.
   const t = await launch(
     dir,
     { lsp: true, lspServers: { typescript: [process.execPath, FAKE], eslint: [], oxlint: [] } },
@@ -168,6 +168,22 @@ test('a message only the width shortened is spelled out in the card', async () =
   expect(t.captureCharFrame()).toContain('● error')
 }, 30_000)
 
+test('advice the row drops opens the card even where the whole message would fit', async () => {
+  const dir = fixture({ 'a.ts': 'const a = 1\n' })
+  const t = await launch(
+    dir,
+    { lsp: true, lspServers: { typescript: [process.execPath, FAKE], eslint: [], oxlint: [] } },
+    { width: 160, height: 24 },
+    { openFile: join(dir, 'a.ts') },
+  )
+
+  await press(t, input => void input.typeText('tip'))
+  await untilFrame(t, 'with advice the row drops', LSP_WAIT)
+  const framed = t.captureCharFrame()
+  expect(framed).toContain('● error')
+  expect(framed.split('\n').find(line => line.includes('tipconst'))).not.toContain('short gripe')
+}, 30_000)
+
 test('a message longer than the cards used to hold is on screen whole', async () => {
   const dir = fixture({ 'a.ts': 'const a = 1\n' })
   const t = await launch(
@@ -177,16 +193,10 @@ test('a message longer than the cards used to hold is on screen whole', async ()
     { openFile: join(dir, 'a.ts') },
   )
 
-  // Seven rows of message at this width: the card takes what half the pane can
-  // give rather than a fixed eight lines, so the tail is on screen too.
   await press(t, input => void input.typeText('wall'))
   await untilFrame(t, 'Argument of type', LSP_WAIT)
   expect(t.captureCharFrame()).toContain('who will read that far')
 
-  // The modal behind it reserves the rows the message needs rather than four,
-  // which is what puts the advice at the end of it on screen at all. Its block
-  // is still capped — `DETAIL_LINES` — since the rows come out of the list; the
-  // card is where a message of any length is read.
   await runCommand(t, 'Show problem at cursor')
   await untilFrame(t, 'Problem at cursor', LSP_WAIT)
   expect(t.captureCharFrame()).toContain('three paragraphs suggesting')
@@ -194,8 +204,7 @@ test('a message longer than the cards used to hold is on screen whole', async ()
 
 test('the settings page shows the LSP rows and the master toggle flips', async () => {
   const dir = fixture({ 'a.ts': 'const a = 1\n' })
-  // Tall enough for every section: the page windows its rows to what it can draw,
-  // and the language-server rows are the last of them.
+  // Tall: the page windows its rows and the server rows are last.
   const t = await launch(dir, {}, { height: 47 })
 
   await runCommand(t, 'Settings')
@@ -205,31 +214,26 @@ test('the settings page shows the LSP rows and the master toggle flips', async (
 }, 15_000)
 
 test('a missing server with an npm package offers to install it', async () => {
-  // The trigger is the *default* command being absent, which an override would
-  // hide — so this is one of the few tests that depends on the host. php is the
-  // least likely server for a druk developer to have; skip rather than guess.
-  if (Bun.which('intelephense') || !Bun.which('node')) return
-  const dir = fixture({ 'a.php': '<?php\n' })
+  if (!Bun.which('node')) return
+  const dir = fixture({ 'a.fakelang': 'hello\n' })
+  // Wide enough for the decline line: the status bar truncates at the width.
   const t = await launch(
     dir,
     { lsp: true, lspAutoInstall: true },
-    {},
-    { openFile: join(dir, 'a.php') },
+    { width: 130 },
+    { openFile: join(dir, 'a.fakelang') },
   )
 
   await untilFrame(t, 'Language server missing', LSP_WAIT)
-  expect(t.captureCharFrame()).toContain('intelephense is not installed')
+  expect(t.captureCharFrame()).toContain('druk-no-such-fakelang-server is not installed')
   expect(t.captureCharFrame()).toContain('npm')
 
-  // Declining leaves the install line behind, and does not ask again.
   await pressEscape(t)
-  await untilFrame(t, 'npm i -g intelephense')
+  await untilFrame(t, 'npm i -g druk-no-such-fakelang-server')
 }, 30_000)
 
 test('a missing server druk cannot install just says so', async () => {
   const dir = fixture({ 'a.ts': 'const a = 1\n' })
-  // An override rules out the install offer: the hint names the default's
-  // package, which is not what this command is.
   // Wide enough for the whole sentence: the status bar truncates at 80 columns.
   const t = await launch(
     dir,
@@ -261,8 +265,6 @@ test('the chosen TypeScript is handed to the server, and no choice sends nothing
   expect(JSON.parse(readFileSync(dump, 'utf8'))).toEqual({ tsserver: { path: '/opt/ts/lib' } })
   chosen.renderer.destroy()
 
-  // Left empty the server picks for itself — it prefers the open project's own
-  // copy, so sending a path here would override the very thing that should win.
   rmSync(dump)
   const auto = await launch(
     dir,
@@ -282,11 +284,10 @@ test('a server spawns only once a file of its language opens', async () => {
     lspServers: { typescript: [process.execPath, MARKER, marker], eslint: [], oxlint: [] },
   })
 
-  // No file open: nothing may spawn, however long the editor sits there.
+  // Fixed wait: the assertion is that nothing spawns.
   await settle(t, 400)
   expect(existsSync(marker)).toBe(false)
 
-  // A file of another language does not wake the typescript server either.
   await openFile(t, 'readme.md')
   await settle(t, 400)
   expect(existsSync(marker)).toBe(false)
@@ -308,9 +309,6 @@ test('a folded line with a diagnostic on it says both, one after the other', asy
   await runCommand(t, 'Fold block at cursor')
   await untilFrame(t, '⋯ 1 line', LSP_WAIT)
 
-  // Both are drawn absolutely in the slot after the line, so overprinting is
-  // what the two of them used to do — the fold note keeps the slot and the
-  // message follows it.
   const row = t
     .captureCharFrame()
     .split('\n')
@@ -337,7 +335,6 @@ test('inline text hides when the setting is off, the gutter dot stays', async ()
   expect(t.captureCharFrame()).not.toContain('found oops')
 }, 30_000)
 
-/** OpenTUI's TextAttributes.STRIKETHROUGH — bit 7 of a span's attributes. */
 const STRIKETHROUGH = 1 << 7
 
 test('a Deprecated span is struck through, and its neighbours are not', async () => {
@@ -360,7 +357,6 @@ test('a Deprecated span is struck through, and its neighbours are not', async ()
   }
 
   await until(t, () => struck().length > 0, LSP_WAIT)
-  // The tagged span alone: `const` on the same line keeps its letterforms.
   expect(struck()).toEqual(['stale'])
 }, 30_000)
 
@@ -377,8 +373,6 @@ test('a span crossing lines is marked on every line it covers', async () => {
     const frame = t.captureSpans() as unknown as {
       lines: { spans: { text: string; attributes: number }[] }[]
     }
-    // Per line, not per span: a marked stretch is one highlight per syntax
-    // segment under it, so the struck text of a line arrives in several pieces.
     return frame.lines
       .map(line =>
         line.spans
@@ -391,9 +385,6 @@ test('a span crossing lines is marked on every line it covers', async () => {
   }
 
   await until(t, () => struck().length > 1, LSP_WAIT)
-  // From the column it starts at to the end of that line, the line between
-  // whole, and up to the end column on the last — never `const`, and never the
-  // line below the range.
   expect(struck().join(' ')).toBe('sprawl = { a: 1, }')
 }, 30_000)
 
@@ -413,12 +404,9 @@ test('a problem far below the viewport is marked on the track', async () => {
   const marked = frame.flatMap((row, index) => (row.includes('•') ? [index] : []))
 
   expect(marked).toHaveLength(1)
-  // Near the bottom of the track, where line 380 of 400 belongs — seeing that
-  // without scrolling is the whole point of the column.
   expect(marked[0]!).toBeGreaterThan(frame.length * 0.8)
 }, 30_000)
 
-/** Lines in the marker file: one per spawn of the server. */
 const spawns = (marker: string) =>
   existsSync(marker) ? readFileSync(marker, 'utf8').trim().split('\n').length : 0
 
@@ -440,8 +428,6 @@ test('the restart command spawns the servers again and re-opens the documents', 
   await untilFrame(t, 'Restarted language servers')
   await until(t, () => spawns(marker) === 2, LSP_WAIT)
 
-  // The typed text only reaches the new server if the document was opened into
-  // it: a restart that forgot to re-open would leave this diagnostic unreported.
   await press(t, input => void input.typeText('oops'))
   await untilFrame(t, '● 1', LSP_WAIT)
 }, 30_000)
@@ -460,17 +446,10 @@ test('installing dependencies restarts the servers by itself', async () => {
   )
   await until(t, () => spawns(marker) === 1, LSP_WAIT)
 
-  // What `bun install` looks like from the watcher's side. A server started
-  // before this resolved every import against a tree that did not exist.
   mkdirSync(join(dir, 'node_modules', 'left-pad'), { recursive: true })
   writeFileSync(join(dir, 'node_modules', 'left-pad', 'index.js'), 'module.exports = 1\n')
 
-  // A real install is a storm of events; this is one burst, and macOS can drop
-  // a lone burst that lands while a previous event's callback is dispatching
-  // (reproducible under CPU load — the restart then never comes). Touch the
-  // tree again until the restart is seen, slower than the 2s dependency-quiet
-  // window: a faster cadence would reset the debounce on every touch and hold
-  // the restart off forever.
+  // macOS drops fs events under load; touch slower than the 2s window or the debounce resets.
   let touched = Date.now()
   await until(
     t,
@@ -496,12 +475,9 @@ test('a server that only answers pulls still fills the gutter and the list', asy
     { openFile: join(dir, 'a.ts') },
   )
 
-  // Nothing was published: this diagnostic exists only because druk asked for
-  // it after the didOpen.
   await untilFrame(t, 'pulled oops', LSP_WAIT)
   expect(t.captureCharFrame()).toContain('● 1')
 
-  // And it asks again after an edit, or the marks would describe older text.
   await press(t, input => void input.typeText('oops '))
   await untilFrame(t, '● 2', LSP_WAIT)
 }, 30_000)
@@ -512,8 +488,6 @@ test('a file is served by every server for its language, and their marks merge',
     dir,
     {
       lsp: true,
-      // Both serve `typescript` — the market's eslint extension is what makes
-      // the second one resolve at all, and this only swaps its command.
       lspServers: {
         typescript: [process.execPath, FAKE],
         eslint: [process.execPath, CONFIG],
@@ -524,17 +498,39 @@ test('a file is served by every server for its language, and their marks merge',
     { openFile: join(dir, 'a.ts') },
   )
 
-  // One from each server, and neither replaced the other: a publish carries the
-  // sender's marks alone.
   await untilFrame(t, 'found oops', LSP_WAIT)
-  // Two warnings, one per way the settings can arrive: the request the server
-  // makes after the handshake, and the push druk sends unasked. Counted rather
-  // than read off the line — only one message is drawn inline per line, and
-  // both of these land on the first.
   await untilFrame(t, '▲ 2', LSP_WAIT)
   await runCommand(t, 'List problems')
   const list = t.captureCharFrame()
   expect(list).toContain('found oops')
   expect(list).toContain('configured by request')
   expect(list).toContain('configured by push')
+}, 30_000)
+
+test('clicking a note or a card lands the caret on the line under it', async () => {
+  const dir = fixture({ 'a.ts': 'const a = 1\nconst b = 2\n' })
+  const t = await launch(
+    dir,
+    { lsp: true, lspServers: { typescript: [process.execPath, FAKE], eslint: [], oxlint: [] } },
+    { width: 120, height: 24 },
+    { openFile: join(dir, 'a.ts') },
+  )
+
+  await press(t, input => void input.typeText('nag'))
+  await untilFrame(t, '▲ 1', LSP_WAIT)
+  await press(t, input => input.pressArrow('down'))
+  await untilFrame(t, 'Ln 2, Col 4', LSP_WAIT)
+
+  const rows = t.captureCharFrame().split('\n')
+  const at = rows.findIndex(row => row.includes('nagconst'))
+  await t.mockMouse.click(rows[at]!.indexOf('this is a very wordy'), at)
+  await untilFrame(t, 'Ln 1, Col 15', LSP_WAIT)
+
+  // The card covers the line under it: clicking its text is a click on that code.
+  const card = t
+    .captureCharFrame()
+    .split('\n')
+    .findIndex(row => row.includes('real servers append'))
+  await t.mockMouse.click(6, card)
+  await untilFrame(t, 'Ln 3, Col 1', LSP_WAIT)
 }, 30_000)

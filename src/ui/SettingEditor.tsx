@@ -8,34 +8,22 @@ import { cut } from './text'
 import { TextInput } from './TextInput'
 import { useKeys } from './useKeys'
 
-/** One input inside an edit. A lone field needs no label; several do. */
-export interface SettingField {
+interface SettingField {
   label?: string
-  /** What the field opens holding — the value in force, or '' when adding. */
   initial: string
   placeholder?: string
 }
 
-/** A free-text edit floating over a page — the values no list can hold. */
 export interface SettingEdit {
   title: string
-  /** Drawn top to bottom; Tab moves between them, and `apply` gets them in order. */
   fields: SettingField[]
-  /**
-   * Lines under the fields, explaining what the values have to be. Worth
-   * spelling out here rather than in docs: this modal *is* the documentation for
-   * anything a page cannot offer as a list of values.
-   */
   hint?: string[]
   apply: (values: string[]) => void
 }
 
-/** A form over a page: Enter applies what the fields hold, Esc walks away. */
 export function SettingEditor(props: {
   edit: SettingEdit
-  /** The overlay is confined to the page's pane, so the modal sizes to it. */
   paneWidth: number
-  /** The typed values, in field order, or null for Esc. */
   onDone: (values: string[] | null) => void
 }) {
   const [values, setValues] = createSignal(props.edit.fields.map(field => field.initial))
@@ -74,8 +62,7 @@ export function SettingEditor(props: {
                 content={field.label!}
               />
             </Show>
-            {/* Two focused inputs would split the typing between them, so the
-                  field without the cursor is drawn as plain text. */}
+            {/* Two focused inputs split the typing, so the unfocused field is plain text. */}
             <Show
               when={at() === focus()}
               fallback={

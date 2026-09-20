@@ -17,7 +17,6 @@ import type { Harness } from './helpers'
 import { initRepo } from './repo'
 import { tempDir } from './temp'
 
-/** A repository with two committed, then modified, files. */
 function repo() {
   const dir = tempDir('druk-diffpage-')
   const git = (...args: string[]) => execFileSync('git', args, { cwd: dir })
@@ -39,9 +38,7 @@ test('the panel cursor opens the stacked page, under a tab of its own', async ()
   await untilFrame(t, '+ ALPHA')
 
   const frame = t.captureCharFrame()
-  // Every change at once, whichever row the cursor landed on.
   expect(frame).toContain('+ BETA')
-  // The page is a tab, and the files it lists are not tabs of their own.
   expect(tabRow(t)).toContain('Changes')
   expect(tabRow(t)).not.toContain('a.ts')
 })
@@ -51,14 +48,12 @@ test('opening a file from the tree shows it, and leaves the page on the strip', 
   await openDiff(t)
   await untilFrame(t, '+ ALPHA')
 
-  // Back to the file tree, then open a file with the keyboard.
-  // Git → Review → Ext → Files: the strip is a cycle over the sidebar's views.
   await pressTimes(t, 3, i => i.pressTab({ shift: true }))
   await press(t, i => i.pressArrow('down'))
   await press(t, i => i.pressEnter())
   await untilGone(t, '+ ALPHA')
-  expect(t.captureCharFrame()).toContain('BETA') // the file the tree opened
-  expect(tabRow(t)).toContain('Changes') // …and the page is still a tab away
+  expect(t.captureCharFrame()).toContain('BETA')
+  expect(tabRow(t)).toContain('Changes')
 })
 
 test('the page survives switching the sidebar back to the tree', async () => {
@@ -66,11 +61,10 @@ test('the page survives switching the sidebar back to the tree', async () => {
   await openDiff(t)
   await untilFrame(t, '+ ALPHA')
 
-  // Git → Review → Ext → Files: the strip is a cycle over the sidebar's views.
   await pressTimes(t, 3, i => i.pressTab({ shift: true }))
   const frame = t.captureCharFrame()
-  expect(frame).toContain('EXPLORER') // the tree is back in the sidebar…
-  expect(frame).toContain('+ ALPHA') // …and the changes are still on screen
+  expect(frame).toContain('EXPLORER')
+  expect(frame).toContain('+ ALPHA')
 })
 
 test('the settings page also gives way to a file being opened', async () => {

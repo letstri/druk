@@ -13,8 +13,6 @@ import {
 import type { Highlighted, Segment } from '../src/languages/highlight'
 import { allSegments, parseHighlights, WHOLE } from './syntax'
 
-// Every language is an extension now, and the market folder in this repository is
-// where they live — the loader reads it as an extensions folder.
 loadExtensions(process.env.XDG_CONFIG_HOME!, [], MARKET_DIR)
 
 const SAMPLES: Record<string, string> = {
@@ -60,8 +58,6 @@ describe('languages', () => {
   })
 
   test('a label, where there is one, is shorter than the id it replaces', () => {
-    // The point of `label` is that OpenTUI's filetype name is a mouthful. One that
-    // is not shorter is a label with no reason to exist.
     for (const lang of languages().filter(language => language.label)) {
       expect(lang.label!.length).toBeLessThan(lang.id.length)
     }
@@ -73,10 +69,8 @@ describe('languages', () => {
     expect(languageLabel('typescript')).toBe('ts')
     expect(languageLabel('javascript')).toBe('js')
     expect(languageLabel('markdown')).toBe('md')
-    // Everything else is already short enough to show as-is.
     expect(languageLabel('python')).toBe('python')
     expect(languageLabel('css')).toBe('css')
-    // Not a registered filetype at all — the status bar still has to say something.
     expect(languageLabel('plain')).toBe('plain')
   })
 
@@ -89,18 +83,12 @@ describe('languages', () => {
     test(`${filetype} highlights`, async () => {
       expect(languageFor(filetype)).toBeDefined()
       const segs = await allSegments(source, filetype)
-      // At least a comment must be recognised, so the query really ran.
       const comment = getSyntaxStyle().getStyleId('comment')
       expect(segs.some(s => s.styleId === comment)).toBe(true)
     }, 15000)
   }
 })
 
-/**
- * Style id painted over the `occurrence`-th `needle` in `source`, by its first
- * character. Segment coordinates are per line, so the offset has to be walked
- * back into a line and a column first.
- */
 function styleLookup(source: string) {
   const lines = source.split('\n')
   return (segs: Segment[], needle: string, occurrence = 0) => {
@@ -119,7 +107,6 @@ function styleLookup(source: string) {
   }
 }
 
-/** `getStyleId` answers `number | null`, which `toBe` will not take. */
 const isStyle = (found: number | undefined, group: string) =>
   found === getSyntaxStyle().getStyleId(group)
 
@@ -252,8 +239,6 @@ describe('abandoning a highlight that arrived too late', () => {
   const SOURCE = 'const alpha = 1 // note\n'
 
   test('says STALE instead of preparing work nobody will use', async () => {
-    // The parse itself already happened in the worker; the point is to skip the
-    // sort and the per-character segmentation and let the caller drop the result.
     expect(await computeHighlights(SOURCE, 'typescript', 2, () => true)).toBe(STALE)
   })
 
@@ -275,8 +260,6 @@ describe('reusing a parse across tab switches', () => {
     const first = await computeHighlights(source, 'typescript', 2)
     const again = await computeHighlights(source, 'typescript', 2)
     expect(first).not.toBe(STALE)
-    // Identity, not equality: a re-parse would produce an equal object and
-    // still mean the worker round-trip was paid again.
     expect(again).toBe(first)
   })
 
@@ -327,7 +310,7 @@ describe('segmenting a window instead of the document', () => {
   }, 20000)
 })
 
-// The `${var...}` below is Terraform interpolation, not a template literal.
+// Terraform interpolation below, not a template literal.
 /* oxlint-disable no-template-curly-in-string */
 describe('terraform', () => {
   const SOURCE = [
@@ -370,10 +353,7 @@ describe('terraform', () => {
 
   test('a reference inside an interpolation survives the string around it', async () => {
     const segs = await segsFor()
-    // The whole point of `string` painting before `variable`.
     expect(isStyle(styleAt(segs, 'var.prefix'), 'variable')).toBe(true)
-    // Its own theme entry, not the `punctuation` fallback — the closing brace a
-    // line below is the one that lands on plain punctuation.
     expect(isStyle(styleAt(segs, '${'), 'punctuation.special')).toBe(true)
     expect(isStyle(styleAt(segs, 'local.common'), 'variable')).toBe(true)
     expect(isStyle(styleAt(segs, 'var.enabled'), 'variable')).toBe(true)
@@ -381,28 +361,22 @@ describe('terraform', () => {
 
   test('a # that is not a comment is left alone', async () => {
     const segs = await segsFor()
-    // Both are `#` inside a string, and both are why the comment pattern insists
-    // on a leading space or tab rather than matching a bare `#`.
     expect(isStyle(styleAt(segs, '"#ffffff"'), 'string')).toBe(true)
     expect(isStyle(styleAt(segs, '#anchor'), 'string')).toBe(true)
   })
 
   test('comments win the line, including one that comments out code', async () => {
     const segs = await segsFor()
-    // `ami` and its string would otherwise keep property and string colours.
     expect(isStyle(styleAt(segs, 'ami ='), 'comment')).toBe(true)
     expect(isStyle(styleAt(segs, '"abc"'), 'comment')).toBe(true)
     expect(isStyle(styleAt(segs, '// trailing'), 'comment')).toBe(true)
   })
 
   test('the extensions route to a filetype at all', () => {
-    // OpenTUI resolves none of these, so without the lines in `filetypeForPath`
-    // every assertion above would still pass and a real `.tf` would render plain.
     expect(filetypeForPath('main.tf')).toBe('terraform')
     expect(filetypeForPath('infra/prod.tfvars')).toBe('terraform')
     expect(filetypeForPath('terraform.tfvars')).toBe('terraform')
     expect(filetypeForPath('packer.hcl')).toBe('hcl')
-    // Not swept up by a suffix that merely ends in the same letters.
     expect(filetypeForPath('shelf.ts')).toBe('typescript')
   })
 

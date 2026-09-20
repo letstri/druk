@@ -5,7 +5,7 @@ import { join } from 'node:path'
 import { fixture, launch, press, pressEscape, settle } from './helpers'
 import type { Harness } from './helpers'
 
-/** The terminal's focus-out report (DECSET 1004), as a raw stdin sequence. */
+// The terminal's focus-out report (DECSET 1004), as a raw stdin sequence.
 const blur = (t: Harness) => press(t, input => input.pressKey('\u001B[O'))
 
 async function edited(config: { autoSaveOnBlur: boolean }) {

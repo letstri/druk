@@ -17,7 +17,6 @@ const a = 1
 
 const frame = (t: Harness) => t.captureCharFrame()
 
-/** Open \`doc.md\` and switch it to the rendered view. */
 async function render(t: Harness) {
   await openFile(t, 'doc.md')
   await runCommand(t, 'Markdown: rendered')
@@ -29,13 +28,11 @@ test('a markdown tab renders its document, and switches back to the source', asy
   await render(t)
 
   const shown = frame(t)
-  // The markers are concealed in the rendered view — the text they marked stays.
   expect(shown).toContain('Title')
   expect(shown).not.toContain('# Title')
   expect(shown).toContain('bold')
   expect(shown).toContain('first item')
   expect(shown).toContain('const a = 1')
-  // The tab keeps its name and gains the reading mark, rather than opening a second tab.
   expect(shown).toContain('¶ doc.md')
 
   await runCommand(t, 'Markdown: rendered')

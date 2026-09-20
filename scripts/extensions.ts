@@ -1,12 +1,3 @@
-/**
- * Regenerate `extensions/index.json` — the market's catalog.
- *
- * Every manifest goes through `parseManifest`, the editor's own validator, so a
- * extension that druk could not use cannot reach the index; the run fails instead.
- * `test/extensions-repo.test.ts` asserts the committed index equals what this
- * writes, which is what makes forgetting `bun run extensions` a failing check
- * rather than a market that quietly lists the wrong version.
- */
 import { readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -19,7 +10,6 @@ import type { Extension } from '../src/extensions/types'
 export const MARKET_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'extensions')
 export const INDEX_FILE = join(MARKET_DIR, 'index.json')
 
-/** Every extension folder in the market, in the order the index lists them. */
 export function marketIds(dir = MARKET_DIR): string[] {
   return readdirSync(dir, { withFileTypes: true })
     .filter(entry => entry.isDirectory())
@@ -27,10 +17,6 @@ export function marketIds(dir = MARKET_DIR): string[] {
     .toSorted()
 }
 
-/**
- * Every market manifest, parsed. Throws on one druk would reject — an extension that
- * loses a contribution to a typo must not reach the index looking complete.
- */
 export function readMarket(dir = MARKET_DIR): Extension[] {
   return marketIds(dir).map(id => {
     const source = join(dir, id, 'extension.json')

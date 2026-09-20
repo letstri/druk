@@ -13,8 +13,7 @@ function repo() {
   const dir = tempDir('druk-blobs-')
   initRepo(dir)
   writeFileSync(join(dir, 'a.txt'), 'one\ntwo\n')
-  // Multi-byte: the batch header counts bytes, so a header parsed against a
-  // string's length would cut every blob after this one in the wrong place.
+  // The batch header counts bytes, not string length.
   writeFileSync(join(dir, 'b.txt'), 'héllo — ünïcode\n')
   writeFileSync(join(dir, 'c.txt'), 'crlf\r\nlines\r\n')
   git(dir, 'add', '-A')
@@ -40,7 +39,6 @@ describe('blobTexts', () => {
     expect(texts.get('HEAD:./b.txt')).toBe('héllo — ünïcode\n')
     expect(texts.get(':./a.txt')).toBe('one\ntwo\nthree\n')
     expect(texts.get('HEAD:./missing.txt')).toBeNull()
-    // CRLF is normalized, or the working-tree side would diff as every line changed.
     expect(texts.get('HEAD:./c.txt')).toBe('crlf\nlines\n')
   })
 

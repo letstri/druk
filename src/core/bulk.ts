@@ -1,40 +1,19 @@
-/**
- * File operations that report progress instead of freezing the editor.
- *
- * `fs.rmSync(node_modules, { recursive: true })` is one call that takes tens of
- * seconds and blocks the loop for all of it: no repaint, no spinner, nothing to
- * tell you the editor is alive rather than hung. These walk the top level of
- * each target instead, doing one entry at a time and handing the loop back
- * between them, so a status line can count up while the work runs.
- *
- * Entry granularity, not file: recursing to every leaf of a 100 000-file tree
- * costs far more than letting the OS delete a package directory in one go, and
- * a few hundred ticks is already a smooth-looking count.
- */
 import fs from 'node:fs'
 import { basename, dirname, join } from 'node:path'
 
 export interface BulkProgress {
   done: number
-  /** Entries known to be in this pass; grows as directories are opened. */
   total: number
 }
 
 export interface BulkResult {
   done: number
-  /** Names that could not be handled, for the message afterwards. */
   failed: string[]
-  /** Where each target ended up, for callers that track paths — open tabs do. */
   moved: Array<{ from: string; to: string }>
 }
 
-/** Hand the event loop back so the renderer can paint the count. */
 const yieldToLoop = () => new Promise<void>(resolve => setTimeout(resolve, 0))
 
-/**
- * Entries to work through for one target: a directory's children, so progress
- * moves, or the target itself when it is a file or cannot be opened.
- */
 async function unitsOf(path: string): Promise<string[]> {
   try {
     if (!(await fs.promises.stat(path)).isDirectory()) return [path]
@@ -55,8 +34,7 @@ export async function removeAll(
 
   for (const target of targets) {
     const units = await unitsOf(target)
-    // Cumulative, not this target's own count: `done` never resets, so a
-    // per-target total read as "Deleting 15/4" the moment a second target began.
+    // Cumulative: `done` never resets, so a per-target total reads "Deleting 15/4".
     total += units.length
     for (const unit of units) {
       try {
@@ -68,7 +46,6 @@ export async function removeAll(
       onProgress({ done, total })
       await yieldToLoop()
     }
-    // The directory itself, now that its children are gone.
     if (units[0] !== target) {
       try {
         await fs.promises.rm(target, { recursive: true, force: true })
@@ -117,11 +94,6 @@ export const copyAll = (
   onProgress: (progress: BulkProgress) => void,
 ): Promise<BulkResult> => transferAll(targets, dir, name, onProgress, copyInto)
 
-/**
- * Move each target into `dir`. A rename across filesystems fails with `EXDEV`,
- * so those fall back to copy-then-delete — dragging something in from `/tmp` is
- * an ordinary thing to do and must not simply be refused.
- */
 export const moveAll = (
   targets: string[],
   dir: string,

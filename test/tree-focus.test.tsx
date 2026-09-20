@@ -16,10 +16,7 @@ const hex = (bg: Span['bg']) =>
     ? `#${Array.from(bg.buffer.slice(0, 3), v => v.toString(16).padStart(2, '0')).join('')}`
     : undefined
 
-/** The tree row painted with the focused-selection background, if any. */
 function selectedRow(frame: Frame): string {
-  // Two shades mean "this is the selection": one for a focused tree, a dimmer
-  // one while the editor holds focus.
   const marks = new Set([ui.treeSelectedBg.toLowerCase(), ui.treeFocusBg.toLowerCase()])
   for (const line of frame.lines) {
     if (marks.has(hex(line.spans[0]?.bg) ?? '')) {
@@ -59,11 +56,9 @@ describe('focusing the tree', () => {
       await openFile(t, name)
     }
     await open('aaa.ts')
-    await open('zzz.ts') // 40 rows further down the tree
+    await open('zzz.ts')
     expect(selectedRow(t.captureSpans() as unknown as Frame)).toContain('zzz.ts')
 
-    // Ctrl+T back to the first file: focus stays in the editor, but the tree
-    // still has to show which file is open.
     await press(t, input => input.pressKey('t', { ctrl: true }))
     await press(t, input => void input.typeText('aaa'))
     await press(t, input => input.pressEnter())

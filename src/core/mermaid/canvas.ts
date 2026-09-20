@@ -1,23 +1,12 @@
-/**
- * A grid of terminal cells the diagram renderers draw into, plus the role of
- * each cell so the view can colour borders, labels and edges apart.
- *
- * Lines are not written as characters but as the directions they leave a cell
- * in, and the glyph is chosen once everything has been drawn. Writing '─' over
- * '│' cannot know whether that cell is a crossing, a corner or a tee — the
- * accumulated directions can.
- */
-
 export type Role = 'border' | 'label' | 'edge' | 'edgeLabel' | 'title' | 'muted'
 
 export type Stroke = 'solid' | 'dotted' | 'thick'
 
-export interface Segment {
+interface Segment {
   text: string
   role: Role
 }
 
-/** One rendered row: runs of equal role, trailing blanks dropped. */
 export type Line = Segment[]
 
 const NORTH = 1
@@ -25,7 +14,7 @@ const EAST = 2
 const SOUTH = 4
 const WEST = 8
 
-/** Indexed by the direction bits leaving the cell. */
+// Indexed by the direction bits leaving the cell.
 const GLYPHS: Record<Stroke, string[]> = {
   solid: [' ', '│', '─', '└', '│', '│', '┌', '├', '─', '┘', '─', '┴', '┐', '┤', '┬', '┼'],
   dotted: [' ', '┆', '┄', '└', '┆', '┆', '┌', '├', '┄', '┘', '┄', '┴', '┐', '┤', '┬', '┼'],
@@ -54,8 +43,6 @@ export class Canvas {
     }
   }
 
-  /** An explicit glyph — a box border, an arrowhead, a letter. It wins over any
-   * line that runs through the same cell. */
   set(x: number, y: number, char: string, role: Role): void {
     if (x < 0 || y < 0) return
     this.reserve(x, y)
@@ -64,8 +51,7 @@ export class Canvas {
   }
 
   text(x: number, y: number, text: string, role: Role): void {
-    // Code points, not UTF-16 units: a label may hold anything, and half of an
-    // astral pair in a cell is a broken glyph rather than a narrow one.
+    // Code points, not UTF-16 units: half an astral pair in a cell is a broken glyph.
     let at = x
     for (const char of text) {
       this.set(at, y, char, role)

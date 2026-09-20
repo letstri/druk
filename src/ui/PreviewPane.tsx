@@ -13,55 +13,29 @@ import { cut } from './text'
 export interface PreviewPaneProps {
   path: string
   isDir: boolean
-  /**
-   * The open buffer's text where the file has one: an unsaved edit is part of the
-   * file being looked at, and the copy on disk would show it without them.
-   */
   buffer?: string
-  /** Columns the pane owns — the editor slot, not the terminal. */
   width: number
-  /** Rows the pane owns. */
   height: number
-  /** Page keys from the tree, which keeps the keyboard while this pane is up. */
   scroll: { pages: number; at: number } | null
   onFocus: () => void
 }
 
-/**
- * Past this the file is named rather than shown. Nothing is being edited here, so
- * the cost is all loss: the read allocates the whole file and the highlight pass
- * runs on it, and both happen again on every step through the tree.
- */
+// Past this the file is named rather than shown: read and highlight run on every step.
 const MAX_PREVIEW_BYTES = 512 * 1024
 
-/** What the pane has to draw for the row the cursor is on. */
-type Shown =
-  | { kind: 'text'; text: string }
-  | { kind: 'image' }
-  /** Nothing to render: a folder, a viewer format, or a file that would not read. */
-  | { kind: 'note'; note: string }
+type Shown = { kind: 'text'; text: string } | { kind: 'image' } | { kind: 'note'; note: string }
 
 const sizeLabel = (bytes: number) =>
   bytes >= 1024 * 1024
     ? `${(bytes / (1024 * 1024)).toFixed(1)} MB`
     : `${Math.round(bytes / 1024)} KB`
 
-/**
- * Quick look at the row under the tree's cursor: the file drawn over the editor
- * slot without a tab, a buffer, or anything written back. It takes no keys of its
- * own — the tree keeps them, so ↑↓ walks files while this follows along.
- */
 export function PreviewPane(props: PreviewPaneProps) {
-  /**
-   * Fenced highlighting goes through the client druk vendored its grammars into,
-   * as the diff and markdown panes do — letting `<code>` default would spin up a
-   * second, empty one.
-   */
+  // `<code>`'s default client would be a second, empty one with no vendored grammars.
   const [client, setClient] = createSignal<TreeSitterClient | null | undefined>(undefined)
   onMount(() => void highlightClient().then(c => setClient(c)))
 
-  // Keyed on the painted theme, including a live preview: the style table is
-  // rebuilt when the palette changes and `<code>` has to be handed the new one.
+  // Keyed on the painted theme: the style table is rebuilt when the palette changes.
   const style = createMemo(
     on(
       () => paintedTheme(),
@@ -71,7 +45,6 @@ export function PreviewPane(props: PreviewPaneProps) {
 
   let box: ScrollBoxRenderable | undefined
 
-  /** Rows a page spans — the pane is the editor slot: tabs, header and status off. */
   const page = () => Math.max(1, props.height - 2)
 
   createEffect(
@@ -84,9 +57,7 @@ export function PreviewPane(props: PreviewPaneProps) {
     ),
   )
 
-  // The cursor moved to another file: this is a different document, not a scrolled
-  // one. Deliberately not keyed on the content, which changes under an open buffer
-  // on every keystroke in the editor.
+  // Keyed on the path, not the content, which changes on every keystroke in the editor.
   createEffect(
     on(
       () => props.path,
@@ -127,7 +98,6 @@ export function PreviewPane(props: PreviewPaneProps) {
     return what.kind === 'text' ? what.text : null
   })
 
-  /** The hints, or the short spelling once the header cannot hold both. */
   const hints = () => {
     const full = ' preview · Enter opens · Space closes '
     return full.length + 12 <= props.width ? full : ' preview · Esc '
@@ -176,8 +146,7 @@ export function PreviewPane(props: PreviewPaneProps) {
             trackOptions: { foregroundColor: ui.scrollbar, backgroundColor: ui.solidBg },
           }}
         >
-          {/* Wrapped whatever the editor's own `wrap` says: nothing here scrolls
-              sideways, so an unwrapped long line would simply be unreadable. */}
+          {/* Wrapped whatever the editor's `wrap` says: nothing here scrolls sideways. */}
           <code
             content={text() ?? ''}
             filetype={filetypeForPath(props.path)}

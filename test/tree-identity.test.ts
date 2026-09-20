@@ -17,8 +17,6 @@ test('a refresh keeps the TreeNode identity of unchanged rows', () => {
     tree.refreshTree()
     const after = tree.nodes()
 
-    // The tree's <For> keys rows by object: a fresh object per path would tear
-    // down and rebuild every visible row on every watcher tick.
     expect(after.length).toBe(before.length + 1)
     for (const node of before) {
       expect(after.find(other => other.path === node.path)).toBe(node)

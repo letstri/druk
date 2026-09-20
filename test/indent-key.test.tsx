@@ -5,7 +5,6 @@ import { join } from 'node:path'
 import type { Config } from '../src/core/config'
 import { fixture, launch, press } from './helpers'
 
-/** Open the only file and return a reader for what lands on disk. */
 async function editor(content: string, config: Partial<Config> = {}) {
   const dir = fixture({ 'a.ts': content })
   const t = await launch(dir, config)
@@ -27,7 +26,6 @@ describe('Tab in the editor', () => {
 
   test('aligns to the next tab stop instead of always inserting a full width', async () => {
     const { t, saved } = await editor('hello\n', { tabSize: 4 })
-    // From column 1, a full width would overshoot to 5; the stop is 4.
     await press(t, input => input.pressArrow('right'))
     await press(t, input => input.pressTab())
     expect(await saved()).toBe('h   ello\n')
@@ -42,17 +40,13 @@ describe('Tab in the editor', () => {
   test('does not move focus to the tree — Esc does that', async () => {
     const { t } = await editor('hello\n')
     await press(t, input => input.pressTab())
-    // Still in the editor, so typing keeps landing in the buffer.
     await press(t, input => void input.typeText('X'))
     expect(t.captureCharFrame()).toContain('X')
     expect(t.captureCharFrame()).toContain('Ln 1')
   })
 })
 
-/**
- * Terminals send CSI Z for a back-tab. The mock's `pressKey('tab', { shift: true })`
- * types the literal string "tab" instead, so these drive the real bytes.
- */
+// Terminals send CSI Z for a back-tab; `pressKey('tab', { shift: true })` types "tab".
 const BACK_TAB = `${String.fromCharCode(27)}[Z`
 
 describe('Shift+Tab in the editor', () => {
@@ -90,7 +84,6 @@ describe('word wrap', () => {
     await press(t, input => input.pressArrow('down'))
     await press(t, input => input.pressEnter())
 
-    // Wrapped onto following rows rather than running off the right edge.
     expect(t.captureCharFrame()).toContain('TAIL_MARKER')
   })
 })

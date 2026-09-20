@@ -5,9 +5,7 @@ import { join } from 'node:path'
 import { tempDir } from './temp'
 
 const root = join(import.meta.dir, '..')
-// Never the repo's own dist/: a run killed partway through would otherwise leave the
-// binaries a developer just built moved aside, and scripts/test.ts does kill a file
-// that outlasts its cap.
+// Never the repo's own dist/: a killed over-cap file leaves the developer's binaries moved aside.
 const dist = tempDir('druk-release-')
 afterAll(() => rmSync(dist, { recursive: true, force: true }))
 

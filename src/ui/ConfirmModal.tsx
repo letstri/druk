@@ -11,9 +11,7 @@ import { useKeys } from './useKeys'
 export interface ConfirmModalProps {
   message: string
   title: string
-  /** Verb for the footer, e.g. "push" renders "Enter to push". */
   verb: string
-  /** Red border and title, for anything that throws work away. */
   danger?: boolean
   onConfirm: () => void
   onCancel: () => void
@@ -37,8 +35,7 @@ export function ConfirmModal(props: ConfirmModalProps) {
   const accent = () => (props.danger ? ui.error : ui.accent)
 
   return (
-    // Above every panel: a confirm can be raised over the search panel, and a
-    // prompt the thing it suspends can paint over is no prompt at all.
+    // Above every panel: a confirm is raised over the search panel too.
     <ModalPanel zIndex={200} width={width()} title={` ${props.title} `} accent={accent()}>
       <For each={lines()}>{line => <text fg={ui.text} bg={ui.panelBg} content={line} />}</For>
       <text fg={ui.panelBg} bg={ui.panelBg} content="" />

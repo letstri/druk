@@ -1,11 +1,4 @@
-// The mock is druk's own UI drawn as text: history arrows and tab strip, the
-// sidebar with its Files/Git/Review/Ext view strip and explorer header, the
-// tree with git letters, the editor, and a status bar with the footer hints.
-//
-// Every string here is a JS literal rather than JSX text, and has to stay one:
-// the formatter collapses runs of spaces inside JSX text, and this all renders
-// in a <pre>, where that is a visible change — code indentation and the gaps
-// that line the columns up both come out of these strings.
+// Every string stays a JS literal: the formatter collapses runs of spaces in JSX text.
 type Span = [cls: string, text: string]
 
 interface MockRow {
@@ -18,13 +11,11 @@ interface MockRow {
   caret?: boolean
 }
 
-// Columns the sidebar occupies. A row's spans are padded out to it, so the
-// gutter starts at the same column on every line.
+// Sidebar width in columns; every sidebar row is padded to it or the gutter drifts.
 const SB = 24
 
 const width = (spans: Span[]) => spans.reduce((n, [, t]) => n + [...t].length, 0)
 
-/** Pads a sidebar row to SB columns, keeping `mark` (a git letter, a ◆) at the right edge. */
 function side(text: string, mark?: Span): Span[] {
   if (!mark) return [['', text.padEnd(SB)]]
   return [['', text.padEnd(SB - 2)], mark, ['', ' ']]

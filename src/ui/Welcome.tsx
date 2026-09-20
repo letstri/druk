@@ -5,23 +5,14 @@ import { createMemo, For, Show } from 'solid-js'
 import { ui } from '../themes'
 import { welcomeKeys } from './keys'
 
-/** Terminal rows the tabs, status bar and the block's own header take, so the
- * key list can be trimmed to what is left instead of overflowing the pane. */
 const CHROME_ROWS = 8
 
 export interface WelcomeProps {
-  /** Folder druk was opened in, as the tree titles it. */
   rootName: string
   branch: string | null
   version: string
 }
 
-/**
- * The empty editor. Keys come from `keys.ts` so a rebinding cannot leave this
- * screen advertising the old chord, and the key column is padded to a common
- * width — every row is its own centred text renderable, so without the padding
- * the columns stagger.
- */
 export function Welcome(props: WelcomeProps) {
   const dimensions = useTerminalDimensions()
   const rows = createMemo(() => {
@@ -39,11 +30,7 @@ export function Welcome(props: WelcomeProps) {
       alignItems="center"
       justifyContent="center"
     >
-      {/* One left-aligned block, centred as a whole: centring each row on its own
-          is what made the key column stagger. The block is sized by its widest
-          row, so it needs the cap — a folder and a branch both named after a
-          whole issue title made it wider than the pane, and it drew over the
-          sidebar rather than being clipped at the pane's edge. */}
+      {/* One block centred as a whole, and capped: a long branch name would widen it past the pane. */}
       <box flexDirection="column" backgroundColor={ui.bg} alignItems="flex-start" maxWidth="100%">
         <text
           fg={ui.accent}

@@ -8,15 +8,11 @@ import type { Harness } from './helpers'
 import { tempDir } from './temp'
 
 const ESC = String.fromCharCode(27)
-/** Ctrl+Opt+G as terminals spell it: an ESC prefix ahead of Ctrl+G (0x07). */
+// Ctrl+Opt+G as terminals spell it: an ESC prefix ahead of Ctrl+G (0x07).
 const TOGGLE = `${ESC}${String.fromCharCode(7)}`
 
 const git = (cwd: string, ...args: string[]) => execFileSync('git', args, { cwd })
 
-/**
- * A clone one commit behind its upstream and one ahead of it — one row in each
- * sync section — with a clean working tree, so the sections are all there is.
- */
 function adrift() {
   const base = tempDir('druk-adrift-')
   const origin = join(base, 'origin.git')
@@ -46,7 +42,6 @@ function adrift() {
   writeFileSync(join(mine, 'local.ts'), 'const l = 1\n')
   git(mine, 'add', '.')
   git(mine, 'commit', '-qm', 'mine alone')
-  // The incoming side is measured against origin/main, which only moves here.
   git(mine, 'fetch', '-q')
   return mine
 }
@@ -69,10 +64,8 @@ test('Enter on an incoming commit opens its page, Esc puts the panel back', asyn
   await press(t, i => void i.pressKeys([TOGGLE]))
   await untilFrame(t, 'from elsewhere')
 
-  // The cursor opens on the Incoming heading; the first commit sits under it.
   await press(t, i => i.pressArrow('down'))
   await press(t, i => i.pressEnter())
-  // The commit's own diff: the file it added, with its content.
   await untilFrame(t, 'const r = 1')
 
   await pressEscape(t)
@@ -89,7 +82,7 @@ test('a sync heading folds its commits away and keeps the count', async () => {
   await until(t, () => !frame(t).includes('from elsewhere'))
   const shown = frame(t)
   expect(shown).toContain('Incoming')
-  expect(shown).toContain('mine alone') // the other section is untouched
+  expect(shown).toContain('mine alone')
 })
 
 test('opening a file closes the commit page it would open behind', async () => {
@@ -101,8 +94,6 @@ test('opening a file closes the commit page it would open behind', async () => {
   await press(t, i => i.pressEnter())
   await untilFrame(t, 'const r = 1')
 
-  // Back to the file tree and into a file: the page is a layer over the editor
-  // slot, not a tab, so nothing else takes it down.
   await pressTimes(t, 3, i => i.pressTab({ shift: true }))
   await press(t, i => i.pressEnter())
 

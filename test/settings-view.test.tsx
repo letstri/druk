@@ -14,15 +14,11 @@ import {
 } from './helpers'
 import type { Harness } from './helpers'
 
-// The themes these tests name are market extensions now.
 loadMarketExtensions()
 
 const PROJECT = { 'a.ts': 'const a = 1\n' }
 
-/**
- * One flush per key: a burst of arrow sequences in one chunk is parsed as fewer
- * keys than were sent, which would leave the selection above the wanted row.
- */
+// One flush per key: a burst of arrow sequences in one chunk parses as fewer keys than were sent.
 async function down(t: Harness, times: number) {
   for (let step = 0; step < times; step++) await press(t, i => i.pressArrow('down'))
 }
@@ -40,14 +36,12 @@ test('the palette opens the settings page over the editor slot', async () => {
   expect(frame).toContain('Theme')
   expect(frame).toContain('Vim mode')
   expect(frame).toContain('Follow OS appearance')
-  // The tree stays put beside the page.
   expect(frame).toContain('a.ts')
 })
 
 test('Enter flips a boolean, the row and the config file follow', async () => {
   const t = await launch(fixture(PROJECT))
   await runCommand(t, 'Settings')
-  // Theme, Follow OS, Light, Dark, Transparent, Icons, Tab icons, Tooltips, Title → Vim mode
   await down(t, 9)
   await press(t, i => i.pressEnter())
   const row = t
@@ -56,7 +50,6 @@ test('Enter flips a boolean, the row and the config file follow', async () => {
     .find(line => line.includes('Vim mode'))!
   expect(row.trimEnd().endsWith('on')).toBe(true)
   expect(JSON.parse(readFileSync(CONFIG_FILE, 'utf8')).vim).toBe(true)
-  // Flip it back: the page is still up and the same key keeps working.
   await press(t, i => i.pressEnter())
   expect(JSON.parse(readFileSync(CONFIG_FILE, 'utf8')).vim).toBe(false)
 })
@@ -64,7 +57,7 @@ test('Enter flips a boolean, the row and the config file follow', async () => {
 test('arrows cycle a multi-value setting in both directions', async () => {
   const t = await launch(fixture(PROJECT))
   await runCommand(t, 'Settings')
-  await down(t, 13) // Tab size
+  await down(t, 13)
   const size = () =>
     t
       .captureCharFrame()
@@ -76,7 +69,6 @@ test('arrows cycle a multi-value setting in both directions', async () => {
   expect(size().endsWith('4')).toBe(true)
   await press(t, i => i.pressArrow('left'))
   expect(size().endsWith('2')).toBe(true)
-  // Wraps below the first entry instead of dying.
   await press(t, i => i.pressArrow('left'))
   expect(size().endsWith('8')).toBe(true)
 })
@@ -106,7 +98,6 @@ test('Ctrl+W closes the page before any file tab', async () => {
   await press(t, i => i.pressKey('w', { ctrl: true }))
   const frame = t.captureCharFrame()
   expect(frame).not.toContain('Vim mode')
-  // The tab survived — only the page went.
   expect(frame).toContain('const a = 1')
 })
 
@@ -122,11 +113,10 @@ test('opening a file from the fuzzy picker closes the page', async () => {
 test('Enter on the theme row opens a filterable list and picks by search', async () => {
   const t = await launch(fixture(PROJECT))
   await runCommand(t, 'Settings')
-  await press(t, i => i.pressEnter()) // Theme is the first row
+  await press(t, i => i.pressEnter())
   const frame = t.captureCharFrame()
   expect(frame).toContain('Type to filter')
   expect(frame).toContain('GitHub Dark')
-  // Nord is far down a 26-entry list — the filter is how you reach it at all.
   expect(frame).not.toContain('Nord')
   await press(t, i => void i.typeText('nord'))
   expect(t.captureCharFrame()).toContain('Nord')
@@ -157,14 +147,14 @@ test('Esc backs out of the list to the page without changing anything', async ()
   await pressEscape(t)
   const frame = t.captureCharFrame()
   expect(frame).not.toContain('Type to filter')
-  expect(frame).toContain('Vim mode') // still on the page
+  expect(frame).toContain('Vim mode')
   expect(frame.split('\n').find(line => line.includes('Theme'))!).toContain('Nord')
 })
 
 test('booleans still flip on Enter without a list', async () => {
   const t = await launch(fixture(PROJECT))
   await runCommand(t, 'Settings')
-  await down(t, 9) // Vim mode
+  await down(t, 9)
   await press(t, i => i.pressEnter())
   expect(t.captureCharFrame()).not.toContain('Type to filter')
   expect(JSON.parse(readFileSync(CONFIG_FILE, 'utf8')).vim).toBe(true)
@@ -179,7 +169,6 @@ test('/ filters the rows, Enter still changes the one it leaves', async () => {
   const frame = t.captureCharFrame()
   expect(frame).toContain('Vim mode')
   expect(frame).not.toContain('Tab size')
-  // The one match is selected, so Enter needs no arrows to reach it.
   await press(t, i => i.pressEnter())
   expect(JSON.parse(readFileSync(CONFIG_FILE, 'utf8')).vim).toBe(true)
 })
@@ -193,36 +182,26 @@ test('a filter matching nothing says so, and Esc drops it before closing the pag
   await pressEscape(t)
   const frame = t.captureCharFrame()
   expect(frame).not.toContain('Filter settings')
-  expect(frame).toContain('Vim mode') // still on the page
+  expect(frame).toContain('Vim mode')
   await pressEscape(t)
   expect(t.captureCharFrame()).not.toContain('Vim mode')
 })
 
 test('the page windows its rows and the selection carries the window down', async () => {
-  // Short terminal, long list: the title bar has to survive, which it did not
-  // when every row was drawn and the column overflowed.
   const t = await launch(fixture(PROJECT), {}, { height: 16 })
   await runCommand(t, 'Settings')
   expect(t.captureCharFrame()).toContain('Settings')
 
-  // Down until a late row is in view rather than a fixed count: every setting
-  // added below moves that row, and the assertion is about what the window does,
-  // not how many rows happen to precede it.
   for (let step = 0; step < 40 && !t.captureCharFrame().includes('Servers'); step++) {
     await down(t, 1)
   }
   const frame = t.captureCharFrame()
   expect(frame).toContain('Servers')
   expect(frame).toContain('Settings')
-  // The first rows gave way rather than the chrome.
   expect(frame).not.toContain('Vim mode')
 }, 20_000)
 
-/**
- * Wheel the settings page, a flush per tick: OpenTUI's scroll acceleration drops
- * events that arrive within its minimum interval, so a tight loop of them counts
- * as far fewer ticks than were sent.
- */
+// A flush per tick: OpenTUI's scroll acceleration drops events sent within its minimum interval.
 async function wheel(t: Harness, ticks: number, direction: 'up' | 'down') {
   for (let tick = 0; tick < ticks; tick++) {
     await t.mockMouse.scroll(60, 8, direction)
@@ -238,20 +217,17 @@ test('the wheel scrolls the page without moving the selection', async () => {
   await wheel(t, 6, 'down')
   const scrolled = t.captureCharFrame()
   expect(scrolled).not.toContain('Follow OS appearance')
-  expect(scrolled).toContain('Settings') // the chrome stayed
+  expect(scrolled).toContain('Settings')
 
   await wheel(t, 12, 'up')
   expect(t.captureCharFrame()).toContain('Follow OS appearance')
 
-  // The wheel is not a cursor: the selection is where the keyboard left it.
   const cursor = t
     .captureCharFrame()
     .split('\n')
     .find(line => line.includes('▌'))
   expect(cursor).toContain('Theme')
 
-  // Wheeling past the end stops with the last row on screen rather than
-  // running the window off into blank page.
   await wheel(t, 60, 'down')
   const bottom = t.captureCharFrame()
   expect(bottom).toContain('Registry')

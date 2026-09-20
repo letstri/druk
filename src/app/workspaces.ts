@@ -1,7 +1,3 @@
-/**
- * The offer, the checks and the prompts around switching workspace. The switch
- * itself is `Root`'s remount: every controller is built from `rootDir` once.
- */
 import { homedir } from 'node:os'
 import { basename, resolve } from 'node:path'
 
@@ -25,7 +21,6 @@ export function createWorkspaces(deps: {
   gitOp: GitOp
   workspace: Workspace
   setPrompt: (prompt: Prompt) => void
-  /** `Root`'s remount; absent where nothing can switch. */
   open?: (dir: string) => void
 }) {
   const { rootDir, status, git, gitOp, workspace, setPrompt, open } = deps
@@ -47,8 +42,6 @@ export function createWorkspaces(deps: {
     setPrompt({ kind: 'workspaceOpen' })
   }
 
-  // Unsaved buffers stop it the way they stop quitting: the remount drops them
-  // and the session restores tabs from disk.
   const switchTo = (dir: string, discardUnsaved = false) => {
     if (!open) return status.say('This druk cannot switch workspaces', 'warn')
     const at = resolve(rootDir, expandHome(dir.trim()))
@@ -68,11 +61,6 @@ export function createWorkspaces(deps: {
     open(at)
   }
 
-  /**
-   * The checkouts of the active repository, as the pickers list them. Not
-   * `workspaceEntries`: a worktree command acts on one repository, and that list
-   * pools every open repository's with the folders druk merely remembers.
-   */
   const trees = (repo: string): Worktree[] => worktrees(repo).filter(tree => isDirectory(tree.path))
 
   const pickWorktree = (mode: 'switch' | 'remove') => {
@@ -102,8 +90,6 @@ export function createWorkspaces(deps: {
       where => addWorktree(where, at, branch, !branchExists(where, branch)),
       {
         repo,
-        // Making a checkout is asking to work in it. The switch is a remount, so
-        // this app goes with it — the new one says which folder it opened on.
         done: () => {
           switchTo(at)
           return `Worktree ${basename(at)}`

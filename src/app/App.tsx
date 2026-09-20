@@ -1,4 +1,4 @@
-import { basename, dirname, relative } from 'node:path'
+import { basename, dirname } from 'node:path'
 
 import type { BorderSides, MouseEvent } from '@opentui/core'
 import { useRenderer, useTerminalDimensions } from '@opentui/solid'
@@ -20,8 +20,8 @@ import { languageLabel } from '../languages'
 import { filetypeForPath } from '../languages/highlight'
 import { SEVERITY_RANK } from '../lsp/protocol'
 import type { ProblemSeverity } from '../lsp/protocol'
+import { servers as serverSpecs } from '../lsp/servers'
 import { ui } from '../themes'
-import { Breadcrumbs } from '../ui/Breadcrumbs'
 import { ChangesView } from '../ui/ChangesView'
 import { ComparePanel } from '../ui/ComparePanel'
 import { ComparisonView } from '../ui/ComparisonView'
@@ -35,6 +35,7 @@ import { LspStatusView } from '../ui/LspStatusView'
 import { MarkdownView } from '../ui/MarkdownView'
 import { PreviewPane } from '../ui/PreviewPane'
 import { ReviewPanel } from '../ui/ReviewPanel'
+import { copyOnSelect } from '../ui/selection'
 import { SettingsView } from '../ui/SettingsView'
 import { SidebarTabs } from '../ui/SidebarTabs'
 import { StatusBar } from '../ui/StatusBar'
@@ -74,45 +75,23 @@ import {
 } from './workspace'
 import { createWorkspaces } from './workspaces'
 
-/** The divider draws its own left edge; a box border is how it spans the height.
-    One side only, and the grip is one column wide, so the border lands on that
-    column whichever side names it — there is no right-hand variant to add. */
+// The grip is one column wide: a left border lands on that column whichever side it is on.
 const BORDER_LEFT: BorderSides[] = ['left']
 
-/** Bounds on the drawn part of the divider: shorter reads as dirt, longer as chrome. */
 const GRIP_MIN = 3
 const GRIP_MAX = 9
 
-/**
- * The composition root. Each concern lives in its own controller module; this
- * component creates them in dependency order, hands the assembled context to the
- * keyboard and palette wiring, and renders the layout around them.
- */
 export function App(props: {
   rootDir: string
-  /** `druk file.ts`: the one file to open, instead of the project's saved session. */
   openFile?: string | null
-  /** `druk file.ts:42`: 0-based line to land on in `openFile`. */
+  // 0-based line to land on in `openFile`.
   openLine?: number | null
-  /** `druk file.ts:42:7`: 0-based column to land on, beside `openLine`. */
+  // 0-based column to land on, beside `openLine`.
   openCol?: number | null
-  /** The user's own settings; the project's overrides go on top of them. */
   initialConfig: Config
-  /**
-   * `<rootDir>/.druk/settings.json`, already read — main.tsx needs it before the
-   * first render to paint the right theme, and reading it twice would be waste.
-   * Left out, it is read here.
-   */
   initialProject?: Partial<Config>
-  /**
-   * The startup checks — druk's own version, and the extension market — are
-   * unconditional for users. This switch exists so the test harness can keep
-   * hundreds of launches off the npm registry and off the market.
-   */
   checkUpdates?: boolean
-  /** `Root`'s remount; absent where nothing can switch (a test rendering `App`). */
   onOpenWorkspace?: (dir: string) => void
-  /** The status bar's first line — how a switch reports itself. */
   notice?: string | null
 }) {
   const renderer = useRenderer()
@@ -124,6 +103,7 @@ export function App(props: {
   const restored = restoreWorkspace(rootDir, single)
 
   const status = createStatus()
+  copyOnSelect(status.say)
   // First, so a restore's warning is the later, louder message.
   if (props.notice) status.say(props.notice)
   const project = props.initialProject ?? loadProjectConfig(rootDir)
@@ -147,8 +127,6 @@ export function App(props: {
   const git = createGit(
     rootDir,
     () => settings.config.gitPanelView,
-    // Only while the source-control panel is the sidebar's view may its cursor
-    // decide which repository a command acts on.
     () => panes.view() === 'git',
   )
   const comparison = createComparison({ rootDir, git, status })
@@ -162,12 +140,8 @@ export function App(props: {
     onServersReload: lsp.restart,
   })
 
-  // A file whose language no installed extension serves is the market's cue.
   lsp.onMissingServer(market.suggestForFiletype)
-  // Also on the quit path: the renderer tears the root down before exiting, and
-  // a leaked server would outlive the editor (tests leak them per launch).
   onCleanup(lsp.dispose)
-  // Leave the terminal's progress indicator off if we die mid-operation.
   onCleanup(() => reportProgress({ kind: 'off' }))
   const workspace = createWorkspace({
     rootDir,
@@ -202,9 +176,6 @@ export function App(props: {
   })
   const branches = createBranches({ status, git, gitOp, prompts: promptState })
   const commitView = createCommitView({ status })
-  // These two pages own their state outside the workspace, so their tab and that
-  // state are kept in step from here: closing the tab tears the view down, and a
-  // view that closes itself (a comparison ending, say) takes its tab with it.
   workspace.onPageClose('commit', commitView.close)
   workspace.onPageClose('compare', comparison.closeDetail)
   createEffect(
@@ -247,18 +218,12 @@ export function App(props: {
     editor,
   })
 
-  /** The active tab when it is an image — a viewer page covers the editor slot. */
   const activeImage = () => {
     const path = workspace.activePath()
     return path && isImagePath(path) ? path : null
   }
 
-  /**
-   * A page or a viewer is drawn over the editor's slot, so the textarea is neither
-   * focused nor taking keys. Read in three places that must agree: EditorPane's
-   * `focused` and `blocked`, and the Ctrl+C owner in `keyboard.ts` — where a
-   * disagreement left the key belonging to a textarea that had stopped listening.
-   */
+  // EditorPane's `focused` and `blocked` and keyboard.ts's Ctrl+C owner must all agree with this.
   const editorCovered = () =>
     workspace.page() !== null ||
     activeImage() !== null ||
@@ -291,10 +256,6 @@ export function App(props: {
     overlays,
   }
 
-  /**
-   * Which repository the branch and the panel header are about — named only when
-   * there is more than one, where "main" alone says nothing about whose main it is.
-   */
   const repoName = createMemo(() => {
     const active = git.activeRepo()
     return git.repos().length > 1 && active ? basename(active) : null
@@ -305,15 +266,11 @@ export function App(props: {
   const { commands, actions } = createCommands(ctx)
   const keyboard = installKeyboard(ctx, actions)
 
-  // After the keymap, so the peek never sees a chord the keyboard has not
-  // resolved yet. Watching for the hold is unconditional; the setting is pushed
-  // into the same module, since it gates the buttons lighting up as well as the
-  // boxes being drawn.
+  // After the keymap, so the peek never sees an unresolved chord.
   useTooltipPeek()
   createEffect(() => setTooltipsEnabled(settings.config.tooltips))
 
-  // Turning the setting off has to put the shell's own title back, so the false
-  // branch restores rather than simply skipping.
+  // The false branch restores the shell's own title rather than simply skipping.
   createEffect(() => {
     if (!settings.config.terminalTitle) return restoreTerminalTitle()
     const path = workspace.activePath()
@@ -321,13 +278,7 @@ export function App(props: {
   })
   onCleanup(() => restoreTerminalTitle())
 
-  // `revision` covers saves, git commands and anything the watcher sees in .git;
-  // `reloadKey` covers a buffer replaced from disk; `diffBase` covers the branch
-  // being compared against moving under it. `statusEntries` is the async fill
-  // that `revision` only *starts* — a discard's bump would otherwise rebuild
-  // the stacked page from the list that still held the file.
-  // `refreshChanges` rebuilds the stacked page, and returns at once when it is
-  // not up.
+  // `statusEntries` is the async fill `revision` only starts: without it the page rebuilds stale.
   createEffect(
     on(
       () => [git.revision(), editor.reloadKey(), git.diffBase(), git.statusEntries()] as const,
@@ -338,13 +289,7 @@ export function App(props: {
     ),
   )
 
-  // Landing on the `Changes` heading would show no diff and take a keypress to
-  // leave, so opening the panel puts the cursor on the first change instead —
-  // wherever it was opened from. Only on the way in: resting on a heading is how
-  // a whole group is staged, so nothing may push the cursor off one later. The
-  // one exception is the first file rows arriving *after* the panel opened —
-  // the status answer is asynchronous, so a panel opened right at launch beats
-  // it — where the cursor still sits on row 0 and has never been anywhere else.
+  // Only on the way in: resting on a heading is how a whole group is staged.
   createEffect(
     on(
       () => [panes.view(), git.rows().some(row => row.kind === 'file')] as const,
@@ -360,52 +305,26 @@ export function App(props: {
   const { config } = settings
   const { say } = status
 
-  /** True between grabbing the sidebar divider and letting go. */
   const [resizing, setResizing] = createSignal(false)
   const grip = useHover()
 
-  /**
-   * Rows of the drawn grip — a fifth of the pane, so it stays a hint on a tall
-   * terminal and does not eat a short one. The column above and below it drags
-   * too; nothing here is the grab target.
-   */
   const gripHeight = () =>
     Math.max(GRIP_MIN, Math.min(GRIP_MAX, Math.round((dimensions().height - 2) / 5)))
 
-  /**
-   * On the left the sidebar starts at column 0, so the pointer's x is the width
-   * (the divider sits at that column). On the right the divider is at x and the
-   * sidebar fills what follows, so the width is everything after the divider.
-   */
+  // On the left the pointer's x is the width; on the right the sidebar follows the divider at x.
   const sidebarWidthFromPointer = (x: number) =>
     config.sidebarPosition === 'right' ? dimensions().width - x - 1 : x
 
-  /**
-   * The editor's own column: the terminal less the sidebar and its divider while
-   * one is showing. Every page drawn over the editor slot is sized from it.
-   */
+  // The editor's column: every page drawn over its slot is sized from this.
   const slotWidth = () => dimensions().width - (panes.sidebar() ? settings.treeWidth() + 1 : 0)
 
-  /** The path the breadcrumb row names, or null when nothing is open. */
-  const breadcrumb = () => {
-    const path = workspace.activePath()
-    if (!path) return null
-    const rel = relative(rootDir, path)
-    return rel && !rel.startsWith('..') ? rel : path
-  }
-
-  /**
-   * Rows the editor slot has: the terminal less the tab strip, the status bar
-   * and — while a file is open — the breadcrumb row over it.
-   */
-  const slotHeight = () => dimensions().height - 2 - (breadcrumb() ? 1 : 0)
+  const slotHeight = () => dimensions().height - 2
 
   const startResize = (event: MouseEvent) => {
     setResizing(true)
     settings.resizeSidebar(sidebarWidthFromPointer(event.x))
   }
 
-  /** Worst problem per line of the active file: the gutter dot and inline text. */
   const problemLines = createMemo(() => {
     const lines = new Map<number, { severity: ProblemSeverity; message: string }>()
     const path = workspace.activePath()
@@ -419,17 +338,11 @@ export function App(props: {
     return lines
   })
 
-  /** Every problem of the active file with its range, for the span tints. */
   const problemRanges = createMemo(() => {
     const path = workspace.activePath()
     return (path ? lsp.problems[path] : undefined) ?? []
   })
 
-  /**
-   * The mark one tab wears: its file's worst diagnostic. Info and hints are left
-   * out for the same reason the status bar counts neither — a tab says whether
-   * the file needs looking at, and neither of those does.
-   */
   const tabSeverity = (path: string): 'error' | 'warning' | null => {
     let worst: 'warning' | null = null
     for (const problem of lsp.problems[path] ?? []) {
@@ -450,14 +363,11 @@ export function App(props: {
     return { errors, warnings }
   })
 
-  /** The status page's rows, in a stable order however the servers started. */
   const serverList = createMemo(() =>
     Object.values(lsp.servers).toSorted((a, b) => a.id.localeCompare(b.id)),
   )
 
-  /** The state of the strip's rendered-markdown button, or null when it has none.
-   * Keyed on the view rather than the path: a page over the editor slot has
-   * nothing to render. */
+  // Keyed on the view, not the path: a page over the editor slot has nothing to render.
   const markdownTab = () => {
     const view = workspace.activeView()
     if (!view || !isMarkdownPath(view)) return null
@@ -470,14 +380,13 @@ export function App(props: {
   }
 
   onMount(() => {
-    // A shortcut that did not take is invisible until the key is pressed and
-    // nothing happens, so a bad `keybindings` entry is reported on the way in.
     const { invalid, conflicts } = settings.keymap()
     const bad = invalid[0]
     const clash = conflicts.find(entry => entry.rejected)
-    // Same reason as the two above: an extension that contributes nothing because
-    // its manifest is wrong looks exactly like one that is not installed.
     const badExtension = extensionProblems()[0]
+    const unknownServer = Object.keys(settings.config.lspServers).find(
+      id => !serverSpecs().some(spec => spec.id === id),
+    )
     if (bad) say(`Shortcut "${bad.value}" for ${bad.label}: ${bad.reason}`, 'warn')
     else if (clash) {
       say(
@@ -486,9 +395,9 @@ export function App(props: {
       )
     } else if (badExtension) {
       say(`Extension ${basename(dirname(badExtension.source))}: ${badExtension.reason}`, 'warn')
+    } else if (unknownServer) {
+      say(`lspServers: no installed extension brings a server "${unknownServer}"`, 'warn')
     }
-    // Same refusal `druk file.ts` deserves as opening one from the tree, and for the
-    // same reason: an empty editor with a status line under it looks like a bug.
     if (restored.failed) workspace.setNotice({ name: basename(single!), reason: restored.failed })
     const line = props.openLine
     const buffer = workspace.activeBuffer()
@@ -499,9 +408,7 @@ export function App(props: {
     }
   })
 
-  // Polling, not a subscription: no OS offers one portably. `watchAppearance`
-  // reports the current appearance straight away, so turning the setting on — and
-  // starting with it already on — paints the matching theme without waiting a tick.
+  // Polling, not a subscription: no OS offers one portably.
   createEffect(
     on(
       () => config.themeSync,
@@ -524,17 +431,10 @@ export function App(props: {
         overlays.setUpdate(info)
       }
     })()
-    // Deliberately not awaited with the version check: the market says its piece
-    // in the status bar, and one slow request must not delay the other's banner.
     void market.check()
   })
 
-  // `AVAILABLE` lists the registry rather than waiting to be searched, so opening
-  // the panel is what has to guarantee there is a catalog to list — and `openPanel`
-  // fetches a fresh one the first time in a session rather than settling for
-  // whatever the cache holds, since the panel is where someone goes to find an
-  // extension published since. Deliberately not gated on `extensionUpdates`: that
-  // setting silences druk's own offers, and opening this panel is the user asking.
+  // Deliberately not gated on `extensionUpdates`, which silences druk's own offers.
   createEffect(
     on(
       () => panes.sidebar() && panes.view() === 'extensions',
@@ -544,16 +444,7 @@ export function App(props: {
     ),
   )
 
-  // The review panel puts the code its cursor points at into the editor slot
-  // beside it. The remarks are drawn on their own lines, so the panel is the
-  // index and the file is the review — a list of rows over an unrelated file is
-  // neither.
-  //
-  // The count rather than the view alone, so a note another writer adds under an
-  // open panel lands in the editor too: by then the view has not changed to fire
-  // on. The guard reads focus untracked — once the keyboard has gone to the
-  // editor the user is reading something, and an arriving note must not swap the
-  // file under them.
+  // The count, not the view: a note another writer adds under an open panel changes no view.
   createEffect(
     on(
       () => (panes.sidebar() && panes.view() === 'review' ? review.count() : -1),
@@ -563,12 +454,7 @@ export function App(props: {
     ),
   )
 
-  // Focus reporting (DECSET 1004): the terminal sends CSI I / CSI O as the window
-  // gains / loses focus. OpenTUI's key parser recognises both and swallows them,
-  // so the raw stdin stream is the only place left to see the blur. The mode is
-  // enabled only on a real terminal — in tests stdin is a mock and there is no
-  // terminal to answer — but the listener is always attached, so a test can drive
-  // it by emitting the sequence.
+  // OpenTUI's key parser swallows CSI I / CSI O, so raw stdin is the only place to see a blur.
   onMount(() => {
     if (process.stdout.isTTY) process.stdout.write('\x1B[?1004h')
     const onStdin = (chunk: Buffer | string) => {
@@ -583,10 +469,6 @@ export function App(props: {
     })
   })
 
-  // A repository under the opened folder needs the same HEAD/refs watch the root
-  // gets, or a commit or checkout made in it elsewhere leaves its branch and marks
-  // stale. Re-subscribed as the list changes: a repository can be cloned into the
-  // folder while druk is open.
   createEffect(
     on(git.repos, repos => {
       const stops = repos
@@ -598,22 +480,13 @@ export function App(props: {
     }),
   )
 
-  // Review notes written by another process — an agent editing review.json is
-  // the notes' documented interop — appear the way git made in another
-  // terminal does: without a restart.
   onMount(() => onCleanup(watchNotes(review.reloadNotes)))
 
-  // The watcher has no follow-up message of its own, so unlike the git callers it
-  // reports the clash itself — and clears it again once the files agree, since
-  // nothing else would ever replace a warning the user has already dealt with.
   onMount(() =>
     onCleanup(
       watchTree(rootDir, changed => {
-        // History moved elsewhere: nothing in the working tree need have changed, so
-        // this is the only thing that tells the branch and ahead/behind to re-read.
         if (changed.git) git.bump()
-        // An install replaced what every server resolves imports through, and
-        // none of them is watching it — see `dependenciesChanged`.
+        // No server watches its own node_modules — see `dependenciesChanged`.
         if (changed.deps) lsp.dependenciesChanged()
         if (!changed.tree) return
         const warning = workspace.clashWarning(workspace.syncFromDisk())
@@ -631,10 +504,7 @@ export function App(props: {
 
   return (
     <box flexDirection="column" width="100%" height="100%" backgroundColor={ui.bg}>
-      {/* Drag capture lives on the row, not the divider: the pointer leaves a
-          one-column target immediately, and each drag event is delivered to
-          whatever sits under it. `row-reverse` puts the same children on the
-          right without duplicating the sidebar tree. */}
+      {/* Drag capture is on the row, not the divider: the pointer leaves a one-column target at once. */}
       <box
         flexDirection={config.sidebarPosition === 'right' ? 'row-reverse' : 'row'}
         flexGrow={1}
@@ -698,8 +568,7 @@ export function App(props: {
                 markedPaths={tree.marked()}
                 iconTheme={settings.activeIconTheme()}
                 onActivate={node => {
-                  // Opening a file is the end of browsing; leaving the mode on
-                  // would put the preview back over it on the way to the tree.
+                  // Leaving preview on would put it back over the file on the way to the tree.
                   preview.close()
                   workspace.activateNode(node)
                 }}
@@ -768,13 +637,7 @@ export function App(props: {
               </Show>
             </Show>
           </box>
-          {/* The sidebar's edge, and the grab target that resizes it. The whole
-              column drags; only a short grip at its middle is drawn, because a
-              rule the whole way down is a second vertical line beside the
-              editor's gutter and reads as chrome rather than as a hint. The
-              accent while dragging says the grab took. Painted in `bg`, not
-              `panelBg` — on the left the sidebar's right edge is found by where
-              panel colour stops, and the resize tests measure exactly that. */}
+          {/* Painted in `bg`, not `panelBg`: the resize tests find the edge where panel colour stops. */}
           <box
             width={1}
             flexShrink={0}
@@ -797,11 +660,6 @@ export function App(props: {
             />
           </box>
         </Show>
-        {/* The tab strip and the breadcrumbs sit over the editor's column, not
-            over the whole terminal — VS Code's arrangement, where the sidebar
-            reaches the top of the window. The pages below them cover the
-            editor's slot only, so the strip, the tree and the status bar stay
-            put: a page reads as a view of the editor, not as a modal. */}
         <box flexGrow={1} flexDirection="column">
           <Tabs
             width={slotWidth()}
@@ -809,8 +667,6 @@ export function App(props: {
               const kind = pageKindOf(id)
               return {
                 id,
-                // A markdown tab reading as the rendered document is still the one
-                // tab, so it is the same name with a mark rather than a second entry.
                 name: kind
                   ? PAGE_TITLES[kind]
                   : id === workspace.renderedPath()
@@ -819,8 +675,6 @@ export function App(props: {
                 dirty: workspace.buffers[id]?.dirty ?? false,
                 preview: id === workspace.previewPath(),
                 severity: kind ? null : tabSeverity(id),
-                // A rendered-markdown tab spends the glyph slot on the mark that says
-                // which it is; only a plain file tab has it to spare.
                 icon:
                   config.tabIcons && !kind && id !== workspace.renderedPath()
                     ? iconFor(settings.activeIconTheme(), { name: basename(id), isDir: false })
@@ -838,9 +692,6 @@ export function App(props: {
             markdown={markdownTab()}
             onToggleMarkdown={workspace.toggleRendered}
           />
-          <Show when={breadcrumb()}>
-            <Breadcrumbs rel={breadcrumb()} width={slotWidth()} />
-          </Show>
           <box flexGrow={1} flexDirection="column">
             <EditorPane
               path={workspace.activePath()}
@@ -851,10 +702,7 @@ export function App(props: {
               filetype={
                 workspace.activePath() ? filetypeForPath(workspace.activePath()!) : undefined
               }
-              // Also unfocused while the diff or a viewer covers the pane: the
-              // terminal's own cursor tracks the focused textarea and is drawn
-              // over everything, so a focused editor bleeds a phantom block into
-              // whatever page sits on top.
+              // The terminal's cursor tracks the focused textarea over everything, bleeding into a page.
               focused={panes.focus() === 'editor' && !editorCovered()}
               reloadKey={editor.reloadKey()}
               goto={editor.goto()}
@@ -875,9 +723,6 @@ export function App(props: {
               conflicts={workspace.mergeConflicts()}
               reviews={review.marks()}
               reviewText={config.reviewInline}
-              // Only while the panel is showing: the card is a reading aid that
-              // covers the lines under it, which is a trade worth making for the
-              // review and not for ordinary editing.
               reviewCard={panes.sidebar() && panes.view() === 'review' ? review.card() : null}
               complete={
                 config.lsp && config.lspCompletion
@@ -898,14 +743,13 @@ export function App(props: {
               completionRequest={editor.completion()}
               onCompletionMenu={editor.setCompletionOpen}
               notice={workspace.notice()}
-              // The diff is a page over this pane, not an overlay — but the hidden
-              // textarea must still not eat keys meant for it.
               blocked={overlays.overlay() || editorCovered()}
               onChange={workspace.onEditorChange}
               onCursor={editor.setCursor}
               onSelection={editor.setSelection}
               onFocus={() => panes.setFocus('editor')}
               onVimMode={editor.setVimMode}
+              onStatus={status.say}
               onQuit={promptHandlers.quit}
             />
             <Show when={activeImage()}>
@@ -984,8 +828,6 @@ export function App(props: {
                 />
               </box>
             </Show>
-            {/* Above every page: it is a look at another file, and it lasts only
-              as long as the tree is being walked. */}
             <Show when={preview.target()}>
               {(target: () => PreviewTarget) => (
                 <box position="absolute" top={0} left={0} width="100%" height="100%" zIndex={65}>
@@ -1018,8 +860,6 @@ export function App(props: {
                 />
               </box>
             </Show>
-            {/* An Incoming/Outgoing commit from the panel — the comparison detail
-              page without a comparison, drawn by the same component. */}
             <Show when={workspace.page() === 'commit'}>
               <box position="absolute" top={0} left={0} width="100%" height="100%" zIndex={55}>
                 <ComparisonView
@@ -1074,8 +914,6 @@ export function App(props: {
         onGotoLine={() => promptState.setPrompt({ kind: 'gotoLine' })}
         onHint={keyboard.run}
       />
-      {/* Over the chrome, under the modals: a tooltip is an annotation of what
-          is on screen, and a modal replaces what is on screen. */}
       <TooltipLayer />
       <OverlayStack ctx={ctx} commands={commands} />
     </box>

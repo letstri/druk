@@ -1,17 +1,5 @@
-/**
- * The extension market as the editor sees it: what is on offer, what is out of
- * date, and what the open file would want installed.
- *
- * Every path into a first install goes through the same two steps — fetch and
- * validate the manifest (`core/market.ts`), then ask. The prompt is raised only
- * once the manifest is in hand, so what it names is the file that will actually
- * be written rather than a claim the catalog made about it. An *update* of an
- * installed extension is applied without asking: the question was answered when
- * it was installed, and an update kept behind a prompt is an update nobody runs.
- *
- * Nothing here is load-bearing: the catalog is fetched best-effort, and every
- * failure leaves the editor exactly as it was with at most a status line.
- */
+import { basename, extname } from 'node:path'
+
 import { createMemo, createSignal } from 'solid-js'
 
 import { unregisteredNames } from '../core/config'
@@ -35,7 +23,7 @@ import type { PromptState } from './prompts'
 import type { Settings } from './settings'
 import type { Status } from './status'
 
-/** Rows the activation offer draws; `ChoiceModal` has no scroll of its own. */
+// `ChoiceModal` has no scroll of its own.
 const MAX_ACTIVATION_CHOICES = 8
 
 function summarize(entry: MarketEntry): string {
@@ -55,25 +43,14 @@ export function createMarket(deps: {
   settings: Settings
   status: Status
   prompts: PromptState
-  /** Re-run open documents when an installed extension contributes servers. */
   onServersReload?: () => void
-  /** Injected by tests; production uses the global `fetch`. */
   fetcher?: Fetcher
 }) {
   const { rootDir, settings, status, prompts, onServersReload, fetcher } = deps
 
-  // Seeded from the cache so the palette has a market to show before — and
-  // without — any network round trip.
   const [catalog, setCatalog] = createSignal<MarketEntry[]>(readCachedCatalog()?.extensions ?? [])
-  /**
-   * Ids already offered this session. A decline is a decision, and re-asking on
-   * every file of that language would make the offer a nuisance rather than a
-   * hint; the palette is how someone changes their mind.
-   */
   const declined = new Set<string>()
-  /** Filetypes whose missing server has already been looked into this session. */
   const asked = new Set<string>()
-  /** Manifests fetched for an open prompt, waiting for the answer to be written. */
   const fetched = new Map<string, Fetched & { ok: true }>()
 
   const registry = () => settings.config.extensionRegistry
@@ -81,20 +58,13 @@ export function createMarket(deps: {
   const entry = (id: string): MarketEntry | undefined =>
     catalog().find(extension => extension.id === id)
 
-  // Market copies only: a built-in is part of the binary and updates with druk
-  // itself, so the market must never offer it one.
   const installedVersions = () =>
     extensions()
       .filter(extension => !extension.builtin)
       .map(extension => ({ id: extension.id, version: extension.version }))
 
-  /** Installed extensions the market has a newer version of. */
   const updates = createMemo(() => updatesFor(installedVersions(), catalog(), isNewer))
 
-  /**
-   * Refresh the catalog. `force` skips the freshness check — the palette's
-   * "Check for extension updates" means now, not "if the cache has expired".
-   */
   const refresh = async (force = false): Promise<MarketEntry[]> => {
     const cached = readCachedCatalog()
     if (!force && !isStale(cached, Date.now())) {
@@ -102,29 +72,15 @@ export function createMarket(deps: {
       return catalog()
     }
     const fresh = await fetchCatalog(registry(), fetcher)
-    if (!fresh) return catalog() // offline: whatever the cache had stays on offer
+    if (!fresh) return catalog()
     writeCachedCatalog(fresh, Date.now())
     setCatalog(fresh)
     return fresh
   }
 
-  /**
-   * The first refresh, shared. The startup check and the first file whose
-   * language has no server both want a catalog, and they happen within a frame
-   * of each other — without this the file would either race the fetch and find
-   * nothing, or start a second one.
-   */
   let loading: Promise<MarketEntry[]> | null = null
   const ready = (): Promise<MarketEntry[]> => (loading ??= refresh())
 
-  /**
-   * The extensions panel opening. The first one in a session fetches whatever the
-   * registry holds *now*, cache or no cache: `AVAILABLE` is the whole market, and
-   * a list assembled from a catalog written before an extension was published is
-   * a panel that cannot show it however hard it is searched. Once per session,
-   * because the panel is in the Shift+Tab cycle and a round trip per visit would
-   * be one per cycle; later opens fall back to the shared first fetch.
-   */
   let opened = false
   const openPanel = (): Promise<MarketEntry[]> => {
     if (opened) return ready()
@@ -132,20 +88,11 @@ export function createMarket(deps: {
     return (loading = refresh(true))
   }
 
-  /**
-   * Fetch `id`'s manifest and ask. Silent about an extension it cannot fetch when
-   * the offer was druk's idea rather than the user's — an editor that reports a
-   * failed background request on every launch is worse than one that says
-   * nothing.
-   */
   const offer = async (id: string, why: string, quiet = false): Promise<void> => {
     const found = entry(id)
     if (!found) return void (quiet || status.say(`No extension "${id}" in the market`, 'warn'))
     const result = await fetchExtension(id, { registry: registry(), fetcher })
     if (!result.ok) return void (quiet || status.say(`Extension ${id}: ${result.error}`, 'error'))
-    // An offer druk raised itself must never replace a question the user is
-    // already being asked — a save conflict, a delete — since the modal reads
-    // as an answer to whatever is on screen and the other prompt would vanish.
     if (quiet && prompts.prompt()) return
     fetched.set(id, result)
     prompts.setPrompt({
@@ -154,19 +101,10 @@ export function createMarket(deps: {
       name: found.name,
       summary: summarize(found),
       why,
-      // The one part of a manifest that is not inert: these are spawned when a
-      // file of a matching type opens, so the answer is about them.
       runs: result.extension.servers.map(server => server.command.join(' ')),
     })
   }
 
-  /**
-   * Install every pending update, no questions asked. Failures are reported and
-   * skipped — one unreachable manifest must not hold the rest back — except when
-   * `quiet`: the startup check runs uninvited, and an editor that reports a
-   * failed background request on every launch is worse than one that says
-   * nothing.
-   */
   const applyUpdates = async (
     pending: { entry: MarketEntry; current: string }[],
     quiet = false,
@@ -197,21 +135,10 @@ export function createMarket(deps: {
         ? `Updated ${updated[0]!.name} to ${updated[0]!.version}`
         : `Updated ${updated.length} extensions`,
     )
-    // After the confirmation, as in `accept`: the restart re-syncs the open
-    // documents, and what a new server has to say about them should land on
-    // top of the line saying the update happened, not under it.
+    // After the status line: the restart re-syncs open documents and would overwrite it.
     if (servers) onServersReload?.()
   }
 
-  /**
-   * The appearances an install brought that nothing is using. Installing a theme
-   * is not choosing one — the config still names whatever it named — so an
-   * extension whose whole point is how the editor looks would otherwise land and
-   * change nothing. What is already in force is left out: the upgrade path
-   * (`suggestMissingNames`) installs precisely the theme the config asks for,
-   * and offering to activate what is already on screen is an offer to do
-   * nothing.
-   */
   const appearancesOf = (installed: Extension) => [
     ...installed.themes
       .filter(({ id }) => id !== settings.config.theme)
@@ -221,28 +148,20 @@ export function createMarket(deps: {
       .map(icons => ({ id: `icons:${icons.id}`, label: `${iconThemeLabel(icons.id)} file icons` })),
   ]
 
-  /** Offer whatever `appearancesOf` found, once the install has been announced. */
   const offerActivation = (installed: Extension): void => {
-    // A disabled id is read and listed but registers nothing, so its themes are
-    // names no palette holds — there is nothing to switch to.
     if (installed.disabled) return
     const choices = appearancesOf(installed)
     if (choices.length === 0) return
-    // The install's own prompt is answered and gone by now, but the write is
-    // asynchronous and a save conflict or a watcher may have opened one while it
-    // ran — and this offer is the more skippable of the two.
+    // The write was asynchronous: a save conflict may have opened a prompt meanwhile.
     if (prompts.prompt()) return
     prompts.setPrompt({
       kind: 'activateExtension',
       name: installed.name,
-      // The modal does not scroll, so a fork's twenty-palette extension would
-      // draw a taller box than the terminal has rows; the rest are a palette away.
       choices: choices.slice(0, MAX_ACTIVATION_CHOICES),
       more: Math.max(0, choices.length - MAX_ACTIVATION_CHOICES),
     })
   }
 
-  /** A pick from that offer: `theme:<id>` or `icons:<id>`, as the prompt spelt it. */
   const activate = (choice: string): void => {
     const [kind, ...rest] = choice.split(':')
     const id = rest.join(':')
@@ -250,19 +169,10 @@ export function createMarket(deps: {
     if (kind === 'theme' && isThemeName(id)) settings.applyTheme(id)
   }
 
-  /**
-   * Write the manifest the open prompt was about, and register it. Asynchronous
-   * because an extension may carry assets — a grammar for a language druk ships
-   * none for — and those are fetched now rather than at prompt time, so the
-   * question is answered before the megabytes move.
-   */
   const accept = (id: string): void => {
     const result = fetched.get(id)
     fetched.delete(id)
     if (!result) return
-    // Claimed whether or not there are assets to fetch: an assetless install is
-    // over in a frame, and a slot taken only sometimes is a slot released when
-    // it was never held — which would clear whatever else was counting in it.
     const release = status.claimBusy({ label: `Installing ${result.extension.name}` })
     void (async () => {
       try {
@@ -274,13 +184,8 @@ export function createMarket(deps: {
         const load = settings.reloadExtensions()
         const installed = load.extensions.find(extension => extension.id === id)
         status.say(`Installed ${installed?.name ?? id} ${installed?.version ?? ''}`.trim())
-        // After the confirmation, not before: the restart re-syncs the open
-        // documents, and what the new server has to say about them would
-        // otherwise overwrite the line saying the install worked.
+        // After the status line: the restart re-syncs open documents and would overwrite it.
         if (result.extension.servers.length > 0) onServersReload?.()
-        // Read off the reloaded extension rather than the manifest: what is
-        // registered is what can be activated, and a theme the loader threw out
-        // is not on offer.
         if (installed) offerActivation(installed)
       } finally {
         release()
@@ -288,7 +193,6 @@ export function createMarket(deps: {
     })()
   }
 
-  /** The prompt was declined: remember it, so the same file does not re-ask. */
   const decline = (id: string): void => {
     fetched.delete(id)
     declined.add(id)
@@ -300,8 +204,6 @@ export function createMarket(deps: {
   }
 
   const remove = (id: string): void => {
-    // A built-in has no folder to delete: it is inside the binary, and the next
-    // load would bring it straight back. Disabling is the operation that exists.
     const installed = extensions().find(extension => extension.id === id)
     if (installed?.builtin) {
       return void status.say(`"${id}" ships with druk — disable it instead`, 'warn')
@@ -334,37 +236,32 @@ export function createMarket(deps: {
     await applyUpdates(pending)
   }
 
-  /**
-   * A file opened whose language no installed server serves. Offered once per
-   * language per session, and never for one the user has already said no to.
-   */
-  const suggestForFiletype = (filetype: string): void => {
+  const suggestForFiletype = (path: string, filetype: string | undefined): void => {
     if (!settings.config.extensionUpdates || !settings.config.lsp) return
-    // Marked before the await, not after: `clientsFor` asks on every sync of
-    // every open document, so a check that waited for the fetch would queue a
-    // dozen of them before the first one answered.
-    if (asked.has(filetype)) return
-    asked.add(filetype)
+    const name = basename(path).toLowerCase()
+    const key = filetype ?? (extname(name) || name)
+    // Marked before the await: `clientsFor` asks on every sync of every open document.
+    if (asked.has(key)) return
+    asked.add(key)
     void (async () => {
       await ready()
-      const serving = catalog().filter(extension => extension.provides.filetypes.includes(filetype))
-      // A linter claims the filetype too — eslint and oxlint each claim six — and
-      // catalog order is alphabetical, so the first match for `vue` is ESLint.
-      // The answer to "no language server for X" is the extension that *is* X.
+      if (catalog().length === 0) return void asked.delete(key)
+      const claims = (extension: MarketEntry) =>
+        extension.provides.extensions.find(ext => name.endsWith(ext.toLowerCase()))
+      const serving = catalog().filter(extension =>
+        filetype ? extension.provides.filetypes.includes(filetype) : claims(extension),
+      )
+      // A linter claims the filetype too: prefer a language extension to the alphabetical first.
       const found =
         serving.find(extension => extension.categories.includes('language')) ?? serving[0]
       if (!found || declined.has(found.id)) return
       if (extensions().some(extension => extension.id === found.id)) return
-      declined.add(found.id) // asked is asked, whatever the answer turns out to be
-      await offer(found.id, `No language server for ${filetype}. Install ${found.name}?`, true)
+      declined.add(found.id)
+      const label = filetype ?? claims(found)
+      await offer(found.id, `No language server for ${label}. Install ${found.name}?`, true)
     })()
   }
 
-  /**
-   * A config naming a theme nothing registers. This is the upgrade path: druk
-   * used to ship these palettes, so a config written before they moved into the
-   * market names one druk no longer has — and the market knows whose it is.
-   */
   const suggestMissingNames = (): void => {
     const { themes, icons } = unregisteredNames(rootDir)
     for (const name of [...themes, ...icons]) {
@@ -375,7 +272,7 @@ export function createMarket(deps: {
       if (!found || declined.has(found.id)) continue
       declined.add(found.id)
       void offer(found.id, `Your settings ask for "${name}". Install ${found.name}?`, true)
-      return // one offer on the way in; the rest are a palette away
+      return
     }
   }
 

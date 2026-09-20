@@ -1,21 +1,8 @@
-/**
- * Key chords as text: parsing what the `keybindings` setting holds, spelling one
- * back for a menu, and matching one against a key event.
- *
- * Only what a terminal actually puts on the wire is bindable — `test/hotkeys.test.ts`
- * pins the encodings. Two of them shape everything here: Ctrl+Shift+<letter> is
- * byte-identical to Ctrl+<letter>, and the Opt modifier arrives as meta on
- * Terminal.app but as option on iTerm2. So there is one modifier slot beside Ctrl
- * rather than three, and every spelling of it — Opt, Alt, Option, Meta, Cmd,
- * Shift — parses to that one flag.
- */
 import type { KeyEvent } from '@opentui/core'
 
 export interface Chord {
   ctrl: boolean
-  /** The second modifier, however this terminal spells it. */
   alt: boolean
-  /** OpenTUI's key name: a letter, `f1`, `left`, `pageup`, … */
   key: string
 }
 
@@ -92,11 +79,6 @@ const DISPLAY: Record<string, string> = {
   insert: 'Ins',
 }
 
-/**
- * Chords a global binding may not have, because the byte belongs to something
- * else: the terminal sends the same one for Ctrl+I and Tab, and taking it would
- * cost the editor a key nothing else provides.
- */
 const RESERVED: Record<string, string> = {
   'c': 'Ctrl+C copies the selection, or quits when there is none',
   'i': 'Ctrl+I is the Tab byte',
@@ -110,7 +92,6 @@ const RESERVED: Record<string, string> = {
 const isKeyName = (key: string) =>
   NAMED.has(key) || FUNCTION_KEY.test(key) || (key.length === 1 && key >= '!' && key <= '~')
 
-/** A chord out of `Ctrl+Opt+K` and its spellings, or null for anything else. */
 export function parseChord(spelling: string): Chord | null {
   const parts = spelling
     .split('+')
@@ -122,8 +103,7 @@ export function parseChord(spelling: string): Chord | null {
     const lower = part.toLowerCase()
     const last = at === parts.length - 1
     const modifier = MODIFIERS[lower]
-    // A modifier name only counts as one ahead of the key: "Ctrl+Shift" is no chord,
-    // and neither is a chord that names its key first.
+    // A modifier name counts as one only ahead of the key: "Ctrl+Shift" is no chord.
     if (modifier && !last) {
       chord[modifier] = true
       continue
@@ -136,7 +116,6 @@ export function parseChord(spelling: string): Chord | null {
   return chord.key ? chord : null
 }
 
-/** `altLabel` is what the key beside the space bar is called here — Opt or Alt. */
 export function formatChord(chord: Chord, altLabel: string): string {
   const key = DISPLAY[chord.key] ?? (FUNCTION_KEY.test(chord.key) ? chord.key.toUpperCase() : null)
   const parts = [
@@ -147,27 +126,19 @@ export function formatChord(chord: Chord, altLabel: string): string {
   return parts.join('+')
 }
 
-/** Identity for a chord, so two of them can be compared as map keys. */
 export const chordId = (chord: Chord): string =>
   `${chord.ctrl ? 'c' : ''}${chord.alt ? 'a' : ''}:${chord.key}`
 
-/**
- * The second modifier as the terminal reports it: meta on Terminal.app, option on
- * iTerm2, and shift for the letters where Ctrl+Shift and Ctrl are the same byte.
- */
+// shift counts too: Ctrl+Shift+<letter> is byte-identical to Ctrl+<letter> on the wire.
 export const secondary = (key: KeyEvent) => Boolean(key.option || key.meta || key.shift)
 
 export function matchesChord(chord: Chord, key: KeyEvent): boolean {
-  // Enter reports under either name depending on the terminal; one chord covers both.
+  // Enter reports under either name depending on the terminal.
   const name = key.name === 'enter' ? 'return' : key.name
   return name === chord.key && Boolean(key.ctrl) === chord.ctrl && secondary(key) === chord.alt
 }
 
-/**
- * Why `chord` cannot be a global shortcut, or null when it can be one. A chord
- * without Ctrl is refused outright: the global keymap runs ahead of the textarea,
- * so a bare — or merely Opt-shifted — letter would be typing the editor never sees.
- */
+// Without Ctrl it would be typing the editor never sees: the keymap runs before the textarea.
 export function bindingProblem(chord: Chord): string | null {
   if (!chord.ctrl) {
     return FUNCTION_KEY.test(chord.key) ? null : 'A shortcut needs Ctrl or a function key'

@@ -9,7 +9,6 @@ import type { CommandActions } from './commands'
 import type { AppContext } from './context'
 import { matchKeymap } from './keymap'
 
-/** The global keymap: everything that fires before the focused pane sees the key. */
 export function installKeyboard(ctx: AppContext, actions: CommandActions) {
   const {
     settings,
@@ -31,21 +30,9 @@ export function installKeyboard(ctx: AppContext, actions: CommandActions) {
 
   const togglePeek = () => overlays.setPeek(peeking => !peeking)
 
-  /**
-   * Whether EditorPane's own Ctrl+C handler will run — it needs the focus slot, a
-   * live textarea and nothing drawn over it. Holding the focus slot is not enough:
-   * a page or viewer keeps it while taking no keys, and a tab-less editor has no
-   * buffer to copy from, so deferring on `focus()` alone left Ctrl+C owned by
-   * nobody on the welcome screen and under every page.
-   */
   const editorOwnsCopy = () =>
     panes.focus() === 'editor' && workspace.activePath() !== null && !editorCovered()
 
-  /**
-   * What each bindable command does when its key arrives — see `keymap.ts` for the
-   * keys themselves. Every id in `BINDABLE` needs an entry here or its key is dead,
-   * which is what `test/keymap.test.ts` checks.
-   */
   const handlers: Record<string, () => void> = {
     'palette': () => overlays.setPalette(true),
     'peek': togglePeek,
@@ -121,27 +108,16 @@ export function installKeyboard(ctx: AppContext, actions: CommandActions) {
     'quit': prompts.quit,
   }
 
-  // Nothing here consumes a keystroke as text — the commit box and the extensions
-  // search are real inputs that get their characters elsewhere, and the branches
-  // below only claim the keys those fields have no use for. So every switch reads
-  // the US name of the key rather than the letter the layout printed.
+  // Nothing here consumes text, so every switch reads `k`, the US key name.
   useKeys((key: KeyEvent, k: string) => {
-    // Overlays own their keys (handled inside their own components).
     if (overlays.help()) {
       if (k === 'escape') overlays.setHelp(false)
       return
     }
     if (overlays.overlay()) return
 
-    // The refusal has been read by the time another key is pressed. Dismissed here
-    // rather than on a timer, so it cannot vanish while it is still being read.
     if (workspace.notice()) workspace.setNotice(null)
 
-    /**
-     * Run a global chord and hide the key from the textarea, which binds many of
-     * the same ones itself — Ctrl+W deletes a word, Ctrl+F/Ctrl+B move the caret,
-     * Ctrl+←/→ jump a word. Without this, closing a tab also ate a word.
-     */
     const claim = (run: () => void) => {
       key.preventDefault()
       run()
@@ -149,25 +125,15 @@ export function installKeyboard(ctx: AppContext, actions: CommandActions) {
 
     const bound = matchKeymap(settings.keymap(), key)
 
-    // Peek toggles on its own key and folds on any other, which is what lets it
-    // stand in for "hold to see" on terminals that never report a key release.
     if (bound === 'peek') return claim(togglePeek)
     if (overlays.peek()) overlays.setPeek(false)
 
-    // Ctrl+C quits from the tree. In the editor it belongs to EditorPane, which is
-    // the only place that knows whether there is a selection to copy instead — the
-    // renderer's own selection covers mouse drags only. Either way it
-    // routes through `quit()`, so a dirty buffer still gets its prompt. Not a
-    // bindable command: the two meanings are split across two owners.
-    //
-    // Plain Ctrl+C alone: this runs ahead of the keymap, so without the modifier
-    // check every Ctrl+Opt+C chord would quit the editor instead of running.
+    // Ahead of the keymap, or Ctrl+Opt+C would quit.
     if (key.ctrl && k === 'c' && !secondary(key) && !editorOwnsCopy()) return claim(prompts.quit)
 
-    // In vim, Ctrl+R is redo and belongs to the editor, whatever the keymap says it
-    // runs. Project search keeps its other spelling, Ctrl+Opt+F, so nothing becomes
-    // unreachable — and a shortcut deliberately rebound onto Ctrl+R still loses it
-    // here, since the editor's own redo has no second spelling to fall back on.
+    // The open completion menu owns Ctrl+N/P, or they would open a file picker mid-word.
+    if (editor.completionOpen() && key.ctrl && (k === 'n' || k === 'p')) return
+
     const vimOwnsRedo = config.vim && panes.focus() === 'editor' && editor.vimMode() !== 'insert'
     if (bound && !(vimOwnsRedo && key.ctrl && k === 'r')) {
       const run = handlers[bound]
@@ -175,13 +141,8 @@ export function installKeyboard(ctx: AppContext, actions: CommandActions) {
     }
 
     if (panes.focus() === 'editor') {
-      // In vim, Esc belongs to the mode switch. Focus moves synchronously, so
-      // leaving now would mean EditorPane's vim handler is already unfocused when
-      // it runs and never sees the key.
+      // Focus moves synchronously: leaving here unfocuses EditorPane before it sees Esc.
       const vimOwnsEscape = config.vim && editor.vimMode() !== 'normal'
-      // With a page up, Esc belongs to it (it closes the page) — moving
-      // focus to the tree here would take the key away before it ever arrives.
-      // Same when the completion menu is open: Esc dismisses it in EditorPane.
       const pageUp = workspace.page() !== null || workspace.renderedPath() !== null
       if (
         k === 'escape' &&
@@ -192,25 +153,19 @@ export function installKeyboard(ctx: AppContext, actions: CommandActions) {
       ) {
         panes.focusTree()
       }
-      return // everything else belongs to the textarea
+      return
     }
 
-    // The cases below switch on the bare key name, so a chord that got this far
-    // would fire one of them — Ctrl+D on the tree used to open the delete prompt.
+    // The cases below switch on bare key names: Ctrl+D would open the delete prompt.
     if (key.ctrl || key.meta || key.option) return
 
-    // Ahead of the blanket `preventDefault` below, as the extensions search is:
-    // the panel's commit box is a real input, so while it owns the keyboard the
-    // printable keys are its. Enter hands its message to the commit, Esc puts
-    // the keyboard back on the rows with the message kept.
+    // Ahead of the blanket `preventDefault` below: the commit box is a real input.
     if (panes.view() === 'git' && git.messageEditing()) {
       switch (k) {
         case 'return':
         case 'enter':
           actions.gitCommitBox()
           break
-        // The shell's history in a one-line field: ↑ walks back through past
-        // commit subjects, ↓ forward and out to whatever was being typed.
         case 'up':
           git.walkMessageHistory(1)
           break
@@ -221,14 +176,12 @@ export function installKeyboard(ctx: AppContext, actions: CommandActions) {
           git.setMessageEditing(false)
           break
         default:
-          return // the field's
+          return
       }
       key.preventDefault()
       return
     }
 
-    // The extensions panel's search is the same arrangement: a real input whose
-    // printable keys must not be claimed below.
     if (panes.view() === 'extensions' && extensions.query() !== null) {
       switch (k) {
         case 'up':
@@ -245,31 +198,23 @@ export function installKeyboard(ctx: AppContext, actions: CommandActions) {
           extensions.closeSearch()
           break
         default:
-          return // the field's
+          return
       }
       key.preventDefault()
       return
     }
 
-    // Solid applies focus synchronously, so without this the key that opens a
-    // file also reaches the freshly focused textarea.
+    // Focus is applied synchronously: the key that opens a file would reach the textarea.
     key.preventDefault()
 
-    // Bare keys rather than a chord: the sidebar's panes own their keyboard while
-    // focused, and every Ctrl+Opt pair worth having is already spoken for. Ahead
-    // of the per-pane switches because the width belongs to the sidebar, not to
-    // whichever of them is showing.
     if (k === '[' || k === ']') return settings.nudgeSidebar(k === '[' ? -2 : 2)
 
     const vimNav: Record<string, string> = { h: 'left', j: 'down', k: 'up', l: 'right' }
 
-    // The extensions panel borrows the tree's focus slot, so its keys replace the
-    // tree's while it shows — or `d` would still offer to delete files.
+    // These views borrow the tree's focus slot, so their keys come before the tree's.
     if (panes.view() === 'extensions') {
       switch (config.vim ? (vimNav[k] ?? k) : k) {
         case 'tab':
-          // Shift+Tab walks the tab strip above the sidebar, the way it walks
-          // any other one; plain Tab keeps handing the keyboard to the editor.
           if (key.shift) panes.showView('files')
           else if (workspace.activePath() || workspace.page()) panes.setFocus('editor')
           break
@@ -309,17 +254,12 @@ export function installKeyboard(ctx: AppContext, actions: CommandActions) {
       return
     }
 
-    // The review panel borrows the tree's focus slot, as the other two do.
     if (panes.view() === 'review') {
       switch (config.vim ? (vimNav[k] ?? k) : k) {
         case 'tab':
-          // Shift+Tab walks the tab strip above the sidebar, the way it walks any
-          // other one; plain Tab keeps handing the keyboard to the editor.
           if (key.shift) panes.showView('extensions')
           else if (workspace.activePath() || workspace.page()) panes.setFocus('editor')
           break
-        // The cursor is the pager, as it is in the source-control panel: the
-        // file the remark is about follows it into the editor slot.
         case 'up':
           actions.reviewMove(-1)
           break
@@ -350,11 +290,7 @@ export function installKeyboard(ctx: AppContext, actions: CommandActions) {
       return
     }
 
-    // The source-control panel borrows the tree's focus slot, so its keys replace
-    // the tree's while it shows — or `d` would still offer to delete files.
     if (panes.view() === 'git') {
-      // Comparison takes the panel's keyboard over while it is up: its list is a
-      // different list, and `d`/`Esc` mean different things there.
       if (comparison.active()) {
         switch (config.vim ? (vimNav[k] ?? k) : k) {
           case 'b':
@@ -381,8 +317,7 @@ export function installKeyboard(ctx: AppContext, actions: CommandActions) {
             if (comparison.detailOpen()) panes.setFocus('editor')
             break
           case 'escape':
-            // The detail sits on top of the panel: Esc dismisses that first, or
-            // the comparison would close and leave the page it opened behind.
+            // The detail first, or the comparison would close and leave its page behind.
             if (comparison.detailOpen()) comparison.closeDetail()
             else comparison.close()
             break
@@ -393,8 +328,6 @@ export function installKeyboard(ctx: AppContext, actions: CommandActions) {
         actions.gitCompareBranches()
         return
       }
-      // Shift, because plain `s` here is sync. The changes page answers to `s`
-      // itself, but the panel is where the keyboard sits while it is read.
       if (key.shift && k === 's') {
         actions.toggleDiffLayout()
         return
@@ -403,27 +336,19 @@ export function installKeyboard(ctx: AppContext, actions: CommandActions) {
       const rows = git.rows()
       const at = Math.max(0, Math.min(git.gitCursor(), rows.length - 1))
       const row = rows[at]
-      /** The cursor is the diff's pager: the page follows it, so `gitMoveTo` is
-       * the only way through the changes. */
-      const goTo = actions.gitMoveTo
       switch (config.vim ? (vimNav[k] ?? k) : k) {
         case 'tab':
-          // Shift+Tab walks the tab strip above the sidebar, the way it walks any
-          // other one; plain Tab keeps handing the keyboard to the editor.
           if (key.shift) panes.showView('review')
           else if (workspace.activePath() || workspace.page()) {
             panes.setFocus('editor')
           }
           break
         case 'up':
-          goTo(at - 1)
+          actions.gitMoveTo(at - 1)
           break
         case 'down':
-          goTo(at + 1)
+          actions.gitMoveTo(at + 1)
           break
-        // Folder rows fold as the tree's do. On a file or a sync commit — rows
-        // with nothing to fold — ← walks out to the row holding them, which is
-        // the only way back to a row the arrows have passed.
         case 'right':
           if (row && row.kind !== 'file' && row.kind !== 'commit' && row.collapsed) {
             git.toggleCollapsed(rowArea(row), rowRel(row))
@@ -432,19 +357,15 @@ export function installKeyboard(ctx: AppContext, actions: CommandActions) {
         case 'left':
           if (row && row.kind !== 'file' && row.kind !== 'commit' && !row.collapsed) {
             git.toggleCollapsed(rowArea(row), rowRel(row))
-          } else if (row) goTo(parentRow(rows, at))
+          } else if (row) actions.gitMoveTo(parentRow(rows, at))
           break
         case 'return':
         case 'enter':
           actions.gitOpenRow(at)
           break
-        // VS Code's `+`/`−` on a row, on the one key this panel had spare.
         case 'space':
           actions.gitToggleStage()
           break
-        // Into the commit box, as VS Code's focus-the-message-field: the message
-        // is typed there and Enter commits it. The palette's Commit… keeps the
-        // prompt flow for a commit made without the panel.
         case 'c':
           actions.gitFocusMessage()
           break
@@ -466,15 +387,11 @@ export function installKeyboard(ctx: AppContext, actions: CommandActions) {
         case 'w':
           actions.switchWorktree()
           break
-        // The review is a button of its own now, but it is still about the change
-        // this panel lists, so the shortcut into it stays here.
         case 'r':
           panes.showView('review')
           break
         case 'escape':
-          // A page opened from this panel covers the editor: Esc closes that
-          // first, or the panel would go and leave the page it opened behind,
-          // with no key here that closes it.
+          // A page this panel opened first, or the panel would go and leave it behind.
           if (workspace.page() === 'commit' || workspace.page() === 'allChanges') {
             workspace.closePage()
           } else panes.toggleView('git')
@@ -486,9 +403,7 @@ export function installKeyboard(ctx: AppContext, actions: CommandActions) {
     const node = tree.selectedNode()
     switch (config.vim ? (vimNav[k] ?? k) : k) {
       case 'tab':
-        // Shift+Tab walks the tab strip above the sidebar (see the panel's copy).
         if (key.shift) panes.showView('git')
-        // A page counts as an editor to hand focus to, file open or not.
         else if (workspace.activePath() || workspace.page()) {
           panes.setFocus('editor')
         }
@@ -511,18 +426,12 @@ export function installKeyboard(ctx: AppContext, actions: CommandActions) {
         break
       case 'return':
       case 'enter':
-        // Opening a file ends the browsing the preview is for — see App's own
-        // `onActivate`, which is the same landing by mouse.
         if (node && !node.isDir) preview.close()
         if (node) workspace.activateNode(node)
         break
-      // Space, as the Finder's quick look: the file under the cursor over the
-      // editor slot, following the cursor, and never a tab.
       case 'space':
         preview.toggle()
         break
-      // The tree keeps the keyboard while it previews, so paging the pane is
-      // the tree's job. Neither key means anything else here.
       case 'pageup':
         if (preview.target()) preview.scroll(-1)
         break
@@ -535,9 +444,6 @@ export function installKeyboard(ctx: AppContext, actions: CommandActions) {
       case 'r':
         if (node) prompts.setPrompt({ kind: 'rename', target: node.path })
         break
-      // Cut, copy and paste rather than a "move to…" prompt: the tree is already the
-      // way to choose a folder, and typing a destination path is the thing it exists
-      // to save you from.
       case 'x':
         fileOps.takeForPaste('cut')
         break
@@ -548,8 +454,6 @@ export function installKeyboard(ctx: AppContext, actions: CommandActions) {
         fileOps.paste()
         break
       case 'escape':
-        // The preview first: it is the thing on screen, and Esc is what closes
-        // whatever covers the editor slot everywhere else.
         if (preview.target()) preview.close()
         else if (fileOps.clipboard().paths.length > 0) fileOps.cancelTake()
         else if (tree.marked().length > 0) tree.clearMarks()
@@ -564,7 +468,5 @@ export function installKeyboard(ctx: AppContext, actions: CommandActions) {
     }
   })
 
-  /** Run a bindable command without its key — what a click on something that
-   * advertises that key does, so the two cannot drift apart. */
   return { run: (id: string) => handlers[id]?.() }
 }

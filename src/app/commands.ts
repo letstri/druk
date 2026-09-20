@@ -1,14 +1,3 @@
-/**
- * Command registry — the catalogue of everything druk can do. This tree is the
- * command palette (F1 / Ctrl+Shift+P), so it doubles as the feature index.
- *
- * A command either runs (`run`) or opens a submenu (`children`), never both.
- * Typing in the palette searches every leaf across all levels, so nesting keeps
- * the list short without hiding anything.
- *
- * To add a command: add an action to `CommandActions`, then an entry below. Set
- * `hint` when a keybinding also triggers it (keybindings live in App).
- */
 import type { ConflictSide } from '../core/conflicts'
 import { NOTE_KINDS, NOTE_LABELS } from '../core/review'
 import type { NoteKind } from '../core/review'
@@ -95,31 +84,24 @@ export interface CommandActions {
   gitDiffFile: () => void
   gitDiffAll: () => void
   toggleDiffLayout: () => void
-  /** Not a command: the all-changes page reads this. */
   allChanges: () => ChangeSection[]
   allChangesMeta: () => ChangesMeta
   gitCompareBranches: () => void
   gitDiffBase: () => void
   gitDiffBaseReset: () => void
-  /** Not commands: the source-control panel's cursor, moved and pressed. */
   gitMoveTo: (row: number) => void
   gitActivateRow: (row: number) => void
   gitOpenRow: (row: number) => void
   gitDiscard: () => void
   gitToggleStage: (at?: number) => void
-  /** Not a command: the changes page stages by section key, not by panel row. */
   gitToggleStageKey: (key: string) => void
-  /** Not a command: `App` runs it when the source-control panel opens. */
   gitLandOnFile: () => void
-  /** Not a command: `App` runs it when git or a buffer moves under the changes page. */
   refreshChanges: () => void
   gitCommit: () => void
   gitCommitAndPush: () => void
   gitCommitAndSync: () => void
   gitCommitAmend: () => void
-  /** Not a command: the panel's commit box — `c` (or a click) opens it. */
   gitFocusMessage: () => void
-  /** Not a command: Enter in the box, and the ✓ Commit button. */
   gitCommitBox: () => void
   gitUndoCommit: () => void
   gitPush: () => void
@@ -146,11 +128,8 @@ export interface CommandActions {
   reviewNoteOf: (kind: NoteKind) => void
   reviewReply: () => void
   reviewClear: () => void
-  /** Not commands: the review panel's cursor, moved and pressed. */
   reviewMoveTo: (row: number) => void
-  /** The cursor as a pager — move it, and put the code it points at up. */
   reviewMove: (delta: number) => void
-  /** The code the cursor already points at, for the panel just opened. */
   reviewShow: () => void
   reviewActivate: (row: number) => void
   reviewCollapseAll: () => void
@@ -167,7 +146,6 @@ export interface CommandContext {
   activeIconTheme: string
 }
 
-/** Marks the entry matching the current setting, so submenus show state. */
 const check = (on: boolean) => (on ? '* ' : '  ')
 
 export function buildCommands(actions: CommandActions, ctx: CommandContext): Command[] {
@@ -185,7 +163,7 @@ export function buildCommands(actions: CommandActions, ctx: CommandContext): Com
         {
           id: 'find.project',
           label: 'In project',
-          hint: 'Ctrl+R',
+          hint: `Ctrl+${ALT}+F`,
           run: actions.findInProject,
         },
         {
@@ -235,8 +213,6 @@ export function buildCommands(actions: CommandActions, ctx: CommandContext): Com
       id: 'git',
       label: 'Git',
       children: [
-        // The pager: it opens the source-control panel on this file, which is
-        // where the cursor scrolls the changes page to every other change.
         { id: 'git.diffFile', label: 'Diff current file', run: actions.gitDiffFile },
         {
           id: 'git.diffAll',
@@ -262,10 +238,6 @@ export function buildCommands(actions: CommandActions, ctx: CommandContext): Com
           hint: 'd in source control',
           run: actions.gitDiscard,
         },
-        // The conflict commands. Spelled out one side at a time as well as
-        // behind the chooser, the way the review note's four kinds are: a
-        // reader who always takes theirs wants a key for it, and the palette
-        // is where a key is claimed.
         {
           id: 'git.conflictResolve',
           label: 'Resolve conflict at cursor…',
@@ -294,8 +266,6 @@ export function buildCommands(actions: CommandActions, ctx: CommandContext): Com
           run: actions.conflictNext,
         },
         { id: 'git.conflictPrev', label: 'Previous conflict', run: actions.conflictPrev },
-        // What the whole editor compares against — the panel names the branch
-        // while one is picked, so the pair reads as a mode you are in or out of.
         { id: 'git.diffBase', label: 'Compare against branch…', run: actions.gitDiffBase },
         {
           id: 'git.diffBaseReset',
@@ -310,9 +280,7 @@ export function buildCommands(actions: CommandActions, ctx: CommandContext): Com
         },
         { id: 'git.commit', label: 'Commit…', run: actions.gitCommit },
         { id: 'git.undo', label: 'Undo last commit', run: actions.gitUndoCommit },
-        // The filter is first-substring-match in this order, so the plain verbs
-        // stay above the compounds that contain them — `runCommand(t, 'Push')`
-        // in the tests is the same typing a user does.
+        // The palette filters by first substring match in this order: plain verbs above the compounds.
         { id: 'git.push', label: 'Push', run: actions.gitPush },
         { id: 'git.fetch', label: 'Fetch', run: actions.gitFetch },
         { id: 'git.pull', label: 'Pull (fast-forward only)', run: actions.gitPull },
@@ -357,9 +325,6 @@ export function buildCommands(actions: CommandActions, ctx: CommandContext): Com
       ],
     },
     {
-      // Reading code with an agent beside you: notes on lines, the pull
-      // request's own comments, and the Markdown block that carries both into a
-      // prompt. Nothing here writes to a forge — the clipboard is the way out.
       id: 'review',
       label: 'Review',
       children: [
@@ -375,8 +340,6 @@ export function buildCommands(actions: CommandActions, ctx: CommandContext): Com
           hint: `Ctrl+${ALT}+A`,
           run: actions.reviewNote,
         },
-        // The four spelled out as well as behind the chooser: a palette that
-        // knows what you meant is one keystroke shorter than one that asks.
         ...NOTE_KINDS.map(kind => ({
           id: `review.note.${kind}`,
           label: `Note this line as ${NOTE_LABELS[kind].toLowerCase()}…`,
@@ -401,8 +364,13 @@ export function buildCommands(actions: CommandActions, ctx: CommandContext): Com
           hint: `Ctrl+${ALT}+I`,
           run: actions.problemsAtCursor,
         },
-        { id: 'problems.next', label: 'Next problem', run: actions.problemsNext },
-        { id: 'problems.prev', label: 'Previous problem', run: actions.problemsPrev },
+        { id: 'problems.next', label: 'Next problem', hint: 'F8', run: actions.problemsNext },
+        {
+          id: 'problems.prev',
+          label: 'Previous problem',
+          hint: `${ALT}+F8`,
+          run: actions.problemsPrev,
+        },
         {
           id: 'problems.restart',
           label: 'Restart language servers',
@@ -431,8 +399,6 @@ export function buildCommands(actions: CommandActions, ctx: CommandContext): Com
         { id: 'tabs.closeAll', label: 'Close all tabs', run: actions.closeAll },
         { id: 'tabs.next', label: 'Next tab', hint: `Ctrl+${ALT}+→`, run: actions.nextTab },
         { id: 'tabs.prev', label: 'Previous tab', hint: `Ctrl+${ALT}+←`, run: actions.prevTab },
-        // Not the tab order but the order they were visited in — a jump to a
-        // definition and the way back from it, the arrows on the strip do this.
         { id: 'nav.back', label: 'Go back', hint: `Ctrl+${ALT}+Z`, run: actions.navBack },
         {
           id: 'nav.forward',
@@ -497,11 +463,7 @@ export function buildCommands(actions: CommandActions, ctx: CommandContext): Com
     {
       id: 'themes',
       label: 'Themes',
-      // Only the picker: following the OS appearance, the light and dark slots
-      // and the transparent background are set once, so they live on the settings
-      // page. This list stays for the arrow-through live preview.
-      // `themeNames()`, not a constant: an extension's themes are registered at
-      // startup and belong in this list exactly like the shipped ones.
+      // `themeNames()`, not a constant: an extension's themes are registered at startup.
       children: themeNames().map(name => ({
         id: `themes.${name}`,
         label: `${check(ctx.activeTheme === name)}${themeLabel(name)}`,
@@ -513,9 +475,6 @@ export function buildCommands(actions: CommandActions, ctx: CommandContext): Com
     {
       id: 'icons',
       label: 'File icons',
-      // Beside Themes and for the same reason: the arrow-through preview is the
-      // whole of choosing one, and a set that wants a patched font says so here
-      // rather than after it has been picked and the tree has gone to tofu.
       children: iconThemeNames().map(id => ({
         id: `icons.${id}`,
         label: `${check(ctx.activeIconTheme === id)}${iconThemeLabel(id)}${
@@ -530,8 +489,6 @@ export function buildCommands(actions: CommandActions, ctx: CommandContext): Com
       id: 'editor',
       label: 'Editor',
       children: [
-        // Under Editor rather than at the root: the root list is as long as the
-        // palette can draw, and typing finds a leaf at any level anyway.
         {
           id: 'goto.definition',
           label: 'Go to definition',
@@ -544,8 +501,7 @@ export function buildCommands(actions: CommandActions, ctx: CommandContext): Com
           hint: `Ctrl+${ALT}+O`,
           run: actions.openFileUnderCursor,
         },
-        // Also commands because the chords are not always sendable: some layouts
-        // have no byte for Ctrl+/ at all.
+        // Commands as well as chords: some layouts have no byte for Ctrl+/ at all.
         {
           id: 'editor.comment',
           label: 'Toggle comment',
@@ -627,10 +583,6 @@ export function buildCommands(actions: CommandActions, ctx: CommandContext): Com
       id: 'extensions',
       label: 'Extensions',
       children: [
-        // A sidebar view rather than a submenu of its own: installing, disabling
-        // and uninstalling are one list of the same things, and a palette that
-        // walks in and out of itself between them reads as three unrelated
-        // commands. What is left here is what has no row in that list.
         {
           id: 'extensions.panel',
           label: 'Extensions panel',
@@ -643,14 +595,9 @@ export function buildCommands(actions: CommandActions, ctx: CommandContext): Com
           run: actions.checkExtensionUpdates,
         },
         { id: 'extensions.update', label: 'Update extensions', run: actions.updateExtensions },
-        // Manifests are read once, at startup — this is how a theme being
-        // written is seen without restarting the editor.
         { id: 'extensions.reload', label: 'Reload extensions', run: actions.reloadExtensions },
       ],
     },
-    // Vim, tab size, trim, auto-save and the rest live on the settings page —
-    // the palette carries features, not configuration. Themes stay above for
-    // the arrow-through live preview.
     {
       id: 'workspace',
       label: 'Workspace',
@@ -662,8 +609,6 @@ export function buildCommands(actions: CommandActions, ctx: CommandContext): Com
           run: actions.switchWorkspace,
         },
         { id: 'workspace.open', label: 'Open folder…', run: actions.openWorkspace },
-        // A worktree is a folder druk opens like any other, so the commands that
-        // make and unmake one sit beside the switcher rather than under Git.
         {
           id: 'workspace.worktreeSwitch',
           label: 'Switch worktree…',
@@ -675,7 +620,6 @@ export function buildCommands(actions: CommandActions, ctx: CommandContext): Com
       ],
     },
     { id: 'settings', label: 'Settings', run: actions.openSettings },
-    // The same page on its other file — the one that stays with the project.
     {
       id: 'settings-project',
       label: 'Settings: this project',
@@ -686,14 +630,7 @@ export function buildCommands(actions: CommandActions, ctx: CommandContext): Com
   ]
 }
 
-/**
- * The tree with the keymap laid over it. A rebound command's hint says the
- * user's own chord instead of the hand-written one the table was born with —
- * '' once they unbound it, where a hint would advertise a dead key — and every
- * leaf reports its id as it runs, which is what lets the status bar name the
- * key that would have done it. The tip goes out before `run`, so an operation
- * with something of its own to say wins the message slot.
- */
+// The tip goes out before `run`: an operation with something of its own to say wins the slot.
 export function withKeymap(commands: Command[], ran: (id: string) => void): Command[] {
   return commands.map(command => {
     if (command.children) return { ...command, children: withKeymap(command.children, ran) }

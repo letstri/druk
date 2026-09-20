@@ -11,7 +11,6 @@ const dist = tempDir('druk-formula-')
 afterAll(() => rmSync(dist, { recursive: true, force: true }))
 
 const TARGETS = ['darwin-arm64', 'darwin-x64', 'linux-arm64', 'linux-x64'] as const
-// The tags brew asks for; a rename here is a formula nobody's machine matches.
 const TAGS = ['arm64_ventura', 'ventura', 'arm64_linux', 'x86_64_linux'] as const
 
 function run(script: string, args: string[] = []) {
@@ -41,7 +40,7 @@ test('the formula pours bottles for every platform', () => {
   )
 
   for (const tag of TAGS) {
-    // The name brew builds from root_url: one dash before the version, not two.
+    // The name brew builds from root_url: one dash before the version, not `brew bottle`'s two.
     const path = join(dist, 'release', `druk-${version}.${tag}.bottle.tar.gz`)
     expect(existsSync(path)).toBe(true)
 
@@ -53,8 +52,6 @@ test('the formula pours bottles for every platform', () => {
     expect(listed).not.toContain('._druk')
   }
 
-  // A bottle per target, each carrying that target's binary rather than one of them four
-  // times — the mistake a shared staging directory would make.
   const contents = TAGS.map(tag =>
     Bun.spawnSync({
       cmd: [

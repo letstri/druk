@@ -15,7 +15,6 @@ const PROJECT = {
   'src/deep.ts': 'const deep = 3\n',
 }
 
-/** Render as `druk <file>` does: one file, its folder as the project. */
 const openOne = (file: string, config: Partial<Config> = {}) =>
   launch(dirname(file), config, {}, { openFile: file })
 
@@ -28,14 +27,12 @@ describe('druk <file>', () => {
 
     expect(t.captureCharFrame()).toContain('const two = 2')
     expect(tabBar(t)).toContain('two.ts')
-    // No tree: no header, no explorer label, no row for the sibling file.
     expect(t.captureCharFrame()).not.toContain('EXPLORER')
     expect(t.captureCharFrame()).not.toContain('one.ts')
   })
 
   test('the file is the only tab, whatever the folder had open before', async () => {
     const dir = fixture(PROJECT)
-    // A session for this folder with both files open and the sidebar showing.
     saveSession(dir, {
       tabs: [join(dir, 'one.ts'), join(dir, 'two.ts')],
       activePath: join(dir, 'one.ts'),
@@ -87,7 +84,6 @@ describe('druk <file>', () => {
     await settle(t)
     const frame = t.captureCharFrame()
     expect(frame).toContain('EXPLORER')
-    // The folder holding the file is the project, so its siblings are there.
     expect(frame).toContain('one.ts')
   })
 
@@ -109,7 +105,6 @@ describe('druk <file>', () => {
 
     await press(t, input => input.pressKey('b', { ctrl: true }))
     await settle(t)
-    // Rooted at src/, so deep.ts is a top-level row and one.ts is out of scope.
     const frame = t.captureCharFrame()
     expect(frame).toContain('deep.ts')
     expect(frame).not.toContain('one.ts')
@@ -117,11 +112,7 @@ describe('druk <file>', () => {
 })
 
 describe('the CLI itself', () => {
-  /**
-   * Drive the real entry point, with an isolated config home so it cannot touch the
-   * developer's own. Run from the repo root: `bunfig.toml` lives there, and without
-   * its preload the Solid JSX transform never happens.
-   */
+  // From the repo root: without `bunfig.toml`'s preload the Solid JSX transform never happens.
   function run(args: string[]) {
     const home = tempDir('druk-home-')
     const proc = Bun.spawnSync(['bun', 'src/index.tsx', ...args], {
@@ -193,10 +184,9 @@ describe('resolveTarget', () => {
       line: 41,
       col: null,
     })
-    // Both numbers are 0-based in the result; the CLI form is 1-based.
+    // 0-based in the result; the CLI form is 1-based.
     expect(resolveTarget('two.ts:42:7', dir)).toMatchObject({ line: 41, col: 6 })
     expect(resolveTarget('two.ts:42:0', dir)?.col).toBe(0)
-    // But a missing file is still a missing file.
     expect(resolveTarget('nope.ts:42', dir)).toBeNull()
   })
 

@@ -12,7 +12,6 @@ const PROJECT = {
   'lib/other.ts': 'const other = 1\n',
 }
 
-/** Open a file, then hand the keyboard back to the tree, where `c` and `p` are commands. */
 async function open(t: Harness, name: string) {
   await openFile(t, name)
   await pressEscape(t)
@@ -49,7 +48,6 @@ describe('copying a file with c and p', () => {
     await press(t, input => void input.typeText('c'))
     expect(t.captureCharFrame()).toContain('Copied alpha.ts')
 
-    // Up one row from alpha.ts is the src folder.
     await press(t, input => input.pressArrow('up'))
     await press(t, input => void input.typeText('p'))
     await settle(t)
@@ -90,7 +88,6 @@ describe('copying a file with c and p', () => {
   test('a folder goes with everything inside it', async () => {
     const dir = fixture(PROJECT)
     const t = await launch(dir)
-    // Row 2 is src/, row 1 is lib/ — alphabetical, folders first.
     await selectNth(t, 2)
     await press(t, input => void input.typeText('c'))
     await press(t, input => input.pressArrow('up'))
@@ -104,7 +101,7 @@ describe('copying a file with c and p', () => {
   test('a folder refuses to be copied inside itself', async () => {
     const dir = fixture(PROJECT)
     const t = await launch(dir)
-    await selectNth(t, 2) // src/
+    await selectNth(t, 2)
     await press(t, input => void input.typeText('c'))
     await press(t, input => void input.typeText('p'))
     await settle(t)
@@ -147,7 +144,6 @@ describe('copying a file with c and p', () => {
     await settle(t)
     expect(existsSync(join(dir, 'src/alpha.ts'))).toBe(true)
 
-    // Nothing left on the clipboard: the second paste has nothing to do.
     await press(t, input => void input.typeText('p'))
     await settle(t)
     expect(t.captureCharFrame()).toContain('Nothing taken')

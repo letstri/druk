@@ -1,12 +1,3 @@
-/**
- * The market folder itself: every `extensions/<id>/extension.json` in this repository,
- * and the catalog generated from them.
- *
- * These extensions are what druk used to ship in `src/`, so the guarantees the
- * source files were held to have to hold here too — a palette that fails them
- * is as broken as it ever was, and nothing else would catch it now that no
- * TypeScript file names these colors.
- */
 import { expect, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
 
@@ -23,18 +14,13 @@ const themes = market.flatMap(extension =>
 )
 
 test('every manifest in the market is one druk can use', () => {
-  // `readMarket` throws on a manifest with any problem at all, so reaching here
-  // is most of the assertion; the count is what catches a folder that is not one.
   expect(market.map(extension => extension.id)).toEqual(marketIds())
   expect(market.every(extension => extension.version !== '0.0.0')).toBe(true)
   expect(market.every(extension => extension.description.length > 0)).toBe(true)
 })
 
 test('the committed index is what the generator writes', () => {
-  // Without this, a merged extension whose author forgot `bun run extensions` would be
-  // invisible in the market, or listed at the version before their change. The
-  // comparison is on the parsed value, not the text: the index is JSON in the
-  // repository, so the formatter owns its whitespace.
+  // Fails when the index is stale. Compared parsed, not as text: the formatter owns whitespace.
   expect(JSON.parse(readFileSync(INDEX_FILE, 'utf8'))).toEqual(buildIndex())
 })
 
@@ -43,11 +29,6 @@ test('no two extensions claim the same id', () => {
     ...themes.map(theme => `theme:${theme.id}`),
     ...market.flatMap(extension => extension.icons.map(icons => `icons:${icons.id}`)),
     ...market.flatMap(extension => extension.servers.map(server => `server:${server.id}`)),
-    // Two extensions claiming one language would make which of them highlights it
-    // depend on load order, which is a folder listing — not a decision anyone
-    // made. Filetypes are deliberately not held to that: several servers may
-    // claim one, and every one of them is spawned — eslint and oxlint both lint
-    // the TypeScript that typescript's own server is already serving.
     ...market.flatMap(extension => extension.languages.map(language => `lang:${language.id}`)),
   ]
   expect(new Set(claimed).size).toBe(claimed.length)
@@ -66,8 +47,6 @@ test('every language has something to highlight with, and a way to be reached', 
     for (const language of extension.languages) {
       const usable = language.bundled || (language.wasm && language.query) || language.patterns
       expect(`${language.id}:${usable ? 'ok' : 'unusable'}`).toBe(`${language.id}:ok`)
-      // A grammar path only exists because `vendored` resolved: an asset-backed
-      // grammar in this repository would be a wasm blob nobody wants here.
       if (language.wasm) expect(language.wasm.startsWith('/')).toBe(true)
     }
     expect(extension.assets).toEqual([])
@@ -81,12 +60,9 @@ test('what ships in the binary is the market folder, and needs no files beside i
     expect(`${extension.id} in the market: ${ids.has(extension.id)}`).toBe(
       `${extension.id} in the market: true`,
     )
-    // A built-in is parsed without a folder, so a relative asset would resolve
-    // to nothing — one carrying assets cannot be preinstalled as it stands.
     expect(extension.assets).toEqual([])
     expect(extension.builtin).toBe(true)
   }
-  // The languages a first run has to highlight without any network at all.
   const languages = new Set(shipped.flatMap(extension => extension.languages.map(l => l.id)))
   for (const id of [
     'typescript',
@@ -118,8 +94,6 @@ test('indent guides are visible in every market theme', () => {
 })
 
 test('every market theme colours the groups a file actually uses', () => {
-  // A manifest whose `syntax` is empty parses fine and renders every token in
-  // the body colour, which reads as "highlighting is broken", not as a theme.
   for (const theme of themes) {
     for (const group of ['comment', 'string', 'keyword', 'function', 'type']) {
       expect(`${theme.id}/${group}`).toBe(
@@ -136,10 +110,6 @@ test('every market icon glyph survives parsing and is one cell wide', () => {
         icons: Record<'extensions' | 'names' | 'folders', Record<string, unknown> | undefined>[]
       }
       const declared = raw.icons[0]!
-      // A two-cell glyph is dropped by the parser rather than drawn, so a count
-      // that fell is a manifest quietly missing icons — the one failure mode
-      // that looks like the theme simply not covering that file type. A map
-      // pointing at a definition that does not exist fails the same way.
       for (const map of ['extensions', 'names', 'folders'] as const) {
         expect(`${icons.id}/${map}:${Object.keys(icons[map]).length}`).toBe(
           `${icons.id}/${map}:${Object.keys(declared[map] ?? {}).length}`,
@@ -162,9 +132,6 @@ test('every market icon glyph survives parsing and is one cell wide', () => {
 
 test('the material set has an icon for the files a project is made of', () => {
   const icons = market.find(extension => extension.id === 'material-icons')!.icons[0]!
-  // Every one of these resolves to something in the manifest rather than to the
-  // theme's fallback file glyph — that fallback is what a port with the
-  // associations dropped would show for the whole tree.
   for (const [name, color] of [
     ['a.ts', '#0288d1'],
     ['a.tsx', '#0288d1'],

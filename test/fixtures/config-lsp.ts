@@ -1,14 +1,3 @@
-/**
- * A server that reports nothing until it has been configured — eslint's shape,
- * reduced to what can be asserted on.
- *
- * It gets its settings the two ways the protocol offers, and says which of them
- * arrived: `workspace/configuration`, which it asks for once the handshake is
- * done, and the `didChangeConfiguration` push. Answering the request is not
- * enough on its own — the answer lands after the first pull — so it also sends
- * `workspace/diagnostic/refresh`, which is the only way a pull server has of
- * saying its last answers went stale.
- */
 import { createDecoder, encodeMessage } from '../../src/lsp/transport'
 
 const send = (message: object) => process.stdout.write(encodeMessage(message))
@@ -60,8 +49,6 @@ process.stdin.on(
     } else if (message.id === CONFIG_REQUEST_ID) {
       const result = message.result as unknown[] | undefined
       viaRequest = validated(result?.[0])
-      // The pull that followed didOpen was answered before this arrived, so the
-      // marks on screen are the unconfigured ones until they are asked for again.
       send({ jsonrpc: '2.0', id: CONFIG_REQUEST_ID + 1, method: 'workspace/diagnostic/refresh' })
     } else if (message.method === 'shutdown') {
       send({ jsonrpc: '2.0', id: message.id, result: null })
