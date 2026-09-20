@@ -33,6 +33,7 @@ import { pathTokenAt, resolveImportPath } from '../core/imports'
 import { NOTE_LABELS } from '../core/review'
 import type { NoteKind } from '../core/review'
 import type { ChangeSection, ChangesMeta } from '../ui/ChangesView'
+import { firstChangedLine } from '../ui/DiffView'
 import type { DiffFile } from '../ui/DiffView'
 import { keyTip } from '../ui/keys'
 import { rowSlotKey, slotKey, takeChangeSections } from './changeSections'
@@ -399,6 +400,15 @@ export function createCommands(ctx: AppContext) {
     panes.setFocus('editor')
   }
 
+  // The changes page names a section (`${area}:${path}`), not a row: a folded folder has no row.
+  const openChangeKey = (key: string, line: number | null) => {
+    const section = allChanges().find(entry => entry.key === key)
+    if (!section) return
+    if (section.status === 'deleted') return say('File was deleted', 'warn')
+    const path = key.slice(key.indexOf(':') + 1)
+    openAt(path, line ?? (section.file ? firstChangedLine(section.file) : 0), 0)
+  }
+
   const cursorLine = (path: string): string => {
     const at = editor.cursor()
     return workspace.buffers[path]?.content.split('\n')[at.line] ?? ''
@@ -608,6 +618,7 @@ export function createCommands(ctx: AppContext) {
     gitDiscard: () => offerDiscard(),
     gitToggleStage,
     gitToggleStageKey,
+    openChangeKey,
     gitLandOnFile: () => {
       const row = git.cursorRow()
       if (row?.kind === 'file') return

@@ -32,6 +32,7 @@ import { FileTree } from '../ui/FileTree'
 import { GitPanel } from '../ui/GitPanel'
 import { useHover } from '../ui/hover'
 import { ImageView } from '../ui/ImageView'
+import type { Hint } from '../ui/keys'
 import { LspStatusView } from '../ui/LspStatusView'
 import { MarkdownView } from '../ui/MarkdownView'
 import { PreviewPane } from '../ui/PreviewPane'
@@ -360,6 +361,18 @@ export function App(props: {
     const line = workspace.buffers[path]?.content.split('\n')[at.line]
     return line !== undefined && hasPathAt(line, at.col)
   })
+
+  // The changes page's own header is at the top of the editor slot: a reader in the sidebar
+  // never looks there, and Tab is how they get in at all.
+  const changesHints = (): Hint[] => {
+    if (workspace.page() !== 'allChanges') return []
+    if (panes.focus() !== 'editor') return [{ key: 'Tab', label: 'file', rank: 4 }]
+    return [
+      { key: 'Tab', label: 'file', rank: 4 },
+      { key: 'Enter', label: 'open', rank: 5 },
+      { key: 'Esc', label: panes.sidebar() ? 'sidebar' : 'close', rank: 6 },
+    ]
+  }
 
   const problemCounts = createMemo(() => {
     const path = workspace.activePath()
@@ -834,7 +847,9 @@ export function App(props: {
                   onToggleMode={settings.toggleDiffView}
                   staging={git.staging() && !comparison.active()}
                   onToggleStage={actions.gitToggleStageKey}
-                  onClose={() => workspace.closePage()}
+                  onOpen={actions.openChangeKey}
+                  escLabel={panes.sidebar() ? 'sidebar' : 'close'}
+                  onClose={() => (panes.sidebar() ? panes.showView('git') : workspace.closePage())}
                 />
               </box>
             </Show>
@@ -916,6 +931,7 @@ export function App(props: {
         problems={problemCounts()}
         focus={panes.keyPane()}
         pathUnderCursor={panes.keyPane() === 'editor' && pathUnderCursor()}
+        extraHints={changesHints()}
         busy={status.busy()}
         onBranch={actions.gitSwitchBranch}
         onSync={actions.gitSync}

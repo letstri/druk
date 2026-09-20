@@ -29,6 +29,7 @@ export interface StatusBarProps {
   problems?: { errors: number; warnings: number }
   focus: KeyScope
   pathUnderCursor: boolean
+  extraHints?: Hint[]
   busy: { label: string; done?: number; total?: number } | null
   onBranch: () => void
   onSync: () => void
@@ -161,7 +162,8 @@ export function StatusBar(props: StatusBarProps) {
   // Rebindable, so the chord is asked for rather than spelled.
   const contextual = (): Hint[] => {
     const key = props.pathUnderCursor ? chordFor('goto.file') : ''
-    return key ? [{ key, label: 'open path', id: 'goto.file', rank: 2 }] : []
+    const path: Hint[] = key ? [{ key, label: 'open path', id: 'goto.file', rank: 2 }] : []
+    return [...path, ...(props.extraHints ?? [])]
   }
 
   const hints = createMemo(() => {

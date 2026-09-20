@@ -59,7 +59,9 @@ export interface ChangesViewProps {
   onFocus: () => void
   onToggleMode: () => void
   onToggleStage: (key: string) => void
+  onOpen: (key: string, line: number | null) => void
   staging: boolean
+  escLabel?: string
   onClose: () => void
 }
 
@@ -242,6 +244,7 @@ export function ChangesView(props: ChangesViewProps) {
   const [folded, setFolded] = createSignal(new Set<string>())
   const [scrollTop, setScrollTop] = createSignal(0)
   const [pickedKey, setPickedKey] = createSignal<string | null>(null)
+  const [pickedLine, setPickedLine] = createSignal<number | null>(null)
 
   // Bumped when the stack's geometry moved for a reason `scrollTop` cannot report.
   const [layout, bumpLayout] = createSignal(0, { equals: false })
@@ -410,6 +413,7 @@ export function ChangesView(props: ChangesViewProps) {
     const at = Math.max(0, keys.indexOf(selectedKey() ?? keys[0]!))
     const next = keys[(at + delta + keys.length) % keys.length]!
     setPickedKey(next)
+    setPickedLine(null)
     reveal(next)
   }
 
@@ -460,6 +464,9 @@ export function ChangesView(props: ChangesViewProps) {
     else if (k === 'space') {
       const sel = selectedKey()
       if (sel) props.onToggleStage(sel)
+    } else if (k === 'return' || k === 'enter') {
+      const sel = selectedKey()
+      if (sel) props.onOpen(sel, sel === pickedKey() ? pickedLine() : null)
     } else if (k === 'escape' || k === 'q') props.onClose()
     else return
     key.preventDefault()
@@ -471,11 +478,12 @@ export function ChangesView(props: ChangesViewProps) {
     const layout = props.mode === 'inline' ? 'inline' : 'side-by-side'
     const key = props.focused ? 's' : 'S'
     const stage = props.staging ? ' · Space stage' : ''
-    const full = ` ${layout} · ${key} layout${stage} · ↑↓ scroll · Tab file · ← fold · Esc close `
+    const esc = `Esc ${props.escLabel ?? 'close'}`
+    const full = ` ${layout} · ${key} layout${stage} · Tab file · Enter open · ← fold · ${esc} `
     if (full.length + 28 <= props.width) return full
-    const short = ` ${layout} · ${key} · Tab · ← fold · Esc close `
+    const short = ` ${layout} · ${key} · Tab · Enter open · ← fold · ${esc} `
     if (short.length + 28 <= props.width) return short
-    return ' Tab · ← fold · Esc close '
+    return ` Tab · Enter open · ${esc} `
   }
 
   const header = () => {
@@ -557,6 +565,7 @@ export function ChangesView(props: ChangesViewProps) {
                         }}
                         onToggle={() => {
                           setPickedKey(section.key)
+                          setPickedLine(null)
                           toggleFold(section.key)
                         }}
                         onEnter={() => hover.enter(section.key)}
@@ -573,6 +582,10 @@ export function ChangesView(props: ChangesViewProps) {
                           focused={false}
                           blocked={true}
                           onFocus={props.onFocus}
+                          onPickLine={line => {
+                            setPickedKey(section.key)
+                            setPickedLine(line)
+                          }}
                         />
                       )}
                     </Show>

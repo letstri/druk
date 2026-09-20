@@ -95,6 +95,7 @@ export interface CommandActions {
   gitDiscard: () => void
   gitToggleStage: (at?: number) => void
   gitToggleStageKey: (key: string) => void
+  openChangeKey: (key: string, line: number | null) => void
   gitLandOnFile: () => void
   refreshChanges: () => void
   gitCommit: () => void

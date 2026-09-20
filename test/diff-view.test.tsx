@@ -11,6 +11,7 @@ import {
   press,
   pressEscape,
   runCommand,
+  settle,
   until,
   untilFrame,
   untilGone,
@@ -183,7 +184,7 @@ test('every change is on the page at once, whichever row the cursor is on', asyn
   expect(frame).toContain('+ BETA')
 })
 
-test('Esc closes the page from inside it', async () => {
+test('Esc hands the page back to the panel, and the panel closes it', async () => {
   const dir = repo({ 'a.ts': 'alpha\n', 'b.ts': 'beta\n' })
   writeFileSync(join(dir, 'a.ts'), 'ALPHA\n')
   writeFileSync(join(dir, 'b.ts'), 'BETA\n')
@@ -192,7 +193,11 @@ test('Esc closes the page from inside it', async () => {
   await openDiff(t)
   await untilFrame(t, '+ ALPHA')
   await press(t, i => i.pressTab())
-  expect(t.captureCharFrame()).toContain('Esc close')
+  expect(t.captureCharFrame()).toContain('Esc sidebar')
+
+  await pressEscape(t)
+  await settle(t)
+  expect(t.captureCharFrame()).toContain('+ ALPHA')
 
   await pressEscape(t)
   await untilGone(t, '+ ALPHA')

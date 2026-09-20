@@ -42,6 +42,7 @@ export interface DiffViewProps {
   onToggleMode?: () => void
   onClose?: () => void
   onMoveFile?: (delta: number) => void
+  onPickLine?: (line: number | null) => void
   escLabel?: string
 }
 
@@ -111,6 +112,8 @@ type OnHighlight = (
 ) => Promise<PaneHighlight[] | undefined>
 
 interface CodePane {
+  x: number
+  y: number
   scrollY: number
   maxScrollY: number
   isDestroyed: boolean
@@ -179,6 +182,15 @@ function paneLines(patch: string, view: 'unified' | 'split') {
     }
   }
   return { left, right }
+}
+
+/** The new-side line a reader landing in this file wants: the first one that differs. */
+export function firstChangedLine(file: DiffFile): number {
+  const old = file.oldText.split('\n')
+  const now = file.newText.split('\n')
+  let at = 0
+  while (at < old.length && at < now.length && old[at] === now[at]) at++
+  return Math.min(at, Math.max(0, now.length - 1))
 }
 
 export function DiffView(props: DiffViewProps) {
@@ -398,6 +410,25 @@ export function DiffView(props: DiffViewProps) {
       }, 0)
     }),
   )
+  // Split's panes are row-aligned by construction, so the right one answers a click on either.
+  const lineAtPoint = (y: number): number | null => {
+    const host = livePane() as unknown as DiffSides | undefined
+    const code = host?.leftCodeRenderable
+    if (!host || !code || code.isDestroyed) return null
+    const view = mode() === 'split' ? 'split' : 'unified'
+    const refs = paneLines(diff().patch, view)
+    const list = view === 'split' ? refs.right : refs.left
+    const row = y - code.y + code.scrollY
+    for (let at = Math.max(0, row); at < list.length; at++) {
+      if (list[at]?.side === 'new') return list[at]!.line
+    }
+    // A deletion at the end of the file has no new line after it.
+    for (let at = Math.min(row, list.length) - 1; at >= 0; at--) {
+      if (list[at]?.side === 'new') return list[at]!.line
+    }
+    return null
+  }
+
   const scroll = (delta: number) => {
     for (const side of sides()) {
       side.scrollY = Math.max(0, Math.min(side.maxScrollY, side.scrollY + delta))
@@ -467,7 +498,10 @@ export function DiffView(props: DiffViewProps) {
       flexShrink={section() ? 0 : undefined}
       flexDirection="column"
       backgroundColor={ui.solidBg}
-      onMouseDown={() => props.onFocus()}
+      onMouseDown={(event: { y: number }) => {
+        props.onFocus()
+        props.onPickLine?.(lineAtPoint(event.y))
+      }}
     >
       {/* flexShrink={0}: the pane below measures as tall as the whole patch, so yoga would crush it. */}
       <Show when={!section()}>

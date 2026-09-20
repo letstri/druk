@@ -199,7 +199,7 @@ test('the all-changes page gives a long path one row', async () => {
   await untilFrame(t, 'Uncommitted')
 
   expect(rowsWith(t, 'Uncommitted')).toBe(1)
-  expect(t.captureCharFrame()).toContain('Esc close')
+  expect(t.captureCharFrame()).toContain('Esc sidebar')
   expect(rowsWith(t, name.slice(-24))).toBe(1)
 }, 20000)
 

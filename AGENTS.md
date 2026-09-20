@@ -232,7 +232,14 @@ the reader outranking it. The stacked-row cap is spent *from* the file under the
 cursor when the walk could not reach it — a page that ended on the file being read is a
 page that will not scroll past it — so the files after it are what fills the budget, and
 the header says how many were left out; the page goes when the last change
-does, and Esc closes it — a
+does, and Esc hands the keyboard back to the source-control panel, whose own Esc then
+closes the page — two steps, since a reader leaving a diff is usually going back to the
+list rather than throwing it away; with no sidebar there is nothing to go back to and
+Esc closes it outright, which is what the header's `Esc sidebar`/`Esc close` says. The
+page's keys are in the status bar as well (`extraHints` on `StatusBar`, built in
+`App.tsx`): the page's own hints are at the top of the editor slot, where a reader
+working the panel never looks, so the footer carries `Tab file` from the panel and
+`Tab file · Enter open · Esc sidebar` once the page has the keyboard — a
 comparison base that points marks, gutter, panel and diff at another branch instead of
 HEAD (palette → Git → Compare against branch…), branch comparison against the
 repository's default branch or any selected base (palette → Git → Compare branches, or
