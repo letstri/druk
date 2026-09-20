@@ -81,6 +81,10 @@ rediscovered.
   no click count and no `dblclick` type.
 - **Degrades**: double-click word select and triple-click line select go; in the tree,
   double-click to open goes.
+- **Costs**: `setSelection` writes a view selection the renderer does not own, and
+  OpenTUI clears only its own on a plain caret move (`updateSelectionForMovement` →
+  `_ctx.clearSelection`), so `movesCaret` in `EditorPane.tsx` clears it by hand — else
+  a word selected on one line is deleted by the next keystroke typed on another.
 
 ### A8. Selection confined to the editor and the diff panes
 - **Custom**: `allowSelectionIn` (`src/ui/selection.ts`), ~20 lines patching the

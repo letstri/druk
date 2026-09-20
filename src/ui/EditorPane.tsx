@@ -279,6 +279,17 @@ function selectOnMultiClick(el: TextareaRenderable, after: () => void) {
   }
 }
 
+const CARET_KEYS = new Set(['up', 'down', 'home', 'end', 'pageup', 'pagedown'])
+
+// Left/right collapse a selection themselves; every other move only clears the renderer's own,
+// which a multi-click selection is not — left standing it would be typed over from a line away.
+const movesCaret = (key: KeyEvent): boolean => {
+  if (key.shift) return false
+  if (key.name === 'left' || key.name === 'right') return key.ctrl || key.option || key.meta
+  // Opt/Cmd + up/down move the selected lines and need the selection.
+  return CARET_KEYS.has(key.name ?? '') && !key.option && !key.meta
+}
+
 const isEditingKey = (key: KeyEvent): boolean => {
   // Ahead of the modifier check: Ctrl/Opt/Cmd + backspace are word and line deletes.
   if (key.name === 'backspace' || key.name === 'delete') return true
@@ -1830,6 +1841,10 @@ export function EditorPane(props: EditorPaneProps) {
       editor.selectAll()
       applyWindow(true)
       return
+    }
+
+    if (editor.hasSelection() && (!props.vim || vimState.mode === 'insert') && movesCaret(key)) {
+      editor.clearSelection()
     }
 
     // The buffer inserts at the caret and leaves the selected text in place, so it deletes here.

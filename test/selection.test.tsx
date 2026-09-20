@@ -140,4 +140,26 @@ describe('mouse selection', () => {
     await save(t)
     expect(readFileSync(join(dir, 'a.ts'), 'utf8')).toBe('const alpha = 1\nX\n\n\nconst beta = 2\n')
   })
+
+  test('a word selection does not outlive the arrow key that leaves it', async () => {
+    const { t, dir } = await withOpenFile(CONTENT)
+    await t.mockMouse.doubleClick(colOf(t, 'data'), EDITOR_ROW)
+    await settle(t)
+    await press(t, input => input.pressArrow('down'))
+    await press(t, input => void input.typeText('X'))
+    await save(t)
+    expect(readFileSync(join(dir, 'a.ts'), 'utf8')).toBe('const data = []\nconst Xbeta = 2\n')
+  })
+
+  test('and so the next left arrow steps, rather than jumping back to it', async () => {
+    const { t, dir } = await withOpenFile(CONTENT)
+    await t.mockMouse.doubleClick(colOf(t, 'data'), EDITOR_ROW)
+    await settle(t)
+    await press(t, input => input.pressArrow('down'))
+    await press(t, input => input.pressArrow('right'))
+    await press(t, input => input.pressArrow('left'))
+    await press(t, input => void input.typeText('X'))
+    await save(t)
+    expect(readFileSync(join(dir, 'a.ts'), 'utf8')).toBe('const data = []\nconst Xbeta = 2\n')
+  })
 })
