@@ -70,11 +70,25 @@ export interface CellImage {
   cells: Uint8Array
 }
 
-export function toCells(img: RawImage, maxCols: number, maxRows: number): CellImage {
+export interface CellFit {
+  cols: number
+  rows: number
+  // The half-block path's vertical resolution: two of these to a row.
+  pixelRows: number
+}
+
+export function cellFit(img: RawImage, maxCols: number, maxRows: number): CellFit {
   const scale = Math.min(maxCols / img.width, (maxRows * 2) / img.height, 1)
-  const cols = Math.max(1, Math.round(img.width * scale))
   const pixelRows = Math.max(1, Math.round(img.height * scale))
-  const rows = Math.ceil(pixelRows / 2)
+  return {
+    cols: Math.max(1, Math.round(img.width * scale)),
+    rows: Math.ceil(pixelRows / 2),
+    pixelRows,
+  }
+}
+
+export function toCells(img: RawImage, maxCols: number, maxRows: number): CellImage {
+  const { cols, rows, pixelRows } = cellFit(img, maxCols, maxRows)
   const cells = new Uint8Array(cols * rows * 8)
   for (let y = 0; y < pixelRows; y++) {
     for (let x = 0; x < cols; x++) {
@@ -113,4 +127,23 @@ function boxAverage(
   }
   const n = (x1 - x0) * (y1 - y0)
   return [Math.round(r / n), Math.round(g / n), Math.round(b / n), Math.round(a / n)]
+}
+
+export interface ScaledImage {
+  width: number
+  height: number
+  pixels: Uint8Array
+}
+
+export function resample(img: RawImage, maxWidth: number, maxHeight: number): ScaledImage {
+  const scale = Math.min(maxWidth / img.width, maxHeight / img.height, 1)
+  const width = Math.max(1, Math.round(img.width * scale))
+  const height = Math.max(1, Math.round(img.height * scale))
+  const pixels = new Uint8Array(width * height * 4)
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      pixels.set(boxAverage(img, x, y, width, height), (y * width + x) * 4)
+    }
+  }
+  return { width, height, pixels }
 }

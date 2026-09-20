@@ -4,7 +4,7 @@ import { join } from 'node:path'
 
 import { encode } from 'fast-png'
 
-import { decodeImage, isImagePath, toCells } from '../src/core/image'
+import { cellFit, decodeImage, isImagePath, toCells } from '../src/core/image'
 import type { RawImage } from '../src/core/image'
 import { tempDir } from './temp'
 
@@ -107,5 +107,24 @@ describe('toCells', () => {
     const got = [...cells.cells]
     expect(got.slice(0, 4)).toEqual([150, 150, 150, 255])
     expect(got.slice(4, 8)).toEqual([25, 25, 25, 255])
+  })
+})
+
+describe('cellFit', () => {
+  test('agrees with the cells toCells lays out, so both images cover one rect', () => {
+    const img = raw(
+      4,
+      4,
+      Array.from({ length: 64 }, () => 255),
+    )
+    for (const [cols, rows] of [
+      [80, 24],
+      [3, 24],
+      [80, 1],
+    ] as const) {
+      const fit = cellFit(img, cols, rows)
+      const cells = toCells(img, cols, rows)
+      expect([fit.cols, fit.rows]).toEqual([cells.cols, cells.rows])
+    }
   })
 })

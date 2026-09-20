@@ -204,7 +204,12 @@ a click or ←/→ folds one, `+`/`−` at the right of a header stages or unsta
 file (Space does the same from the keyboard, PgDn and Ctrl+D being the page keys; the
 button is drawn on the selected header and under the pointer only, as the panel draws
 its own on the cursor's row alone, and its handler stops the row's, a press on `+`
-not being a press on the header that folds it), and landing on a file — with the panel's cursor or with Tab
+not being a press on the header that folds it), Enter opens the selected file in the
+editor — at the line clicked in its diff, else at the file's first change, a diff being
+read in order to go and edit it, and a click inside a diff is what selects that file's
+header as well as remembering the line (`onPickLine` in `DiffView`, which maps the click's
+row through the same `paneLines` table the highlighter uses, split's two panes being
+row-aligned so the new side answers a click on either) — and landing on a file — with the panel's cursor or with Tab
 inside the page — puts that file at the *top*, always, even when it was already on
 screen: a move that scrolls nothing reads as a key that did nothing, and where a
 change starts is what was being asked for. `s` in the page — `S` in the panel, where
@@ -281,7 +286,31 @@ and no fetch. An empty panel is where that is explained: it spells out the chord
 notes a line (asked of the keymap with `chordFor`, so a rebind renames it), the keys the
 panel answers to, and where the notes are kept, since that is the half an agent has to
 be told,
-an image viewer (PNG/JPEG as half-block cells), a rendered view for markdown files (`Ctrl+Opt+M`, palette → View — OpenTUI's
+an image viewer (PNG/JPEG as half-block cells, with the picture itself drawn over them
+through the kitty graphics protocol — `src/core/kittyImage.ts` transmits the decoded
+pixels zlib-compressed and lets the terminal scale them into the cell box,
+`DRUK_KITTY_IMAGES=1/0` forces the answer either way. Four things about that escape
+are load-bearing, each of them a way it has already gone wrong:
+**it goes through `serialWrite`** (`src/ui/ImageView.tsx`), the renderer's own private
+`writeOut` — druk does not own stdout, the Zig core does and writes frames from its own
+thread, so a `process.stdout.write` of a few hundred KB splices into a frame and glitches
+the *whole screen*; nothing else druk writes is big enough for the race to show, which is
+how the title and progress escapes get away with stdout.
+**It is wrapped in DECSC/DECRC** rather than carrying the protocol's own `C=1`, since a
+terminal that does not know a key rejects the placement entire.
+**It asks for errors with `q=1`** and `placementError` reads the terminal's verdict off
+an input handler: a refused placement is otherwise indistinguishable from one that drew,
+and the reason is put in the caption instead of being lost.
+**And `claimScreen` deletes every image the terminal holds** before the first placement
+and again on exit, a placement outliving the process that made it — a killed druk
+otherwise leaves its picture over whatever opens in that tab next, including the next
+druk. The blocks are painted *whatever* the answer is, and `cellFit`
+(`src/core/image.ts`) is the one geometry both use, so the two cover the same rect:
+a terminal that claims the protocol and then ignores the escape — or a forced one that
+never had it — shows the blocks rather than an empty pane, which is the only failure
+mode the protocol offers, an image being placed with no reply to wait for. The
+placement is deleted while a modal is up, kitty drawing an image over the text rather
+than under it, and re-placed when the modal goes), a rendered view for markdown files (`Ctrl+Opt+M`, palette → View — OpenTUI's
 `<markdown>` renderable over the editor slot, per path so each tab keeps the view it
 was left in, rendering the buffer rather than the file so unsaved edits show, and reached
 from a `¶ preview` / `¶ source` button at the right of the tab strip that is drawn only

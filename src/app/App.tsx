@@ -768,6 +768,7 @@ export function App(props: {
                     path={path()}
                     width={slotWidth()}
                     height={slotHeight()}
+                    blocked={overlays.overlay()}
                     onFocus={() => panes.setFocus('editor')}
                   />
                 </box>
