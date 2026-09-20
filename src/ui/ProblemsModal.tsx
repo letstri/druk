@@ -3,6 +3,7 @@ import { createMemo, createSignal, For, Show } from 'solid-js'
 
 import type { Problem, ProblemSeverity } from '../lsp/protocol'
 import { ui } from '../themes'
+import { useHoverKey } from './hover'
 import { useListKeys, windowAround } from './list'
 import { listRows, modalWidth, PAD } from './modal'
 import { ModalPanel } from './Overlay'
@@ -32,6 +33,7 @@ const oneLine = (message: string) => message.replaceAll(/\s+/g, ' ').trim()
 export function ProblemsModal(props: ProblemsModalProps) {
   const dimensions = useTerminalDimensions()
   const [index, setIndex] = createSignal(0)
+  const hover = useHoverKey<number>()
 
   const width = () => modalWidth(dimensions().width, 0.7, 64, 120)
   const room = () => width() - PAD * 2 - 4
@@ -99,8 +101,10 @@ export function ProblemsModal(props: ProblemsModalProps) {
       <box flexDirection="column" height={visibleRows()}>
         <For each={view().rows}>
           {(problem, i) => {
-            const active = () => view().start + i() === selected()
-            const bg = () => (active() ? ui.treeSelectedBg : ui.panelBg)
+            const at = () => view().start + i()
+            const active = () => at() === selected()
+            const bg = () =>
+              active() ? ui.treeSelectedBg : hover.hovered(at()) ? ui.hoverBg : ui.panelBg
             const note = () => cut(origin(problem), Math.floor(room() / 3))
             const place = () => cut(location(problem), locationWidth()).padEnd(locationWidth())
             const message = () =>
@@ -108,7 +112,13 @@ export function ProblemsModal(props: ProblemsModalProps) {
             // The gap is the note's: where both sides are cut there is no slack to space them.
             const noteText = () => (note() ? ` ${note()}` : '')
             return (
-              <box flexDirection="row" backgroundColor={bg()}>
+              <box
+                flexDirection="row"
+                backgroundColor={bg()}
+                onMouseDown={() => props.onPick(problem)}
+                onMouseOver={() => hover.enter(at())}
+                onMouseOut={() => hover.leave(at())}
+              >
                 <text fg={ui.dirty} bg={bg()} flexShrink={0} content={active() ? '▌ ' : '  '} />
                 <text
                   fg={SEVERITY_COLOR[problem.severity]()}

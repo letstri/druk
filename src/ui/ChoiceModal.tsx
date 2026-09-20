@@ -3,6 +3,7 @@ import { useTerminalDimensions } from '@opentui/solid'
 import { createSignal, For } from 'solid-js'
 
 import { ui } from '../themes'
+import { useHoverKey } from './hover'
 import { modalWidth, PAD } from './modal'
 import { ModalPanel } from './Overlay'
 import { cut, wrapText } from './text'
@@ -24,6 +25,7 @@ export interface ChoiceModalProps {
 export function ChoiceModal(props: ChoiceModalProps) {
   const dimensions = useTerminalDimensions()
   const [index, setIndex] = createSignal(0)
+  const hover = useHoverKey<number>()
 
   const width = () => modalWidth(dimensions().width, 0.54, 64, 88)
   const lines = () => wrapText(props.message, width() - PAD * 2)
@@ -52,9 +54,16 @@ export function ChoiceModal(props: ChoiceModalProps) {
       <For each={props.choices}>
         {(choice, i) => {
           const active = () => i() === index()
-          const bg = () => (active() ? ui.treeSelectedBg : ui.panelBg)
+          const bg = () =>
+            active() ? ui.treeSelectedBg : hover.hovered(i()) ? ui.hoverBg : ui.panelBg
           return (
-            <box flexDirection="row" backgroundColor={bg()}>
+            <box
+              flexDirection="row"
+              backgroundColor={bg()}
+              onMouseDown={() => props.onPick(choice.id)}
+              onMouseOver={() => hover.enter(i())}
+              onMouseOut={() => hover.leave(i())}
+            >
               <text fg={ui.dirty} bg={bg()} flexShrink={0} content={active() ? '▌ ' : '  '} />
               <box flexGrow={1} backgroundColor={bg()}>
                 <text

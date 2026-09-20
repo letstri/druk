@@ -3,6 +3,7 @@ import { useTerminalDimensions } from '@opentui/solid'
 import { createEffect, createMemo, createSignal, For, onCleanup, Show } from 'solid-js'
 
 import { ui } from '../themes'
+import { useHoverKey } from './hover'
 import { windowAround } from './list'
 import { listRows, modalWidth } from './modal'
 import { ModalPanel, topInset } from './Overlay'
@@ -42,6 +43,7 @@ export function CommandPalette(props: CommandPaletteProps) {
   const [query, setQuery] = createSignal('')
   const [trail, setTrail] = createSignal<Command[]>([])
   const [index, setIndex] = createSignal(0)
+  const hover = useHoverKey<number>()
   let restore: (() => void) | undefined
 
   const width = () => modalWidth(dimensions().width, 0.55, 58, 92)
@@ -147,11 +149,19 @@ export function CommandPalette(props: CommandPaletteProps) {
         >
           <For each={windowed().rows}>
             {(row, i) => {
-              const active = () => windowed().start + i() === selected()
-              const bg = () => (active() ? ui.treeSelectedBg : ui.panelBg)
+              const at = () => windowed().start + i()
+              const active = () => at() === selected()
+              const bg = () =>
+                active() ? ui.treeSelectedBg : hover.hovered(at()) ? ui.hoverBg : ui.panelBg
               const prefix = row.trail.length > 0 ? `${row.trail.join(' › ')} › ` : ''
               return (
-                <box flexDirection="row" backgroundColor={bg()}>
+                <box
+                  flexDirection="row"
+                  backgroundColor={bg()}
+                  onMouseDown={() => enter(row)}
+                  onMouseOver={() => hover.enter(at())}
+                  onMouseOut={() => hover.leave(at())}
+                >
                   <text fg={ui.accent} bg={bg()} flexShrink={0} content={active() ? '▌ ' : '  '} />
                   <box flexGrow={1}>
                     <text

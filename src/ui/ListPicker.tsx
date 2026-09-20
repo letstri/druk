@@ -3,6 +3,7 @@ import { createMemo, createSignal, For, Show } from 'solid-js'
 
 import { fuzzyScore } from '../core/search'
 import { ui } from '../themes'
+import { useHoverKey } from './hover'
 import { useListKeys } from './list'
 import { listRows, modalWidth, PAD } from './modal'
 import { ModalPanel } from './Overlay'
@@ -28,6 +29,7 @@ export function ListPicker(props: ListPickerProps) {
   const dimensions = useTerminalDimensions()
   const [query, setQuery] = createSignal('')
   const [index, setIndex] = createSignal(0)
+  const hover = useHoverKey<number>()
 
   const width = () => modalWidth(dimensions().width, 0.62, 60, 100)
   const visibleRows = () => listRows(dimensions().height, 8, 18)
@@ -45,13 +47,15 @@ export function ListPicker(props: ListPickerProps) {
 
   const selected = () => Math.min(index(), Math.max(0, matches().length - 1))
 
+  const open = (row: number) => {
+    const match = matches()[row]
+    if (match) props.onPick(match.item.id)
+  }
+
   useListKeys({
     count: () => matches().length,
     move: setIndex,
-    pick: () => {
-      const match = matches()[selected()]
-      if (match) props.onPick(match.item.id)
-    },
+    pick: () => open(selected()),
     close: () => props.onClose(),
   })
 
@@ -76,13 +80,20 @@ export function ListPicker(props: ListPickerProps) {
             {(match, i) => {
               const item = match.item
               const active = () => i() === selected()
-              const bg = () => (active() ? ui.treeSelectedBg : ui.panelBg)
+              const bg = () =>
+                active() ? ui.treeSelectedBg : hover.hovered(i()) ? ui.hoverBg : ui.panelBg
               const room = () => width() - PAD * 2 - 2 - (marked() ? 2 : 0)
               // The note must be cut too, or the label's flexible box goes a column wide and wraps.
               const note = () => cut(item.note ?? '', Math.floor(room() / 3))
               const label = () => cut(item.label, room() - note().length - 1)
               return (
-                <box flexDirection="row" backgroundColor={bg()}>
+                <box
+                  flexDirection="row"
+                  backgroundColor={bg()}
+                  onMouseDown={() => open(i())}
+                  onMouseOver={() => hover.enter(i())}
+                  onMouseOut={() => hover.leave(i())}
+                >
                   <text fg={ui.accent} bg={bg()} flexShrink={0} content={active() ? '▌ ' : '  '} />
                   <Show when={marked()}>
                     <text

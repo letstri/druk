@@ -3,6 +3,7 @@ import { createEffect, createMemo, createSignal, For, onCleanup, Show } from 'so
 
 import { fuzzyScore } from '../core/search'
 import { ui } from '../themes'
+import { useHoverKey } from './hover'
 import { useListKeys } from './list'
 import { listRows, modalWidth, PAD } from './modal'
 import { ModalPanel } from './Overlay'
@@ -21,6 +22,7 @@ export function SettingPicker(props: {
   const dimensions = useTerminalDimensions()
   const [query, setQuery] = createSignal('')
   const [index, setIndex] = createSignal(Math.max(0, props.activeIndex))
+  const hover = useHoverKey<number>()
 
   const width = () => modalWidth(props.paneWidth, 0.7, 30, 60)
   const visibleRows = () => listRows(dimensions().height, 8, 18)
@@ -79,10 +81,18 @@ export function SettingPicker(props: {
       >
         <For each={matches().slice(windowStart(), windowStart() + visibleRows())}>
           {(match, i) => {
-            const active = () => windowStart() + i() === selected()
-            const bg = () => (active() ? ui.treeSelectedBg : ui.panelBg)
+            const at = () => windowStart() + i()
+            const active = () => at() === selected()
+            const bg = () =>
+              active() ? ui.treeSelectedBg : hover.hovered(at()) ? ui.hoverBg : ui.panelBg
             return (
-              <box flexDirection="row" backgroundColor={bg()}>
+              <box
+                flexDirection="row"
+                backgroundColor={bg()}
+                onMouseDown={() => props.onPick(match.at)}
+                onMouseOver={() => hover.enter(at())}
+                onMouseOut={() => hover.leave(at())}
+              >
                 <text fg={ui.accent} bg={bg()} flexShrink={0} content={active() ? '▌ ' : '  '} />
                 <text
                   fg={match.at === props.activeIndex ? ui.accent : active() ? ui.text : ui.dim}

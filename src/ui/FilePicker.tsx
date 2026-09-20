@@ -5,6 +5,7 @@ import { createMemo, createSignal, For, Show } from 'solid-js'
 
 import { fuzzyScore, listFiles } from '../core/search'
 import { ui } from '../themes'
+import { useHoverKey } from './hover'
 import { useListKeys } from './list'
 import { listRows, modalWidth, PAD } from './modal'
 import { ModalPanel, topInset } from './Overlay'
@@ -31,6 +32,7 @@ export function FilePicker(props: FilePickerProps) {
   const dimensions = useTerminalDimensions()
   const [query, setQuery] = createSignal('')
   const [index, setIndex] = createSignal(0)
+  const hover = useHoverKey<number>()
 
   const width = () => modalWidth(dimensions().width, 0.62, 72, 110)
   const visibleRows = () => listRows(dimensions().height - topInset(dimensions().height), 8, 18)
@@ -71,13 +73,15 @@ export function FilePicker(props: FilePickerProps) {
     return at ? ` at ${at.line + 1}:${at.col + 1}` : ''
   }
 
+  const open = (row: number) => {
+    const match = matches()[row]
+    if (match) props.onPick(match.path, target().position)
+  }
+
   useListKeys({
     count: () => matches().length,
     move: setIndex,
-    pick: () => {
-      const match = matches()[selected()]
-      if (match) props.onPick(match.path, target().position)
-    },
+    pick: () => open(selected()),
     close: () => props.onClose(),
   })
 
@@ -106,11 +110,18 @@ export function FilePicker(props: FilePickerProps) {
           <For each={matches()}>
             {(match, i) => {
               const active = () => i() === selected()
-              const bg = () => (active() ? ui.treeSelectedBg : ui.panelBg)
+              const bg = () =>
+                active() ? ui.treeSelectedBg : hover.hovered(i()) ? ui.hoverBg : ui.panelBg
               const shown = () => match.label.slice(0, width() - PAD * 2 - 4)
               const cut = () => shown().lastIndexOf('/') + 1
               return (
-                <box flexDirection="row" backgroundColor={bg()}>
+                <box
+                  flexDirection="row"
+                  backgroundColor={bg()}
+                  onMouseDown={() => open(i())}
+                  onMouseOver={() => hover.enter(i())}
+                  onMouseOut={() => hover.leave(i())}
+                >
                   <text fg={ui.accent} bg={bg()} flexShrink={0} content={active() ? '▌ ' : '  '} />
                   {/* Only when there is a folder: an empty <text> still occupies a column. */}
                   <Show when={cut() > 0}>
