@@ -9,6 +9,7 @@ import {
   press,
   pressEscape,
   runCommand,
+  settle,
   untilFrame,
   untilGone,
 } from './helpers'
@@ -139,3 +140,37 @@ test('paging between changes with nothing to show keeps drawing them', async () 
   }
   expect(errors.seen.join('\n')).not.toContain('TextBufferView is destroyed')
 })
+
+const body = (word: string) =>
+  `${Array.from({ length: 20 }, (_, n) => `${word} ${n}`).join('\n')}\n`
+
+function bigRepo() {
+  const names = Array.from({ length: 6 }, (_, n) => `f${n}.ts`)
+  const dir = fixture(Object.fromEntries(names.map((n) => [n, body('before')])))
+  initRepo(dir)
+  run(dir, 'add', '.')
+  run(dir, 'commit', '-qm', 'init')
+  for (const name of names) {
+    writeFileSync(join(dir, name), body('after'))
+  }
+  return dir
+}
+
+test('a git refresh leaves a scrolled changes page where it was', async () => {
+  const dir = bigRepo()
+  const t = await launch(dir, {}, { height: 24, width: 120 })
+  await openDiff(t)
+  await untilFrame(t, 'before 0')
+  for (let n = 0; n < 30; n += 1) {
+    await t.mockMouse.scroll(80, 10, 'down')
+  }
+  await settle(t)
+  const scrolled = frame(t)
+
+  writeFileSync(join(dir, 'f0.ts'), body('again'))
+  for (let n = 0; n < 6; n += 1) {
+    await settle(t, 250)
+  }
+
+  expect(frame(t)).toBe(scrolled)
+}, 30_000)

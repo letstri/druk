@@ -551,32 +551,34 @@ export function ChangesView(props: ChangesViewProps) {
     reveal(next)
   }
 
+  // A memo, not a plain accessor: `on` re-runs its body whenever a dependency notifies,
+  // so a refresh rebuilding the same sections would yank the scroll back to the cursor's file.
+  const revealTarget = createMemo(
+    () =>
+      `${props.focusKey ?? ''}\n${props.sections.map((s) => s.key).join('\n')}`
+  )
+
   createEffect(
-    on(
-      // Membership, not identity: a refresh that reuses the same keys must not yank the scroll back.
-      () =>
-        `${props.focusKey ?? ''}\n${props.sections.map((s) => s.key).join('\n')}`,
-      () => {
-        const key = props.focusKey
-        if (!key || !props.sections.some((s) => s.key === key)) {
-          return
-        }
-        cancelReveal?.()
-        cancelReveal = retryFrames(
-          () => {
-            const el = anchors.get(key)
-            const first = props.sections[0]?.key === key
-            // y is 0 before layout and negative when scrolled off the top: neither is ready.
-            if (!el || !box || el.height <= 0 || (!first && el.y === 0)) {
-              return false
-            }
-            reveal(key)
-            return true
-          },
-          { tries: REVEAL_TRIES }
-        )
+    on(revealTarget, () => {
+      const key = props.focusKey
+      if (!key || !props.sections.some((s) => s.key === key)) {
+        return
       }
-    )
+      cancelReveal?.()
+      cancelReveal = retryFrames(
+        () => {
+          const el = anchors.get(key)
+          const first = props.sections[0]?.key === key
+          // y is 0 before layout and negative when scrolled off the top: neither is ready.
+          if (!el || !box || el.height <= 0 || (!first && el.y === 0)) {
+            return false
+          }
+          reveal(key)
+          return true
+        },
+        { tries: REVEAL_TRIES }
+      )
+    })
   )
 
   const page = () => Math.max(1, dimensions().height - 3)
