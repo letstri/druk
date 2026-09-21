@@ -185,7 +185,11 @@ colours each lane by its column — a diagonal counting as the lane it reaches f
 rather than the one it leaves, so a branch keeps one colour as it moves across — and
 `refChips` there turns `%D` into labels by kind, local, remote, tag and the one HEAD
 points at (drawn bold), a chip being dropped whole rather than cut, since half a
-branch name names nothing. The page is a *tab*, so it unmounts whenever a commit is
+branch name names nothing. The decoration is asked for `full`
+(`refs/heads/feat/x`, `refs/remotes/origin/main`), since a short name gives a local
+`feat/x` and a remote `origin/x` the same shape and every feature branch was painted
+as a remote. The log is `--topo-order`: git's own warning is that `--graph` with a
+date order can draw a child above its parent. The page is a *tab*, so it unmounts whenever a commit is
 read over it: the offset lives on the controller and `restoreScroll`
 (`src/ui/list.ts`) puts it back, re-applying over the next frames because a list that
 mounts scrolled has no content height yet and the box clamps the offset to zero —

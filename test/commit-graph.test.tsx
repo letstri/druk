@@ -61,17 +61,17 @@ test('lanes come out as box drawing, one colour per lane', () => {
 test('refs are read as the kind of thing they name', () => {
   expect(
     refChips([
-      'HEAD -> main',
-      'origin/main',
-      'origin/HEAD',
-      'tag: v1.0',
-      'side',
+      'HEAD -> refs/heads/main',
+      'refs/remotes/origin/main',
+      'refs/remotes/origin/HEAD',
+      'tag: refs/tags/v1.0',
+      'refs/heads/feat/side',
     ])
   ).toEqual([
     { kind: 'head', label: 'main' },
     { kind: 'remote', label: 'origin/main' },
     { kind: 'tag', label: 'v1.0' },
-    { kind: 'local', label: 'side' },
+    { kind: 'local', label: 'feat/side' },
   ])
 })
 
@@ -122,11 +122,11 @@ test('Enter opens the selected commit, and the cursor skips the connector rows',
   await press(t, (i) => i.pressArrow('down'))
   await press(t, (i) => i.pressArrow('down'))
   await press(t, (i) => i.pressEnter())
-  await untilFrame(t, 'parent')
+  // The diff body lands a frame after the header, so wait for it rather than for `parent`.
+  // `--topo-order`: main's own commit sits under the merge, ahead of the side branch it took in.
+  await untilFrame(t, 'alpha changed')
 
-  const shown = t.captureCharFrame()
-  expect(shown).toMatch(/1 files? ·/u)
-  expect(shown).toContain('beta')
+  expect(t.captureCharFrame()).toMatch(/1 files? ·/u)
 })
 
 test('reading a commit and closing it leaves the graph where it was', async () => {

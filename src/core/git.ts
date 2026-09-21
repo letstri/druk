@@ -1815,8 +1815,9 @@ export async function commitGraph(cwd: string): Promise<GraphRow[]> {
     'log',
     '--graph',
     '--all',
-    '--date-order',
-    '--decorate=short',
+    // git's own advice: with --graph, date order can draw a child above its parent.
+    '--topo-order',
+    '--decorate=full',
     '--date=short',
     '-n',
     String(GRAPH_CAP),

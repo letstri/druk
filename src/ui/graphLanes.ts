@@ -48,6 +48,22 @@ export function laneSpans(
   return spans
 }
 
+// `--decorate=full`: a local branch named `feat/x` is only told from `origin/x` by its ref prefix.
+const PREFIXES: [string, RefKind][] = [
+  ['refs/heads/', 'local'],
+  ['refs/remotes/', 'remote'],
+  ['refs/tags/', 'tag'],
+]
+
+function chipFor(ref: string, kind?: RefKind): RefChip {
+  for (const [prefix, named] of PREFIXES) {
+    if (ref.startsWith(prefix)) {
+      return { kind: kind ?? named, label: ref.slice(prefix.length) }
+    }
+  }
+  return { kind: kind ?? (ref.includes('/') ? 'remote' : 'local'), label: ref }
+}
+
 export function refChips(refs: readonly string[]): RefChip[] {
   const chips: RefChip[] = []
   for (const ref of refs) {
@@ -56,13 +72,13 @@ export function refChips(refs: readonly string[]): RefChip[] {
       continue
     }
     if (ref.startsWith('tag: ')) {
-      chips.push({ kind: 'tag', label: ref.slice(5) })
+      chips.push(chipFor(ref.slice(5), 'tag'))
     } else if (ref.startsWith('HEAD -> ')) {
-      chips.push({ kind: 'head', label: ref.slice(8) })
+      chips.push(chipFor(ref.slice(8), 'head'))
     } else if (ref === 'HEAD') {
       chips.push({ kind: 'head', label: ref })
     } else {
-      chips.push({ kind: ref.includes('/') ? 'remote' : 'local', label: ref })
+      chips.push(chipFor(ref))
     }
   }
   return chips
