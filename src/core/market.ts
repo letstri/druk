@@ -2,7 +2,7 @@ import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import { join } from 'node:path'
 
-import { parseManifest } from '../extensions/manifest'
+import { isId, parseManifest } from '../extensions/manifest'
 import { CATEGORIES } from '../extensions/types'
 import type { Extension, ExtensionCategory } from '../extensions/types'
 // Never import `../extensions` here: it reads `core/config`, which reads MARKET_URL from this file.
@@ -85,8 +85,9 @@ function parseEntry(raw: unknown): MarketEntry | null {
     return null
   }
   const { id, name, version, description } = raw
-  // The id names a directory in the registry and a folder on disk: hold it to a file name's shape.
-  if (typeof id !== 'string' || !/^[\w.-]+$/u.test(id)) {
+  // The id names a directory in the registry and a folder on disk, and `removeFromDisk` deletes
+  // that folder: the install-side check is the one to hold a catalog row to, `..` included.
+  if (!isId(id)) {
     return null
   }
   if (typeof version !== 'string' || !version) {

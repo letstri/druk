@@ -31,7 +31,7 @@ const stringList = (raw: unknown): string[] | null =>
 
 // Ids name files and config keys: held to what a file name may be. The leading character may not
 // be a dot, or `".."` is a directory an install writes to and an uninstall recursively deletes.
-const isId = (raw: unknown): raw is string =>
+export const isId = (raw: unknown): raw is string =>
   typeof raw === 'string' && /^[\w-][\w.-]*$/u.test(raw)
 
 function parseTheme(
@@ -388,7 +388,10 @@ function parseLanguage(
 
   const extensions = stringList(raw.extensions)
   if (extensions) {
-    language.extensions = extensions
+    // `filetypeForName` matches with `endsWith`, so a dotless "ts" would also claim `cats`.
+    language.extensions = extensions.map((entry) =>
+      entry.startsWith('.') ? entry : `.${entry}`
+    )
   }
   const filenames = stringList(raw.filenames)
   if (filenames) {
