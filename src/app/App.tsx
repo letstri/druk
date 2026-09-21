@@ -746,6 +746,7 @@ export function App(props: {
                     rows={git.rows()}
                     base={git.diffBase()}
                     staging={git.staging()}
+                    busy={git.gitBusy()}
                     cursor={git.gitCursor()}
                     focused={panes.focus() === 'tree'}
                     width={settings.treeWidth()}

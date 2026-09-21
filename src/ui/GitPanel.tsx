@@ -45,6 +45,7 @@ interface GitPanelProps {
   rows: ChangeRow[]
   base: string | null
   staging: boolean
+  busy: boolean
   // May point past the end after a commit shrinks the list.
   cursor: number
   focused: boolean
@@ -75,6 +76,8 @@ export function GitPanel(props: GitPanelProps) {
   const message = useHover()
   const commit = useHover()
   const sync = useHover()
+  const commitLit = () => commit.hovered() && !props.busy
+  const syncLit = () => sync.hovered() && !props.busy
   const rowHover = useHoverKey<number>()
   const stageHover = useHoverKey<number>()
 
@@ -173,15 +176,15 @@ export function GitPanel(props: GitPanelProps) {
         >
           <box
             flexShrink={0}
-            backgroundColor={commit.hovered() ? ui.hoverBg : ui.sidebarBg}
+            backgroundColor={commitLit() ? ui.hoverBg : ui.sidebarBg}
             onMouseDown={() => props.onCommit()}
             onMouseOver={commit.enter}
             onMouseOut={commit.leave}
           >
             <text
-              fg={ui.accent}
-              bg={commit.hovered() ? ui.hoverBg : ui.sidebarBg}
-              content="✓ Commit"
+              fg={props.busy ? ui.faint : ui.accent}
+              bg={commitLit() ? ui.hoverBg : ui.sidebarBg}
+              content={props.busy ? '⋯ Commit' : '✓ Commit'}
               attributes={TextAttributes.BOLD}
             />
           </box>
@@ -189,14 +192,14 @@ export function GitPanel(props: GitPanelProps) {
           <Show when={props.branch}>
             <box
               flexShrink={0}
-              backgroundColor={sync.hovered() ? ui.hoverBg : ui.sidebarBg}
+              backgroundColor={syncLit() ? ui.hoverBg : ui.sidebarBg}
               onMouseDown={() => props.onSync()}
               onMouseOver={sync.enter}
               onMouseOut={sync.leave}
             >
               <text
-                fg={sync.hovered() ? ui.text : ui.dim}
-                bg={sync.hovered() ? ui.hoverBg : ui.sidebarBg}
+                fg={props.busy ? ui.faint : syncLit() ? ui.text : ui.dim}
+                bg={syncLit() ? ui.hoverBg : ui.sidebarBg}
                 wrapMode="none"
                 content={
                   props.hasUpstream
