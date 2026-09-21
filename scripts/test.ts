@@ -15,6 +15,17 @@ const TEST_TIMEOUT_MS = Number(process.env.DRUK_TEST_TIMEOUT) || 60_000
 const env = { ...process.env, DRUK_TEST_SLOW: String(JOBS > 1 ? 3 : 1) }
 
 const files = [...new Bun.Glob('test/*.test.{ts,tsx}').scanSync()].toSorted()
+
+// `bun test <file>` is a substring filter, so a `foo.test.ts`/`foo.test.tsx` pair runs together
+// in one process — the leaked state this runner exists to prevent.
+const stems = files.map((file) => file.replace(/\.tsx?$/u, ''))
+const collision = stems.find((stem, at) => stems.indexOf(stem) !== at)
+if (collision) {
+  console.error(
+    `${collision}.ts and ${collision}.tsx cannot share a process: rename one`
+  )
+  process.exit(1)
+}
 const failed: string[] = []
 const started = Date.now()
 
