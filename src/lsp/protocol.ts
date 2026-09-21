@@ -1,5 +1,7 @@
 // Field names and numeric codes follow the LSP spec — do not "fix" them.
 
+import { basename } from 'node:path'
+
 export interface RpcMessage {
   jsonrpc?: '2.0'
   id?: number | string | null
@@ -29,6 +31,9 @@ export interface Diagnostic {
   message: string
   source?: string
   code?: string | number
+  // Where the rest of the explanation is: the declaration a deprecation points at, the
+  // property an argument was checked against. Servers keep it out of `message`.
+  relatedInformation?: { location: Location; message: string }[]
 }
 
 const TAG_UNNECESSARY = 1
@@ -132,6 +137,7 @@ export interface Problem {
   message: string
   source?: string
   code?: string
+  related?: { message: string; path: string; line: number }[]
 }
 
 const SEVERITIES: ProblemSeverity[] = ['error', 'warning', 'info', 'hint']
@@ -150,6 +156,21 @@ export function headline(message: string): { text: string; more: boolean } {
     return { more: dropped, text: flat }
   }
   return { more: true, text: flat.slice(0, advice) }
+}
+
+// What the editor draws on a line: the worst mark there, and the notes that go with it.
+export interface ProblemMark {
+  severity: ProblemSeverity
+  message: string
+  related?: Problem['related']
+}
+
+// `↳ what it says (file:line)`, the rows a card adds under the message.
+export function relatedNotes(problem: ProblemMark): string[] {
+  return (problem.related ?? []).map((note) => {
+    const flat = note.message.replaceAll(/\s+/gu, ' ').trim()
+    return `↳ ${flat} (${basename(note.path)}:${note.line + 1})`
+  })
 }
 
 export const SEVERITY_RANK: Record<ProblemSeverity, number> = {

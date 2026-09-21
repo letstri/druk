@@ -166,6 +166,27 @@ test('the inline note is what broke, and the card under the line says the rest',
   await untilGone(t, 'Problem at cursor')
 }, 30_000)
 
+test('the card carries the notes the server hung off the message', async () => {
+  const dir = fixture({ 'a.ts': 'const a = 1\n' })
+  const t = await launch(
+    dir,
+    servedBy(process.execPath, FAKE),
+    { height: 24, width: 120 },
+    { openFile: join(dir, 'a.ts') }
+  )
+
+  await press(t, (input) => input.typeText('huh'))
+  await untilFrame(t, '● 1', LSP_WAIT)
+  // Where the rest of the explanation is: never in `message`, so the card has to ask for it.
+  await untilFrame(t, '↳ the module was declared here (types.d.ts:2)', LSP_WAIT)
+
+  await runCommand(t, 'Show problem at cursor')
+  await untilFrame(t, 'Problem at cursor', LSP_WAIT)
+  expect(t.captureCharFrame()).toContain('the module was declared here')
+  await pressEscape(t)
+  await untilGone(t, 'Problem at cursor')
+}, 30_000)
+
 test('the completion menu takes the rows the card would cover', async () => {
   const dir = fixture({ 'a.ts': 'nag\n' })
   const t = await launch(

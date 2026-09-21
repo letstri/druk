@@ -26,6 +26,18 @@ const publish = (uri: string, text: string) => {
           end: { character: long + 3, line },
           start: { character: long, line },
         },
+        relatedInformation: [
+          {
+            location: {
+              range: {
+                end: { character: 5, line: 1 },
+                start: { character: 0, line: 1 },
+              },
+              uri: `${uri.replace(/[^/]+$/u, '')}types.d.ts`,
+            },
+            message: 'the module was declared here',
+          },
+        ],
         severity: 1,
         source: 'fake',
       })

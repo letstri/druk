@@ -418,7 +418,13 @@ paragraph) and that half is the longer one, so the row carries `headline()`'s
 part of it and an ellipsis where there is more; the rest of it is under the
 *caret's* line, in a bordered card (`problemCard` in `src/ui/EditorPane.tsx`) —
 the whole message wrapped to the pane but never past `CARD_COLUMNS`, a line of
-prose being unreadable at the width of a wide terminal, taking as many rows as it needs up to half
+prose being unreadable at the width of a wide terminal, and under it the
+diagnostic's `relatedInformation` — the declaration a deprecation points at, the
+property an argument was checked against — as `↳ what it says (file:line)`, a row
+per note rather than more of the sentence (`relatedNotes` in `src/lsp/protocol.ts`,
+which the problems modal's detail block spells into its own paragraph; `ProblemMark`
+there is what the pane is handed per line). Servers keep that half out of `message`
+altogether, so a card without it says half of what the server said. Taking as many rows as it needs up to half
 of one, since a server's sentence runs to twenty rows as easily as two and this
 is the surface that has to hold the whole of it — drawn on the caret's line
 whatever the message's length, the row's own note being suppressed while it is

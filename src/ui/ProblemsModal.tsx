@@ -2,6 +2,7 @@ import { useTerminalDimensions } from '@opentui/solid'
 import { createMemo, createSignal, For, Show } from 'solid-js'
 
 import { plural } from '../core/text'
+import { relatedNotes } from '../lsp/protocol'
 import type { Problem, ProblemSeverity } from '../lsp/protocol'
 import { ui } from '../themes'
 import { useHoverKey } from './hover'
@@ -34,6 +35,10 @@ const location = (problem: ProblemEntry) =>
 
 const oneLine = (message: string) => message.replaceAll(/\s+/gu, ' ').trim()
 
+// The detail block is one paragraph, so the notes ride in it rather than on rows of their own.
+const spelled = (problem: Problem): string =>
+  [oneLine(problem.message), ...relatedNotes(problem)].join(' ')
+
 export function ProblemsModal(props: ProblemsModalProps) {
   const dimensions = useTerminalDimensions()
   const [index, setIndex] = createSignal(0)
@@ -43,10 +48,7 @@ export function ProblemsModal(props: ProblemsModalProps) {
   const room = () => width() - PAD * 2 - 4
   // As tall as the wordiest message and fixed while the list is up, or the rows above jump on ↑↓.
   const detailRows = createMemo(() => {
-    const longest = Math.max(
-      0,
-      ...props.problems.map((p) => oneLine(p.message).length)
-    )
+    const longest = Math.max(0, ...props.problems.map((p) => spelled(p).length))
     const spare = Math.max(1, dimensions().height - 18)
     return Math.max(
       1,
@@ -124,7 +126,7 @@ export function ProblemsModal(props: ProblemsModalProps) {
       return []
     }
     const rows = detailRows()
-    const lines = wrapText(oneLine(problem.message), room())
+    const lines = wrapText(spelled(problem), room())
     // The estimate can come a row short of what wrapping needs; the last row carries the rest.
     if (lines.length <= rows) {
       return lines

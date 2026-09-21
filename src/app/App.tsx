@@ -32,7 +32,7 @@ import { iconFor } from '../icons'
 import { languageLabel } from '../languages'
 import { filetypeForPath } from '../languages/highlight'
 import { SEVERITY_RANK } from '../lsp/protocol'
-import type { ProblemSeverity } from '../lsp/protocol'
+import type { ProblemMark } from '../lsp/protocol'
 import { resolveServers, servers as serverSpecs } from '../lsp/servers'
 import { ui } from '../themes'
 import { CallPeek } from '../ui/CallPeek'
@@ -388,10 +388,7 @@ export function App(props: {
   }
 
   const problemLines = createMemo(() => {
-    const lines = new Map<
-      number,
-      { severity: ProblemSeverity; message: string }
-    >()
+    const lines = new Map<number, ProblemMark>()
     const path = workspace.activePath()
     if (!path) {
       return lines
@@ -404,6 +401,7 @@ export function App(props: {
       ) {
         lines.set(problem.line, {
           message: problem.message,
+          related: problem.related,
           severity: problem.severity,
         })
       }

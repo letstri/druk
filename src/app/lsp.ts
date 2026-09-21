@@ -178,6 +178,19 @@ export function createLsp(deps: {
           line: diagnostic.range.start.line,
           message: diagnostic.message,
           path,
+          related: (diagnostic.relatedInformation ?? []).flatMap((note) => {
+            try {
+              return [
+                {
+                  line: note.location.range.start.line,
+                  message: note.message,
+                  path: fileURLToPath(note.location.uri),
+                },
+              ]
+            } catch {
+              return []
+            }
+          }),
           severity: severityOf(diagnostic),
           source: diagnostic.source,
           unnecessary: isUnnecessary(diagnostic),

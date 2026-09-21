@@ -76,8 +76,12 @@ import {
   wordStart,
 } from '../lsp/completion'
 import type { CompletionReply, ItemInfo } from '../lsp/completion'
-import { headline } from '../lsp/protocol'
-import type { CompletionItem, ProblemSeverity } from '../lsp/protocol'
+import { headline, relatedNotes } from '../lsp/protocol'
+import type {
+  CompletionItem,
+  ProblemMark,
+  ProblemSeverity,
+} from '../lsp/protocol'
 import { paintedTheme, ui } from '../themes'
 import { layoutMenu } from './completionLayout'
 import { CompletionMenu } from './CompletionMenu'
@@ -115,7 +119,7 @@ interface EditorPaneProps {
   tabSize: number
   blocked: boolean
   gitLines: Map<number, LineChange>
-  problems: Map<number, { severity: ProblemSeverity; message: string }>
+  problems: Map<number, ProblemMark>
   problemRanges: {
     line: number
     col: number
@@ -892,7 +896,11 @@ export function EditorPane(props: EditorPaneProps) {
     const height = viewHeight() || el.height
     const below = top + height - (span.last + 1)
     const above = span.first - top
-    const wrapped = wrapText(flatMessage, room)
+    const wrapped = [
+      ...wrapText(flatMessage, room),
+      // Each on its own rows: they are separate remarks, not more of the sentence.
+      ...relatedNotes(problem).flatMap((note) => wrapText(note, room)),
+    ]
     const rows = Math.min(
       wrapped.length + 2,
       Math.max(below, above),
