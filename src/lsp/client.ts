@@ -163,25 +163,35 @@ export function spawnLspClient(options: LspClientOptions) {
     })()
   }
 
-  // Vue relay: every entry must be answered, null if need be, or the server hangs the feature.
+  const answerTsserverRequest = async (entry: unknown): Promise<unknown> => {
+    if (!Array.isArray(entry)) {
+      return null
+    }
+    const [id, method, payload] = entry as [number, string, unknown]
+    let body: unknown = null
+    try {
+      body = (await options.onTsserverRequest?.(method, payload)) ?? null
+    } catch {
+      body = null
+    }
+    return [id, body]
+  }
+
+  // Vue sends one `[id, command, args]` and waits for one `[id, body]`; every request must be
+  // answered, null if need be, or the feature it was serving never completes.
   const answerTsserverRequests = async (params: unknown) => {
     if (!Array.isArray(params)) {
       return
     }
-    const answers: [number, unknown][] = []
-    for (const entry of params as unknown[]) {
-      if (!Array.isArray(entry)) {
-        continue
+    if (typeof params[0] === 'number') {
+      const answer = await answerTsserverRequest(params)
+      if (answer) {
+        notify('tsserver/response', answer)
       }
-      const [id, method, payload] = entry as [number, string, unknown]
-      let body: unknown = null
-      try {
-        body = (await options.onTsserverRequest?.(method, payload)) ?? null
-      } catch {
-        body = null
-      }
-      answers.push([id, body])
+      return
     }
+    const replies = await Promise.all(params.map(answerTsserverRequest))
+    const answers = replies.filter((answer) => answer !== null)
     if (answers.length > 0) {
       notify('tsserver/response', answers)
     }
