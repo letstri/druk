@@ -95,7 +95,10 @@ function parseTheme(
 }
 
 // Stops short of U+F0000: Nerd Fonts put one-cell Material icons at U+F0001 and up.
-const WIDE = /[ᄀ-ᅟ⺀-꓏가-힣豈-﫿︰-﹯＀-｠￠-￦]|[\u{1F000}-\u{EFFFF}]/u
+// The East Asian Wide ranges plus the emoji-presentation symbols: any of them draws two cells,
+// and one in a tree row shifts every name after it.
+const WIDE =
+  /[\u1100-\u115F\u231A-\u231B\u2329-\u232A\u23E9-\u23EC\u23F0\u23F3\u25FD-\u25FE\u2614-\u2615\u2648-\u2653\u267F\u2693\u26A1\u26AA-\u26AB\u26BD-\u26BE\u26C4-\u26C5\u26CE\u26D4\u26EA\u26F2-\u26F3\u26F5\u26FA\u26FD\u2705\u270A-\u270B\u2728\u274C\u274E\u2753-\u2755\u2757\u2795-\u2797\u27B0\u27BF\u2B1B-\u2B1C\u2B50\u2B55\u2E80-\uA4CF\uAC00-\uD7A3\uF900-\uFAFF\uFE10-\uFE19\uFE30-\uFE6F\uFF00-\uFF60\uFFE0-\uFFE6]|[\u{1F000}-\u{EFFFF}]/u
 
 function parseIcon(raw: unknown): IconEntry | null {
   const glyph = typeof raw === 'string' ? raw : isRecord(raw) ? raw.glyph : null

@@ -471,6 +471,9 @@ const flat = (text: string) => text.replaceAll(/\s+/gu, ' ').trim()
 export function EditorPane(props: EditorPaneProps) {
   const dimensions = useTerminalDimensions()
   const renderer = useRenderer()
+  // A wide character is two cells under one method and may be one under the other, and the
+  // highlight has to land where *this* renderer draws the text.
+  const cellWidths = renderer.widthMethod
   // `minWidth` is constructor-only and Solid builds elements bare, so it is poked in by hand.
   interface GutterHost {
     gutter?: { _minWidth?: number; requestRender?: () => void }
@@ -1546,7 +1549,7 @@ export function EditorPane(props: EditorPaneProps) {
       }
       editor?.addHighlight(
         row,
-        inCells({ end: to, priority, start: from, styleId }, text)
+        inCells({ end: to, priority, start: from, styleId }, text, cellWidths)
       )
     }
     let at = start
@@ -1631,7 +1634,7 @@ export function EditorPane(props: EditorPaneProps) {
       }
       editor.addHighlight(
         row,
-        inCells({ end, priority: 110, start: 0, styleId }, text)
+        inCells({ end, priority: 110, start: 0, styleId }, text, cellWidths)
       )
       return
     }
@@ -1683,7 +1686,7 @@ export function EditorPane(props: EditorPaneProps) {
       if (segments) {
         const text = parsedLine(line) ?? ''
         for (const segment of segments) {
-          editor.addHighlight(row, inCells(segment, text))
+          editor.addHighlight(row, inCells(segment, text, cellWidths))
         }
       }
       markProblems(row, line)
