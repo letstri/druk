@@ -210,23 +210,6 @@ next keystroke — needs an upstream way to detach the two. Re-check on a bump.
   (Ctrl+ф does not save), Caps Lock without associated text types lowercase, and
   Option symbols and dead-key compositions can be lost or replaced by a space.
 
-### A19. Drawing an image into cells
-- **Custom**: `toCells` (`src/core/image.ts`) and the `painted` loop in
-  `src/ui/ImageView.tsx` — RGBA box-averaged to one `▀` per cell, two pixel rows deep.
-- **Native**: `OptimizedBuffer.drawSuperSampleBuffer(x, y, pixels, len, 'rgba8unorm',
-  alignedBytesPerRow)` draws RGBA straight into the frame, and picks *quadrant* glyphs,
-  so it resolves twice the horizontal detail ours does. Its pixel layout is undocumented
-  and not derivable from the FFI signature: the name says WebGPU readback (256-byte row
-  alignment), and a tight `width * 4` pitch drew a staircase of wrapped rows at a
-  position and width neither the data nor the arguments predict, both when `len` was
-  bytes and when it was pixels.
-- **Degrades**: nothing, once the layout contract is known — this is the one entry
-  worth retrying on a bump, since the swap deletes ~70 lines *and* sharpens the image.
-  Taken blind it draws garbage over the editor slot.
-- **Note**: it is the fallback path only. A terminal that answers the kitty graphics
-  query gets the image itself (`src/core/kittyImage.ts`), which OpenTUI detects
-  (`capabilities.kitty_graphics`) but never uses.
-
 ## B. No native path at all — removal is deleting the feature
 
 | Custom | Feature lost |
@@ -241,6 +224,20 @@ next keystroke — needs an upstream way to detach the two. Re-check on a bump.
 | `DiffView` `livePane` / `isDestroyed` guards | paging between changes throws `TextBufferView is destroyed`: the ref is never called back on removal |
 
 ## C. Already taken
+
+The image viewer was the whole of it: a decoder (`fast-png` + `jpeg-js`), a box-averaging
+`toCells` into one `▀` per cell, and `src/core/kittyImage.ts` transmitting and placing the
+picture itself. 0.5.11 ships `NativeImage` (png/jpeg/webp/gif decoded natively), an
+`<image>` element, and `OptimizedBuffer.drawImage(…, protocol)` where the protocol is
+`auto | kitty | sixel | blocks` — so the core picks kitty, sixel or half-blocks from its
+own capability answer and composes the placement into the frame it is already writing.
+That takes the four things druk had to get right with it: the serialised write (the Zig
+core owns the stream), the DECSC/DECRC wrap, the `q=1` error read and the
+delete-every-image claim on start and exit. `ImageView` is now the caption and one
+element, 540 lines and two dependencies lighter, and sixel terminals are served for free.
+`DRUK_KITTY_IMAGES=1/0` survives as `protocol="kitty"|"blocks"`, and `blocked` — a modal
+over the image — is that same prop put to `blocks`, since kitty draws over the text rather
+than under it.
 
 `followScroll` (`src/ui/list.ts`) was two copies of a patch on the scrollbox's protected
 `onMouseEvent`, the second in `ChangesView`. `ScrollBoxRenderable.scrollTop` *is*

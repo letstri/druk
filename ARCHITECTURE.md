@@ -62,7 +62,7 @@ scripts/
     format.ts        format on save: extension -> user command ({} or an appended path)
     fs.ts            file listing, read/write, binary guard, directory watcher
     search.ts        in-file/project search, fuzzy matching, replace
-    image.ts         PNG/JPEG decode + scaling onto half-block cells, for the viewer
+    image.ts         which extensions the viewer opens (the drawing is the core's)
     mermaid/         mermaid fences drawn into terminal cells: parse.ts reads the
                      dialects, graph.ts lays out anything that is boxes and edges,
                      sequence.ts and pie.ts render their own, canvas.ts is the cell grid
@@ -644,12 +644,13 @@ is just a diff against the empty tree.
   `App.tsx`: `onPageClose` tears the view down when its tab closes, and an effect on the
   view's own `isOpen` opens or closes the tab.
 
-- **The viewer paints cells, not renderables.** `ImageView` draws `▀` half-blocks
-  (upper pixel foreground, lower background) straight into the frame from a `renderAfter`
-  hook on one box. A `<text>` per cell would be cols×rows renderables — the Zig core
-  stops handing them out a few thousand in, so a photo would blank the pane the way the
-  unwindowed tree once did. OpenTUI detects `kitty_graphics`/`sixel` but exposes no way
-  to emit them past the cell diff; when it does, that is the upgrade path.
+- **The viewer is one `<image>`.** The core decodes the file and draws it as kitty
+  graphics, sixel or half-block cells, picking from the terminal's own answer and
+  composing the placement into the frame it already writes. druk supplies the path, the
+  caption and a `protocol` override; everything the old viewer did by hand — decoding,
+  the `▀` cell painting, the escape sequences and their error handling — is the core's.
+  There is no `<text>` per cell in it either way: that would be cols×rows renderables,
+  and the Zig core stops handing them out a few thousand in.
 - **The opened folder may hold many repositories, or be one, or be neither.**
   `core/repos.ts` answers which — filesystem-only (a `.git` entry, no subprocess), since
   the tree asks per visible row. A folder inside a checkout is the single-repository case

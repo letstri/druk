@@ -142,12 +142,7 @@ export function PreviewPane(props: PreviewPaneProps) {
   return (
     <Page title={` ${name()}`} hints={hints()} onFocus={props.onFocus}>
       <Show when={shown().kind === 'image'}>
-        <ImageView
-          path={props.path}
-          width={props.width}
-          height={props.height - 1}
-          onFocus={props.onFocus}
-        />
+        <ImageView path={props.path} onFocus={props.onFocus} />
       </Show>
       <Show when={note()}>
         {(what: () => string) => (

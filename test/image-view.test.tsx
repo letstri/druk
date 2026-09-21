@@ -4,7 +4,7 @@ import { join } from 'node:path'
 
 import { encode } from 'fast-png'
 
-import { fixture, launch, openFile, press, settle } from './helpers'
+import { fixture, launch, openFile, press, settle, untilFrame } from './helpers'
 
 function project(): { dir: string; png: string } {
   const dir = fixture({ 'main.ts': 'const a = 1\n' })
@@ -21,6 +21,8 @@ function project(): { dir: string; png: string } {
 }
 
 describe('image viewer', () => {
+  // The core decodes off the thread, so the dimensions and the picture arrive a frame or
+  // more after the tab does.
   test('druk logo.png opens the viewer, not a refusal', async () => {
     const { dir, png } = project()
     const t = await launch(
@@ -29,9 +31,9 @@ describe('image viewer', () => {
       { height: 24, width: 80 },
       { openFile: png }
     )
+    await untilFrame(t, 'logo.png — 4×8 · 1 KB')
     const frame = t.captureCharFrame()
-    expect(frame).toContain('logo.png — 4×8 · 1 KB')
-    expect(frame).toContain('▀')
+    expect(frame).toMatch(/[▀▄█▌▐]/u)
     expect(frame).not.toContain('binary')
   })
 
@@ -39,10 +41,10 @@ describe('image viewer', () => {
     const { dir } = project()
     const t = await launch(dir, {}, { height: 24, width: 80 })
     await openFile(t, 'logo')
+    await untilFrame(t, 'logo.png — 4×8 · 1 KB')
 
     const frame = t.captureCharFrame()
-    expect(frame).toContain('logo.png — 4×8 · 1 KB')
-    expect(frame).toContain('▀')
+    expect(frame).toMatch(/[▀▄█▌▐]/u)
     expect(frame).not.toContain('cannot be')
 
     expect(frame).toContain('image')
@@ -55,17 +57,17 @@ describe('image viewer', () => {
     const { dir } = project()
     const first = await launch(dir, {}, { height: 24, width: 80 })
     await openFile(first, 'logo')
-    expect(first.captureCharFrame()).toContain('logo.png — 4×8')
+    await untilFrame(first, 'logo.png — 4×8')
 
     const second = await launch(dir, {}, { height: 24, width: 80 })
-    expect(second.captureCharFrame()).toContain('logo.png — 4×8 · 1 KB')
+    await untilFrame(second, 'logo.png — 4×8 · 1 KB')
   })
 
   test('an image tab never becomes a buffer, so nothing can write it back', async () => {
     const { dir, png } = project()
     const t = await launch(dir, {}, { height: 24, width: 80 })
     await openFile(t, 'logo')
-    expect(t.captureCharFrame()).toContain('logo.png — 4×8')
+    await untilFrame(t, 'logo.png — 4×8')
 
     const before = [...(await Bun.file(png).bytes())]
     await press(t, (input) => input.pressKey('s', { ctrl: true }))

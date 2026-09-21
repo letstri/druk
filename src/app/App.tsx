@@ -861,6 +861,22 @@ export function App(props: {
           />
           <box flexGrow={1} flexDirection="column">
             <EditorPane
+              peekRows={peekRows()}
+              onPeekKey={peekKey}
+              peek={
+                <CallPeek
+                  rows={callHierarchy.rows()}
+                  cursor={callHierarchy.cursor()}
+                  title={callHierarchy.title()}
+                  loading={callHierarchy.loading()}
+                  rootDir={rootDir}
+                  width={slotWidth()}
+                  height={peekRows()}
+                  bufferOf={(path) => workspace.buffers[path]?.content}
+                  onMoveTo={actions.callsMoveTo}
+                  onOpen={actions.callsOpen}
+                />
+              }
               path={workspace.activePath()}
               content={workspace.activeBuffer()?.content ?? ''}
               rootName={projectName}

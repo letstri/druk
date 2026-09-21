@@ -340,31 +340,14 @@ and no fetch. An empty panel is where that is explained: it spells out the chord
 notes a line (asked of the keymap with `chordFor`, so a rebind renames it), the keys the
 panel answers to, and where the notes are kept, since that is the half an agent has to
 be told,
-an image viewer (PNG/JPEG as half-block cells, with the picture itself drawn over them
-through the kitty graphics protocol — `src/core/kittyImage.ts` transmits the decoded
-pixels zlib-compressed and lets the terminal scale them into the cell box,
-`DRUK_KITTY_IMAGES=1/0` forces the answer either way. Four things about that escape
-are load-bearing, each of them a way it has already gone wrong:
-**it goes through `serialWrite`** (`src/ui/ImageView.tsx`), the renderer's own private
-`writeOut` — druk does not own stdout, the Zig core does and writes frames from its own
-thread, so a `process.stdout.write` of a few hundred KB splices into a frame and glitches
-the *whole screen*; nothing else druk writes is big enough for the race to show, which is
-how the title and progress escapes get away with stdout.
-**It is wrapped in DECSC/DECRC** rather than carrying the protocol's own `C=1`, since a
-terminal that does not know a key rejects the placement entire.
-**It asks for errors with `q=1`** and `placementError` reads the terminal's verdict off
-an input handler: a refused placement is otherwise indistinguishable from one that drew,
-and the reason is put in the caption instead of being lost.
-**And `claimScreen` deletes every image the terminal holds** before the first placement
-and again on exit, a placement outliving the process that made it — a killed druk
-otherwise leaves its picture over whatever opens in that tab next, including the next
-druk. The blocks are painted *whatever* the answer is, and `cellFit`
-(`src/core/image.ts`) is the one geometry both use, so the two cover the same rect:
-a terminal that claims the protocol and then ignores the escape — or a forced one that
-never had it — shows the blocks rather than an empty pane, which is the only failure
-mode the protocol offers, an image being placed with no reply to wait for. The
-placement is deleted while a modal is up, kitty drawing an image over the text rather
-than under it, and re-placed when the modal goes), a rendered view for markdown files (`Ctrl+Opt+M`, palette → View — OpenTUI's
+an image viewer (`src/ui/ImageView.tsx`: a caption and OpenTUI's `<image>`, which decodes
+the file natively and draws it with the kitty graphics protocol, sixel or half-block
+cells — whichever the terminal answered for, composed into the frame the Zig core is
+already writing. `DRUK_KITTY_IMAGES=1/0` forces `protocol` to `kitty` or `blocks`, and a
+modal is the same prop put to `blocks`, since kitty draws its image over the text rather
+than under it. `isImagePath` (`src/core/image.ts`) is all that is left of the old
+pipeline — the decoders, the cell painting and the escape handling are the core's now, and
+what that removed is written up in OPENTUI-TRADEOFFS.md), a rendered view for markdown files (`Ctrl+Opt+M`, palette → View — OpenTUI's
 `<markdown>` renderable over the editor slot, per path so each tab keeps the view it
 was left in, rendering the buffer rather than the file so unsaved edits show, and reached
 from a `¶ preview` / `¶ source` button at the right of the tab strip that is drawn only
