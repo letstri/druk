@@ -317,6 +317,24 @@ const attempt = (run: () => void): FsResult => {
 const taken = (path: string): FsResult =>
   fs.existsSync(path) ? `already exists: ${basename(path)}` : null
 
+// Renamed into place: a half-written config is a config lost, and a reader in another process
+// never catches half a file. Throws on failure so a caller's own rollback can run.
+export function writeAtomic(path: string, body: string): void {
+  fs.mkdirSync(dirname(path), { recursive: true })
+  const tmp = `${path}.${process.pid}.tmp`
+  fs.writeFileSync(tmp, body)
+  try {
+    fs.renameSync(tmp, path)
+  } catch (error) {
+    try {
+      fs.unlinkSync(tmp)
+    } catch {
+      // best-effort
+    }
+    throw error
+  }
+}
+
 export const writeFile = (
   path: string,
   content: string,

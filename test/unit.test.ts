@@ -1,11 +1,11 @@
 import { describe, expect, test } from 'bun:test'
-import { mkdirSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { setTimeout as sleep } from 'node:timers/promises'
 
 import { buildCommands } from '../src/app/commands'
 import type { CommandActions } from '../src/app/commands'
-import { readFile, watchPath, watchTree } from '../src/core/fs'
+import { readFile, watchPath, watchTree, writeAtomic } from '../src/core/fs'
 import type { Changed } from '../src/core/fs'
 import { searchProject, searchText } from '../src/core/search'
 import { isNewer } from '../src/core/update'
@@ -168,4 +168,15 @@ describe('registries', () => {
       expect(`${id}:${delta > 0 && delta <= 20}`).toBe(`${id}:true`)
     }
   })
+})
+
+test('an atomic write leaves no partial file and no temp behind', () => {
+  const dir = tempDir('druk-atomic-')
+  const file = join(dir, 'nested', 'config.json')
+
+  writeAtomic(file, '{"a":1}')
+  writeAtomic(file, '{"a":2}')
+
+  expect(readFile(file)).toBe('{"a":2}')
+  expect(readdirSync(join(dir, 'nested'))).toEqual(['config.json'])
 })

@@ -1,10 +1,11 @@
 import fs from 'node:fs'
 import os from 'node:os'
-import { dirname, join } from 'node:path'
+import { join } from 'node:path'
 
 import { isIconThemeName, NO_ICONS } from '../icons'
 import { isThemeName } from '../themes'
 import type { ThemeName } from '../themes'
+import { writeAtomic } from './fs'
 import { MARKET_URL } from './market'
 import { DEFAULT_SCAN_DEPTH } from './repos'
 
@@ -326,12 +327,7 @@ export function unregisteredNames(rootDir: string): {
 
 export function saveUserConfig(config: Config): void {
   try {
-    fs.mkdirSync(dirname(CONFIG_FILE), { recursive: true })
-    fs.writeFileSync(
-      CONFIG_FILE,
-      `${JSON.stringify(config, null, 2)}\n`,
-      'utf-8'
-    )
+    writeAtomic(CONFIG_FILE, `${JSON.stringify(config, null, 2)}\n`)
   } catch {
     // best-effort
   }
@@ -345,12 +341,9 @@ export function saveProjectConfig(
     ([, value]) => value !== undefined
   )
   try {
-    const file = projectConfigFile(rootDir)
-    fs.mkdirSync(dirname(file), { recursive: true })
-    fs.writeFileSync(
-      file,
-      `${JSON.stringify(Object.fromEntries(kept), null, 2)}\n`,
-      'utf-8'
+    writeAtomic(
+      projectConfigFile(rootDir),
+      `${JSON.stringify(Object.fromEntries(kept), null, 2)}\n`
     )
   } catch {
     // best-effort

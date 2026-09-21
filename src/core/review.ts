@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import { basename, dirname, join } from 'node:path'
 
 import { CONFIG_FILE } from './config'
-import { watchPath } from './fs'
+import { watchPath, writeAtomic } from './fs'
 
 const NOTES_FILE = join(dirname(CONFIG_FILE), 'review.json')
 
@@ -155,23 +155,10 @@ export function saveNotes(
       .toSorted((a, b) => (b[1].touchedAt ?? now) - (a[1].touchedAt ?? now))
       .slice(0, MAX_PROJECTS)
 
-    fs.mkdirSync(dirname(file), { recursive: true })
-    // Renamed into place: a reader in another process never catches half a file.
-    const tmp = `${file}.${process.pid}.tmp`
-    fs.writeFileSync(
-      tmp,
+    writeAtomic(
+      file,
       `${JSON.stringify(Object.fromEntries(trimmed), null, 2)}\n`
     )
-    try {
-      fs.renameSync(tmp, file)
-    } catch (error) {
-      try {
-        fs.unlinkSync(tmp)
-      } catch {
-        // best-effort
-      }
-      throw error
-    }
   } catch {
     // best-effort
   }

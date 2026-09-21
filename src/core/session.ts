@@ -2,7 +2,7 @@ import fs from 'node:fs'
 import { dirname, join } from 'node:path'
 
 import { CONFIG_FILE } from './config'
-import { exists } from './fs'
+import { exists, writeAtomic } from './fs'
 
 const SESSIONS_FILE = join(dirname(CONFIG_FILE), 'sessions.json')
 
@@ -74,8 +74,7 @@ export function saveSession(
       .toSorted((a, b) => (b[1].touchedAt ?? 0) - (a[1].touchedAt ?? 0))
       .slice(0, MAX_PROJECTS)
 
-    fs.mkdirSync(dirname(SESSIONS_FILE), { recursive: true })
-    fs.writeFileSync(
+    writeAtomic(
       SESSIONS_FILE,
       `${JSON.stringify(Object.fromEntries(trimmed), null, 2)}\n`
     )

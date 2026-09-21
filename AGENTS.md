@@ -312,7 +312,9 @@ another writer's notes appear live (the config directory is watched; a rename-re
 file would strand a watcher on the file itself), druk's saves merge with what the file
 holds rather than clobbering it (an id both sides hold is the file's to win — druk never
 changes a note after creating it), land by temp-and-rename so a reader never catches
-half a file, and set an unreadable file aside as `review.json.corrupt-<ts>` rather than
+half a file (`writeAtomic` in `src/core/fs.ts`, which is also how the config, the project
+settings and the session file are written — a half-written `config.json` is a config
+lost), and set an unreadable file aside as `review.json.corrupt-<ts>` rather than
 rewriting it from nothing; the panel's
 cursor pages the editor the way the source-control panel's pages the diff — the remark's
 file goes up in a preview tab at its line, the keyboard staying in the panel, and the
