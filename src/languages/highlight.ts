@@ -115,6 +115,27 @@ export const DIFF_GROUPS = {
   removed: 'druk.diff.removed',
 } as const
 
+// The markdown renderable and its grammar ask for groups no theme lists: the native style table
+// does no dotted fallback, so an unregistered `markup.heading.1` paints as plain text, and a table
+// cell with no `default` takes TextTable's own white.
+function markdownGroups(): Record<string, StyleDefinitionInput> {
+  const heading = syntaxTheme['markup.heading'] ?? { bold: true, fg: ui.accent }
+  const list = syntaxTheme['markup.list'] ?? { fg: ui.accent }
+  return {
+    conceal: { fg: ui.faint },
+    default: { fg: ui.text },
+    'markup.heading.1': heading,
+    'markup.heading.2': heading,
+    'markup.heading.3': heading,
+    'markup.heading.4': heading,
+    'markup.heading.5': heading,
+    'markup.heading.6': heading,
+    'markup.list.checked': list,
+    'markup.list.unchecked': list,
+    'markup.raw.block': syntaxTheme['markup.raw'] ?? { fg: ui.text },
+  }
+}
+
 export function getSyntaxStyle(): SyntaxStyle {
   const theme = paintedTheme()
   if (!syntaxStyle || styleFor !== theme) {
@@ -124,6 +145,7 @@ export function getSyntaxStyle(): SyntaxStyle {
     definitionById = null
     overlaidIds.clear()
     syntaxStyle = SyntaxStyle.fromStyles({
+      ...markdownGroups(),
       ...syntaxTheme,
       [INDENT_GUIDE]: { bg: ui.indentGuide },
       // Background only, no underline: OpenTUI's underline takes the text's own colour.

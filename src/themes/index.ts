@@ -104,13 +104,30 @@ export function isThemeName(value: unknown): value is ThemeName {
   return typeof value === 'string' && value in registry
 }
 
+// Relative luminance of the editor background: a theme declares no appearance of its own.
+function isDark(bg: string): boolean {
+  if (!/^#[0-9a-f]{6}$/iu.test(bg)) {
+    return true
+  }
+  const channel = (at: number) => Number.parseInt(bg.slice(at, at + 2), 16)
+  return channel(1) * 0.299 + channel(3) * 0.587 + channel(5) * 0.114 < 128
+}
+
 export function setTheme(name: ThemeName): void {
   const painted = name in registry ? name : DEFAULT
+  const theme = themeFor(painted)
   // Replace, never merge (an omitted group keeps the old colour), and data before the signal.
+  // A theme that lists *no* usable group is the one exception: every span would paint as plain
+  // text, so the shipped palette of the same appearance stands in whole. A theme that lists some
+  // is left alone — `FALLBACK_GROUP` walks the rest onto its own colours, not github's.
   for (const group of Object.keys(syntaxTheme)) {
     Reflect.deleteProperty(syntaxTheme, group)
   }
-  Object.assign(syntaxTheme, themeFor(painted).syntax)
+  const own = Object.keys(theme.syntax).length > 0
+  Object.assign(
+    syntaxTheme,
+    own ? theme.syntax : (isDark(theme.ui.bg) ? githubDark : githubLight).syntax
+  )
   setUi(colorsFor(painted, seeThrough))
   setPaintedTheme(painted)
 }
