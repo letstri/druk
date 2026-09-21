@@ -4,8 +4,8 @@ Every place druk does for itself something OpenTUI either does differently or do
 not do at all, with the native alternative that exists and the feature that is
 lost by taking it.
 
-Checked against **@opentui/core 0.4.5** (`node_modules/@opentui/core/*.d.ts` and
-the shipped implementation), druk **1.29.1**, commit `303d9a5`. Re-verify against
+Checked against **@opentui/core 0.5.11** (`node_modules/@opentui/core/*.d.ts` and
+the shipped implementation), druk **1.31.2**, commit `c2c1966`. Re-verify against
 the package on an OpenTUI bump: several entries below exist only because a setter,
 an event or a style attribute is missing, and any of those may land upstream.
 

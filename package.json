@@ -52,15 +52,14 @@
     "test:watch": "bun test --watch"
   },
   "dependencies": {
-    "@opentui/core": "^0.4.5",
-    "@opentui/solid": "^0.4.5",
-    "fast-png": "^8.0.0",
-    "jpeg-js": "^0.4.4",
-    "solid-js": "^1.9.14",
+    "@opentui/core": "^0.5.11",
+    "@opentui/solid": "^0.5.11",
+    "solid-js": "^1.9.15",
     "tree-sitter-wasms": "^0.1.13"
   },
   "devDependencies": {
     "@types/bun": "latest",
+    "fast-png": "^8.0.0",
     "oxfmt": "^0.68.0",
     "oxlint": "^1.83.0",
     "typescript": "^5",
