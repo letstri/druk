@@ -102,6 +102,9 @@ describe('mouse selection', () => {
     await t.mockMouse.click(at, EDITOR_ROW)
     await t.mockMouse.click(at, EDITOR_ROW)
     await settle(t)
+    // The selection carries the newline that ends the line; counting it as a second line
+    // turned a one-line copy into "Copied 2 lines".
+    expect(t.captureCharFrame()).toContain('Copied const data = []')
     await press(t, (input) => input.typeText('X'))
     await save(t)
     expect(readFileSync(join(dir, 'a.ts'), 'utf-8')).toBe('Xconst beta = 2\n')

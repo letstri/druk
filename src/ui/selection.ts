@@ -46,7 +46,9 @@ export function copyText(
 ) {
   copyToClipboard(text)
   renderer.copyToClipboardOSC52(text)
-  const lines = text.split('\n').length
+  // A trailing newline ends the last line, it does not start another: a triple-click takes one line.
+  const rows = text.split('\n')
+  const lines = rows.at(-1) === '' ? rows.length - 1 : rows.length
   say(lines > 1 ? `Copied ${lines} lines` : `Copied ${cut(text, 40)}`)
 }
 
