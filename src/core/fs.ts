@@ -256,10 +256,8 @@ export function decodeText(raw: string): {
   // Majority, not first-wins: one stray CRLF must not convert the whole file on the next save.
   const crlf = countOf(body, '\r\n')
   const eol = crlf > 0 && crlf * 2 >= countOf(body, '\n') ? '\r\n' : '\n'
-  return {
-    encoding: { bom, eol },
-    text: eol === '\r\n' ? body.replaceAll('\r\n', '\n') : body,
-  }
+  // Always stripped, majority or not: a `\r` left in the buffer breaks indent, folds and comments.
+  return { encoding: { bom, eol }, text: body.replaceAll('\r\n', '\n') }
 }
 
 export function encodeText(text: string, encoding: TextEncoding): string {

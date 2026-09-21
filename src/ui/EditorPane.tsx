@@ -469,6 +469,27 @@ const VIM_EDITS = new Set([
 
 const flat = (text: string) => text.replaceAll(/\s+/gu, ' ').trim()
 
+const CR = 13
+const LF = 10
+
+function withoutCarriageReturns(bytes: Uint8Array): Uint8Array {
+  if (!bytes.includes(CR)) {
+    return bytes
+  }
+  const out: number[] = []
+  for (const [at, byte] of bytes.entries()) {
+    if (byte === CR) {
+      if (bytes[at + 1] === LF) {
+        continue
+      }
+      out.push(LF)
+      continue
+    }
+    out.push(byte)
+  }
+  return Uint8Array.from(out)
+}
+
 export function EditorPane(props: EditorPaneProps) {
   const dimensions = useTerminalDimensions()
   const renderer = useRenderer()
@@ -2009,6 +2030,8 @@ export function EditorPane(props: EditorPaneProps) {
     const paste = el.handlePaste.bind(el)
     el.handlePaste = (event: PasteEvent) => {
       releaseFoldForEdit()
+      // Bytes, not text: 0x0D never occurs inside a UTF-8 sequence, so this needs no decode.
+      event.bytes = withoutCarriageReturns(event.bytes)
       paste(event)
     }
   }
@@ -2546,7 +2569,8 @@ export function EditorPane(props: EditorPaneProps) {
         return
       }
       editor.deleteSelection()
-      editor.insertText(text)
+      // As `decodeText` does on the way in: a `\r` left in the line breaks indent, folds and comments.
+      editor.insertText(text.replaceAll('\r\n', '\n').replaceAll('\r', '\n'))
       return
     }
 
