@@ -44,7 +44,15 @@ export function run(
   // oxlint-disable-next-line prefer-const
   let timer: ReturnType<typeof setTimeout>
 
-  const onAbort = () => child.kill('SIGKILL')
+  // 'close' waits for the stdio streams as well as the exit, so a kill that leaves a pipe open
+  // never resolves this promise — the child is gone and the caller waits forever.
+  const stop = () => {
+    child.stdout?.destroy()
+    child.stderr?.destroy()
+    child.kill('SIGKILL')
+  }
+
+  const onAbort = () => stop()
 
   const finish = (
     status: number | null,
@@ -71,7 +79,7 @@ export function run(
       size += chunk.length
       if (size > options.maxOutput) {
         overflow = true
-        child.kill('SIGKILL')
+        stop()
         return
       }
     }
@@ -80,7 +88,7 @@ export function run(
 
   timer = setTimeout(() => {
     timedOut = true
-    child.kill('SIGKILL')
+    stop()
   }, options.timeout)
 
   if (options.signal) {
