@@ -751,6 +751,8 @@ export function EditorPane(props: EditorPaneProps) {
   const scrollbarHover = useHover()
   const [hotFold, setHotFold] = createSignal<number | null>(null)
 
+  const [menuOpen, setMenuOpenRaw] = createSignal(false)
+
   // Bumped on a re-wrap; the memos read it to re-measure.
   const [wrapKey, setWrapKey] = createSignal(0)
 
@@ -803,7 +805,8 @@ export function EditorPane(props: EditorPaneProps) {
     void props.content
     const el = editorEl()
     // The review card owns the rows under its own line.
-    if (!props.problemText || !el || !host || cardGap()) {
+    // The completion menu floats over the same rows; two boxes there overprint each other.
+    if (!props.problemText || !el || !host || cardGap() || menuOpen()) {
       return null
     }
     const problem = displayProblems().get(cursorRow())
@@ -1053,7 +1056,6 @@ export function EditorPane(props: EditorPaneProps) {
     return markers
   })
 
-  const [menuOpen, setMenuOpenRaw] = createSignal(false)
   const [menuItems, setMenuItems] = createSignal<CompletionItem[]>([])
   const [menuPrefix, setMenuPrefix] = createSignal('')
   const [menuSelected, setMenuSelected] = createSignal(0)

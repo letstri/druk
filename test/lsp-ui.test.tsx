@@ -166,6 +166,25 @@ test('the inline note is what broke, and the card under the line says the rest',
   await untilGone(t, 'Problem at cursor')
 }, 30_000)
 
+test('the completion menu takes the rows the card would cover', async () => {
+  const dir = fixture({ 'a.ts': 'nag\n' })
+  const t = await launch(
+    dir,
+    servedBy(process.execPath, FAKE),
+    { height: 24, width: 120 },
+    { openFile: join(dir, 'a.ts') }
+  )
+
+  await untilFrame(t, 'is never enough to read one', LSP_WAIT)
+  await press(t, (input) => input.pressKey(' ', { ctrl: true }))
+  await untilFrame(t, 'drukAlpha', LSP_WAIT)
+  // The menu is narrower than the card, so an overlap leaves the card's tail on screen.
+  expect(t.captureCharFrame()).not.toContain('is never enough to read one')
+
+  await pressEscape(t)
+  await untilFrame(t, 'is never enough to read one', LSP_WAIT)
+}, 30_000)
+
 test('a message only the width shortened is spelled out in the card', async () => {
   const dir = fixture({ 'a.ts': 'const a = 1\n' })
   // Wide enough for the note to be drawn, narrow enough for it to be cut.
