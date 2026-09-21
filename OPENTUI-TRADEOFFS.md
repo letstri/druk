@@ -87,12 +87,21 @@ next keystroke — needs an upstream way to detach the two. Re-check on a bump.
   the cursor stays off screen. Both are the exact failures the deferred version fixes.
 
 ### A7. Word and line selection by multi-click
-- **Custom**: `selectOnMultiClick` (`src/ui/EditorPane.tsx:329`) and the same counting
-  in `src/ui/FileTree.tsx:104`.
-- **Native**: `MouseEvent` carries `type`, `button`, `x`, `y`, `modifiers`, `scroll` —
-  no click count and no `dblclick` type.
-- **Degrades**: double-click word select and triple-click line select go; in the tree,
-  double-click to open goes.
+- **Custom**: `selectOnMultiClick` (`src/ui/EditorPane.tsx:329`), `src/editor/words.ts`,
+  and the same counting in `src/ui/FileTree.tsx:104`.
+- **Native**: since 0.5.11 the renderer counts the clicks itself (`nextClickBehavior`,
+  three deep, 500ms, within a cell) and `startSelection(renderable, x, y, behavior)`
+  expands the endpoints through the native `selectWord` / `selectLine` — so a
+  double-click word selection is one forwarded argument away (`allowSelectionIn` drops
+  that argument today, which is what keeps the native path unreachable). `MouseEvent`
+  still carries no click count, so the tree's double-click to open cannot be had this
+  way at all.
+- **Degrades**: the native line selection stops at the end of the line, where druk's
+  takes the `\n` with it — so a triple-click would copy a line that pastes without its
+  break, and typing over one would leave the emptied line behind instead of removing it
+  (`lineRangeAt`'s comment, and the "Copied const data = []" case in
+  `test/selection.test.tsx`, are that newline). Word selection is a clean swap; the pair
+  is not, and half of a multi-click helper is not worth the other half's regression.
 - **Costs**: `setSelection` writes a view selection the renderer does not own, and
   OpenTUI clears only its own on a plain caret move (`updateSelectionForMovement` →
   `_ctx.clearSelection`), so `movesCaret` in `EditorPane.tsx` clears it by hand — else
@@ -109,6 +118,9 @@ next keystroke — needs an upstream way to detach the two. Re-check on a bump.
   text in ~40 components, and a new component that forgets it is a silent regression
   (dragging across a tree row or a tab selects that text). This is the one entry
   where the native path is *more* code rather than less.
+- **Costs**: the wrapper's signature has to track `startSelection`'s. It grew a fourth
+  argument in 0.5.11 (A7's `behavior`), and a wrapper that drops one silently disables
+  whatever it carries rather than failing.
 
 ### A9. Fitting text to a column budget
 - **Custom**: `cut` and `wrapText` (`src/ui/text.ts`, 24 lines).
@@ -137,12 +149,16 @@ next keystroke — needs an upstream way to detach the two. Re-check on a bump.
   rather than merging, so every background-only overlay — diagnostic tints, merge
   conflict sides, diff row fills — repaints the code it covers as flat unstyled text.
 
-### A12. Highlight columns on tab-indented lines
-- **Custom**: `inCells` (`src/editor/columns.ts`, 19 lines).
+### A12. Highlight columns on tab-indented and non-ASCII lines
+- **Custom**: `inCells` (`src/editor/columns.ts`) — the mapping only; the widths are the
+  core's own (`resolveRenderLib().encodeUnicode`, one per grapheme cluster) and the
+  cluster boundaries are `Intl.Segmenter`'s.
 - **Native**: `addHighlightByCharRange` takes character columns.
 - **Degrades**: it stores the character column verbatim and drifts the same way, so a
-  tab-indented file's colours slide one cell left per tab — the whole point of the
-  helper. Native is a rename, not a fix.
+  tab-indented file's colours slide one cell left per tab and a CJK or emoji line slides
+  one per wide character. Native is a rename, not a fix. `encodeUnicode` reports a width
+  per cluster but not the characters each one spans, which is the gap `Intl.Segmenter`
+  fills; a count the two disagree on falls back to one cell per cluster.
 
 ### A13. Deleting lines
 - **Custom**: `removeLines` and friends (`src/editor/lines.ts`, 64 lines).

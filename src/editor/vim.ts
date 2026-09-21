@@ -59,6 +59,13 @@ export interface VimActions {
 
 type Editor = TextareaRenderable
 
+// `boundary` — what the pane is built with, so a drag replaces what it paints — makes the
+// inclusive setter exclusive again, one character short of what vim selected.
+function selectInclusive(editor: Editor, start: number, end: number): void {
+  editor.selectionOccupancy = 'cell'
+  editor.setSelectionInclusive(start, end)
+}
+
 // Vim's selection covers the character under the cursor and works backwards; `select: true` cannot.
 function markVisual(editor: Editor, state: VimState): void {
   const cursor = editor.cursorOffset
@@ -69,9 +76,10 @@ function markVisual(editor: Editor, state: VimState): void {
     if (end < start) {
       end = start
     }
-    editor.setSelectionInclusive(start, end)
+    selectInclusive(editor, start, end)
   } else {
-    editor.setSelectionInclusive(
+    selectInclusive(
+      editor,
       Math.min(state.anchor, cursor),
       Math.max(state.anchor, cursor)
     )

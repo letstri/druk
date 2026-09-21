@@ -169,17 +169,24 @@ describe('living with the rest of the editor', () => {
     expect(await save(t, file)).toBe('one\ntwo\nthree\n')
   })
 
-  test('Ctrl+C, Ctrl+X and Ctrl+V still work in normal mode', async () => {
-    const { t, file } = await vimEditor('abcdef\n')
-    await type(t, 'vll')
-    await press(t, (i) => i.pressKey('c', { ctrl: true }))
-    await pressEscape(t)
-    await type(t, '$')
-    await type(t, 'i')
-    await press(t, (i) => i.pressKey('v', { ctrl: true }))
-    await settle(t)
-    expect(await save(t, file)).toBe('abcdeabcf\n')
-  })
+  // A real round trip through the OS clipboard, which a headless runner has no tool for.
+  const clipboard = ['pbpaste', 'wl-paste', 'xclip', 'xsel'].some((bin) =>
+    Bun.which(bin)
+  )
+  test.skipIf(!clipboard)(
+    'Ctrl+C, Ctrl+X and Ctrl+V still work in normal mode',
+    async () => {
+      const { t, file } = await vimEditor('abcdef\n')
+      await type(t, 'vll')
+      await press(t, (i) => i.pressKey('c', { ctrl: true }))
+      await pressEscape(t)
+      await type(t, '$')
+      await type(t, 'i')
+      await press(t, (i) => i.pressKey('v', { ctrl: true }))
+      await settle(t)
+      expect(await save(t, file)).toBe('abcdeabcf\n')
+    }
+  )
 
   test('Esc in normal mode hands the keyboard to the tree', async () => {
     const { t } = await vimEditor()
@@ -268,11 +275,12 @@ describe('linewise visual mode', () => {
     expect(await save(t, file)).toBe('one\ntwo\ntwo\nthree\n')
   })
 
-  test('Vc deletes the line and enters insert on the next line', async () => {
+  // As `cc` does: the emptied line stays rather than insert starting on the line below.
+  test('Vc empties the line and inserts on it', async () => {
     const { t, file } = await vimEditor()
     await type(t, 'Vc')
     await type(t, 'X')
-    expect(await save(t, file)).toBe('Xtwo\nthree\n')
+    expect(await save(t, file)).toBe('X\ntwo\nthree\n')
   })
 
   test('Esc leaves linewise visual mode', async () => {

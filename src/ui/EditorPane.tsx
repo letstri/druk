@@ -316,6 +316,9 @@ function selectOnMultiClick(el: TextareaRenderable, after: () => void) {
     if (event.type !== 'down') {
       return
     }
+    // Vim's visual mode leaves `cell` behind, which makes a drag replace a character more
+    // than it painted.
+    el.selectionOccupancy = 'boundary'
     const now = Date.now()
     const same =
       event.x === last.x &&
@@ -2881,6 +2884,9 @@ export function EditorPane(props: EditorPaneProps) {
           >
             <textarea
               keyBindings={EDIT_KEYS}
+              // `cell`, the default, replaces one character more than the drag painted
+              // and copied. Vim's visual mode puts it back for its own selections.
+              selectionOccupancy="boundary"
               ref={(el) => {
                 editor = el
                 setEditorEl(el)
