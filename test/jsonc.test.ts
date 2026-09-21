@@ -32,16 +32,26 @@ describe('painting jsonc', () => {
     const segments = await allSegments(SAMPLE, 'jsonc')
     const commented = (line: number) =>
       segments
-        .filter(segment => segment.line === line && segment.styleId === style.getStyleId('comment'))
-        .map(segment => SAMPLE.split('\n')[line]?.slice(segment.start, segment.end))
+        .filter(
+          (segment) =>
+            segment.line === line &&
+            segment.styleId === style.getStyleId('comment')
+        )
+        .map((segment) =>
+          SAMPLE.split('\n')[line]?.slice(segment.start, segment.end)
+        )
     expect(commented(1)).toEqual(['// a line comment'])
     expect(commented(2)).toEqual(['/* and a block one */'])
-    expect(segments.some(segment => segment.styleId === style.getStyleId('error'))).toBe(false)
+    expect(
+      segments.some((segment) => segment.styleId === style.getStyleId('error'))
+    ).toBe(false)
   })
 })
 
 test('the json server serves jsonc too', () => {
-  expect(resolveServer('jsonc', {})?.command).toEqual(resolveServer('json', {})!.command)
+  expect(resolveServer('jsonc', {})?.command).toEqual(
+    resolveServer('json', {})!.command
+  )
 })
 
 test('bun.lock is excused its trailing commas by schema, not languageId', () => {
@@ -53,6 +63,11 @@ test('bun.lock is excused its trailing commas by schema, not languageId', () => 
     }
   }
   expect(settings.json.validate.enable).toBe(true)
-  const lockfile = settings.json.schemas.find(entry => entry.fileMatch.includes('bun.lock'))
-  expect(lockfile?.schema).toEqual({ allowTrailingCommas: true, allowComments: true })
+  const lockfile = settings.json.schemas.find((entry) =>
+    entry.fileMatch.includes('bun.lock')
+  )
+  expect(lockfile?.schema).toEqual({
+    allowComments: true,
+    allowTrailingCommas: true,
+  })
 })

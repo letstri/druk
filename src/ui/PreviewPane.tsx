@@ -1,16 +1,29 @@
 import { basename } from 'node:path'
 
 import type { ScrollBoxRenderable, TreeSitterClient } from '@opentui/core'
-import { createEffect, createMemo, createSignal, on, onMount, Show } from 'solid-js'
+import {
+  createEffect,
+  createMemo,
+  createSignal,
+  on,
+  onMount,
+  Show,
+} from 'solid-js'
 
 import { BinaryFileError, readFile, sizeOf } from '../core/fs'
 import { isImagePath } from '../core/image'
-import { filetypeForPath, getSyntaxStyle, highlightClient } from '../languages/highlight'
+import {
+  filetypeForPath,
+  getSyntaxStyle,
+  highlightClient,
+} from '../languages/highlight'
 import { paintedTheme, ui } from '../themes'
 import { ImageView } from './ImageView'
+import { scrollbarOptions } from './list'
+import { Page } from './PanelHeader'
 import { cut } from './text'
 
-export interface PreviewPaneProps {
+interface PreviewPaneProps {
   path: string
   isDir: boolean
   buffer?: string
@@ -23,7 +36,10 @@ export interface PreviewPaneProps {
 // Past this the file is named rather than shown: read and highlight run on every step.
 const MAX_PREVIEW_BYTES = 512 * 1024
 
-type Shown = { kind: 'text'; text: string } | { kind: 'image' } | { kind: 'note'; note: string }
+type Shown =
+  | { kind: 'text'; text: string }
+  | { kind: 'image' }
+  | { kind: 'note'; note: string }
 
 const sizeLabel = (bytes: number) =>
   bytes >= 1024 * 1024
@@ -32,15 +48,19 @@ const sizeLabel = (bytes: number) =>
 
 export function PreviewPane(props: PreviewPaneProps) {
   // `<code>`'s default client would be a second, empty one with no vendored grammars.
-  const [client, setClient] = createSignal<TreeSitterClient | null | undefined>(undefined)
-  onMount(() => void highlightClient().then(c => setClient(c)))
+  const [client, setClient] = createSignal<
+    TreeSitterClient | null | undefined
+  >()
+  onMount(async () => {
+    setClient(await highlightClient())
+  })
 
   // Keyed on the painted theme: the style table is rebuilt when the palette changes.
   const style = createMemo(
     on(
       () => paintedTheme(),
-      () => getSyntaxStyle(),
-    ),
+      () => getSyntaxStyle()
+    )
   )
 
   let box: ScrollBoxRenderable | undefined
@@ -50,11 +70,13 @@ export function PreviewPane(props: PreviewPaneProps) {
   createEffect(
     on(
       () => props.scroll,
-      request => {
-        if (box && request) box.scrollTop = Math.max(0, box.scrollTop + request.pages * page())
+      (request) => {
+        if (box && request) {
+          box.scrollTop = Math.max(0, box.scrollTop + request.pages * page())
+        }
       },
-      { defer: true },
-    ),
+      { defer: true }
+    )
   )
 
   // Keyed on the path, not the content, which changes on every keystroke in the editor.
@@ -62,29 +84,40 @@ export function PreviewPane(props: PreviewPaneProps) {
     on(
       () => props.path,
       () => {
-        if (box) box.scrollTop = 0
+        if (box) {
+          box.scrollTop = 0
+        }
       },
-      { defer: true },
-    ),
+      { defer: true }
+    )
   )
 
   const shown = createMemo<Shown>(() => {
-    if (props.isDir) return { kind: 'note', note: 'Folder — → opens it' }
-    if (isImagePath(props.path)) return { kind: 'image' }
-    if (props.buffer !== undefined) return { kind: 'text', text: props.buffer }
+    if (props.isDir) {
+      return { kind: 'note', note: 'Folder — → opens it' }
+    }
+    if (isImagePath(props.path)) {
+      return { kind: 'image' }
+    }
+    if (props.buffer !== undefined) {
+      return { kind: 'text', text: props.buffer }
+    }
     const bytes = sizeOf(props.path)
     if (bytes > MAX_PREVIEW_BYTES) {
-      return { kind: 'note', note: `${sizeLabel(bytes)} — too big to preview; Enter opens it` }
+      return {
+        kind: 'note',
+        note: `${sizeLabel(bytes)} — too big to preview; Enter opens it`,
+      }
     }
     try {
       return { kind: 'text', text: readFile(props.path) }
-    } catch (e) {
+    } catch (error) {
       return {
         kind: 'note',
         note:
-          e instanceof BinaryFileError
+          error instanceof BinaryFileError
             ? `Binary — ${sizeLabel(bytes)}, nothing to show`
-            : (e as Error).message,
+            : (error as Error).message,
       }
     }
   })
@@ -103,28 +136,11 @@ export function PreviewPane(props: PreviewPaneProps) {
     return full.length + 12 <= props.width ? full : ' preview · Esc '
   }
 
-  const name = () => cut(basename(props.path), Math.max(0, props.width - hints().length - 2))
+  const name = () =>
+    cut(basename(props.path), Math.max(0, props.width - hints().length - 2))
 
   return (
-    <box
-      width="100%"
-      height="100%"
-      flexDirection="column"
-      backgroundColor={ui.solidBg}
-      onMouseDown={() => props.onFocus()}
-    >
-      <box flexDirection="row" backgroundColor={ui.solidBarBg}>
-        <text
-          fg={ui.text}
-          bg={ui.solidBarBg}
-          flexShrink={0}
-          wrapMode="none"
-          content={` ${name()}`}
-        />
-        <box flexGrow={1} backgroundColor={ui.solidBarBg} />
-        <text fg={ui.dim} bg={ui.solidBarBg} flexShrink={0} wrapMode="none" content={hints()} />
-      </box>
-
+    <Page title={` ${name()}`} hints={hints()} onFocus={props.onFocus}>
       <Show when={shown().kind === 'image'}>
         <ImageView
           path={props.path}
@@ -134,7 +150,9 @@ export function PreviewPane(props: PreviewPaneProps) {
         />
       </Show>
       <Show when={note()}>
-        {(what: () => string) => <text fg={ui.dim} bg={ui.solidBg} content={`  ${what()}`} />}
+        {(what: () => string) => (
+          <text fg={ui.dim} bg={ui.solidBg} content={`  ${what()}`} />
+        )}
       </Show>
       <Show when={text() !== null}>
         <scrollbox
@@ -142,9 +160,7 @@ export function PreviewPane(props: PreviewPaneProps) {
           flexGrow={1}
           backgroundColor={ui.solidBg}
           paddingLeft={1}
-          scrollbarOptions={{
-            trackOptions: { foregroundColor: ui.scrollbar, backgroundColor: ui.solidBg },
-          }}
+          scrollbarOptions={scrollbarOptions(ui.solidBg)}
         >
           {/* Wrapped whatever the editor's `wrap` says: nothing here scrolls sideways. */}
           <code
@@ -158,6 +174,6 @@ export function PreviewPane(props: PreviewPaneProps) {
           />
         </scrollbox>
       </Show>
-    </box>
+    </Page>
   )
 }

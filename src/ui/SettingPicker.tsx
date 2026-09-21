@@ -1,13 +1,11 @@
 import { useTerminalDimensions } from '@opentui/solid'
-import { createEffect, createMemo, createSignal, For, onCleanup, Show } from 'solid-js'
+import { createEffect, createMemo, createSignal, onCleanup } from 'solid-js'
 
 import { fuzzyScore } from '../core/search'
 import { ui } from '../themes'
-import { useHoverKey } from './hover'
+import { FilterList } from './FilterList'
 import { useListKeys } from './list'
 import { listRows, modalWidth, PAD } from './modal'
-import { ModalPanel } from './Overlay'
-import { TextInput } from './TextInput'
 
 export function SettingPicker(props: {
   title: string
@@ -22,20 +20,27 @@ export function SettingPicker(props: {
   const dimensions = useTerminalDimensions()
   const [query, setQuery] = createSignal('')
   const [index, setIndex] = createSignal(Math.max(0, props.activeIndex))
-  const hover = useHoverKey<number>()
-
-  const width = () => modalWidth(props.paneWidth, 0.7, 30, 60)
-  const visibleRows = () => listRows(dimensions().height, 8, 18)
 
   const matches = createMemo(() => {
     const q = query().trim()
     const scored: { at: number; score: number }[] = []
-    for (let at = 0; at < props.options.length; at++) {
+    for (let at = 0; at < props.options.length; at += 1) {
       const score = fuzzyScore(props.options[at]!, q)
-      if (score !== null) scored.push({ at, score })
+      if (score !== null) {
+        scored.push({ at, score })
+      }
     }
     return scored.toSorted((a, b) => a.score - b.score)
   })
+
+  const width = () => modalWidth(props.paneWidth, 0.7, 30, 60)
+  // Fitted, unlike the other pickers: this one opens over a pane, and a two-value
+  // setting in an eighteen-row box is a box of nothing.
+  const visibleRows = () =>
+    Math.max(
+      1,
+      Math.min(listRows(dimensions().height, 8, 18), matches().length)
+    )
 
   const selected = () => Math.min(index(), Math.max(0, matches().length - 1))
 
@@ -51,61 +56,53 @@ export function SettingPicker(props: {
   // On cleanup, not on Escape: `onPick` closes the list before applying, so the restore lands first.
   onCleanup(() => props.onRestore?.())
 
-  const windowStart = () => Math.max(0, selected() - visibleRows() + 1)
+  const pick = (row: number) => {
+    const match = matches()[row]
+    if (match) {
+      props.onPick(match.at)
+    }
+  }
 
   useListKeys({
-    count: () => matches().length,
-    move: next => setIndex(next(selected())),
-    pick: () => {
-      const match = matches()[selected()]
-      if (match) props.onPick(match.at)
-    },
-    close: () => props.onClose(),
     alsoClose: ['left'],
+    close: () => props.onClose(),
+    count: () => matches().length,
+    move: (next) => setIndex(next(selected())),
+    pick: () => pick(selected()),
   })
 
   return (
-    <ModalPanel zIndex={150} width={width()} title={` ${props.title} `}>
-      <TextInput
-        value={query()}
-        placeholder="Type to filter…"
-        onInput={value => {
-          setQuery(value)
-          setIndex(0)
-        }}
-      />
-      <text fg={ui.panelBg} bg={ui.panelBg} content="" />
-      <Show
-        when={matches().length > 0}
-        fallback={<text fg={ui.dim} bg={ui.panelBg} content="No matches" />}
-      >
-        <For each={matches().slice(windowStart(), windowStart() + visibleRows())}>
-          {(match, i) => {
-            const at = () => windowStart() + i()
-            const active = () => at() === selected()
-            const bg = () =>
-              active() ? ui.treeSelectedBg : hover.hovered(at()) ? ui.hoverBg : ui.panelBg
-            return (
-              <box
-                flexDirection="row"
-                backgroundColor={bg()}
-                onMouseDown={() => props.onPick(match.at)}
-                onMouseOver={() => hover.enter(at())}
-                onMouseOut={() => hover.leave(at())}
-              >
-                <text fg={ui.accent} bg={bg()} flexShrink={0} content={active() ? '▌ ' : '  '} />
-                <text
-                  fg={match.at === props.activeIndex ? ui.accent : active() ? ui.text : ui.dim}
-                  bg={bg()}
-                  content={props.options[match.at]!.slice(0, width() - PAD * 2 - 2)}
-                />
-                <box flexGrow={1} backgroundColor={bg()} />
-              </box>
-            )
-          }}
-        </For>
-      </Show>
-      <text fg={ui.dim} bg={ui.panelBg} content="↑↓ move · Enter pick · Esc back" />
-    </ModalPanel>
+    <FilterList
+      title={` ${props.title} `}
+      placeholder="Type to filter…"
+      footer="↑↓ move · Enter pick · Esc back"
+      width={width()}
+      rows={visibleRows()}
+      items={matches()}
+      selected={selected()}
+      query={query()}
+      onQuery={(value) => {
+        setQuery(value)
+        setIndex(0)
+      }}
+      onPick={pick}
+    >
+      {(match, active, bg) => (
+        <>
+          <text
+            fg={
+              match.at === props.activeIndex
+                ? ui.accent
+                : active()
+                  ? ui.text
+                  : ui.dim
+            }
+            bg={bg()}
+            content={props.options[match.at]!.slice(0, width() - PAD * 2 - 2)}
+          />
+          <box flexGrow={1} backgroundColor={bg()} />
+        </>
+      )}
+    </FilterList>
   )
 }

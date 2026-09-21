@@ -21,24 +21,34 @@ export function HelpOverlay() {
     helpSections().flatMap((section, index) => [
       ...(index > 0 ? [{ kind: 'gap' } as const] : []),
       { kind: 'header', text: section.title } as const,
-      ...section.rows.map(([key, label]) => ({ kind: 'key', key, label }) as const),
-    ]),
+      ...section.rows.map(
+        ([key, label]) => ({ key, kind: 'key', label }) as const
+      ),
+    ])
   )
-  const visible = () => Math.max(3, Math.min(lines().length, dimensions().height - 7))
+  const visible = () =>
+    Math.max(3, Math.min(lines().length, dimensions().height - 7))
   const [top, setTop] = createSignal(0)
   const overflowing = () => visible() < lines().length
 
   useKeys((key: KeyEvent) => {
     const step = key.name === 'up' ? -1 : key.name === 'down' ? 1 : 0
-    if (step === 0) return
+    if (step === 0) {
+      return
+    }
     key.preventDefault()
-    setTop(at => Math.max(0, Math.min(lines().length - visible(), at + step)))
+    setTop((at) => Math.max(0, Math.min(lines().length - visible(), at + step)))
   })
 
   return (
-    <ModalPanel zIndex={200} width={width()} title=" Keyboard shortcuts " padY={1}>
+    <ModalPanel
+      zIndex={200}
+      width={width()}
+      title=" Keyboard shortcuts "
+      padY={1}
+    >
       <For each={lines().slice(top(), top() + visible())}>
-        {line => (
+        {(line) => (
           <Switch>
             <Match when={line.kind === 'header' && line}>
               {(header: () => { text: string }) => (

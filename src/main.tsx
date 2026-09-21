@@ -3,7 +3,12 @@ import { render } from '@opentui/solid'
 import { Root } from './app/Root'
 import { releaseAssetRoot } from './core/assets'
 import type { Target } from './core/cli'
-import { loadConfig, loadProjectConfig, readDisabledExtensions, resolveConfig } from './core/config'
+import {
+  loadConfig,
+  loadProjectConfig,
+  readDisabledExtensions,
+  resolveConfig,
+} from './core/config'
 import { divertWarnings } from './core/warnings'
 import { loadExtensions } from './extensions'
 import { highlightClient } from './languages/highlight'
@@ -42,20 +47,20 @@ export async function main(target: Target): Promise<void> {
       />
     ),
     {
-      useMouse: true,
-      // events + allKeysAsEscapes make a held Ctrl visible to the peek; reportText carries IME.
-      useKittyKeyboard: {
-        disambiguate: true,
-        alternateKeys: true,
-        events: true,
-        allKeysAsEscapes: true,
-        reportText: true,
-      },
       // Without it the terminal never hands drags over, and paints its own selection.
       enableMouseMovement: true,
       // App handles Ctrl+C: OpenTUI's own exit would bypass the unsaved-buffer prompt.
       exitOnCtrlC: false,
       targetFps: 30,
-    },
+      // events + allKeysAsEscapes make a held Ctrl visible to the peek; reportText carries IME.
+      useKittyKeyboard: {
+        allKeysAsEscapes: true,
+        alternateKeys: true,
+        disambiguate: true,
+        events: true,
+        reportText: true,
+      },
+      useMouse: true,
+    }
   )
 }

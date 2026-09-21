@@ -15,9 +15,16 @@ describe('unifiedDiff', () => {
     expect(diff.adds).toBe(1)
     expect(diff.dels).toBe(1)
     expect(diff.patch).toBe(
-      ['--- a/a.ts', '+++ b/a.ts', '@@ -1,3 +1,3 @@', ' one', '-two', '+TWO', ' three', ''].join(
-        '\n',
-      ),
+      [
+        '--- a/a.ts',
+        '+++ b/a.ts',
+        '@@ -1,3 +1,3 @@',
+        ' one',
+        '-two',
+        '+TWO',
+        ' three',
+        '',
+      ].join('\n')
     )
   })
 
@@ -26,7 +33,9 @@ describe('unifiedDiff', () => {
     expect(diff.adds).toBe(2)
     expect(diff.dels).toBe(0)
     expect(diff.patch).toBe(
-      ['--- /dev/null', '+++ b/new.ts', '@@ -0,0 +1,2 @@', '+a', '+b', ''].join('\n'),
+      ['--- /dev/null', '+++ b/new.ts', '@@ -0,0 +1,2 @@', '+a', '+b', ''].join(
+        '\n'
+      )
     )
   })
 
@@ -42,15 +51,23 @@ describe('unifiedDiff', () => {
     const far = [...lines]
     far[0] = 'FIRST'
     far[29] = 'LAST'
-    const twoHunks = unifiedDiff('a.ts', `${lines.join('\n')}\n`, `${far.join('\n')}\n`)
-    expect(twoHunks.patch.match(/^@@ /gm)).toHaveLength(2)
+    const twoHunks = unifiedDiff(
+      'a.ts',
+      `${lines.join('\n')}\n`,
+      `${far.join('\n')}\n`
+    )
+    expect(twoHunks.patch.match(/^@@ /gmu)).toHaveLength(2)
     expect(twoHunks.patch).not.toContain('line15')
 
     const near = [...lines]
     near[0] = 'FIRST'
     near[4] = 'FIFTH'
-    const oneHunk = unifiedDiff('a.ts', `${lines.join('\n')}\n`, `${near.join('\n')}\n`)
-    expect(oneHunk.patch.match(/^@@ /gm)).toHaveLength(1)
+    const oneHunk = unifiedDiff(
+      'a.ts',
+      `${lines.join('\n')}\n`,
+      `${near.join('\n')}\n`
+    )
+    expect(oneHunk.patch.match(/^@@ /gmu)).toHaveLength(1)
   })
 
   test('hunk positions stay correct after earlier insertions', () => {
@@ -58,7 +75,11 @@ describe('unifiedDiff', () => {
     const changed = [...lines]
     changed.splice(2, 0, 'INSERTED')
     changed[25] = 'CHANGED'
-    const diff = unifiedDiff('a.ts', `${lines.join('\n')}\n`, `${changed.join('\n')}\n`)
+    const diff = unifiedDiff(
+      'a.ts',
+      `${lines.join('\n')}\n`,
+      `${changed.join('\n')}\n`
+    )
     expect(diff.patch).toContain('@@ -22,7 +23,7 @@')
     expect(diff.patch).toContain('-line24')
     expect(diff.patch).toContain('+CHANGED')
@@ -70,7 +91,11 @@ describe('scale', () => {
     const lines = Array.from({ length: 5000 }, (_, i) => `line ${i}`)
     const changed = [...lines]
     changed[2500] = 'CHANGED'
-    const diff = unifiedDiff('a.ts', `${lines.join('\n')}\n`, `${changed.join('\n')}\n`)
+    const diff = unifiedDiff(
+      'a.ts',
+      `${lines.join('\n')}\n`,
+      `${changed.join('\n')}\n`
+    )
     expect(diff.adds).toBe(1)
     expect(diff.dels).toBe(1)
   })
@@ -97,7 +122,9 @@ describe('scale', () => {
     expect(diff.truncated).toBe(true)
     const body = diff.patch
       .split('\n')
-      .filter(l => /^[ +-]/.test(l) && !l.startsWith('+++') && !l.startsWith('---'))
+      .filter(
+        (l) => /^[ +-]/u.test(l) && !l.startsWith('+++') && !l.startsWith('---')
+      )
     expect(body).toHaveLength(100)
     expect(diff.patch).toContain('@@ -1,100 +0,0 @@')
   })
@@ -110,8 +137,16 @@ describe('scale', () => {
 
   test('a rewrite keeps its context rows and hunk arithmetic', () => {
     const shared = ['keep0', 'keep1', 'keep2', 'keep3', 'keep4']
-    const a = [...shared, ...Array.from({ length: 3000 }, (_, i) => `alpha ${i}`), ...shared]
-    const b = [...shared, ...Array.from({ length: 3000 }, (_, i) => `beta ${i}`), ...shared]
+    const a = [
+      ...shared,
+      ...Array.from({ length: 3000 }, (_, i) => `alpha ${i}`),
+      ...shared,
+    ]
+    const b = [
+      ...shared,
+      ...Array.from({ length: 3000 }, (_, i) => `beta ${i}`),
+      ...shared,
+    ]
     const diff = unifiedDiff('a.ts', `${a.join('\n')}\n`, `${b.join('\n')}\n`)
     expect(diff.adds).toBe(3000)
     expect(diff.dels).toBe(3000)
@@ -127,7 +162,12 @@ describe('scale', () => {
     const changed = [...lines]
     changed[0] = 'FIRST'
     changed[59] = 'LAST'
-    const diff = unifiedDiff('a.ts', `${lines.join('\n')}\n`, `${changed.join('\n')}\n`, 6)
+    const diff = unifiedDiff(
+      'a.ts',
+      `${lines.join('\n')}\n`,
+      `${changed.join('\n')}\n`,
+      6
+    )
     expect(diff.patch).toContain('+FIRST')
     expect(diff.patch).not.toContain('+LAST')
     expect(diff.adds).toBe(2)

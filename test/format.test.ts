@@ -2,7 +2,13 @@ import { describe, expect, test } from 'bun:test'
 import { chmodSync, mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-import { FILE_TOKEN, formatArgs, formatterFor, resolveBin, runFormatter } from '../src/core/format'
+import {
+  FILE_TOKEN,
+  formatArgs,
+  formatterFor,
+  resolveBin,
+  runFormatter,
+} from '../src/core/format'
 import { tempDir } from './temp'
 
 function script(code: string): { command: string[]; dir: string } {
@@ -16,7 +22,10 @@ describe('formatterFor', () => {
   test('matches the extension in a comma-separated key', () => {
     const formatters = { 'ts,tsx': ['prettier', '--write'] }
     expect(formatterFor('/p/a.ts', formatters)).toEqual(['prettier', '--write'])
-    expect(formatterFor('/p/a.tsx', formatters)).toEqual(['prettier', '--write'])
+    expect(formatterFor('/p/a.tsx', formatters)).toEqual([
+      'prettier',
+      '--write',
+    ])
     expect(formatterFor('/p/a.go', formatters)).toBeNull()
   })
 
@@ -27,7 +36,7 @@ describe('formatterFor', () => {
   })
 
   test('a specific key beats the catch-all, which covers the rest', () => {
-    const formatters = { '*': ['generic'], 'go': ['gofmt', '-w'] }
+    const formatters = { '*': ['generic'], go: ['gofmt', '-w'] }
     expect(formatterFor('/p/a.go', formatters)).toEqual(['gofmt', '-w'])
     expect(formatterFor('/p/a.rb', formatters)).toEqual(['generic'])
   })
@@ -38,36 +47,37 @@ describe('formatterFor', () => {
   })
 
   test('a file with no extension only matches the catch-all', () => {
-    expect(formatterFor('/p/Makefile', { '': ['fmt'], 'ts': ['fmt'] })).toBeNull()
-    expect(formatterFor('/p/Makefile', { '*': ['generic'] })).toEqual(['generic'])
+    expect(formatterFor('/p/Makefile', { '': ['fmt'], ts: ['fmt'] })).toBeNull()
+    expect(formatterFor('/p/Makefile', { '*': ['generic'] })).toEqual([
+      'generic',
+    ])
   })
 })
 
 describe('formatArgs', () => {
   test('the path is appended when the command never mentions it', () => {
-    expect(formatArgs(['prettier', '--write'], '/p/a.ts')).toEqual(['--write', '/p/a.ts'])
+    expect(formatArgs(['prettier', '--write'], '/p/a.ts')).toEqual([
+      '--write',
+      '/p/a.ts',
+    ])
   })
 
   test('the token puts the path where the tool wants it', () => {
-    expect(formatArgs(['stylelint', '--fix', FILE_TOKEN, '--quiet'], '/p/a.css')).toEqual([
-      '--fix',
-      '/p/a.css',
-      '--quiet',
-    ])
+    expect(
+      formatArgs(['stylelint', '--fix', FILE_TOKEN, '--quiet'], '/p/a.css')
+    ).toEqual(['--fix', '/p/a.css', '--quiet'])
   })
 
   test('a token inside an argument is substituted, not just a bare one', () => {
-    expect(formatArgs(['tool', `--stdin-filepath=${FILE_TOKEN}`], '/p/a.ts')).toEqual([
-      '--stdin-filepath=/p/a.ts',
-    ])
+    expect(
+      formatArgs(['tool', `--stdin-filepath=${FILE_TOKEN}`], '/p/a.ts')
+    ).toEqual(['--stdin-filepath=/p/a.ts'])
   })
 
   test('every occurrence is replaced', () => {
-    expect(formatArgs(['tool', FILE_TOKEN, '-o', FILE_TOKEN], '/p/a.ts')).toEqual([
-      '/p/a.ts',
-      '-o',
-      '/p/a.ts',
-    ])
+    expect(
+      formatArgs(['tool', FILE_TOKEN, '-o', FILE_TOKEN], '/p/a.ts')
+    ).toEqual(['/p/a.ts', '-o', '/p/a.ts'])
   })
 
   test('a command of only a program still gets the path', () => {
@@ -88,7 +98,9 @@ function projectWithBin(name: string, code: string): string {
 describe('resolveBin', () => {
   test('the project copy wins over the bare name', () => {
     const dir = projectWithBin('prettier', '')
-    expect(resolveBin('prettier', dir)).toBe(join(dir, 'node_modules', '.bin', 'prettier'))
+    expect(resolveBin('prettier', dir)).toBe(
+      join(dir, 'node_modules', '.bin', 'prettier')
+    )
   })
 
   test('a name the project did not install is left to PATH', () => {
@@ -98,7 +110,9 @@ describe('resolveBin', () => {
 
   test('a command that spells out a path is left alone', () => {
     const dir = projectWithBin('prettier', '')
-    expect(resolveBin('./node_modules/.bin/prettier', dir)).toBe('./node_modules/.bin/prettier')
+    expect(resolveBin('./node_modules/.bin/prettier', dir)).toBe(
+      './node_modules/.bin/prettier'
+    )
     expect(resolveBin('/usr/bin/prettier', dir)).toBe('/usr/bin/prettier')
   })
 })
@@ -110,13 +124,21 @@ describe('runFormatter', () => {
   })
 
   test('a missing binary reports name and PATH, not a stack', async () => {
-    const error = await runFormatter(['druk-no-such-formatter'], '/p/a.ts', '/tmp')
-    expect(error).toBe('druk-no-such-formatter is not installed, or not on PATH')
+    const error = await runFormatter(
+      ['druk-no-such-formatter'],
+      '/p/a.ts',
+      '/tmp'
+    )
+    expect(error).toBe(
+      'druk-no-such-formatter is not installed, or not on PATH'
+    )
   })
 
   test('a failing command reports the first stderr line', async () => {
     // Not `console.error`: Bun decorates it with a source frame.
-    const { command, dir } = script('process.stderr.write("boom\\nmore\\n"); process.exit(2)')
+    const { command, dir } = script(
+      'process.stderr.write("boom\\nmore\\n"); process.exit(2)'
+    )
     const error = await runFormatter(command, '/p/a.ts', dir)
     expect(error).toBe('boom')
   })

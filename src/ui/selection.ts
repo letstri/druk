@@ -14,7 +14,9 @@ interface Node {
 
 function allowed(renderable: unknown): boolean {
   for (let at = renderable as Node | null | undefined; at; at = at.parent) {
-    if (hosts.has(at)) return true
+    if (hosts.has(at)) {
+      return true
+    }
   }
   return false
 }
@@ -24,16 +26,24 @@ export function allowSelectionIn(el: object): void {
   const renderer = useRenderer() as unknown as {
     startSelection: (renderable: unknown, x: number, y: number) => void
   }
-  if (gated.has(renderer)) return
+  if (gated.has(renderer)) {
+    return
+  }
   gated.add(renderer)
   const start = renderer.startSelection.bind(renderer)
   renderer.startSelection = (renderable: unknown, x: number, y: number) => {
-    if (allowed(renderable)) start(renderable, x, y)
+    if (allowed(renderable)) {
+      start(renderable, x, y)
+    }
   }
 }
 
 /** Both routes: the subprocess reaches this machine, OSC 52 the terminal the user sits at. */
-export function copyText(renderer: CliRenderer, text: string, say: (message: string) => void) {
+export function copyText(
+  renderer: CliRenderer,
+  text: string,
+  say: (message: string) => void
+) {
   copyToClipboard(text)
   renderer.copyToClipboardOSC52(text)
   const lines = text.split('\n').length
@@ -45,7 +55,9 @@ export function copyOnSelect(say: (message: string) => void) {
   const renderer = useRenderer()
   const copy = () => {
     const text = renderer.getSelection()?.getSelectedText()
-    if (text) copyText(renderer, text, say)
+    if (text) {
+      copyText(renderer, text, say)
+    }
   }
   renderer.on('selection', copy)
   onCleanup(() => renderer.off('selection', copy))

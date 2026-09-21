@@ -16,8 +16,8 @@ test('a binary file is listed but does not open', async () => {
   const t = await launch(project())
   expect(t.captureCharFrame()).toContain('.DS_Store')
 
-  await press(t, i => i.pressArrow('down'))
-  await press(t, i => i.pressEnter())
+  await press(t, (i) => i.pressArrow('down'))
+  await press(t, (i) => i.pressEnter())
   await settle(t)
 
   const frame = t.captureCharFrame()
@@ -28,11 +28,14 @@ test('a binary file is listed but does not open', async () => {
 
 test('a pdf is a binary file like any other — there is no viewer', async () => {
   const dir = tempDir()
-  writeFileSync(join(dir, 'report.pdf'), Buffer.from('%PDF-1.4\n\0\0\0\0binary', 'latin1'))
+  writeFileSync(
+    join(dir, 'report.pdf'),
+    Buffer.from('%PDF-1.4\n\0\0\0\0binary', 'latin1')
+  )
   const t = await launch(dir)
 
-  await press(t, i => i.pressArrow('down'))
-  await press(t, i => i.pressEnter())
+  await press(t, (i) => i.pressArrow('down'))
+  await press(t, (i) => i.pressEnter())
   await settle(t)
 
   const frame = t.captureCharFrame()
@@ -50,7 +53,7 @@ test('the refusal covers the file that was open, and leaves when a key is presse
   expect(t.captureCharFrame()).not.toContain('const a = 1')
   expect(t.captureCharFrame()).toContain('cannot be shown')
 
-  await press(t, i => i.pressArrow('down'))
+  await press(t, (i) => i.pressArrow('down'))
   await settle(t)
   expect(t.captureCharFrame()).toContain('const a = 1')
   expect(t.captureCharFrame()).not.toContain('cannot be shown')
@@ -60,10 +63,10 @@ test('it can never be written back to disk, because it is never a buffer', async
   const dir = project()
   const before = readFileSync(join(dir, '.DS_Store'))
   const t = await launch(dir)
-  await press(t, i => i.pressArrow('down'))
-  await press(t, i => i.pressEnter())
-  await press(t, i => void i.typeText('xxx'))
-  await press(t, i => i.pressKey('s', { ctrl: true }))
+  await press(t, (i) => i.pressArrow('down'))
+  await press(t, (i) => i.pressEnter())
+  await press(t, (i) => i.typeText('xxx'))
+  await press(t, (i) => i.pressKey('s', { ctrl: true }))
   await settle(t)
 
   expect(readFileSync(join(dir, '.DS_Store'))).toEqual(before)
@@ -81,16 +84,21 @@ test('a stray NUL past the header does not make a source file binary', async () 
   expect(t.captureCharFrame()).not.toContain('cannot be shown')
   expect(t.captureCharFrame()).toContain('const tail = 2')
 
-  await press(t, i => i.pressKey('s', { ctrl: true }))
+  await press(t, (i) => i.pressKey('s', { ctrl: true }))
   await settle(t)
-  expect(readFileSync(join(dir, 'stray.ts'), 'utf8')).toBe(source)
+  expect(readFileSync(join(dir, 'stray.ts'), 'utf-8')).toBe(source)
 })
 
 test('NULs dense enough to be data are still refused, header or no header', async () => {
   const dir = project()
   const body = Buffer.alloc(4096, 0x41)
-  for (let i = 600; i < body.length; i += 50) body[i] = 0
-  writeFileSync(join(dir, 'dense.bin'), Buffer.concat([Buffer.from('#!/text\n'), body]))
+  for (let i = 600; i < body.length; i += 50) {
+    body[i] = 0
+  }
+  writeFileSync(
+    join(dir, 'dense.bin'),
+    Buffer.concat([Buffer.from('#!/text\n'), body])
+  )
 
   const t = await launch(dir)
   await openFile(t, 'dense.bin')
@@ -99,10 +107,10 @@ test('NULs dense enough to be data are still refused, header or no header', asyn
 
 test('text files still open normally afterwards', async () => {
   const t = await launch(project())
-  await press(t, i => i.pressArrow('down'))
-  await press(t, i => i.pressEnter())
-  await press(t, i => i.pressArrow('down'))
-  await press(t, i => i.pressEnter())
+  await press(t, (i) => i.pressArrow('down'))
+  await press(t, (i) => i.pressEnter())
+  await press(t, (i) => i.pressArrow('down'))
+  await press(t, (i) => i.pressEnter())
   await settle(t)
 
   const frame = t.captureCharFrame()

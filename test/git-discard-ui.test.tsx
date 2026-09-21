@@ -3,10 +3,19 @@ import { execFileSync } from 'node:child_process'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-import { fixture, launch, openFile, press, runCommand, settle, until } from './helpers'
+import {
+  fixture,
+  launch,
+  openFile,
+  press,
+  runCommand,
+  settle,
+  until,
+} from './helpers'
 import { initRepo } from './repo'
 
-const git = (dir: string, ...args: string[]) => execFileSync('git', args, { cwd: dir })
+const git = (dir: string, ...args: string[]) =>
+  execFileSync('git', args, { cwd: dir })
 
 function repo() {
   const dir = fixture({ 'a.ts': 'alpha\n', 'folder/keep.ts': 'keep\n' })
@@ -19,7 +28,8 @@ function repo() {
 
 test('d and the panel-only palette command share the discard confirmation', async () => {
   for (const invoke of [
-    (t: Awaited<ReturnType<typeof launch>>) => press(t, input => void input.typeText('d')),
+    (t: Awaited<ReturnType<typeof launch>>) =>
+      press(t, (input) => input.typeText('d')),
     (t: Awaited<ReturnType<typeof launch>>) => runCommand(t, 'Discard changes'),
   ]) {
     const dir = repo()
@@ -32,8 +42,8 @@ test('d and the panel-only palette command share the discard confirmation', asyn
     expect(confirm).toContain('a.ts')
     expect(confirm).toContain('Unsaved edits in its open buffer')
     expect(confirm).toContain('also be lost')
-    await press(t, input => input.pressEnter())
-    await until(t, () => readFileSync(join(dir, 'a.ts'), 'utf8') === 'alpha\n')
+    await press(t, (input) => input.pressEnter())
+    await until(t, () => readFileSync(join(dir, 'a.ts'), 'utf-8') === 'alpha\n')
     expect(t.captureCharFrame()).toContain('Discarded changes in a.ts')
   }
 }, 20_000)
@@ -51,17 +61,17 @@ test('discard reloads a dirty tracked buffer and resets the visible editor', asy
   const dir = repo()
   const t = await launch(dir)
   await openFile(t, 'a.ts')
-  await press(t, input => void input.typeText('unsaved '))
+  await press(t, (input) => input.typeText('unsaved '))
   expect(t.captureCharFrame()).toContain('unsaved changed')
 
   await runCommand(t, 'Source control')
-  await press(t, input => void input.typeText('d'))
-  await press(t, input => input.pressEnter())
+  await press(t, (input) => input.typeText('d'))
+  await press(t, (input) => input.pressEnter())
   await until(t, () => t.captureCharFrame().includes('alpha'))
 
   expect(t.captureCharFrame()).not.toContain('unsaved changed')
-  expect(readFileSync(join(dir, 'a.ts'), 'utf8')).toBe('alpha\n')
-  await press(t, input => input.pressKey('z', { ctrl: true }))
+  expect(readFileSync(join(dir, 'a.ts'), 'utf-8')).toBe('alpha\n')
+  await press(t, (input) => input.pressKey('z', { ctrl: true }))
   expect(t.captureCharFrame()).not.toContain('unsaved changed')
 }, 20_000)
 
@@ -71,10 +81,10 @@ test('discarding an untracked file closes its tab and matching diff', async () =
   const t = await launch(dir, { gitPanelView: 'list' })
   await openFile(t, 'new.ts')
   await runCommand(t, 'Source control')
-  await press(t, input => input.pressArrow('down'))
-  await press(t, input => void input.typeText('d'))
+  await press(t, (input) => input.pressArrow('down'))
+  await press(t, (input) => input.typeText('d'))
   expect(t.captureCharFrame()).toContain('permanently delete')
-  await press(t, input => input.pressEnter())
+  await press(t, (input) => input.pressEnter())
   await until(t, () => !existsSync(join(dir, 'new.ts')))
 
   const frame = t.captureCharFrame()
@@ -88,10 +98,12 @@ test('palette discard refuses outside the panel and on folder rows', async () =>
   const t = await launch(dir)
 
   await runCommand(t, 'Discard changes')
-  expect(t.captureCharFrame()).toContain('Open the Git panel and select a changed file')
+  expect(t.captureCharFrame()).toContain(
+    'Open the Git panel and select a changed file'
+  )
 
   await runCommand(t, 'Source control')
-  await press(t, input => input.pressArrow('down'))
+  await press(t, (input) => input.pressArrow('down'))
   await runCommand(t, 'Discard changes')
   expect(t.captureCharFrame()).toContain('Select a changed file, not a folder')
 }, 20_000)
@@ -102,22 +114,24 @@ test('palette discard refuses comparison mode', async () => {
 
   await runCommand(t, 'Compare branches')
   await runCommand(t, 'Discard changes')
-  expect(t.captureCharFrame()).toContain('Discard is unavailable while comparing branches')
+  expect(t.captureCharFrame()).toContain(
+    'Discard is unavailable while comparing branches'
+  )
 }, 20_000)
 
 test('a stale confirmation changes neither the dirty buffer nor disk', async () => {
   const dir = repo()
   const t = await launch(dir, { autoSaveOnBlur: false })
   await openFile(t, 'a.ts')
-  await press(t, input => void input.typeText('unsaved '))
+  await press(t, (input) => input.typeText('unsaved '))
   await runCommand(t, 'Source control')
-  await press(t, input => void input.typeText('d'))
+  await press(t, (input) => input.typeText('d'))
 
   git(dir, 'checkout', '-q', 'HEAD', '--', 'a.ts')
-  await press(t, input => input.pressEnter())
+  await press(t, (input) => input.pressEnter())
   await settle(t, 600)
 
-  expect(readFileSync(join(dir, 'a.ts'), 'utf8')).toBe('alpha\n')
-  await press(t, input => input.pressTab())
+  expect(readFileSync(join(dir, 'a.ts'), 'utf-8')).toBe('alpha\n')
+  await press(t, (input) => input.pressTab())
   expect(t.captureCharFrame()).toContain('unsaved changed')
 }, 20_000)

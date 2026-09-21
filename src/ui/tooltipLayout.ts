@@ -29,9 +29,13 @@ const GAP = 1
 function rowsFor(anchor: TooltipAnchor, height: number): number[] {
   const rows: number[] = []
   if (anchor.y < height / 2) {
-    for (let row = anchor.y + anchor.height; row < height; row++) rows.push(row)
+    for (let row = anchor.y + anchor.height; row < height; row += 1) {
+      rows.push(row)
+    }
   } else {
-    for (let row = anchor.y - 1; row >= 0; row--) rows.push(row)
+    for (let row = anchor.y - 1; row >= 0; row -= 1) {
+      rows.push(row)
+    }
   }
   return rows
 }
@@ -40,28 +44,37 @@ function rowsFor(anchor: TooltipAnchor, height: number): number[] {
 export function placeTooltips(
   anchors: TooltipAnchor[],
   screen: { width: number; height: number },
-  avoid: TooltipObstacle[] = [],
+  avoid: TooltipObstacle[] = []
 ): PlacedTooltip[] {
   const taken = new Map<number, [number, number][]>()
   const placed: PlacedTooltip[] = []
 
   for (const anchor of anchors) {
     const text = cut(anchor.text, screen.width)
-    if (!text) continue
+    if (!text) {
+      continue
+    }
     const left = Math.max(0, Math.min(anchor.x, screen.width - text.length))
     const right = left + text.length
 
     for (const top of rowsFor(anchor, screen.height)) {
       const busy = taken.get(top) ?? []
-      if (busy.some(([from, to]) => left < to + GAP && from < right + GAP)) continue
+      if (busy.some(([from, to]) => left < to + GAP && from < right + GAP)) {
+        continue
+      }
       const onAControl = avoid.some(
-        box =>
-          top >= box.y && top < box.y + box.height && left < box.x + box.width && box.x < right,
+        (box) =>
+          top >= box.y &&
+          top < box.y + box.height &&
+          left < box.x + box.width &&
+          box.x < right
       )
-      if (onAControl) continue
+      if (onAControl) {
+        continue
+      }
       busy.push([left, right])
       taken.set(top, busy)
-      placed.push({ id: anchor.id, text, left, top })
+      placed.push({ id: anchor.id, left, text, top })
       break
     }
   }

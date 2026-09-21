@@ -1,6 +1,7 @@
 import { useTerminalDimensions } from '@opentui/solid'
 import { createMemo, createSignal, For, Show } from 'solid-js'
 
+import { plural } from '../core/text'
 import type { Problem, ProblemSeverity } from '../lsp/protocol'
 import { ui } from '../themes'
 import { useHoverKey } from './hover'
@@ -14,7 +15,7 @@ export interface ProblemEntry extends Problem {
   rel: string
 }
 
-export interface ProblemsModalProps {
+interface ProblemsModalProps {
   problems: ProblemEntry[]
   title: string
   onPick: (problem: ProblemEntry) => void
@@ -24,11 +25,14 @@ export interface ProblemsModalProps {
 const DETAIL_LINES = 10
 
 const origin = (problem: Problem): string =>
-  problem.code ? `${problem.source ?? ''}(${problem.code})` : (problem.source ?? '')
+  problem.code
+    ? `${problem.source ?? ''}(${problem.code})`
+    : (problem.source ?? '')
 
-const location = (problem: ProblemEntry) => `${problem.rel}:${problem.line + 1}:${problem.col + 1}`
+const location = (problem: ProblemEntry) =>
+  `${problem.rel}:${problem.line + 1}:${problem.col + 1}`
 
-const oneLine = (message: string) => message.replaceAll(/\s+/g, ' ').trim()
+const oneLine = (message: string) => message.replaceAll(/\s+/gu, ' ').trim()
 
 export function ProblemsModal(props: ProblemsModalProps) {
   const dimensions = useTerminalDimensions()
@@ -39,64 +43,111 @@ export function ProblemsModal(props: ProblemsModalProps) {
   const room = () => width() - PAD * 2 - 4
   // As tall as the wordiest message and fixed while the list is up, or the rows above jump on ↑↓.
   const detailRows = createMemo(() => {
-    const longest = props.problems.reduce((most, p) => Math.max(most, oneLine(p.message).length), 0)
+    const longest = Math.max(
+      0,
+      ...props.problems.map((p) => oneLine(p.message).length)
+    )
     const spare = Math.max(1, dimensions().height - 18)
-    return Math.max(1, Math.min(DETAIL_LINES, spare, Math.ceil(longest / room())))
+    return Math.max(
+      1,
+      Math.min(DETAIL_LINES, spare, Math.ceil(longest / room()))
+    )
   })
 
   const visibleRows = () =>
-    Math.min(listRows(dimensions().height, 12 + detailRows(), 24), props.problems.length)
+    Math.min(
+      listRows(dimensions().height, 12 + detailRows(), 24),
+      props.problems.length
+    )
 
-  const selected = () => Math.min(index(), Math.max(0, props.problems.length - 1))
+  const selected = () =>
+    Math.min(index(), Math.max(0, props.problems.length - 1))
   const current = () => props.problems[selected()]
 
   const counts = createMemo(() => {
-    const tally: Record<ProblemSeverity, number> = { error: 0, warning: 0, info: 0, hint: 0 }
-    for (const problem of props.problems) tally[problem.severity] += 1
+    const tally: Record<ProblemSeverity, number> = {
+      error: 0,
+      hint: 0,
+      info: 0,
+      warning: 0,
+    }
+    for (const problem of props.problems) {
+      tally[problem.severity] += 1
+    }
     return tally
   })
 
   const heading = createMemo(() => {
     const tally = counts()
     const parts: string[] = []
-    if (tally.error > 0) parts.push(`${tally.error} error${tally.error === 1 ? '' : 's'}`)
-    if (tally.warning > 0) parts.push(`${tally.warning} warning${tally.warning === 1 ? '' : 's'}`)
+    if (tally.error > 0) {
+      parts.push(plural(tally.error, 'error'))
+    }
+    if (tally.warning > 0) {
+      parts.push(plural(tally.warning, 'warning'))
+    }
     const rest = tally.info + tally.hint
-    if (rest > 0) parts.push(`${rest} info`)
+    if (rest > 0) {
+      parts.push(`${rest} info`)
+    }
     return parts.join(' · ')
   })
 
   // One width for every location, bounded so a deeply nested path still leaves message room.
   const locationWidth = createMemo(() => {
-    const longest = props.problems.reduce((most, p) => Math.max(most, location(p).length), 0)
+    const longest = Math.max(
+      0,
+      ...props.problems.map((p) => location(p).length)
+    )
     return Math.min(longest, Math.floor(room() * 0.45))
   })
 
-  const view = createMemo(() => windowAround(props.problems, selected(), visibleRows()))
+  const view = createMemo(() =>
+    windowAround(props.problems, selected(), visibleRows())
+  )
 
   useListKeys({
+    close: () => props.onCancel(),
     count: () => props.problems.length,
     move: setIndex,
     pick: () => {
       const problem = current()
-      if (problem) props.onPick(problem)
+      if (problem) {
+        props.onPick(problem)
+      }
     },
-    close: () => props.onCancel(),
   })
 
   const detail = createMemo(() => {
     const problem = current()
-    if (!problem) return []
+    if (!problem) {
+      return []
+    }
     const rows = detailRows()
     const lines = wrapText(oneLine(problem.message), room())
     // The estimate can come a row short of what wrapping needs; the last row carries the rest.
-    if (lines.length <= rows) return lines
-    return [...lines.slice(0, rows - 1), cut(lines.slice(rows - 1).join(' '), room())]
+    if (lines.length <= rows) {
+      return lines
+    }
+    return [
+      ...lines.slice(0, rows - 1),
+      cut(lines.slice(rows - 1).join(' '), room()),
+    ]
   })
 
   return (
-    <ModalPanel zIndex={160} width={width()} title={` ${props.title} `} accent={ui.dirty}>
-      <text fg={ui.dim} bg={ui.panelBg} wrapMode="none" content={cut(heading(), room())} />
+    <ModalPanel
+      zIndex={160}
+      width={width()}
+      title={` ${props.title} `}
+      accent={ui.dirty}
+    >
+      <text
+        fg={ui.dim}
+        bg={ui.panelBg}
+        wrapMode="none"
+        content={cut(heading(), room())}
+      />
       <text fg={ui.panelBg} bg={ui.panelBg} content="" />
       <box flexDirection="column" height={visibleRows()}>
         <For each={view().rows}>
@@ -104,11 +155,19 @@ export function ProblemsModal(props: ProblemsModalProps) {
             const at = () => view().start + i()
             const active = () => at() === selected()
             const bg = () =>
-              active() ? ui.treeSelectedBg : hover.hovered(at()) ? ui.hoverBg : ui.panelBg
+              active()
+                ? ui.treeSelectedBg
+                : hover.hovered(at())
+                  ? ui.hoverBg
+                  : ui.panelBg
             const note = () => cut(origin(problem), Math.floor(room() / 3))
-            const place = () => cut(location(problem), locationWidth()).padEnd(locationWidth())
+            const place = () =>
+              cut(location(problem), locationWidth()).padEnd(locationWidth())
             const message = () =>
-              cut(oneLine(problem.message), room() - locationWidth() - note().length - 2)
+              cut(
+                oneLine(problem.message),
+                room() - locationWidth() - note().length - 2
+              )
             // The gap is the note's: where both sides are cut there is no slack to space them.
             const noteText = () => (note() ? ` ${note()}` : '')
             return (
@@ -119,7 +178,12 @@ export function ProblemsModal(props: ProblemsModalProps) {
                 onMouseOver={() => hover.enter(at())}
                 onMouseOut={() => hover.leave(at())}
               >
-                <text fg={ui.dirty} bg={bg()} flexShrink={0} content={active() ? '▌ ' : '  '} />
+                <text
+                  fg={ui.dirty}
+                  bg={bg()}
+                  flexShrink={0}
+                  content={active() ? '▌ ' : '  '}
+                />
                 <text
                   fg={SEVERITY_COLOR[problem.severity]()}
                   bg={bg()}
@@ -141,7 +205,13 @@ export function ProblemsModal(props: ProblemsModalProps) {
                     content={` ${message()}`}
                   />
                 </box>
-                <text wrapMode="none" fg={ui.faint} bg={bg()} flexShrink={0} content={noteText()} />
+                <text
+                  wrapMode="none"
+                  fg={ui.faint}
+                  bg={bg()}
+                  flexShrink={0}
+                  content={noteText()}
+                />
               </box>
             )
           }}
@@ -150,7 +220,9 @@ export function ProblemsModal(props: ProblemsModalProps) {
       <text fg={ui.panelBg} bg={ui.panelBg} content="" />
       <box flexDirection="column" height={detailRows()}>
         <For each={detail()}>
-          {line => <text wrapMode="none" fg={ui.text} bg={ui.panelBg} content={line} />}
+          {(line) => (
+            <text wrapMode="none" fg={ui.text} bg={ui.panelBg} content={line} />
+          )}
         </For>
       </box>
       <Show when={current()}>
@@ -163,7 +235,7 @@ export function ProblemsModal(props: ProblemsModalProps) {
               [problem().severity, location(problem()), origin(problem())]
                 .filter(Boolean)
                 .join(' · '),
-              room(),
+              room()
             )}
           />
         )}
@@ -175,7 +247,7 @@ export function ProblemsModal(props: ProblemsModalProps) {
         wrapMode="none"
         content={cut(
           `${selected() + 1}/${props.problems.length} · ↑↓ move · Enter jumps to the diagnostic · Esc close`,
-          room(),
+          room()
         )}
       />
     </ModalPanel>

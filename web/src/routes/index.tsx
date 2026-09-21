@@ -7,7 +7,7 @@ import { copyText } from '../lib/clipboard'
 export const Route = createFileRoute('/')({
   component: Home,
   head: () => ({
-    links: [{ rel: 'canonical', href: 'https://druk.sh/' }],
+    links: [{ href: 'https://druk.sh/', rel: 'canonical' }],
   }),
 })
 
@@ -52,9 +52,12 @@ function Home() {
     <main className="term">
       <div className="session">
         <h1 className="comment">
-          # <span className="title">druk</span> — a code editor that lives in your terminal.
+          # <span className="title">druk</span> — a code editor that lives in
+          your terminal.
         </h1>
-        <p className="comment"># one self-contained binary. no Node, no Electron, no window.</p>
+        <p className="comment">
+          # one self-contained binary. no Node, no Electron, no window.
+        </p>
         <p className="prompt" style={{ marginTop: '1.5rem' }}>
           <span className="ps1">~</span>/<span className="cwd">code</span>{' '}
           <span className="ps1">$</span> druk .
@@ -65,7 +68,8 @@ function Home() {
 
       <section className="section">
         <p className="prompt">
-          <span className="ps1">$</span> <span className="comment"># what's inside</span>
+          <span className="ps1">$</span>{' '}
+          <span className="comment"># what's inside</span>
         </p>
         <div className="out">
           <Feat name="tree-sitter syntax">
@@ -75,31 +79,38 @@ function Home() {
             your own — diagnostics, completion, go to definition, auto-import
           </Feat>
           <Feat name="git">
-            stage, commit, sync, stash; diffs inline or side-by-side; merge conflicts resolved right
-            in the buffer
+            stage, commit, sync, stash; diffs inline or side-by-side; merge
+            conflicts resolved right in the buffer
           </Feat>
           <Feat name="review notes">
-            left on lines, shared with an agent through review.json, replies read as threads
+            left on lines, shared with an agent through review.json, replies
+            read as threads
           </Feat>
           <Feat name="search">
-            project-wide find and replace; a fuzzy picker that reads file.ts:42 straight from a
-            stack trace
+            project-wide find and replace; a fuzzy picker that reads file.ts:42
+            straight from a stack trace
           </Feat>
           <Feat name="views">
             markdown rendered in place — mermaid diagrams included — and images
           </Feat>
-          <Feat name="folding">from indentation, so it works even where no grammar does</Feat>
+          <Feat name="folding">
+            from indentation, so it works even where no grammar does
+          </Feat>
           <Feat name="vim mode">
             plus custom keybindings and themes that follow the OS appearance
           </Feat>
-          <Feat name="extensions">JSON manifests, not code — installing one runs nothing</Feat>
+          <Feat name="extensions">
+            JSON manifests, not code — installing one runs nothing
+          </Feat>
         </div>
       </section>
 
       <section className="section">
         <p className="prompt">
           <span className="ps1">$</span> druk --extensions{' '}
-          <span className="comment"># languages, servers, themes, icon sets</span>
+          <span className="comment">
+            # languages, servers, themes, icon sets
+          </span>
         </p>
         <div className="out">
           <p className="prompt">
@@ -118,13 +129,17 @@ function Home() {
           <Cmd text="brew install letstri/tap/druk" />
           <Cmd text="npm install -g druk" />
           <Cmd text="bunx druk" note="try it without installing anything" />
-          <Cmd text="druk update" note="upgrades this copy, however it was installed" />
+          <Cmd
+            text="druk update"
+            note="upgrades this copy, however it was installed"
+          />
         </div>
       </section>
 
       <section className="section">
         <p className="prompt">
-          <span className="ps1">$</span> open <a href={GITHUB}>github.com/letstri/druk</a>{' '}
+          <span className="ps1">$</span> open{' '}
+          <a href={GITHUB}>github.com/letstri/druk</a>{' '}
           <span className="comment"># source, issues, extension market</span>
           <span className="caret" style={{ marginLeft: '0.5rem' }} />
         </p>

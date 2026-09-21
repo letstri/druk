@@ -1,16 +1,23 @@
-import { existsSync, mkdirSync, readdirSync, renameSync, rmSync, statSync } from 'node:fs'
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  renameSync,
+  rmSync,
+  statSync,
+} from 'node:fs'
 import os from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 // Synchronous throughout: an await here would let `@opentui/core` evaluate before OTUI_ASSET_ROOT is set.
 
-const here = fileURLToPath(import.meta.url)
-const compiled = here.includes('$bunfs') || /^B:[\\/]~BUN/i.test(here)
+const here = import.meta.filename
+const compiled = here.includes('$bunfs') || /^B:[\\/]~BUN/iu.test(here)
 
 function findAssetRoot(): string | null {
-  let dir = dirname(here)
-  for (let i = 0; i < 10; i++) {
+  let dir = import.meta.dirname
+  for (let i = 0; i < 10; i += 1) {
     const nm = join(dir, 'node_modules')
     if (
       existsSync(join(nm, 'web-tree-sitter', 'tree-sitter.wasm')) &&
@@ -19,11 +26,15 @@ function findAssetRoot(): string | null {
       return nm
     }
     const parent = dirname(dir)
-    if (parent === dir) break
+    if (parent === dir) {
+      break
+    }
     dir = parent
   }
   try {
-    const wasm = fileURLToPath(import.meta.resolve('web-tree-sitter/tree-sitter.wasm'))
+    const wasm = fileURLToPath(
+      import.meta.resolve('web-tree-sitter/tree-sitter.wasm')
+    )
     return dirname(dirname(wasm))
   } catch {
     return null
@@ -43,18 +54,24 @@ function embeddedNativeLibraries(file: string): EmbeddedFile[] {
   const stem = file.slice(0, dot)
   const ext = file.slice(dot)
   const found: EmbeddedFile[] = []
-  for (const blob of Bun.embeddedFiles as ReadonlyArray<EmbeddedFile>) {
+  for (const blob of Bun.embeddedFiles as readonly EmbeddedFile[]) {
     const name = blob.name ?? ''
-    if (name === file || (name.startsWith(`${stem}-`) && name.endsWith(ext))) found.push(blob)
+    if (name === file || (name.startsWith(`${stem}-`) && name.endsWith(ext))) {
+      found.push(blob)
+    }
   }
   return found
 }
 
 function assetKey(): string | null {
   const key = `@opentui/core-${process.platform}-${process.arch}`
-  if (process.platform !== 'linux') return key
+  if (process.platform !== 'linux') {
+    return key
+  }
   const libc = process.env.OPENTUI_LIBC
-  if (!libc || libc === 'glibc') return key
+  if (!libc || libc === 'glibc') {
+    return key
+  }
   return libc === 'musl' ? `${key}-musl` : null
 }
 
@@ -63,11 +80,17 @@ const LIBC_NEEDED = { glibc: 'libc.so.6\0', musl: 'libc.so\0' } as const
 
 export async function forLibc<T extends Blob>(
   libs: T[],
-  libc: keyof typeof LIBC_NEEDED,
+  libc: keyof typeof LIBC_NEEDED
 ): Promise<T | null> {
   const matches: T[] = []
   for (const lib of libs) {
-    if (Buffer.from(await lib.arrayBuffer()).includes(LIBC_NEEDED[libc], 0, 'latin1')) {
+    if (
+      Buffer.from(await lib.arrayBuffer()).includes(
+        LIBC_NEEDED[libc],
+        0,
+        'latin1'
+      )
+    ) {
       matches.push(lib)
     }
   }
@@ -81,7 +104,9 @@ function cacheHome(): string {
 function sweepStaleCaches(base: string, keep: string): void {
   try {
     for (const entry of readdirSync(base)) {
-      if (entry !== keep) rmSync(join(base, entry), { recursive: true, force: true })
+      if (entry !== keep) {
+        rmSync(join(base, entry), { force: true, recursive: true })
+      }
     }
   } catch {
     // best-effort
@@ -93,15 +118,22 @@ let stagedRoot: string | null = null
 function stageCompiledRoot(): void {
   const file = NATIVE_FILE[process.platform]
   const key = assetKey()
-  if (!file || !key) return
+  if (!file || !key) {
+    return
+  }
   try {
     const libs = embeddedNativeLibraries(file)
-    const names = libs.map(lib => lib.name)
-    if (!names.length || names.some(name => !name)) return
+    const names = libs.map((lib) => lib.name)
+    if (!names.length || names.some((name) => !name)) {
+      return
+    }
     const base = join(cacheHome(), 'druk', 'native')
     const root = join(base, names.toSorted().join('+'))
     const dest = join(root, key, file)
-    if (existsSync(dest) && libs.some(lib => statSync(dest).size === lib.size)) {
+    if (
+      existsSync(dest) &&
+      libs.some((lib) => statSync(dest).size === lib.size)
+    ) {
       process.env.OTUI_ASSET_ROOT = root
       stagedRoot = root
       return
@@ -112,7 +144,9 @@ function stageCompiledRoot(): void {
           process.platform === 'linux'
             ? await forLibc(libs, key.endsWith('-musl') ? 'musl' : 'glibc')
             : libs[0]!
-        if (!wanted) return
+        if (!wanted) {
+          return
+        }
         mkdirSync(dirname(dest), { recursive: true })
         const tmp = `${dest}.${process.pid}.tmp`
         await Bun.write(tmp, wanted)
@@ -132,7 +166,9 @@ if (!process.env.OTUI_ASSET_ROOT) {
     stageCompiledRoot()
   } else {
     const root = findAssetRoot()
-    if (root) process.env.OTUI_ASSET_ROOT = root
+    if (root) {
+      process.env.OTUI_ASSET_ROOT = root
+    }
   }
 }
 

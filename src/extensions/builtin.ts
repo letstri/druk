@@ -29,8 +29,10 @@ let parsed: Extension[] | null = null
 
 // A problem here is druk's own bug (test/extensions-repo.test.ts), so it is dropped, not reported.
 export function builtinExtensions(): Extension[] {
-  parsed ??= MANIFESTS.map(raw => parseManifest(raw, BUILTIN_SOURCE).extension)
-    .filter(extension => extension !== null)
-    .map(extension => ({ ...extension, builtin: true }))
+  parsed ??= MANIFESTS.map(
+    (raw) => parseManifest(raw, BUILTIN_SOURCE).extension
+  )
+    .filter((extension) => extension !== null)
+    .map((extension) => ({ ...extension, builtin: true }))
   return parsed
 }

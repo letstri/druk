@@ -19,7 +19,8 @@ export function Overlay(props: {
   children: JSX.Element
 }) {
   const dimensions = useTerminalDimensions()
-  const inset = () => (props.align === 'top' ? topInset(dimensions().height) : 0)
+  const inset = () =>
+    props.align === 'top' ? topInset(dimensions().height) : 0
   return (
     <box
       position="absolute"

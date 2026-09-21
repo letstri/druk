@@ -28,97 +28,109 @@ export function installKeyboard(ctx: AppContext, actions: CommandActions) {
   } = ctx
   const { config } = settings
 
-  const togglePeek = () => overlays.setPeek(peeking => !peeking)
+  const togglePeek = () => overlays.setPeek((peeking) => !peeking)
 
   const editorOwnsCopy = () =>
-    panes.focus() === 'editor' && workspace.activePath() !== null && !editorCovered()
+    panes.focus() === 'editor' &&
+    workspace.activePath() !== null &&
+    !editorCovered()
 
   const handlers: Record<string, () => void> = {
-    'palette': () => overlays.setPalette(true),
-    'peek': togglePeek,
-    'open': () => overlays.setPicker('files'),
-    'save': workspace.saveActive,
+    'editor.deleteLine': () => actions.lineOp('delete'),
+    'editor.fold': () => actions.foldOp('fold'),
+    'editor.foldAll': () => actions.foldOp('foldAll'),
+    'editor.format': actions.formatDocument,
+    'editor.formatOpen': actions.formatOpenFiles,
+    'editor.lineStart': actions.lineHome,
+    'editor.unfold': () => actions.foldOp('unfold'),
+    'editor.unfoldAll': () => actions.foldOp('unfoldAll'),
+    'file.copyPath': actions.copyPath,
+    'file.copyRelativePath': actions.copyRelativePath,
+    'file.new': () =>
+      prompts.setPrompt({ dir: tree.targetDir(), kind: 'newFile' }),
+    'file.newDir': () =>
+      prompts.setPrompt({ dir: tree.targetDir(), kind: 'newFolder' }),
     'file.saveAll': workspace.saveAll,
     'file.saveWithoutFormatting': workspace.saveWithoutFormatting,
-    'goto': () => prompts.setPrompt({ kind: 'gotoLine' }),
-    'goto.definition': actions.gotoDefinition,
-    'goto.file': actions.openFileUnderCursor,
     'find.file': () => overlays.setSearch({ scope: 'file' }),
     'find.project': () => overlays.setSearch({ scope: 'project' }),
     'find.replace': actions.replaceInFile,
     'find.replaceProject': actions.replaceInProject,
-    'file.new': () => prompts.setPrompt({ kind: 'newFile', dir: tree.targetDir() }),
-    'file.newDir': () => prompts.setPrompt({ kind: 'newFolder', dir: tree.targetDir() }),
-    'file.copyPath': actions.copyPath,
-    'file.copyRelativePath': actions.copyRelativePath,
-    'tabs.close': () => {
-      const view = workspace.activeView()
-      if (view) workspace.closeView(view)
-    },
-    'tabs.reopen': workspace.reopenTab,
-    'tabs.switch': () => overlays.setPicker('tabs'),
-    'tabs.prev': () => workspace.switchTab(-1),
-    'tabs.next': () => workspace.switchTab(1),
-    'nav.back': actions.navBack,
-    'nav.forward': actions.navForward,
-    'tabs.closeOthers': actions.closeOthers,
-    'tabs.closeAll': actions.closeAll,
-    'editor.lineStart': actions.lineHome,
-    'editor.deleteLine': () => actions.lineOp('delete'),
-    'editor.format': actions.formatDocument,
-    'editor.formatOpen': actions.formatOpenFiles,
-    'editor.fold': () => actions.foldOp('fold'),
-    'editor.unfold': () => actions.foldOp('unfold'),
-    'editor.foldAll': () => actions.foldOp('foldAll'),
-    'editor.unfoldAll': () => actions.foldOp('unfoldAll'),
-    'view.sidebar': panes.toggleSidebar,
-    'view.git': () => panes.toggleView('git'),
-    'view.review': () => panes.toggleView('review'),
-    'view.extensions': () => panes.toggleView('extensions'),
-    'review.note': actions.reviewNote,
-    'view.collapse': actions.collapseSidebar,
-    'view.markdown': workspace.toggleRendered,
-    'view.wrap': actions.toggleWrap,
-    'view.sidebarPosition': actions.toggleSidebarPosition,
-    'view.preview': actions.togglePreview,
-    'view.focus': actions.toggleFocus,
-    'git.diffFile': actions.gitDiffFile,
-    'git.diffAll': actions.gitDiffAll,
-    'git.diffLayout': actions.toggleDiffLayout,
-    'git.commit': actions.gitCommit,
-    'git.stage': actions.gitToggleStage,
-    'git.discard': actions.gitDiscard,
-    'git.push': actions.gitPush,
-    'git.compare': actions.gitCompareBranches,
-    'git.graph': actions.gitCommitGraph,
-    'git.openCommitWeb': actions.openCommitOnWeb,
-    'git.conflictResolve': actions.conflictResolve,
-    'git.conflictNext': actions.conflictNext,
-    'git.conflictPrev': actions.conflictPrev,
+    'git.acceptBoth': () => actions.conflictAccept('both'),
     'git.acceptOurs': () => actions.conflictAccept('ours'),
     'git.acceptTheirs': () => actions.conflictAccept('theirs'),
-    'git.acceptBoth': () => actions.conflictAccept('both'),
-    'problems.list': actions.problemsList,
+    'git.commit': actions.gitCommit,
+    'git.compare': actions.gitCompareBranches,
+    'git.conflictNext': actions.conflictNext,
+    'git.conflictPrev': actions.conflictPrev,
+    'git.conflictResolve': actions.conflictResolve,
+    'git.diffAll': actions.gitDiffAll,
+    'git.diffFile': actions.gitDiffFile,
+    'git.diffLayout': actions.toggleDiffLayout,
+    'git.discard': actions.gitDiscard,
+    'git.graph': actions.gitCommitGraph,
+    'git.openCommitWeb': actions.openCommitOnWeb,
+    'git.push': actions.gitPush,
+    'git.stage': actions.gitToggleStage,
+    goto: () => prompts.setPrompt({ kind: 'gotoLine' }),
+    'goto.definition': actions.gotoDefinition,
+    'goto.file': actions.openFileUnderCursor,
+    help: actions.showHelp,
+    'nav.back': actions.navBack,
+    'nav.forward': actions.navForward,
+    open: () => overlays.setPicker('files'),
+    palette: () => overlays.setPalette(true),
+    peek: togglePeek,
     'problems.detail': actions.problemsAtCursor,
+    'problems.list': actions.problemsList,
     'problems.next': actions.problemsNext,
     'problems.prev': actions.problemsPrev,
     'problems.restart': actions.restartLsp,
-    'settings': actions.openSettings,
-    'help': actions.showHelp,
-    'workspace.switch': actions.switchWorkspace,
+    quit: prompts.quit,
+    'review.note': actions.reviewNote,
+    save: workspace.saveActive,
+    settings: actions.openSettings,
+    'tabs.close': () => {
+      const view = workspace.activeView()
+      if (view) {
+        workspace.closeView(view)
+      }
+    },
+    'tabs.closeAll': actions.closeAll,
+    'tabs.closeOthers': actions.closeOthers,
+    'tabs.next': () => workspace.switchTab(1),
+    'tabs.prev': () => workspace.switchTab(-1),
+    'tabs.reopen': workspace.reopenTab,
+    'tabs.switch': () => overlays.setPicker('tabs'),
+    'view.collapse': actions.collapseSidebar,
+    'view.extensions': () => panes.toggleView('extensions'),
+    'view.focus': actions.toggleFocus,
+    'view.git': () => panes.toggleView('git'),
+    'view.markdown': workspace.toggleRendered,
+    'view.preview': actions.togglePreview,
+    'view.review': () => panes.toggleView('review'),
+    'view.sidebar': panes.toggleSidebar,
+    'view.sidebarPosition': actions.toggleSidebarPosition,
+    'view.wrap': actions.toggleWrap,
     'workspace.open': actions.openWorkspace,
-    'quit': prompts.quit,
+    'workspace.switch': actions.switchWorkspace,
   }
 
   // Nothing here consumes text, so every switch reads `k`, the US key name.
   useKeys((key: KeyEvent, k: string) => {
     if (overlays.help()) {
-      if (k === 'escape') overlays.setHelp(false)
+      if (k === 'escape') {
+        overlays.setHelp(false)
+      }
       return
     }
-    if (overlays.overlay()) return
+    if (overlays.overlay()) {
+      return
+    }
 
-    if (workspace.notice()) workspace.setNotice(null)
+    if (workspace.notice()) {
+      workspace.setNotice(null)
+    }
 
     const claim = (run: () => void) => {
       key.preventDefault()
@@ -127,25 +139,37 @@ export function installKeyboard(ctx: AppContext, actions: CommandActions) {
 
     const bound = matchKeymap(settings.keymap(), key)
 
-    if (bound === 'peek') return claim(togglePeek)
-    if (overlays.peek()) overlays.setPeek(false)
+    if (bound === 'peek') {
+      return claim(togglePeek)
+    }
+    if (overlays.peek()) {
+      overlays.setPeek(false)
+    }
 
     // Ahead of the keymap, or Ctrl+Opt+C would quit.
-    if (key.ctrl && k === 'c' && !secondary(key) && !editorOwnsCopy()) return claim(prompts.quit)
+    if (key.ctrl && k === 'c' && !secondary(key) && !editorOwnsCopy()) {
+      return claim(prompts.quit)
+    }
 
     // The open completion menu owns Ctrl+N/P, or they would open a file picker mid-word.
-    if (editor.completionOpen() && key.ctrl && (k === 'n' || k === 'p')) return
+    if (editor.completionOpen() && key.ctrl && (k === 'n' || k === 'p')) {
+      return
+    }
 
-    const vimOwnsRedo = config.vim && panes.focus() === 'editor' && editor.vimMode() !== 'insert'
+    const vimOwnsRedo =
+      config.vim && panes.focus() === 'editor' && editor.vimMode() !== 'insert'
     if (bound && !(vimOwnsRedo && key.ctrl && k === 'r')) {
       const run = handlers[bound]
-      if (run) return claim(run)
+      if (run) {
+        return claim(run)
+      }
     }
 
     if (panes.focus() === 'editor') {
       // Focus moves synchronously: leaving here unfocuses EditorPane before it sees Esc.
       const vimOwnsEscape = config.vim && editor.vimMode() !== 'normal'
-      const pageUp = workspace.page() !== null || workspace.renderedPath() !== null
+      const pageUp =
+        workspace.page() !== null || workspace.renderedPath() !== null
       if (
         k === 'escape' &&
         panes.sidebar() &&
@@ -159,26 +183,33 @@ export function installKeyboard(ctx: AppContext, actions: CommandActions) {
     }
 
     // The cases below switch on bare key names: Ctrl+D would open the delete prompt.
-    if (key.ctrl || key.meta || key.option) return
+    if (key.ctrl || key.meta || key.option) {
+      return
+    }
 
     // Ahead of the blanket `preventDefault` below: the commit box is a real input.
     if (panes.view() === 'git' && git.messageEditing()) {
       switch (k) {
         case 'return':
-        case 'enter':
+        case 'enter': {
           actions.gitCommitBox()
           break
-        case 'up':
+        }
+        case 'up': {
           git.walkMessageHistory(1)
           break
-        case 'down':
+        }
+        case 'down': {
           git.walkMessageHistory(-1)
           break
-        case 'escape':
+        }
+        case 'escape': {
           git.setMessageEditing(false)
           break
-        default:
+        }
+        default: {
           return
+        }
       }
       key.preventDefault()
       return
@@ -186,21 +217,26 @@ export function installKeyboard(ctx: AppContext, actions: CommandActions) {
 
     if (panes.view() === 'extensions' && extensions.query() !== null) {
       switch (k) {
-        case 'up':
+        case 'up': {
           extensions.move(-1)
           break
-        case 'down':
+        }
+        case 'down': {
           extensions.move(1)
           break
+        }
         case 'return':
-        case 'enter':
+        case 'enter': {
           extensions.activate()
           break
-        case 'escape':
+        }
+        case 'escape': {
           extensions.closeSearch()
           break
-        default:
+        }
+        default: {
           return
+        }
       }
       key.preventDefault()
       return
@@ -209,85 +245,124 @@ export function installKeyboard(ctx: AppContext, actions: CommandActions) {
     // Focus is applied synchronously: the key that opens a file would reach the textarea.
     key.preventDefault()
 
-    if (k === '[' || k === ']') return settings.nudgeSidebar(k === '[' ? -2 : 2)
+    if (k === '[' || k === ']') {
+      return settings.nudgeSidebar(k === '[' ? -2 : 2)
+    }
 
-    const vimNav: Record<string, string> = { h: 'left', j: 'down', k: 'up', l: 'right' }
+    const vimNav: Record<string, string> = {
+      h: 'left',
+      j: 'down',
+      k: 'up',
+      l: 'right',
+    }
 
     // These views borrow the tree's focus slot, so their keys come before the tree's.
     if (panes.view() === 'extensions') {
       switch (config.vim ? (vimNav[k] ?? k) : k) {
-        case 'tab':
-          if (key.shift) panes.showView('files')
-          else if (workspace.activePath() || workspace.page()) panes.setFocus('editor')
+        case 'tab': {
+          if (key.shift) {
+            panes.showView('files')
+          } else if (workspace.activePath() || workspace.page()) {
+            panes.setFocus('editor')
+          }
           break
-        case 'up':
+        }
+        case 'up': {
           extensions.move(-1)
           break
-        case 'down':
+        }
+        case 'down': {
           extensions.move(1)
           break
-        case 'right':
+        }
+        case 'right': {
           extensions.fold(false)
           break
-        case 'left':
+        }
+        case 'left': {
           extensions.fold(true)
           break
+        }
         case 'return':
-        case 'enter':
+        case 'enter': {
           extensions.activate()
           break
+        }
         case 'backspace':
-        case 'delete':
+        case 'delete': {
           extensions.remove()
           break
-        case '/':
+        }
+        case '/': {
           extensions.openSearch()
           break
-        case 'u':
+        }
+        case 'u': {
           extensions.updateAll()
           break
-        case 'r':
+        }
+        case 'r': {
           extensions.reload()
           break
-        case 'escape':
+        }
+        case 'escape': {
           panes.toggleView('extensions')
           break
+        }
+        default: {
+          break
+        }
       }
       return
     }
 
     if (panes.view() === 'review') {
       switch (config.vim ? (vimNav[k] ?? k) : k) {
-        case 'tab':
-          if (key.shift) panes.showView('extensions')
-          else if (workspace.activePath() || workspace.page()) panes.setFocus('editor')
+        case 'tab': {
+          if (key.shift) {
+            panes.showView('extensions')
+          } else if (workspace.activePath() || workspace.page()) {
+            panes.setFocus('editor')
+          }
           break
-        case 'up':
+        }
+        case 'up': {
           actions.reviewMove(-1)
           break
-        case 'down':
+        }
+        case 'down': {
           actions.reviewMove(1)
           break
-        case 'right':
+        }
+        case 'right': {
           review.fold(false)
           break
-        case 'left':
+        }
+        case 'left': {
           review.fold(true)
           break
+        }
         case 'return':
-        case 'enter':
+        case 'enter': {
           actions.reviewActivate(review.cursor())
           break
+        }
         case 'backspace':
-        case 'delete':
+        case 'delete': {
           review.remove()
           break
-        case 'r':
+        }
+        case 'r': {
           actions.reviewReply()
           break
-        case 'escape':
+        }
+        case 'escape': {
           panes.toggleView('review')
           break
+        }
+        default: {
+          break
+        }
       }
       return
     }
@@ -295,34 +370,53 @@ export function installKeyboard(ctx: AppContext, actions: CommandActions) {
     if (panes.view() === 'git') {
       if (comparison.active()) {
         switch (config.vim ? (vimNav[k] ?? k) : k) {
-          case 'b':
-            if (key.shift) comparison.openBasePicker()
-            else actions.gitSwitchBranch()
+          case 'b': {
+            if (key.shift) {
+              comparison.openBasePicker()
+            } else {
+              actions.gitSwitchBranch()
+            }
             break
-          case 'c':
+          }
+          case 'c': {
             comparison.toggleMode()
             break
-          case '/':
+          }
+          case '/': {
             comparison.openFilter()
             break
-          case 'up':
+          }
+          case 'up': {
             comparison.move(-1)
             break
-          case 'down':
+          }
+          case 'down': {
             comparison.move(1)
             break
+          }
           case 'return':
-          case 'enter':
+          case 'enter': {
             comparison.openSelection()
             break
-          case 'tab':
-            if (comparison.detailOpen()) panes.setFocus('editor')
+          }
+          case 'tab': {
+            if (comparison.detailOpen()) {
+              panes.setFocus('editor')
+            }
             break
-          case 'escape':
+          }
+          case 'escape': {
             // The detail first, or the comparison would close and leave its page behind.
-            if (comparison.detailOpen()) comparison.closeDetail()
-            else comparison.close()
+            if (comparison.detailOpen()) {
+              comparison.closeDetail()
+            } else {
+              comparison.close()
+            }
             break
+          }
+          default: {
+            break
+          }
         }
         return
       }
@@ -339,63 +433,92 @@ export function installKeyboard(ctx: AppContext, actions: CommandActions) {
       const at = Math.max(0, Math.min(git.gitCursor(), rows.length - 1))
       const row = rows[at]
       switch (config.vim ? (vimNav[k] ?? k) : k) {
-        case 'tab':
-          if (key.shift) panes.showView('review')
-          else if (workspace.activePath() || workspace.page()) {
+        case 'tab': {
+          if (key.shift) {
+            panes.showView('review')
+          } else if (workspace.activePath() || workspace.page()) {
             panes.setFocus('editor')
           }
           break
-        case 'up':
+        }
+        case 'up': {
           actions.gitMoveTo(at - 1)
           break
-        case 'down':
+        }
+        case 'down': {
           actions.gitMoveTo(at + 1)
           break
-        case 'right':
-          if (row && row.kind !== 'file' && row.kind !== 'commit' && row.collapsed) {
+        }
+        case 'right': {
+          if (
+            row &&
+            row.kind !== 'file' &&
+            row.kind !== 'commit' &&
+            row.collapsed
+          ) {
             git.toggleCollapsed(rowArea(row), rowRel(row))
           }
           break
-        case 'left':
-          if (row && row.kind !== 'file' && row.kind !== 'commit' && !row.collapsed) {
+        }
+        case 'left': {
+          if (
+            row &&
+            row.kind !== 'file' &&
+            row.kind !== 'commit' &&
+            !row.collapsed
+          ) {
             git.toggleCollapsed(rowArea(row), rowRel(row))
-          } else if (row) actions.gitMoveTo(parentRow(rows, at))
+          } else if (row) {
+            actions.gitMoveTo(parentRow(rows, at))
+          }
           break
+        }
         case 'return':
-        case 'enter':
+        case 'enter': {
           actions.gitOpenRow(at)
           break
-        case 'space':
+        }
+        case 'space': {
           actions.gitToggleStage()
           break
-        case 'c':
+        }
+        case 'c': {
           actions.gitFocusMessage()
           break
-        case 'd':
+        }
+        case 'd': {
           actions.gitDiscard()
           break
-        case 'p':
+        }
+        case 'p': {
           actions.gitPush()
           break
-        case 's':
+        }
+        case 's': {
           actions.gitSync()
           break
-        case 'a':
+        }
+        case 'a': {
           actions.gitDiffAll()
           break
-        case 'g':
+        }
+        case 'g': {
           actions.gitCommitGraph()
           break
-        case 'b':
+        }
+        case 'b': {
           actions.gitSwitchBranch()
           break
-        case 'w':
+        }
+        case 'w': {
           actions.switchWorktree()
           break
-        case 'r':
+        }
+        case 'r': {
           panes.showView('review')
           break
-        case 'escape':
+        }
+        case 'escape': {
           // A page this panel opened first, or the panel would go and leave it behind.
           if (
             workspace.page() === 'commit' ||
@@ -403,75 +526,131 @@ export function installKeyboard(ctx: AppContext, actions: CommandActions) {
             workspace.page() === 'graph'
           ) {
             workspace.closePage()
-          } else panes.toggleView('git')
+          } else {
+            panes.toggleView('git')
+          }
           break
+        }
+        default: {
+          break
+        }
       }
       return
     }
 
     const node = tree.selectedNode()
     switch (config.vim ? (vimNav[k] ?? k) : k) {
-      case 'tab':
-        if (key.shift) panes.showView('git')
-        else if (workspace.activePath() || workspace.page()) {
+      case 'tab': {
+        if (key.shift) {
+          panes.showView('git')
+        } else if (workspace.activePath() || workspace.page()) {
           panes.setFocus('editor')
         }
         break
-      case 'up':
-        if (key.shift) tree.extendSelection(-1)
-        else tree.moveSelection(-1)
+      }
+      case 'up': {
+        if (key.shift) {
+          tree.extendSelection(-1)
+        } else {
+          tree.moveSelection(-1)
+        }
         break
-      case 'down':
-        if (key.shift) tree.extendSelection(1)
-        else tree.moveSelection(1)
+      }
+      case 'down': {
+        if (key.shift) {
+          tree.extendSelection(1)
+        } else {
+          tree.moveSelection(1)
+        }
         break
-      case 'right':
-        if (node?.isDir && !tree.expanded().has(node.path)) tree.toggleExpand(node.path)
-        else tree.moveSelection(1)
+      }
+      case 'right': {
+        if (node?.isDir && !tree.expanded().has(node.path)) {
+          tree.toggleExpand(node.path)
+        } else {
+          tree.moveSelection(1)
+        }
         break
-      case 'left':
-        if (node?.isDir && tree.expanded().has(node.path)) tree.toggleExpand(node.path)
-        else if (node) tree.setSelectedPath(dirname(node.path))
+      }
+      case 'left': {
+        if (node?.isDir && tree.expanded().has(node.path)) {
+          tree.toggleExpand(node.path)
+        } else if (node) {
+          tree.setSelectedPath(dirname(node.path))
+        }
         break
+      }
       case 'return':
-      case 'enter':
-        if (node && !node.isDir) preview.close()
-        if (node) workspace.activateNode(node)
+      case 'enter': {
+        if (node && !node.isDir) {
+          preview.close()
+        }
+        if (node) {
+          workspace.activateNode(node)
+        }
         break
-      case 'space':
+      }
+      case 'space': {
         preview.toggle()
         break
-      case 'pageup':
-        if (preview.target()) preview.scroll(-1)
+      }
+      case 'pageup': {
+        if (preview.target()) {
+          preview.scroll(-1)
+        }
         break
-      case 'pagedown':
-        if (preview.target()) preview.scroll(1)
+      }
+      case 'pagedown': {
+        if (preview.target()) {
+          preview.scroll(1)
+        }
         break
-      case 'a':
-        prompts.setPrompt({ kind: key.shift ? 'newFolder' : 'newFile', dir: tree.targetDir() })
+      }
+      case 'a': {
+        prompts.setPrompt({
+          dir: tree.targetDir(),
+          kind: key.shift ? 'newFolder' : 'newFile',
+        })
         break
-      case 'r':
-        if (node) prompts.setPrompt({ kind: 'rename', target: node.path })
+      }
+      case 'r': {
+        if (node) {
+          prompts.setPrompt({ kind: 'rename', target: node.path })
+        }
         break
-      case 'x':
+      }
+      case 'x': {
         fileOps.takeForPaste('cut')
         break
-      case 'c':
+      }
+      case 'c': {
         fileOps.takeForPaste('copy')
         break
-      case 'p':
+      }
+      case 'p': {
         fileOps.paste()
         break
-      case 'escape':
-        if (preview.target()) preview.close()
-        else if (fileOps.clipboard().paths.length > 0) fileOps.cancelTake()
-        else if (tree.marked().length > 0) tree.clearMarks()
+      }
+      case 'escape': {
+        if (preview.target()) {
+          preview.close()
+        } else if (fileOps.clipboard().paths.length > 0) {
+          fileOps.cancelTake()
+        } else if (tree.marked().length > 0) {
+          tree.clearMarks()
+        }
         break
+      }
       case 'd':
       case 'delete':
       case 'backspace': {
         const targets = tree.actionTargets()
-        if (targets.length > 0) prompts.setPrompt({ kind: 'delete', targets })
+        if (targets.length > 0) {
+          prompts.setPrompt({ kind: 'delete', targets })
+        }
+        break
+      }
+      default: {
         break
       }
     }

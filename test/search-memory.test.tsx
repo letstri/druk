@@ -1,22 +1,36 @@
 import { expect, test } from 'bun:test'
 
-import { fixture, launch, press, pressEscape, pressTimes, settle, untilFrame } from './helpers'
+import {
+  fixture,
+  launch,
+  press,
+  pressEscape,
+  pressTimes,
+  settle,
+  untilFrame,
+} from './helpers'
 import type { Harness } from './helpers'
 
-const FILE = ['const alpha = 1', 'const beta = 2', 'const alpha2 = 3', 'let alpha3 = 4', ''].join(
-  '\n',
-)
+const FILE = [
+  'const alpha = 1',
+  'const beta = 2',
+  'const alpha2 = 3',
+  'let alpha3 = 4',
+  '',
+].join('\n')
 const PROJECT = { 'a.ts': FILE }
 
-const SIZE = { width: 100, height: 30 }
+const SIZE = { height: 30, width: 100 }
 
 async function openFileFromTree(t: Harness) {
-  await press(t, i => i.pressArrow('down'))
-  await press(t, i => i.pressEnter())
+  await press(t, (i) => i.pressArrow('down'))
+  await press(t, (i) => i.pressEnter())
 }
 
-const openSearch = (t: Harness) => press(t, i => i.pressKey('f', { ctrl: true }))
-const openProjectSearch = (t: Harness) => press(t, i => i.pressKey('r', { ctrl: true }))
+const openSearch = (t: Harness) =>
+  press(t, (i) => i.pressKey('f', { ctrl: true }))
+const openProjectSearch = (t: Harness) =>
+  press(t, (i) => i.pressKey('r', { ctrl: true }))
 const scanned = (t: Harness) => settle(t, 300)
 
 test('reopening the search carries the last query', async () => {
@@ -24,7 +38,7 @@ test('reopening the search carries the last query', async () => {
   await openFileFromTree(t)
 
   await openSearch(t)
-  await press(t, i => void i.typeText('alpha'))
+  await press(t, (i) => i.typeText('alpha'))
   await settle(t)
   await pressEscape(t)
   expect(t.captureCharFrame()).not.toContain('Search…')
@@ -40,12 +54,12 @@ test('the remembered query is selected, so typing replaces it', async () => {
   await openFileFromTree(t)
 
   await openSearch(t)
-  await press(t, i => void i.typeText('alpha'))
+  await press(t, (i) => i.typeText('alpha'))
   await settle(t)
   await pressEscape(t)
 
   await openSearch(t)
-  await press(t, i => void i.typeText('beta'))
+  await press(t, (i) => i.typeText('beta'))
   await settle(t)
 
   const frame = t.captureCharFrame()
@@ -58,15 +72,15 @@ test('reopening lands on the row it was left on', async () => {
   await openFileFromTree(t)
 
   await openSearch(t)
-  await press(t, i => void i.typeText('alpha'))
+  await press(t, (i) => i.typeText('alpha'))
   await settle(t)
-  await pressTimes(t, 2, i => i.pressArrow('down'))
+  await pressTimes(t, 2, (i) => i.pressArrow('down'))
   await settle(t)
   await pressEscape(t)
 
   await openSearch(t)
   await settle(t)
-  await press(t, i => i.pressEnter())
+  await press(t, (i) => i.pressEnter())
   await untilFrame(t, 'Ln 4, Col 5')
 })
 
@@ -80,10 +94,10 @@ test('reopening the project search carries the query and the row', async () => {
   await openFileFromTree(t)
 
   await openProjectSearch(t)
-  await press(t, i => void i.typeText('alpha'))
+  await press(t, (i) => i.typeText('alpha'))
   await scanned(t)
-  await pressTimes(t, 2, i => i.pressArrow('down'))
-  await press(t, i => i.pressEnter())
+  await pressTimes(t, 2, (i) => i.pressArrow('down'))
+  await press(t, (i) => i.pressEnter())
   await untilFrame(t, 'Ln 2, Col 5')
 
   await openProjectSearch(t)
@@ -99,9 +113,9 @@ test('a folded project search comes back folded', async () => {
   await openFileFromTree(t)
 
   await openProjectSearch(t)
-  await press(t, i => void i.typeText('alpha'))
+  await press(t, (i) => i.typeText('alpha'))
   await scanned(t)
-  await press(t, i => i.pressTab({ shift: true }))
+  await press(t, (i) => i.pressTab({ shift: true }))
   await pressEscape(t)
 
   await openProjectSearch(t)
@@ -116,7 +130,7 @@ test('the two scopes remember their own searches', async () => {
   await openFileFromTree(t)
 
   await openProjectSearch(t)
-  await press(t, i => void i.typeText('alpha2'))
+  await press(t, (i) => i.typeText('alpha2'))
   await scanned(t)
   await pressEscape(t)
 
@@ -132,14 +146,14 @@ test('a selection beats the remembered query and starts from its first hit', asy
   await openFileFromTree(t)
 
   await openSearch(t)
-  await press(t, i => void i.typeText('alpha'))
+  await press(t, (i) => i.typeText('alpha'))
   await settle(t)
-  await pressTimes(t, 2, i => i.pressArrow('down'))
+  await pressTimes(t, 2, (i) => i.pressArrow('down'))
   await pressEscape(t)
 
   await openSearch(t)
-  await press(t, i => void i.typeText('beta'))
+  await press(t, (i) => i.typeText('beta'))
   await settle(t)
-  await press(t, i => i.pressEnter())
+  await press(t, (i) => i.pressEnter())
   await untilFrame(t, 'Ln 2, Col 7')
 })

@@ -1,6 +1,14 @@
 import { expect, test } from 'bun:test'
 
-import { fixture, launch, openFile, press, runCommand, untilFrame, untilGone } from './helpers'
+import {
+  fixture,
+  launch,
+  openFile,
+  press,
+  runCommand,
+  untilFrame,
+  untilGone,
+} from './helpers'
 import type { Harness } from './helpers'
 
 const PROJECT = { 'a.ts': 'const alpha = 1\n', 'b.ts': 'const beta = 2\n' }
@@ -30,7 +38,7 @@ test('a page tab closes like any other, leaving the file it covered', async () =
   await runCommand(t, 'Settings')
   await untilFrame(t, 'Follow OS appearance')
 
-  await press(t, input => input.pressKey('w', { ctrl: true }))
+  await press(t, (input) => input.pressKey('w', { ctrl: true }))
   await untilGone(t, 'Follow OS appearance')
 
   expect(tabRow(t)).not.toContain('Settings')

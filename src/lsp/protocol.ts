@@ -124,16 +124,18 @@ export function severityOf(diagnostic: Diagnostic): ProblemSeverity {
 // What broke, without the advice servers append to the same string (`help:`, `note:`).
 export function headline(message: string): { text: string; more: boolean } {
   const [first = '', ...rest] = message.split('\n')
-  const flat = first.replaceAll(/\s+/g, ' ').trim()
-  const advice = flat.search(/\s(?:help|note|hint):\s/i)
-  const dropped = rest.some(line => line.trim().length > 0)
-  if (advice < 0) return { text: flat, more: dropped }
-  return { text: flat.slice(0, advice), more: true }
+  const flat = first.replaceAll(/\s+/gu, ' ').trim()
+  const advice = flat.search(/\s(?:help|note|hint):\s/iu)
+  const dropped = rest.some((line) => line.trim().length > 0)
+  if (advice < 0) {
+    return { more: dropped, text: flat }
+  }
+  return { more: true, text: flat.slice(0, advice) }
 }
 
 export const SEVERITY_RANK: Record<ProblemSeverity, number> = {
   error: 0,
-  warning: 1,
-  info: 2,
   hint: 3,
+  info: 2,
+  warning: 1,
 }

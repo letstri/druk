@@ -9,7 +9,7 @@ import { ModalPanel } from './Overlay'
 import { TextInput } from './TextInput'
 import { useKeys } from './useKeys'
 
-export interface PromptModalProps {
+interface PromptModalProps {
   title: string
   initialValue: string
   history?: string[]
@@ -29,7 +29,9 @@ export function PromptModal(props: PromptModalProps) {
 
   const walk = (delta: number) => {
     const step = stepHistory(history(), at(), delta, value(), draft())
-    if (!step) return
+    if (!step) {
+      return
+    }
     setAt(step.at)
     setDraft(step.draft)
     setValue(step.value)
@@ -39,7 +41,9 @@ export function PromptModal(props: PromptModalProps) {
   const input = (next: string) => {
     setValue(next)
     const walked = at()
-    if (walked >= 0 && next !== history()[walked]) setAt(-1)
+    if (walked >= 0 && next !== history()[walked]) {
+      setAt(-1)
+    }
   }
 
   useKeys((key: KeyEvent) => {
@@ -49,7 +53,10 @@ export function PromptModal(props: PromptModalProps) {
     } else if (key.name === 'escape') {
       key.preventDefault()
       props.onCancel()
-    } else if ((key.name === 'up' || key.name === 'down') && history().length > 0) {
+    } else if (
+      (key.name === 'up' || key.name === 'down') &&
+      history().length > 0
+    ) {
       key.preventDefault()
       walk(key.name === 'up' ? 1 : -1)
     }

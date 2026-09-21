@@ -16,37 +16,37 @@ import { allSegments, parseHighlights, WHOLE } from './syntax'
 loadExtensions(process.env.XDG_CONFIG_HOME!, [], MARKET_DIR)
 
 const SAMPLES: Record<string, string> = {
-  python: 'import os\ndef f(x):\n    # c\n    return x + 1\n',
-  rust: 'fn main() {\n    let x: i32 = 1; // c\n}\n',
-  go: 'package main\n// c\nfunc main() { return }\n',
-  typescriptreact: '// c\nconst A = () => <div className="a">{1}</div>\n',
-  tsrx: '// c\nexport function A() @{\n\t@if (ok) {\n\t\t<p>{x as string}</p>\n\t}\n}\n',
-  vue: '<template>\n  <!-- c -->\n  <div class="a">x</div>\n</template>\n',
-  css: '.a { color: #fff; }\n/* c */\n',
-  scss: '/* c */\n$brand: #f00;\n.a { color: $brand; &:hover { top: 1px } }\n',
-  sass: '/* c */\n.a\n  top: 1px\n',
-  php: '<?php\n// c\nfunction f($x) { return $x; }\n',
-  ruby: '# c\nclass A\n  def go(x)\n    x\n  end\nend\n',
-  java: '// c\nclass A { void m() { int x = 1; } }\n',
+  bash: '# c\nfor f in *.ts; do echo "$f"; done\n',
   c: '// c\nint main(void) { return 0; }\n',
   cpp: '// c\nint main() { int x = 1; return x; }\n',
   csharp: '// c\nclass A { void M() { int x = 1; } }\n',
-  bash: '# c\nfor f in *.ts; do echo "$f"; done\n',
-  lua: '-- c\nlocal function f(x) return x end\n',
-  toml: '# c\n[pkg]\nname = "x"\n',
-  swift: '// c\nfunc go(x: Int) -> Int { return x }\n',
-  kotlin: '// c\nfun main() { val x = 1 }\n',
+  css: '.a { color: #fff; }\n/* c */\n',
   dart: '// c\nvoid main() { var x = 1; }\n',
-  elixir: '# c\ndefmodule A do\n  def go(x), do: x\nend\n',
-  scala: '// c\nobject A { def go(x: Int): Int = x }\n',
-  yaml: '# c\na:\n  b: true\n',
-  svelte: '<!-- c -->\n<script>let x = 1</script>\n<div class="a">{x}</div>\n',
-  liquid: '<!-- c -->\n<div class="a">{{ product.title | upcase }}</div>\n',
-  sql: '-- c\nSELECT id FROM users WHERE age > 18;\n',
-  ini: '; c\n[section]\nkey = value\n',
   dotenv: '# c\nexport PORT=3000\nURL="https://x.dev"\n',
-  terraform: '# c\nresource "aws_instance" "web" {\n  ami = var.ami_id\n}\n',
+  elixir: '# c\ndefmodule A do\n  def go(x), do: x\nend\n',
+  go: 'package main\n// c\nfunc main() { return }\n',
   hcl: '# c\njob "web" {\n  type = "service"\n}\n',
+  ini: '; c\n[section]\nkey = value\n',
+  java: '// c\nclass A { void m() { int x = 1; } }\n',
+  kotlin: '// c\nfun main() { val x = 1 }\n',
+  liquid: '<!-- c -->\n<div class="a">{{ product.title | upcase }}</div>\n',
+  lua: '-- c\nlocal function f(x) return x end\n',
+  php: '<?php\n// c\nfunction f($x) { return $x; }\n',
+  python: 'import os\ndef f(x):\n    # c\n    return x + 1\n',
+  ruby: '# c\nclass A\n  def go(x)\n    x\n  end\nend\n',
+  rust: 'fn main() {\n    let x: i32 = 1; // c\n}\n',
+  sass: '/* c */\n.a\n  top: 1px\n',
+  scala: '// c\nobject A { def go(x: Int): Int = x }\n',
+  scss: '/* c */\n$brand: #f00;\n.a { color: $brand; &:hover { top: 1px } }\n',
+  sql: '-- c\nSELECT id FROM users WHERE age > 18;\n',
+  svelte: '<!-- c -->\n<script>let x = 1</script>\n<div class="a">{x}</div>\n',
+  swift: '// c\nfunc go(x: Int) -> Int { return x }\n',
+  terraform: '# c\nresource "aws_instance" "web" {\n  ami = var.ami_id\n}\n',
+  toml: '# c\n[pkg]\nname = "x"\n',
+  tsrx: '// c\nexport function A() @{\n\t@if (ok) {\n\t\t<p>{x as string}</p>\n\t}\n}\n',
+  typescriptreact: '// c\nconst A = () => <div className="a">{1}</div>\n',
+  vue: '<template>\n  <!-- c -->\n  <div class="a">x</div>\n</template>\n',
+  yaml: '# c\na:\n  b: true\n',
 }
 
 describe('languages', () => {
@@ -58,7 +58,7 @@ describe('languages', () => {
   })
 
   test('a label, where there is one, is shorter than the id it replaces', () => {
-    for (const lang of languages().filter(language => language.label)) {
+    for (const lang of languages().filter((language) => language.label)) {
       expect(lang.label!.length).toBeLessThan(lang.id.length)
     }
   })
@@ -75,7 +75,7 @@ describe('languages', () => {
   })
 
   test('ids are unique', () => {
-    const ids = languages().map(language => language.id)
+    const ids = languages().map((language) => language.id)
     expect(new Set(ids).size).toBe(ids.length)
   })
 
@@ -84,8 +84,8 @@ describe('languages', () => {
       expect(languageFor(filetype)).toBeDefined()
       const segs = await allSegments(source, filetype)
       const comment = getSyntaxStyle().getStyleId('comment')
-      expect(segs.some(s => s.styleId === comment)).toBe(true)
-    }, 15000)
+      expect(segs.some((s) => s.styleId === comment)).toBe(true)
+    }, 15_000)
   }
 })
 
@@ -93,17 +93,20 @@ function styleLookup(source: string) {
   const lines = source.split('\n')
   return (segs: Segment[], needle: string, occurrence = 0) => {
     let index = -1
-    for (let i = 0; i <= occurrence; i++) index = source.indexOf(needle, index + 1)
+    for (let i = 0; i <= occurrence; i += 1) {
+      index = source.indexOf(needle, index + 1)
+    }
     let acc = 0
-    for (let line = 0; line < lines.length; line++) {
+    for (let line = 0; line < lines.length; line += 1) {
       const lineLen = lines[line]!.length
       if (index < acc + lineLen) {
         const col = index - acc
-        return segs.find(s => s.line === line && col >= s.start && col < s.end)?.styleId
+        return segs.find(
+          (s) => s.line === line && col >= s.start && col < s.end
+        )?.styleId
       }
       acc += lineLen + 1
     }
-    return undefined
   }
 }
 
@@ -134,8 +137,12 @@ describe('liquid doc comments', () => {
     expect(isStyle(styleAt(segs, '@example'), 'keyword.tag')).toBe(true)
     expect(isStyle(styleAt(segs, '{product}'), 'type.builtin')).toBe(true)
     expect(isStyle(styleAt(segs, '{variant}'), 'type.builtin')).toBe(true)
-    expect(isStyle(styleAt(segs, 'product', 1), 'variable.parameter')).toBe(true)
-    expect(isStyle(styleAt(segs, 'current_variant'), 'variable.parameter')).toBe(true)
+    expect(isStyle(styleAt(segs, 'product', 1), 'variable.parameter')).toBe(
+      true
+    )
+    expect(
+      isStyle(styleAt(segs, 'current_variant'), 'variable.parameter')
+    ).toBe(true)
   })
 
   test('the dotted groups above have no theme entry of their own, so the assertions above are exercising the fallback, not a coincidence', () => {
@@ -164,11 +171,21 @@ describe('liquid assign targets', () => {
 
   test('an assign target is styled as a variable whether its value is a bare reference, a filter chain, or a string literal', async () => {
     const segs = await allSegments(SOURCE, 'liquid')
-    expect(isStyle(styleAt(segs, 'variant = current_variant'), 'variable')).toBe(true)
-    expect(isStyle(styleAt(segs, "resolved_form_class = 'js-add-to-cart'"), 'variable')).toBe(true)
-    expect(isStyle(styleAt(segs, 'resolved_form_class = resolved_form_class'), 'variable')).toBe(
-      true,
-    )
+    expect(
+      isStyle(styleAt(segs, 'variant = current_variant'), 'variable')
+    ).toBe(true)
+    expect(
+      isStyle(
+        styleAt(segs, "resolved_form_class = 'js-add-to-cart'"),
+        'variable'
+      )
+    ).toBe(true)
+    expect(
+      isStyle(
+        styleAt(segs, 'resolved_form_class = resolved_form_class'),
+        'variable'
+      )
+    ).toBe(true)
     expect(isStyle(styleAt(segs, 'inline_label'), 'variable')).toBe(true)
   })
 
@@ -176,9 +193,15 @@ describe('liquid assign targets', () => {
     const segs = await allSegments(SOURCE, 'liquid')
     const ss = getSyntaxStyle()
 
-    expect(styleAt(segs, 'form_class != blank')).not.toBe(ss.getStyleId('variable'))
-    expect(styleAt(segs, 'resolved_form_class', 2)).not.toBe(ss.getStyleId('variable'))
-    expect(styleAt(segs, 'resolved_form_class', 3)).not.toBe(ss.getStyleId('variable'))
+    expect(styleAt(segs, 'form_class != blank')).not.toBe(
+      ss.getStyleId('variable')
+    )
+    expect(styleAt(segs, 'resolved_form_class', 2)).not.toBe(
+      ss.getStyleId('variable')
+    )
+    expect(styleAt(segs, 'resolved_form_class', 3)).not.toBe(
+      ss.getStyleId('variable')
+    )
   })
 
   test('real HTML attributes and filters are unaffected', async () => {
@@ -239,14 +262,20 @@ describe('abandoning a highlight that arrived too late', () => {
   const SOURCE = 'const alpha = 1 // note\n'
 
   test('says STALE instead of preparing work nobody will use', async () => {
-    expect(await computeHighlights(SOURCE, 'typescript', 2, () => true)).toBe(STALE)
+    expect(await computeHighlights(SOURCE, 'typescript', 2, () => true)).toBe(
+      STALE
+    )
   })
 
   test('still segments normally while the text is current', async () => {
     const parsed = await computeHighlights(SOURCE, 'typescript', 2, () => false)
     expect(parsed).not.toBe(STALE)
     const comment = getSyntaxStyle().getStyleId('comment')
-    expect(segmentsIn(parsed as Highlighted, 0, WHOLE).some(s => s.styleId === comment)).toBe(true)
+    expect(
+      segmentsIn(parsed as Highlighted, 0, WHOLE).some(
+        (s) => s.styleId === comment
+      )
+    ).toBe(true)
   })
 
   test('a caller that asks nothing can never be handed STALE', async () => {
@@ -271,14 +300,18 @@ describe('reusing a parse across tab switches', () => {
   })
 })
 
+const key = (s: {
+  line: number
+  start: number
+  end: number
+  styleId: number
+}) => `${s.line}:${s.start}-${s.end}:${s.styleId}`
+
 describe('segmenting a window instead of the document', () => {
   const source = `${Array.from(
     { length: 300 },
-    (_, i) => `export const value${i} = ${i} // note ${i}`,
+    (_, i) => `export const value${i} = ${i} // note ${i}`
   ).join('\n')}\n`
-
-  const key = (s: { line: number; start: number; end: number; styleId: number }) =>
-    `${s.line}:${s.start}-${s.end}:${s.styleId}`
 
   test('a window matches what a full segmentation produces for those lines', async () => {
     const parsed = await parseHighlights(source, 'typescript')
@@ -291,12 +324,14 @@ describe('segmenting a window instead of the document', () => {
     ] as const) {
       const windowed = segmentsIn(parsed, from, to).map(key).toSorted()
       const expected = whole
-        .filter(s => s.line >= from && s.line <= to)
+        .filter((s) => s.line >= from && s.line <= to)
         .map(key)
         .toSorted()
-      expect(`${from}-${to}: ${windowed.join('|')}`).toBe(`${from}-${to}: ${expected.join('|')}`)
+      expect(`${from}-${to}: ${windowed.join('|')}`).toBe(
+        `${from}-${to}: ${expected.join('|')}`
+      )
     }
-  }, 20000)
+  }, 20_000)
 
   test('stitching every window back together reproduces the whole file', async () => {
     const parsed = await parseHighlights(source, 'typescript')
@@ -307,7 +342,7 @@ describe('segmenting a window instead of the document', () => {
       stitched.push(...segmentsIn(parsed, from, from + 36).map(key))
     }
     expect(stitched.toSorted()).toEqual(whole)
-  }, 20000)
+  }, 20_000)
 })
 
 // Terraform interpolation below, not a template literal.
@@ -381,7 +416,10 @@ describe('terraform', () => {
   })
 
   test('hcl paints the same, under its own name', async () => {
-    const segs = await allSegments('# c\njob "web" {\n  type = "service"\n}\n', 'hcl')
+    const segs = await allSegments(
+      '# c\njob "web" {\n  type = "service"\n}\n',
+      'hcl'
+    )
     const styles = styleLookup('# c\njob "web" {\n  type = "service"\n}\n')
     expect(isStyle(styles(segs, '"service"'), 'string')).toBe(true)
     expect(languageFor('hcl')).toBeDefined()

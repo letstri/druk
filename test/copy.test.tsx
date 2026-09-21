@@ -3,13 +3,21 @@ import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { freePath } from '../src/core/fs'
-import { fixture, launch, openFile, press, pressEscape, pressTimes, settle } from './helpers'
+import {
+  fixture,
+  launch,
+  openFile,
+  press,
+  pressEscape,
+  pressTimes,
+  settle,
+} from './helpers'
 import type { Harness } from './helpers'
 
 const PROJECT = {
   'alpha.ts': 'const alpha = 1\n',
-  'src/keep.ts': 'const keep = 1\n',
   'lib/other.ts': 'const other = 1\n',
+  'src/keep.ts': 'const keep = 1\n',
 }
 
 async function open(t: Harness, name: string) {
@@ -19,7 +27,7 @@ async function open(t: Harness, name: string) {
 }
 
 async function selectNth(t: Harness, steps: number) {
-  await pressTimes(t, steps, input => input.pressArrow('down'))
+  await pressTimes(t, steps, (input) => input.pressArrow('down'))
 }
 
 describe('freePath', () => {
@@ -29,7 +37,7 @@ describe('freePath', () => {
   })
 
   test('suffixes before the extension, and counts up from there', () => {
-    const dir = fixture({ 'a.ts': '', 'a copy.ts': '', 'a copy 2.ts': '' })
+    const dir = fixture({ 'a copy 2.ts': '', 'a copy.ts': '', 'a.ts': '' })
     expect(freePath(dir, 'a.ts')).toBe(join(dir, 'a copy 3.ts'))
   })
 
@@ -45,14 +53,16 @@ describe('copying a file with c and p', () => {
     const t = await launch(dir)
     await open(t, 'alpha.ts')
 
-    await press(t, input => void input.typeText('c'))
+    await press(t, (input) => input.typeText('c'))
     expect(t.captureCharFrame()).toContain('Copied alpha.ts')
 
-    await press(t, input => input.pressArrow('up'))
-    await press(t, input => void input.typeText('p'))
+    await press(t, (input) => input.pressArrow('up'))
+    await press(t, (input) => input.typeText('p'))
     await settle(t)
 
-    expect(readFileSync(join(dir, 'src/alpha.ts'), 'utf8')).toBe('const alpha = 1\n')
+    expect(readFileSync(join(dir, 'src/alpha.ts'), 'utf-8')).toBe(
+      'const alpha = 1\n'
+    )
     expect(existsSync(join(dir, 'alpha.ts'))).toBe(true)
     expect(t.captureCharFrame()).toContain('Copied alpha.ts to src/')
   })
@@ -62,11 +72,13 @@ describe('copying a file with c and p', () => {
     const t = await launch(dir)
     await open(t, 'alpha.ts')
 
-    await press(t, input => void input.typeText('c'))
-    await press(t, input => void input.typeText('p'))
+    await press(t, (input) => input.typeText('c'))
+    await press(t, (input) => input.typeText('p'))
     await settle(t)
 
-    expect(readFileSync(join(dir, 'alpha copy.ts'), 'utf8')).toBe('const alpha = 1\n')
+    expect(readFileSync(join(dir, 'alpha copy.ts'), 'utf-8')).toBe(
+      'const alpha = 1\n'
+    )
     expect(existsSync(join(dir, 'alpha.ts'))).toBe(true)
   })
 
@@ -75,10 +87,10 @@ describe('copying a file with c and p', () => {
     const t = await launch(dir)
     await open(t, 'alpha.ts')
 
-    await press(t, input => void input.typeText('c'))
-    await press(t, input => void input.typeText('p'))
+    await press(t, (input) => input.typeText('c'))
+    await press(t, (input) => input.typeText('p'))
     await settle(t)
-    await press(t, input => void input.typeText('p'))
+    await press(t, (input) => input.typeText('p'))
     await settle(t)
 
     expect(existsSync(join(dir, 'alpha copy.ts'))).toBe(true)
@@ -89,12 +101,14 @@ describe('copying a file with c and p', () => {
     const dir = fixture(PROJECT)
     const t = await launch(dir)
     await selectNth(t, 2)
-    await press(t, input => void input.typeText('c'))
-    await press(t, input => input.pressArrow('up'))
-    await press(t, input => void input.typeText('p'))
+    await press(t, (input) => input.typeText('c'))
+    await press(t, (input) => input.pressArrow('up'))
+    await press(t, (input) => input.typeText('p'))
     await settle(t)
 
-    expect(readFileSync(join(dir, 'lib/src/keep.ts'), 'utf8')).toBe('const keep = 1\n')
+    expect(readFileSync(join(dir, 'lib/src/keep.ts'), 'utf-8')).toBe(
+      'const keep = 1\n'
+    )
     expect(existsSync(join(dir, 'src/keep.ts'))).toBe(true)
   })
 
@@ -102,8 +116,8 @@ describe('copying a file with c and p', () => {
     const dir = fixture(PROJECT)
     const t = await launch(dir)
     await selectNth(t, 2)
-    await press(t, input => void input.typeText('c'))
-    await press(t, input => void input.typeText('p'))
+    await press(t, (input) => input.typeText('c'))
+    await press(t, (input) => input.typeText('p'))
     await settle(t)
 
     expect(t.captureCharFrame()).toContain('Cannot copy src into itself')
@@ -113,7 +127,7 @@ describe('copying a file with c and p', () => {
   test('pasting with nothing taken says so', async () => {
     const t = await launch(fixture(PROJECT))
     await selectNth(t, 1)
-    await press(t, input => void input.typeText('p'))
+    await press(t, (input) => input.typeText('p'))
     await settle(t)
 
     expect(t.captureCharFrame()).toContain('Nothing taken')
@@ -124,11 +138,11 @@ describe('copying a file with c and p', () => {
     const t = await launch(dir)
     await open(t, 'alpha.ts')
 
-    await press(t, input => void input.typeText('c'))
+    await press(t, (input) => input.typeText('c'))
     await pressEscape(t)
     expect(t.captureCharFrame()).toContain('Copy cancelled')
 
-    await press(t, input => void input.typeText('p'))
+    await press(t, (input) => input.typeText('p'))
     await settle(t)
     expect(existsSync(join(dir, 'alpha copy.ts'))).toBe(false)
   })
@@ -138,13 +152,13 @@ describe('copying a file with c and p', () => {
     const t = await launch(dir)
     await open(t, 'alpha.ts')
 
-    await press(t, input => void input.typeText('x'))
-    await press(t, input => input.pressArrow('up'))
-    await press(t, input => void input.typeText('p'))
+    await press(t, (input) => input.typeText('x'))
+    await press(t, (input) => input.pressArrow('up'))
+    await press(t, (input) => input.typeText('p'))
     await settle(t)
     expect(existsSync(join(dir, 'src/alpha.ts'))).toBe(true)
 
-    await press(t, input => void input.typeText('p'))
+    await press(t, (input) => input.typeText('p'))
     await settle(t)
     expect(t.captureCharFrame()).toContain('Nothing taken')
   })

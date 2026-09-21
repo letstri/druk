@@ -11,7 +11,7 @@ test('a runtime warning goes to the log file and not to stderr', () => {
 
   expect(result.stderr.toString()).toBe('')
   expect(existsSync(log)).toBe(true)
-  const written = readFileSync(log, 'utf8')
+  const written = readFileSync(log, 'utf-8')
   expect(written).toContain('MaxListenersExceededWarning')
   expect(written).toContain('fixtures/warn.ts')
 })

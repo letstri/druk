@@ -39,31 +39,39 @@ export function createNavigation(deps: {
 
   // Mutated in place: replacing the array would redraw the tab strip on every caret move.
   createEffect(
-    on(editor.cursor, position => {
+    on(editor.cursor, (position) => {
       const stop = current()
-      if (!stop || stop.id !== workspace.activeView()) return
+      if (!stop || stop.id !== workspace.activeView()) {
+        return
+      }
       stop.line = position.line
       stop.col = position.col
-    }),
+    })
   )
 
   // Compared by id, not a "navigating" flag: effects flush after `go` has returned.
   createEffect(
-    on(workspace.activeView, id => {
-      if (!id || current()?.id === id) return
-      push({ id, line: 0, col: 0 })
-    }),
+    on(workspace.activeView, (id) => {
+      if (!id || current()?.id === id) {
+        return
+      }
+      push({ col: 0, id, line: 0 })
+    })
   )
 
   const mark = () => {
     const stop = current()
-    if (stop) push({ ...stop })
+    if (stop) {
+      push({ ...stop })
+    }
   }
 
   const go = (delta: 1 | -1) => {
     const list = stops()
     let index = at() + delta
-    while (list[index] && !alive(list[index]!)) index += delta
+    while (list[index] && !alive(list[index]!)) {
+      index += delta
+    }
     const stop = list[index]
     if (!stop) {
       if (list.length > 0) {
@@ -71,7 +79,9 @@ export function createNavigation(deps: {
         setStops(kept)
         setAt(delta < 0 ? 0 : kept.length - 1)
       }
-      return status.say(delta < 0 ? 'Nothing to go back to' : 'Nothing to go forward to')
+      return status.say(
+        delta < 0 ? 'Nothing to go back to' : 'Nothing to go forward to'
+      )
     }
     setAt(index)
     workspace.showView(stop.id)
@@ -80,9 +90,9 @@ export function createNavigation(deps: {
   }
 
   return {
+    back: () => go(-1),
     canBack: () => at() > 0,
     canForward: () => at() < stops().length - 1,
-    back: () => go(-1),
     forward: () => go(1),
     mark,
   }

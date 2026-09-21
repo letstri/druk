@@ -5,7 +5,12 @@ import type { Theme } from '../themes'
 
 export type ExtensionCategory = 'language' | 'lsp' | 'theme' | 'icons'
 
-export const CATEGORIES: ExtensionCategory[] = ['language', 'lsp', 'theme', 'icons']
+export const CATEGORIES: ExtensionCategory[] = [
+  'language',
+  'lsp',
+  'theme',
+  'icons',
+]
 
 export interface Extension {
   id: string

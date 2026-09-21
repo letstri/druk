@@ -6,7 +6,8 @@ const FILE_CAP_MS = 120 * 1000
 // Each file peaks at ~1.6 CPUs (renderer threads), and the 5s per-test default is what a
 // loaded machine blows through first — hence the raised timeout below.
 const JOBS =
-  Number(process.env.DRUK_TEST_JOBS) || Math.max(2, Math.ceil(navigator.hardwareConcurrency / 2))
+  Number(process.env.DRUK_TEST_JOBS) ||
+  Math.max(2, Math.ceil(navigator.hardwareConcurrency / 2))
 const TEST_TIMEOUT_MS = Number(process.env.DRUK_TEST_TIMEOUT) || 60_000
 // Concurrent files starve each other's renderer and tree-sitter threads, so every wall-clock
 // wait in the harness is stretched by this much. Bun.spawn snapshots the env at startup, so
@@ -18,13 +19,16 @@ const failed: string[] = []
 const started = Date.now()
 
 async function run(file: string) {
-  const proc = spawn(['bun', 'test', '--timeout', String(TEST_TIMEOUT_MS), file], {
-    env,
-    stdout: 'pipe',
-    stderr: 'pipe',
-    timeout: FILE_CAP_MS,
-    killSignal: 'SIGKILL',
-  })
+  const proc = spawn(
+    ['bun', 'test', '--timeout', String(TEST_TIMEOUT_MS), file],
+    {
+      env,
+      killSignal: 'SIGKILL',
+      stderr: 'pipe',
+      stdout: 'pipe',
+      timeout: FILE_CAP_MS,
+    }
+  )
   const [out, err, code] = await Promise.all([
     new Response(proc.stdout).text(),
     new Response(proc.stderr).text(),
@@ -32,20 +36,30 @@ async function run(file: string) {
   ])
   // Buffered, not inherited: concurrent children would interleave their reports line by line.
   process.stdout.write(out + err)
-  if (code !== 0) failed.push(file + (proc.signalCode === 'SIGKILL' ? ' (hung, killed)' : ''))
+  if (code !== 0) {
+    failed.push(file + (proc.signalCode === 'SIGKILL' ? ' (hung, killed)' : ''))
+  }
 }
 
 const queue = files.values()
 await Promise.all(
   Array.from({ length: Math.min(JOBS, files.length) }, async () => {
-    for (const file of queue) await run(file)
-  }),
+    for (const file of queue) {
+      await run(file)
+    }
+  })
 )
 
 const seconds = Math.round((Date.now() - started) / 1000)
 if (failed.length > 0) {
-  console.error(`\n${failed.length} of ${files.length} files failed in ${seconds}s:`)
-  for (const file of failed) console.error(`  ${file}`)
+  console.error(
+    `\n${failed.length} of ${files.length} files failed in ${seconds}s:`
+  )
+  for (const file of failed) {
+    console.error(`  ${file}`)
+  }
   process.exit(1)
 }
-process.stdout.write(`\n${files.length} files passed in ${seconds}s (${JOBS} jobs)\n`)
+process.stdout.write(
+  `\n${files.length} files passed in ${seconds}s (${JOBS} jobs)\n`
+)

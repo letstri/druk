@@ -11,22 +11,28 @@ const TICK = join(import.meta.dir, 'fixtures', 'tick-lsp.ts')
 // First line number in the gutter: where the viewport sits. Row 1, under the tab strip.
 function topLine(t: Harness): number {
   const row = t.captureCharFrame().split('\n')[1]!
-  return Number(row.trim().split(/\s+/)[0])
+  return Number(row.trim().split(/\s+/u)[0])
 }
 
-async function openAlone(name: string, content: string, config: Parameters<typeof launch>[1] = {}) {
+async function openAlone(
+  name: string,
+  content: string,
+  config: Parameters<typeof launch>[1] = {}
+) {
   const t = await launch(fixture({ [name]: content }), config)
   await openFile(t, name)
-  await press(t, input => input.pressKey('b', { ctrl: true }))
+  await press(t, (input) => input.pressKey('b', { ctrl: true }))
   await settle(t)
   return t
 }
 
 async function scrollToBottom(t: Harness) {
   let last = -1
-  for (let turn = 0; turn < 200 && topLine(t) !== last; turn++) {
+  for (let turn = 0; turn < 200 && topLine(t) !== last; turn += 1) {
     last = topLine(t)
-    for (let tick = 0; tick < 10; tick++) await t.mockMouse.scroll(20, 10, 'down')
+    for (let tick = 0; tick < 10; tick += 1) {
+      await t.mockMouse.scroll(20, 10, 'down')
+    }
     await settle(t)
   }
   return topLine(t)
@@ -55,7 +61,9 @@ describe('scrolling past the last line', () => {
     const t = await openAlone('big.ts', long)
     await scrollToBottom(t)
 
-    for (let tick = 0; tick < 20; tick++) await t.mockMouse.scroll(20, 10, 'up')
+    for (let tick = 0; tick < 20; tick += 1) {
+      await t.mockMouse.scroll(20, 10, 'up')
+    }
     await settle(t)
 
     const frame = t.captureCharFrame()
@@ -70,7 +78,7 @@ describe('scrolling past the last line', () => {
       lspServers: { typescript: [process.execPath, TICK] },
     })
     await openFile(t, 'a.ts')
-    await press(t, input => input.pressKey('b', { ctrl: true }))
+    await press(t, (input) => input.pressKey('b', { ctrl: true }))
     await untilFrame(t, '● 1', 15_000)
     const top = await scrollToBottom(t)
     expect(top).toBeGreaterThan(395)
@@ -83,7 +91,9 @@ describe('scrolling past the last line', () => {
   test('a file that fits the pane stays put', async () => {
     const t = await openAlone('tiny.ts', 'one\ntwo\nthree\n')
 
-    for (let tick = 0; tick < 10; tick++) await t.mockMouse.scroll(20, 5, 'down')
+    for (let tick = 0; tick < 10; tick += 1) {
+      await t.mockMouse.scroll(20, 5, 'down')
+    }
     await settle(t)
 
     expect(topLine(t)).toBe(1)

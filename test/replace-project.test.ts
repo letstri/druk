@@ -10,7 +10,7 @@ const files = (count: number, perFile: number) =>
     Array.from({ length: count }, (_, i) => [
       `f${i}.ts`,
       Array.from({ length: perFile }, () => 'const value = OLD\n').join(''),
-    ]),
+    ])
   )
 
 describe('planProjectReplace', () => {
@@ -42,8 +42,10 @@ describe('replaceProject', () => {
     const buffers = new Map([[path, 'buffer OLD OLD\n']])
     const result = replaceProject([path], 'OLD', 'NEW', {}, buffers)
 
-    expect(result.replaced).toEqual([{ path, count: 2, content: 'buffer NEW NEW\n' }])
-    expect(readFileSync(path, 'utf8')).toBe('disk OLD\n')
+    expect(result.replaced).toEqual([
+      { content: 'buffer NEW NEW\n', count: 2, path },
+    ])
+    expect(readFileSync(path, 'utf-8')).toBe('disk OLD\n')
   })
 
   test('a buffer that no longer holds the query is left alone', () => {
@@ -54,7 +56,7 @@ describe('replaceProject', () => {
 
     expect(result.replaced).toEqual([])
     expect(result.matches).toBe(0)
-    expect(readFileSync(path, 'utf8')).toBe('disk OLD\n')
+    expect(readFileSync(path, 'utf-8')).toBe('disk OLD\n')
   })
 
   test('CRLF and BOM files keep their spelling', () => {
@@ -66,8 +68,8 @@ describe('replaceProject', () => {
 
     const result = replaceProject([crlf, bom], 'OLD', 'NEW')
     expect(result.matches).toBe(2)
-    expect(readFileSync(crlf, 'utf8')).toBe('one NEW\r\ntwo\r\n')
-    expect(readFileSync(bom, 'utf8')).toBe('﻿NEW here\n')
+    expect(readFileSync(crlf, 'utf-8')).toBe('one NEW\r\ntwo\r\n')
+    expect(readFileSync(bom, 'utf-8')).toBe('﻿NEW here\n')
   })
 
   test('counts are apply-time, not plan-time', () => {
@@ -78,9 +80,9 @@ describe('replaceProject', () => {
 
     writeFileSync(path, 'OLD OLD OLD\n')
     const result = replaceProject(
-      plan.targets.map(t => t.path),
+      plan.targets.map((t) => t.path),
       'OLD',
-      'NEW',
+      'NEW'
     )
     expect(result.matches).toBe(3)
   })
@@ -94,7 +96,7 @@ describe('replaceProject', () => {
     const result = replaceProject([gone, stays], 'OLD', 'NEW')
     expect(result.failed.length).toBe(1)
     expect(result.failed[0]).toContain('gone.ts')
-    expect(readFileSync(stays, 'utf8')).toBe('NEW\n')
+    expect(readFileSync(stays, 'utf-8')).toBe('NEW\n')
   })
 
   test('an unwritable file is named, the ones after it still land', () => {
@@ -109,23 +111,23 @@ describe('replaceProject', () => {
     if (process.getuid?.() !== 0) {
       expect(result.failed.length).toBe(1)
       expect(result.failed[0]).toContain('locked.ts')
-      expect(readFileSync(locked, 'utf8')).toBe('OLD\n')
+      expect(readFileSync(locked, 'utf-8')).toBe('OLD\n')
     }
-    expect(readFileSync(open, 'utf8')).toBe('NEW\n')
+    expect(readFileSync(open, 'utf-8')).toBe('NEW\n')
   })
 
   test('$& and $1 land literally, as in-file replace pins', () => {
     const dir = fixture({ 'a.ts': 'OLD\n' })
     const path = join(dir, 'a.ts')
     replaceProject([path], 'OLD', '$&$1')
-    expect(readFileSync(path, 'utf8')).toBe('$&$1\n')
+    expect(readFileSync(path, 'utf-8')).toBe('$&$1\n')
   })
 
   test('a zero-width regex replaces matches, not every column', () => {
     const dir = fixture({ 'a.ts': 'baa b\n' })
     const path = join(dir, 'a.ts')
     replaceProject([path], 'a*', 'X', { regex: true })
-    expect(readFileSync(path, 'utf8')).toBe('bX b\n')
+    expect(readFileSync(path, 'utf-8')).toBe('bX b\n')
   })
 
   test('an anchored regex replaces every line it was counted on', () => {
@@ -135,7 +137,9 @@ describe('replaceProject', () => {
 
     const result = replaceProject([path], '^const', 'let', { regex: true })
     expect(result.matches).toBe(3)
-    expect(readFileSync(path, 'utf8')).toBe('let a = 1\nlet b = 2\nlet c = 3\n')
+    expect(readFileSync(path, 'utf-8')).toBe(
+      'let a = 1\nlet b = 2\nlet c = 3\n'
+    )
   })
 
   test('a trailing anchor counts and replaces alike', () => {
@@ -143,6 +147,6 @@ describe('replaceProject', () => {
     const path = join(dir, 'a.ts')
     const result = replaceProject([path], String.raw`\d$`, 'N', { regex: true })
     expect(result.matches).toBe(2)
-    expect(readFileSync(path, 'utf8')).toBe('const a = N\nconst b = N\n')
+    expect(readFileSync(path, 'utf-8')).toBe('const a = N\nconst b = N\n')
   })
 })

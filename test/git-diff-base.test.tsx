@@ -9,7 +9,9 @@ import { initRepo } from './repo'
 
 const git = (dir: string, ...args: string[]) => {
   const run = Bun.spawnSync(['git', ...args], { cwd: dir })
-  if (run.exitCode !== 0) throw new Error(run.stderr.toString())
+  if (run.exitCode !== 0) {
+    throw new Error(run.stderr.toString())
+  }
 }
 
 function repo() {
@@ -47,16 +49,16 @@ test('comparing against a branch shows work that is already committed', async ()
   expect(frame(t)).toContain('no changes')
 
   await runCommand(t, 'Compare against branch')
-  await press(t, i => void i.typeText('main'))
-  await press(t, i => i.pressEnter())
+  await press(t, (i) => i.typeText('main'))
+  await press(t, (i) => i.pressEnter())
 
   await untilFrame(t, 'vs main')
   await untilFrame(t, 'b.ts')
 
-  await press(t, i => i.pressArrow('up'))
+  await press(t, (i) => i.pressArrow('up'))
   await untilFrame(t, 'beta on feature')
 
   await runCommand(t, 'Compare against HEAD')
   await untilFrame(t, 'no changes')
   expect(frame(t)).not.toContain('vs main')
-}, 20000)
+}, 20_000)

@@ -27,7 +27,11 @@
       "filetypes": ["vue"],
       "install": {
         "kind": "npm",
-        "packages": ["typescript-language-server", "@vue/typescript-plugin", "typescript@5"]
+        "packages": [
+          "typescript-language-server",
+          "@vue/typescript-plugin",
+          "typescript@5"
+        ]
       }
     }
   ]

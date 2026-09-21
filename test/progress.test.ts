@@ -12,18 +12,29 @@ import {
 afterEach(resetProgress)
 
 test('encodes ConEmu OSC 9;4 states', () => {
-  expect(encodeProgress({ kind: 'off' })).toBe('\x1B]9;4;0\x07')
-  expect(encodeProgress({ kind: 'indeterminate' })).toBe('\x1B]9;4;3\x07')
-  expect(encodeProgress({ kind: 'percent', value: 42 })).toBe('\x1B]9;4;1;42\x07')
-  expect(encodeProgress({ kind: 'percent', value: -4 })).toBe('\x1B]9;4;1;0\x07')
-  expect(encodeProgress({ kind: 'percent', value: 140 })).toBe('\x1B]9;4;1;100\x07')
+  expect(encodeProgress({ kind: 'off' })).toBe('\u001B]9;4;0\u0007')
+  expect(encodeProgress({ kind: 'indeterminate' })).toBe('\u001B]9;4;3\u0007')
+  expect(encodeProgress({ kind: 'percent', value: 42 })).toBe(
+    '\u001B]9;4;1;42\u0007'
+  )
+  expect(encodeProgress({ kind: 'percent', value: -4 })).toBe(
+    '\u001B]9;4;1;0\u0007'
+  )
+  expect(encodeProgress({ kind: 'percent', value: 140 })).toBe(
+    '\u001B]9;4;1;100\u0007'
+  )
 })
 
 test('a counted operation is a percent, anything else a spinner', () => {
   expect(progressFromBusy(null)).toEqual({ kind: 'off' })
   expect(progressFromBusy({})).toEqual({ kind: 'indeterminate' })
-  expect(progressFromBusy({ done: 0, total: 0 })).toEqual({ kind: 'indeterminate' })
-  expect(progressFromBusy({ done: 1, total: 4 })).toEqual({ kind: 'percent', value: 25 })
+  expect(progressFromBusy({ done: 0, total: 0 })).toEqual({
+    kind: 'indeterminate',
+  })
+  expect(progressFromBusy({ done: 1, total: 4 })).toEqual({
+    kind: 'percent',
+    value: 25,
+  })
 })
 
 test('only terminals that implement OSC 9;4 get a sequence', () => {
@@ -38,7 +49,9 @@ test('only terminals that implement OSC 9;4 get a sequence', () => {
   expect(supportsProgress({ VTE_VERSION: '7900' }, true)).toBe(true)
   expect(supportsProgress({ VTE_VERSION: '5202' }, true)).toBe(false)
   expect(supportsProgress({ TERM: 'alacritty' }, true)).toBe(false)
-  expect(supportsProgress({ [PROGRESS_ENV]: '0', TERM_PROGRAM: 'ghostty' }, true)).toBe(false)
+  expect(
+    supportsProgress({ [PROGRESS_ENV]: '0', TERM_PROGRAM: 'ghostty' }, true)
+  ).toBe(false)
   expect(supportsProgress({ [PROGRESS_ENV]: '1' }, true)).toBe(true)
 })
 
@@ -53,5 +66,9 @@ test('reportProgress writes once per change and never to an unsupported terminal
   reportProgress({ kind: 'off' }, write, env, true)
   reportProgress({ kind: 'off' }, write, {}, true)
 
-  expect(written).toEqual(['\x1B]9;4;3\x07', '\x1B]9;4;1;50\x07', '\x1B]9;4;0\x07'])
+  expect(written).toEqual([
+    '\u001B]9;4;3\u0007',
+    '\u001B]9;4;1;50\u0007',
+    '\u001B]9;4;0\u0007',
+  ])
 })

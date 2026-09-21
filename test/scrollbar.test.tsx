@@ -11,7 +11,7 @@ const track = (t: Harness) =>
     .captureCharFrame()
     .split('\n')
     .slice(2, 19)
-    .map(row => row.at(-1))
+    .map((row) => row.at(-1))
     .join('')
 
 async function open(t: Harness, name: string) {
@@ -33,7 +33,9 @@ describe('the editor scrollbar', () => {
     await open(t, 'big.ts')
     const before = track(t).indexOf('█')
 
-    for (let step = 0; step < 90; step++) await press(t, input => input.pressArrow('down'))
+    for (let step = 0; step < 90; step += 1) {
+      await press(t, (input) => input.pressArrow('down'))
+    }
     const after = track(t).indexOf('█')
 
     expect(after).toBeGreaterThan(before)

@@ -4,8 +4,21 @@ import { existsSync, mkdirSync, writeFileSync } from 'node:fs'
 import { basename, join } from 'node:path'
 
 import { worktrees } from '../src/core/git'
-import { resolvedPath, workspaceEntries, worktreePath } from '../src/core/workspaces'
-import { fixture, launch, openFile, press, runCommand, settle, until, untilFrame } from './helpers'
+import {
+  resolvedPath,
+  workspaceEntries,
+  worktreePath,
+} from '../src/core/workspaces'
+import {
+  fixture,
+  launch,
+  openFile,
+  press,
+  runCommand,
+  settle,
+  until,
+  untilFrame,
+} from './helpers'
 import type { Harness } from './helpers'
 import { initRepo } from './repo'
 import { tempDir } from './temp'
@@ -27,12 +40,12 @@ function repoWithWorktree(branch: string) {
 
 // The Opt modifier is an ESC prefix ahead of the Ctrl byte.
 const ctrlOpt = (letter: string) =>
-  `${String.fromCharCode(27)}${String.fromCharCode(letter.toUpperCase().charCodeAt(0) - 64)}`
+  `${String.fromCodePoint(27)}${String.fromCodePoint(letter.toUpperCase().codePointAt(0)! - 64)}`
 
 async function openFolder(t: Harness, dir: string) {
   await runCommand(t, 'Open folder')
-  await press(t, input => void input.typeText(dir))
-  await press(t, input => input.pressEnter())
+  await press(t, (input) => input.typeText(dir))
+  await press(t, (input) => input.pressEnter())
 }
 
 test('opens another folder as the workspace', async () => {
@@ -62,13 +75,13 @@ test('unsaved edits stop the switch until the confirm is answered', async () => 
   const there = fixture({ 'beta.ts': 'const beta = 2\n' })
   const t = await launch(here)
   await openFile(t, 'alpha.ts')
-  await press(t, input => void input.typeText('x'))
+  await press(t, (input) => input.typeText('x'))
 
   await openFolder(t, there)
   await untilFrame(t, 'switch without saving')
   expect(t.captureCharFrame()).not.toContain('beta.ts')
 
-  await press(t, input => input.pressEnter())
+  await press(t, (input) => input.pressEnter())
   await untilFrame(t, 'beta.ts')
 })
 
@@ -89,7 +102,7 @@ test('the switcher lists the repository worktrees and where you are', async () =
 test('Ctrl+Opt+W opens the switcher', async () => {
   const t = await launch(fixture({ 'alpha.ts': 'const alpha = 1\n' }))
 
-  await press(t, input => void input.pressKeys([ctrlOpt('w')]))
+  await press(t, (input) => input.pressKeys([ctrlOpt('w')]))
 
   expect(t.captureCharFrame()).toContain('Switch workspace')
 })
@@ -123,7 +136,7 @@ test('worktrees reads the porcelain, slashed branch names included', () => {
   const { main } = repoWithWorktree('feat/one')
 
   const found = worktrees(main)
-  expect(found.map(tree => tree.branch)).toEqual(['main', 'feat/one'])
+  expect(found.map((tree) => tree.branch)).toEqual(['main', 'feat/one'])
   expect(found[1]!.path.endsWith('side')).toBe(true)
 })
 
@@ -131,7 +144,7 @@ test('a long project name stays on its one header row', async () => {
   const base = fixture({})
   const long = join(
     base,
-    'A-FOLDER-NAMED-after-the-whole-issue-title-it-was-opened-for-and-then-some-more',
+    'A-FOLDER-NAMED-after-the-whole-issue-title-it-was-opened-for-and-then-some-more'
   )
   mkdirSync(long)
   writeFileSync(join(long, 'alpha.ts'), '')
@@ -151,7 +164,9 @@ test('the open folder heads the list even when git has never heard of it', () =>
 })
 
 test('worktreePath puts a new checkout beside the repository, slashes flattened', () => {
-  expect(worktreePath('/tmp/proj', 'feat/one')).toBe(join('/tmp', 'proj-feat-one'))
+  expect(worktreePath('/tmp/proj', 'feat/one')).toBe(
+    join('/tmp', 'proj-feat-one')
+  )
 })
 
 test('a new worktree is created and opened, and the branch comes with it', async () => {
@@ -159,8 +174,8 @@ test('a new worktree is created and opened, and the branch comes with it', async
   const t = await launch(main, {}, { width: 120 })
 
   await runCommand(t, 'New worktree')
-  await press(t, input => void input.typeText('spike'))
-  await press(t, input => input.pressEnter())
+  await press(t, (input) => input.typeText('spike'))
+  await press(t, (input) => input.pressEnter())
 
   const at = worktreePath(resolvedPath(main), 'spike')
   await until(t, () => existsSync(join(at, 'a.ts')))
@@ -184,9 +199,9 @@ test('removing a worktree confirms first, then deletes the checkout', async () =
   const t = await launch(main, {}, { width: 120 })
 
   await runCommand(t, 'Remove worktree')
-  await press(t, input => input.pressEnter())
+  await press(t, (input) => input.pressEnter())
   await untilFrame(t, 'remove it')
 
-  await press(t, input => input.pressEnter())
+  await press(t, (input) => input.pressEnter())
   await until(t, () => !existsSync(side))
 })

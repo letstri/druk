@@ -8,26 +8,32 @@ export const LINUX_TARGETS: LinuxTarget[] = ['linux-x64', 'linux-arm64']
 export const FORMATS: PackageFormat[] = ['deb', 'rpm']
 
 const GOARCH: Record<LinuxTarget, string> = {
-  'linux-x64': 'amd64',
   'linux-arm64': 'arm64',
+  'linux-x64': 'amd64',
 }
 
 const FILE_ARCH: Record<PackageFormat, Record<LinuxTarget, string>> = {
-  deb: { 'linux-x64': 'amd64', 'linux-arm64': 'arm64' },
-  rpm: { 'linux-x64': 'x86_64', 'linux-arm64': 'aarch64' },
+  deb: { 'linux-arm64': 'arm64', 'linux-x64': 'amd64' },
+  rpm: { 'linux-arm64': 'aarch64', 'linux-x64': 'x86_64' },
 }
 
 export function packageFileName(
   format: PackageFormat,
   target: LinuxTarget,
-  version: string,
+  version: string
 ): string {
   const arch = FILE_ARCH[format][target]
   // Each ecosystem's own shape: rpm is name-version-release.arch.
-  return format === 'deb' ? `druk_${version}_${arch}.deb` : `druk-${version}-1.${arch}.rpm`
+  return format === 'deb'
+    ? `druk_${version}_${arch}.deb`
+    : `druk-${version}-1.${arch}.rpm`
 }
 
-export function nfpmConfig(target: LinuxTarget, version: string, distDir = './dist'): string {
+export function nfpmConfig(
+  target: LinuxTarget,
+  version: string,
+  distDir = './dist'
+): string {
   return [
     `name: druk`,
     `arch: ${GOARCH[target]}`,
@@ -59,12 +65,16 @@ if (import.meta.main) {
   for (const target of LINUX_TARGETS) {
     const binary = `${distDir}/${target}/druk`
     if (!existsSync(binary)) {
-      process.stderr.write(`missing binary: ${binary} — run the ${target} build first\n`)
+      process.stderr.write(
+        `missing binary: ${binary} — run the ${target} build first\n`
+      )
       process.exit(1)
     }
   }
   if (!Bun.which('nfpm')) {
-    process.stderr.write('nfpm is not on PATH — the release workflow installs it pinned\n')
+    process.stderr.write(
+      'nfpm is not on PATH — the release workflow installs it pinned\n'
+    )
     process.exit(1)
   }
 

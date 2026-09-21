@@ -2,7 +2,14 @@ type NodeShape = 'rect' | 'round' | 'decision' | 'point'
 
 export type EdgeStyle = 'solid' | 'dotted' | 'thick'
 
-export type ArrowHead = 'none' | 'arrow' | 'hollow' | 'filled' | 'open' | 'cross' | 'circle'
+export type ArrowHead =
+  | 'none'
+  | 'arrow'
+  | 'hollow'
+  | 'filled'
+  | 'open'
+  | 'cross'
+  | 'circle'
 
 export interface GraphNode {
   id: string
@@ -72,4 +79,8 @@ interface UnsupportedDiagram {
   reason: string
 }
 
-export type Diagram = GraphDiagram | SequenceDiagram | PieDiagram | UnsupportedDiagram
+export type Diagram =
+  | GraphDiagram
+  | SequenceDiagram
+  | PieDiagram
+  | UnsupportedDiagram

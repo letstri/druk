@@ -10,11 +10,13 @@ import { placeTooltips } from './tooltipLayout'
 export function TooltipLayer() {
   const dimensions = useTerminalDimensions()
 
-  const placed = createMemo(() => placeTooltips(tooltipAnchors(), dimensions(), tooltipObstacles()))
+  const placed = createMemo(() =>
+    placeTooltips(tooltipAnchors(), dimensions(), tooltipObstacles())
+  )
 
   return (
     <For each={placed()}>
-      {tip => (
+      {(tip) => (
         <box
           position="absolute"
           left={tip.left}

@@ -32,7 +32,9 @@ const [dwelled, setDwelled] = createSignal<number | null>(null)
 let dwell: ReturnType<typeof setTimeout> | null = null
 
 const clearDwell = () => {
-  if (dwell) clearTimeout(dwell)
+  if (dwell) {
+    clearTimeout(dwell)
+  }
   dwell = null
 }
 
@@ -42,11 +44,15 @@ const resting = () => {
 }
 
 function enter(id: number) {
-  if (hovered() === id) return
+  if (hovered() === id) {
+    return
+  }
   clearDwell()
   setHovered(id)
   // A pointer that never really left this button (see `leave`) keeps the chord it earned.
-  if (dwelled() === id) return
+  if (dwelled() === id) {
+    return
+  }
   setDwelled(null)
   dwell = setTimeout(() => {
     dwell = null
@@ -56,11 +62,15 @@ function enter(id: number) {
 
 // The next control's `over` can arrive before this one's `out`; which would erase the new state.
 function leave(id: number) {
-  if (hovered() !== id) return
+  if (hovered() !== id) {
+    return
+  }
   clearDwell()
   setHovered(null)
   queueMicrotask(() => {
-    if (hovered() === null) setDwelled(null)
+    if (hovered() === null) {
+      setDwelled(null)
+    }
   })
 }
 
@@ -71,26 +81,28 @@ export { setEnabled as setTooltipsEnabled }
 const peeking = () => enabled() && held()
 
 export function useTooltip(command: string | (() => string) | undefined) {
-  const id = nextId++
+  const id = nextId
+  nextId += 1
   let box: TargetBox | null = null
-  const commandId = typeof command === 'function' ? command : () => command ?? ''
+  const commandId =
+    typeof command === 'function' ? command : () => command ?? ''
   const chord = () => chordFor(commandId())
 
   // Registered even with no command: the placement has to know its cells are spoken for.
-  targets.set(id, { id, command: commandId, box: () => box })
-  bump(at => at + 1)
+  targets.set(id, { box: () => box, command: commandId, id })
+  bump((at) => at + 1)
 
   onCleanup(() => {
     targets.delete(id)
     leave(id)
-    bump(at => at + 1)
+    bump((at) => at + 1)
   })
 
   return {
-    hovered: () => hovered() === id,
-    lit: () => hovered() === id || (peeking() && chord() !== ''),
     enter: () => enter(id),
+    hovered: () => hovered() === id,
     leave: () => leave(id),
+    lit: () => hovered() === id || (peeking() && chord() !== ''),
     ref: (node: TargetBox) => {
       box = node
     },
@@ -99,24 +111,32 @@ export function useTooltip(command: string | (() => string) | undefined) {
 
 export function tooltipAnchors(): TooltipAnchor[] {
   version()
-  if (!enabled()) return []
+  if (!enabled()) {
+    return []
+  }
   const at = resting()
   const peek = peeking()
   const anchors: TooltipAnchor[] = []
 
   for (const target of targets.values()) {
-    if (!peek && target.id !== at) continue
+    if (!peek && target.id !== at) {
+      continue
+    }
     const chord = chordFor(target.command())
-    if (!chord) continue
+    if (!chord) {
+      continue
+    }
     const box = target.box()
-    if (!box) continue
+    if (!box) {
+      continue
+    }
     anchors.push({
+      height: box.height,
       id: target.id,
       text: ` ${chord} `,
+      width: box.width,
       x: box.x,
       y: box.y,
-      width: box.width,
-      height: box.height,
     })
   }
 
@@ -126,11 +146,15 @@ export function tooltipAnchors(): TooltipAnchor[] {
 // Peek only: a hover chip sits against its own button, so it needs no obstacles.
 export function tooltipObstacles(): TooltipObstacle[] {
   version()
-  if (!enabled() || !peeking()) return []
+  if (!enabled() || !peeking()) {
+    return []
+  }
   const boxes: TooltipObstacle[] = []
   for (const target of targets.values()) {
     const box = target.box()
-    if (box) boxes.push({ x: box.x, y: box.y, width: box.width, height: box.height })
+    if (box) {
+      boxes.push({ height: box.height, width: box.width, x: box.x, y: box.y })
+    }
   }
   return boxes
 }
@@ -156,8 +180,12 @@ export function useTooltipPeek(): void {
   let expiry: ReturnType<typeof setTimeout> | null = null
 
   const stop = () => {
-    if (hold) clearTimeout(hold)
-    if (expiry) clearTimeout(expiry)
+    if (hold) {
+      clearTimeout(hold)
+    }
+    if (expiry) {
+      clearTimeout(expiry)
+    }
     hold = null
     expiry = null
     setHeld(false)
@@ -167,7 +195,9 @@ export function useTooltipPeek(): void {
     (key: KeyEvent) => {
       const modifier = PEEK_KEYS.has(key.name)
       if (key.eventType === 'release') {
-        if (modifier) stop()
+        if (modifier) {
+          stop()
+        }
         return
       }
       // Any real key ends it: the peek must be gone before the chord it prefixed runs.
@@ -175,14 +205,16 @@ export function useTooltipPeek(): void {
         stop()
         return
       }
-      if (key.repeated || hold || held()) return
+      if (key.repeated || hold || held()) {
+        return
+      }
       hold = setTimeout(() => {
         hold = null
         setHeld(true)
         expiry = setTimeout(stop, MAX_MS)
       }, HOLD_MS)
     },
-    { release: true },
+    { release: true }
   )
 
   // A terminal sends no release for a key the window lost focus while holding.

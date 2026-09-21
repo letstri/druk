@@ -2,21 +2,23 @@ import { expect, test } from 'bun:test'
 import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-import { fixture, launch, press, until, untilFrame } from './helpers'
+import { ctrlOpt, fixture, launch, press, until, untilFrame } from './helpers'
 import type { Harness } from './helpers'
 import { initRepo } from './repo'
 
-const ESC = String.fromCharCode(27)
-// Ctrl+Opt+G as terminals spell it: an ESC prefix ahead of Ctrl+G (0x07).
-const TOGGLE = `${ESC}${String.fromCharCode(7)}`
+const TOGGLE = ctrlOpt('g')
 
 const git = (dir: string, ...args: string[]) => {
   const run = Bun.spawnSync(['git', ...args], { cwd: dir })
-  if (run.exitCode !== 0) throw new Error(run.stderr.toString())
+  if (run.exitCode !== 0) {
+    throw new Error(run.stderr.toString())
+  }
 }
 
 const porcelain = (dir: string) =>
-  Bun.spawnSync(['git', 'status', '--porcelain'], { cwd: dir }).stdout.toString()
+  Bun.spawnSync(['git', 'status', '--porcelain'], {
+    cwd: dir,
+  }).stdout.toString()
 
 function repo() {
   const dir = fixture({ 'a.ts': 'alpha\n', 'b.ts': 'beta\n' })
@@ -29,7 +31,7 @@ function repo() {
 }
 
 const frame = (t: Harness) => t.captureCharFrame()
-const openPanel = (t: Harness) => press(t, i => void i.pressKeys([TOGGLE]))
+const openPanel = (t: Harness) => press(t, (i) => i.pressKeys([TOGGLE]))
 
 test('Space stages the row under the cursor and moves it under Staged Changes', async () => {
   const dir = repo()
@@ -37,7 +39,7 @@ test('Space stages the row under the cursor and moves it under Staged Changes', 
   await openPanel(t)
   await untilFrame(t, 'a.ts')
 
-  await press(t, i => void i.typeText(' '))
+  await press(t, (i) => i.typeText(' '))
   await until(t, () => porcelain(dir).startsWith('M  a.ts'))
   await untilFrame(t, 'Staged Changes')
 
@@ -54,7 +56,7 @@ test('Space on a staged row takes it back out of the index', async () => {
   await openPanel(t)
   await untilFrame(t, 'Staged Changes')
 
-  await press(t, i => void i.typeText(' '))
+  await press(t, (i) => i.typeText(' '))
   await until(t, () => !porcelain(dir).includes('M  a.ts'))
   expect(porcelain(dir)).toContain(' M a.ts')
 })
@@ -65,20 +67,25 @@ test('Space on a heading stages everything under it, untracked files included', 
   await openPanel(t)
   await untilFrame(t, 'c.ts')
 
-  await press(t, i => i.pressArrow('up'))
-  await press(t, i => void i.typeText(' '))
+  await press(t, (i) => i.pressArrow('up'))
+  await press(t, (i) => i.typeText(' '))
   await until(t, () => porcelain(dir).includes('A  c.ts'))
   expect(porcelain(dir)).toContain('M  a.ts')
 })
 
 const SIDEBAR = 30
 
-const headingButton = (t: Harness, label: 'Changes' | 'Staged Changes' | 'Merge Changes') => {
+const headingButton = (
+  t: Harness,
+  label: 'Changes' | 'Staged Changes' | 'Merge Changes'
+) => {
   const lines = frame(t).split('\n')
-  const y = lines.findIndex(line => line.slice(0, SIDEBAR).includes(`▾ ${label}`))
-  const slice = y >= 0 ? lines[y]!.slice(0, SIDEBAR) : ''
+  const y = lines.findIndex((line) =>
+    line.slice(0, SIDEBAR).includes(`▾ ${label}`)
+  )
+  const slice = y === -1 ? '' : lines[y]!.slice(0, SIDEBAR)
   const glyph = label === 'Staged Changes' ? '−' : '+'
-  return { y, x: slice.lastIndexOf(glyph), slice }
+  return { slice, x: slice.lastIndexOf(glyph), y }
 }
 
 test('a heading always wears its +/−, even when the cursor is on a file', async () => {
@@ -93,8 +100,8 @@ test('a heading always wears its +/−, even when the cursor is on a file', asyn
   expect(staged.slice).toContain('−')
   expect(changes.slice).toContain('+')
 
-  await press(t, i => i.pressArrow('down'))
-  await press(t, i => i.pressArrow('down'))
+  await press(t, (i) => i.pressArrow('down'))
+  await press(t, (i) => i.pressArrow('down'))
   await untilFrame(t, 'c.ts')
   expect(headingButton(t, 'Staged Changes').slice).toContain('−')
   expect(headingButton(t, 'Changes').slice).toContain('+')
@@ -137,14 +144,17 @@ test('with something staged, c commits exactly that and skips the file picker', 
   await openPanel(t)
   await untilFrame(t, 'Staged Changes')
 
-  await press(t, i => void i.typeText('c'))
+  await press(t, (i) => i.typeText('c'))
   expect(frame(t)).toContain('Commit message')
   expect(frame(t)).not.toContain('Commit — ')
-  await press(t, i => void i.typeText('staged only'))
-  await press(t, i => i.pressEnter())
+  await press(t, (i) => i.typeText('staged only'))
+  await press(t, (i) => i.pressEnter())
   await until(t, () => porcelain(dir).startsWith('?? c.ts'))
 
-  const log = Bun.spawnSync(['git', 'log', '-1', '--name-only', '--format=%s'], { cwd: dir })
+  const log = Bun.spawnSync(
+    ['git', 'log', '-1', '--name-only', '--format=%s'],
+    { cwd: dir }
+  )
   const out = log.stdout.toString()
   expect(out).toContain('staged only')
   expect(out).toContain('a.ts')
@@ -159,10 +169,14 @@ test('a staged section diffs HEAD against the index, not against the working tre
   await openPanel(t)
   await untilFrame(t, 'Staged Changes')
 
-  await press(t, i => i.pressArrow('down'))
-  await press(t, i => i.pressArrow('up'))
+  await press(t, (i) => i.pressArrow('down'))
+  await press(t, (i) => i.pressArrow('up'))
   await untilFrame(t, 'alpha changed twice')
   const rows = frame(t).split('\n')
-  expect(rows.filter(row => row.includes('+ alpha changed twice')).length).toBe(1)
-  expect(rows.some(row => row.trimEnd().endsWith('+ alpha changed'))).toBe(true)
+  expect(
+    rows.filter((row) => row.includes('+ alpha changed twice')).length
+  ).toBe(1)
+  expect(rows.some((row) => row.trimEnd().endsWith('+ alpha changed'))).toBe(
+    true
+  )
 })

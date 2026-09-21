@@ -7,7 +7,8 @@ import { blobTexts } from '../src/core/git'
 import { initRepo } from './repo'
 import { tempDir } from './temp'
 
-const git = (cwd: string, ...args: string[]) => execFileSync('git', args, { cwd, encoding: 'utf8' })
+const git = (cwd: string, ...args: string[]) =>
+  execFileSync('git', args, { cwd, encoding: 'utf-8' })
 
 function repo() {
   const dir = tempDir('druk-blobs-')

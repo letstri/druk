@@ -9,7 +9,7 @@ import { GRAMMARS } from '../src/languages/grammars'
 
 describe('flags', () => {
   test('--version prints a bare version, which the installers compare against', () => {
-    expect(flagOutput('--version')).toMatch(/^\d+\.\d+\.\d+.*\n$/)
+    expect(flagOutput('--version')).toMatch(/^\d+\.\d+\.\d+.*\n$/u)
     expect(flagOutput('-v')).toBe(flagOutput('--version')!)
   })
 
@@ -20,7 +20,7 @@ describe('flags', () => {
 
   test('a path is not a flag', () => {
     expect(flagOutput('src')).toBeNull()
-    expect(flagOutput(undefined)).toBeNull()
+    expect(flagOutput()).toBeNull()
   })
 })
 
@@ -33,12 +33,14 @@ describe('grammar assets', () => {
   })
 
   test('every vendored language points at one of them', () => {
-    const known = new Set(Object.values(GRAMMARS).flatMap(g => [g.wasm, g.query]))
+    const known = new Set(
+      Object.values(GRAMMARS).flatMap((g) => [g.wasm, g.query])
+    )
     loadExtensions(process.env.XDG_CONFIG_HOME!, [], MARKET_DIR)
     for (const lang of vendoredLanguages()) {
-      expect(`${lang.id}: ${known.has(lang.wasm!) && known.has(lang.query!)}`).toBe(
-        `${lang.id}: true`,
-      )
+      expect(
+        `${lang.id}: ${known.has(lang.wasm!) && known.has(lang.query!)}`
+      ).toBe(`${lang.id}: true`)
     }
   })
 })

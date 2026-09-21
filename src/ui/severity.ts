@@ -3,15 +3,15 @@ import { ui } from '../themes'
 
 export const SEVERITY_GLYPH: Record<ProblemSeverity, string> = {
   error: '●',
-  warning: '▲',
-  info: '○',
   hint: '○',
+  info: '○',
+  warning: '▲',
 }
 
 // Read at paint time: `ui` is a store, so a table built at module scope freezes.
 export const SEVERITY_COLOR: Record<ProblemSeverity, () => string> = {
   error: () => ui.error,
-  warning: () => ui.dirty,
-  info: () => ui.dim,
   hint: () => ui.dim,
+  info: () => ui.dim,
+  warning: () => ui.dirty,
 }

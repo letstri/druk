@@ -1,4 +1,5 @@
 import { dirname } from 'node:path'
+import { setTimeout as sleep } from 'node:timers/promises'
 import { fileURLToPath } from 'node:url'
 
 import { createEffect, createSignal, onCleanup } from 'solid-js'
@@ -21,10 +22,23 @@ import {
   SERVER_ROOT,
 } from '../lsp/install'
 import type { PackageManager } from '../lsp/install'
-import { projectCommand, VUE_TYPESCRIPT_PLUGIN, vuePluginLocation } from '../lsp/project'
-import { isDeprecated, isUnnecessary, SEVERITY_RANK, severityOf } from '../lsp/protocol'
+import {
+  projectCommand,
+  VUE_TYPESCRIPT_PLUGIN,
+  vuePluginLocation,
+} from '../lsp/project'
+import {
+  isDeprecated,
+  isUnnecessary,
+  SEVERITY_RANK,
+  severityOf,
+} from '../lsp/protocol'
 import type { CompletionItem, Diagnostic, Problem } from '../lsp/protocol'
-import { installHint, resolveServers, servers as serverSpecs } from '../lsp/servers'
+import {
+  installHint,
+  resolveServers,
+  servers as serverSpecs,
+} from '../lsp/servers'
 import type { FetchableInstall, ResolvedServer } from '../lsp/servers'
 import type { ServerLogLine, ServerView } from '../lsp/status'
 import type { PromptState } from './prompts'
@@ -37,7 +51,7 @@ export type { Problem } from '../lsp/protocol'
 const CHANGE_DEBOUNCE_MS = 150
 
 // The wait is for the *writing* to stop: a server spawned into a half-written tree is stale.
-const DEPENDENCY_QUIET_MS = 2_000
+const DEPENDENCY_QUIET_MS = 2000
 
 const MAX_SERVER_LOG = 300
 
@@ -51,22 +65,29 @@ const RELAY_WAIT_MS = 20_000
 
 // A linter claiming the filetype does not count — eslint claims `.vue` and `.svelte`.
 function languageServed(filetype: string | undefined): boolean {
-  if (!filetype) return false
+  if (!filetype) {
+    return false
+  }
   return extensions().some(
-    extension =>
+    (extension) =>
       !extension.disabled &&
       extension.categories.includes('language') &&
-      extension.servers.some(server => server.filetypes.includes(filetype)),
+      extension.servers.some((server) => server.filetypes.includes(filetype))
   )
 }
 
 // Only servers holding the same documents may field a relayed request: a `.ts` tsserver has not.
 function siblingIds(from: string): Set<string> {
-  const filetypes = new Set(serverSpecs().find(spec => spec.id === from)?.filetypes ?? [])
+  const filetypes = new Set(
+    serverSpecs().find((spec) => spec.id === from)?.filetypes
+  )
   return new Set(
     serverSpecs()
-      .filter(spec => spec.id !== from && spec.filetypes.some(type => filetypes.has(type)))
-      .map(spec => spec.id),
+      .filter(
+        (spec) =>
+          spec.id !== from && spec.filetypes.some((type) => filetypes.has(type))
+      )
+      .map((spec) => spec.id)
   )
 }
 
@@ -96,8 +117,12 @@ export function createLsp(deps: {
   const offered = new Set<string>()
 
   // A setter rather than a dependency: the market controller is built after this one.
-  let onNoServer: ((path: string, filetype: string | undefined) => void) | null = null
-  const onMissingServer = (handle: (path: string, filetype: string | undefined) => void) => {
+  let onNoServer:
+    | ((path: string, filetype: string | undefined) => void)
+    | null = null
+  const onMissingServer = (
+    handle: (path: string, filetype: string | undefined) => void
+  ) => {
     onNoServer = handle
   }
 
@@ -106,13 +131,16 @@ export function createLsp(deps: {
   const timeStamp = () => new Date().toTimeString().slice(0, 8)
 
   const appendLog = (id: string, entry: Omit<ServerLogLine, 'time'>) => {
-    setServers(id, 'logs', logs => {
+    setServers(id, 'logs', (logs) => {
       const next = [...logs, { time: timeStamp(), ...entry }]
-      return next.length > MAX_SERVER_LOG ? next.slice(next.length - MAX_SERVER_LOG) : next
+      return next.length > MAX_SERVER_LOG
+        ? next.slice(next.length - MAX_SERVER_LOG)
+        : next
     })
   }
 
-  const byPosition = (a: Problem, b: Problem) => a.line - b.line || a.col - b.col
+  const byPosition = (a: Problem, b: Problem) =>
+    a.line - b.line || a.col - b.col
 
   const merge = (path: string) => {
     const senders = bySource.get(path)
@@ -120,37 +148,42 @@ export function createLsp(deps: {
     setProblems(path, all.toSorted(byPosition))
   }
 
-  const onDiagnosticsFrom = (serverId: string) => (uri: string, diagnostics: Diagnostic[]) => {
-    let path: string
-    try {
-      path = fileURLToPath(uri)
-    } catch {
-      return // a scheme druk never opened; nothing to attach it to
+  const onDiagnosticsFrom =
+    (serverId: string) => (uri: string, diagnostics: Diagnostic[]) => {
+      let path: string
+      try {
+        path = fileURLToPath(uri)
+      } catch {
+        // a scheme druk never opened; nothing to attach it to
+        return
+      }
+      const senders = bySource.get(path) ?? new Map<string, Problem[]>()
+      senders.set(
+        serverId,
+        diagnostics.map((diagnostic) => ({
+          code:
+            diagnostic.code === undefined ? undefined : String(diagnostic.code),
+          col: diagnostic.range.start.character,
+          deprecated: isDeprecated(diagnostic),
+          endCol: diagnostic.range.end.character,
+          endLine: diagnostic.range.end.line,
+          line: diagnostic.range.start.line,
+          message: diagnostic.message,
+          path,
+          severity: severityOf(diagnostic),
+          source: diagnostic.source,
+          unnecessary: isUnnecessary(diagnostic),
+        }))
+      )
+      bySource.set(path, senders)
+      merge(path)
     }
-    const senders = bySource.get(path) ?? new Map<string, Problem[]>()
-    senders.set(
-      serverId,
-      diagnostics.map(diagnostic => ({
-        path,
-        line: diagnostic.range.start.line,
-        col: diagnostic.range.start.character,
-        endLine: diagnostic.range.end.line,
-        endCol: diagnostic.range.end.character,
-        severity: severityOf(diagnostic),
-        unnecessary: isUnnecessary(diagnostic),
-        deprecated: isDeprecated(diagnostic),
-        message: diagnostic.message,
-        source: diagnostic.source,
-        code: diagnostic.code === undefined ? undefined : String(diagnostic.code),
-      })),
-    )
-    bySource.set(path, senders)
-    merge(path)
-  }
 
   const clearProblems = (path: string) => {
     bySource.delete(path)
-    if (problems[path]?.length) setProblems(path, [])
+    if (problems[path]?.length) {
+      setProblems(path, [])
+    }
   }
 
   const reportMissing = (resolved: ResolvedServer) => {
@@ -159,7 +192,7 @@ export function createLsp(deps: {
     if (!spec) {
       return status.say(
         `LSP: ${name} is not installed, or not on PATH — Restart language servers once it is`,
-        'warn',
+        'warn'
       )
     }
     if (
@@ -169,15 +202,18 @@ export function createLsp(deps: {
     ) {
       const managers = spec.kind === 'npm' ? availablePackageManagers() : []
       if (spec.kind === 'npm' && managers.length === 0) {
-        return status.say(`LSP: ${name} not installed — ${installHint(spec)}`, 'warn')
+        return status.say(
+          `LSP: ${name} not installed — ${installHint(spec)}`,
+          'warn'
+        )
       }
       offered.add(resolved.id)
       return prompts.setPrompt({
-        kind: 'installServer',
         id: resolved.id,
-        name,
         install: spec,
+        kind: 'installServer',
         managers,
+        name,
       })
     }
     status.say(`LSP: ${name} not installed — ${installHint(spec)}`, 'warn')
@@ -187,88 +223,126 @@ export function createLsp(deps: {
     if (id === VUE_TYPESCRIPT) {
       const location = vuePluginLocation(rootDir, SERVER_ROOT)
       if (location) {
-        return { plugins: [{ name: VUE_TYPESCRIPT_PLUGIN, location, languages: ['vue'] }] }
+        return {
+          plugins: [
+            { languages: ['vue'], location, name: VUE_TYPESCRIPT_PLUGIN },
+          ],
+        }
       }
       // Without the plugin its tsserver reads a `.vue` as no language at all and is silent.
-      status.say(`LSP: ${VUE_TYPESCRIPT_PLUGIN} not installed — no TypeScript in .vue`, 'warn')
+      status.say(
+        `LSP: ${VUE_TYPESCRIPT_PLUGIN} not installed — no TypeScript in .vue`,
+        'warn'
+      )
       return undefined
     }
-    if (id !== 'typescript') return undefined
+    if (id !== 'typescript') {
+      return undefined
+    }
     const tsdk = settings.config.typescriptTsdk.trim()
     return tsdk ? { tsserver: { path: tsdk } } : undefined
   }
 
   // The wait is load-bearing: Vue asks first thing, and a sibling mid-handshake advertises no commands.
-  const relayTsserverRequest = async (from: string, command: string, args: unknown) => {
+  const relayTsserverRequest = async (
+    from: string,
+    command: string,
+    args: unknown
+  ) => {
     const siblings = siblingIds(from)
     const deadline = Date.now() + RELAY_WAIT_MS
     for (;;) {
       const others = [...clients.values()].filter(
-        (client): client is LspClient => client !== null && siblings.has(client.id),
+        (client): client is LspClient =>
+          client !== null && siblings.has(client.id)
       )
-      const target = others.find(client => client.supportsCommand(TSSERVER_REQUEST))
+      const target = others.find((client) =>
+        client.supportsCommand(TSSERVER_REQUEST)
+      )
       if (target) {
-        const reply = (await target.executeCommand(TSSERVER_REQUEST, [command, args])) as {
+        const reply = (await target.executeCommand(TSSERVER_REQUEST, [
+          command,
+          args,
+        ])) as {
           body?: unknown
         } | null
         return reply?.body ?? null
       }
-      if (!others.some(client => !client.ready() && !client.dead())) return null
-      if (Date.now() >= deadline) return null
-      await new Promise(resolve => setTimeout(resolve, 50))
+      if (!others.some((client) => !client.ready() && !client.dead())) {
+        return null
+      }
+      if (Date.now() >= deadline) {
+        return null
+      }
+      await sleep(50)
     }
   }
 
-  const spawnFor = (resolved: ResolvedServer, path: string): LspClient | null => {
+  const spawnFor = (
+    resolved: ResolvedServer,
+    path: string
+  ): LspClient | null => {
     const known = clients.get(resolved.id)
-    if (known !== undefined) return known
+    if (known !== undefined) {
+      return known
+    }
     // Project copy first (only it serves a TS 7.x project), then druk's, then PATH; one server per id.
-    const project = projectCommand(resolved.id, resolved.command, rootDir, dirname(path))
+    const project = projectCommand(
+      resolved.id,
+      resolved.command,
+      rootDir,
+      dirname(path)
+    )
     const fetched = project ? null : installedCommand(resolved.command)
     const command = project ?? fetched ?? resolved.command
     setServers(resolved.id, {
-      id: resolved.id,
       command,
-      state: 'starting',
-      error: null,
-      logs: servers[resolved.id]?.logs ?? [],
       docs: [],
+      error: null,
+      id: resolved.id,
+      logs: servers[resolved.id]?.logs ?? [],
+      state: 'starting',
     })
     // Assigned below, so the spawn's own synchronous log lines miss it.
     let spawned: LspClient | null = null
     const client = spawnLspClient({
-      id: resolved.id,
       command,
-      rootDir,
+      id: resolved.id,
       initializationOptions: initializationOptionsFor(resolved.id),
-      settings: resolved.settings,
       onDiagnostics: onDiagnosticsFrom(resolved.id),
-      onRefreshDiagnostics: () => refreshPulls?.(resolved.id),
-      onTsserverRequest: (command, args) => relayTsserverRequest(resolved.id, command, args),
-      onLog: entry => {
+      onFail: (reason, missing) => {
+        clients.set(resolved.id, null)
+        setServers(resolved.id, { error: reason, state: 'failed' })
+        if (missing) {
+          return reportMissing(resolved)
+        }
+        status.say(
+          fetched
+            ? `LSP: ${command[0]} ${reason} — delete ${SERVER_ROOT} to reinstall it`
+            : `LSP: ${command[0]} ${reason} — Restart language servers to try again`,
+          'warn'
+        )
+      },
+      onLog: (entry) => {
         appendLog(resolved.id, entry)
-        if (!spawned) return
+        if (!spawned) {
+          return
+        }
         setServers(resolved.id, 'docs', spawned.documents())
         // 'failed' is onFail's to set: it knows the reason.
         if (servers[resolved.id]?.state !== 'failed') {
           setServers(
             resolved.id,
             'state',
-            spawned.dead() ? 'stopped' : spawned.ready() ? 'ready' : 'starting',
+            spawned.dead() ? 'stopped' : spawned.ready() ? 'ready' : 'starting'
           )
         }
       },
-      onFail: (reason, missing) => {
-        clients.set(resolved.id, null)
-        setServers(resolved.id, { state: 'failed', error: reason })
-        if (missing) return reportMissing(resolved)
-        status.say(
-          fetched
-            ? `LSP: ${command[0]} ${reason} — delete ${SERVER_ROOT} to reinstall it`
-            : `LSP: ${command[0]} ${reason} — Restart language servers to try again`,
-          'warn',
-        )
-      },
+      onRefreshDiagnostics: () => refreshPulls?.(resolved.id),
+      onTsserverRequest: (name, params) =>
+        relayTsserverRequest(resolved.id, name, params),
+      rootDir,
+      settings: resolved.settings,
     })
     spawned = client
     clients.set(resolved.id, client)
@@ -276,41 +350,53 @@ export function createLsp(deps: {
   }
 
   const clientsFor = (path: string): LspClient[] => {
-    if (!settings.config.lsp) return []
+    if (!settings.config.lsp) {
+      return []
+    }
     const filetype = filetypeForPath(path)
     // A server turned off is an answer, not a gap: offering its extension re-asks what was declined.
     const turnedOff =
       filetype !== undefined &&
       serverSpecs().some(
-        spec =>
-          spec.filetypes.includes(filetype) && settings.config.lspServers[spec.id]?.length === 0,
+        (spec) =>
+          spec.filetypes.includes(filetype) &&
+          settings.config.lspServers[spec.id]?.length === 0
       )
-    if (!turnedOff && !languageServed(filetype)) onNoServer?.(path, filetype)
+    if (!turnedOff && !languageServed(filetype)) {
+      onNoServer?.(path, filetype)
+    }
     return resolveServers(filetype, settings.config.lspServers)
-      .map(server => spawnFor(server, path))
-      .filter(client => client !== null)
+      .map((server) => spawnFor(server, path))
+      .filter((client) => client !== null)
   }
 
   const readyClients = (path: string): LspClient[] =>
-    clientsFor(path).filter(client => client.ready())
+    clientsFor(path).filter((client) => client.ready())
 
   const install = async (
     id: string,
     name: string,
     spec: FetchableInstall,
-    manager?: PackageManager,
+    manager?: PackageManager
   ) => {
     const tool = spec.kind === 'download' ? 'download' : (manager ?? 'npm')
-    const release = status.claimBusy({ label: `Installing ${name} with ${tool}` })
+    const release = status.claimBusy({
+      label: `Installing ${name} with ${tool}`,
+    })
     try {
       const error =
         spec.kind === 'download'
           ? await downloadServer(spec.url, name)
           : await installServer(spec.packages, SERVER_ROOT, manager)
-      if (error) return status.say(`Could not install ${name}: ${error}`, 'error')
+      if (error) {
+        return status.say(`Could not install ${name}: ${error}`, 'error')
+      }
       // npm can exit 0 having produced no binary: a bin that moved, or a foreign platform.
       if (!installedCommand([name])) {
-        return status.say(`Installed ${name}, but no ${name} appeared in ${SERVER_ROOT}`, 'error')
+        return status.say(
+          `Installed ${name}, but no ${name} appeared in ${SERVER_ROOT}`,
+          'error'
+        )
       }
       clients.delete(id)
       setGeneration(generation() + 1)
@@ -320,26 +406,41 @@ export function createLsp(deps: {
     }
   }
 
-  const removable = (id: string): { name: string; packages: string[] } | null => {
-    const spec = serverSpecs().find(server => server.id === id)
-    if (!spec?.install || spec.install.kind === 'manual') return null
-    const name = spec.command[0]
-    if (!name || !installedCommand(spec.command)) return null
-    return { name, packages: spec.install.kind === 'npm' ? spec.install.packages : [name] }
+  const removable = (
+    id: string
+  ): { name: string; packages: string[] } | null => {
+    const spec = serverSpecs().find((server) => server.id === id)
+    if (!spec?.install || spec.install.kind === 'manual') {
+      return null
+    }
+    const [name] = spec.command
+    if (!name || !installedCommand(spec.command)) {
+      return null
+    }
+    return {
+      name,
+      packages: spec.install.kind === 'npm' ? spec.install.packages : [name],
+    }
   }
 
   // The client goes first: on Windows a running process holds its own executable open.
   const uninstall = async (id: string): Promise<void> => {
-    const spec = serverSpecs().find(server => server.id === id)
-    if (!spec?.install) return void status.say(`${id}: druk did not install it`, 'warn')
+    const spec = serverSpecs().find((server) => server.id === id)
+    if (!spec?.install) {
+      status.say(`${id}: druk did not install it`, 'warn')
+      return
+    }
     const name = spec.command[0] ?? id
     clients.get(id)?.dispose()
     clients.delete(id)
-    setServers(id, { state: 'stopped', error: null, docs: [] })
+    setServers(id, { docs: [], error: null, state: 'stopped' })
     const release = status.claimBusy({ label: `Removing ${name}` })
     try {
       const error = await removeServer(spec.install, name)
-      if (error) return void status.say(`Could not remove ${name}: ${error}`, 'error')
+      if (error) {
+        status.say(`Could not remove ${name}: ${error}`, 'error')
+        return
+      }
       setGeneration(generation() + 1)
       offered.delete(id)
       status.say(`Removed ${name} from ${SERVER_ROOT}`)
@@ -349,9 +450,13 @@ export function createLsp(deps: {
   }
 
   const dispose = () => {
-    for (const client of clients.values()) client?.dispose()
+    for (const client of clients.values()) {
+      client?.dispose()
+    }
     clients.clear()
-    for (const path of Object.keys(problems)) clearProblems(path)
+    for (const path of Object.keys(problems)) {
+      clearProblems(path)
+    }
   }
 
   // druk registers no watched files, so nothing else tells a server its `node_modules` moved.
@@ -365,11 +470,17 @@ export function createLsp(deps: {
   let depsTimer: ReturnType<typeof setTimeout> | null = null
 
   const dependenciesChanged = () => {
-    if (!settings.config.lsp) return
-    if (depsTimer) clearTimeout(depsTimer)
+    if (!settings.config.lsp) {
+      return
+    }
+    if (depsTimer) {
+      clearTimeout(depsTimer)
+    }
     depsTimer = setTimeout(() => {
       depsTimer = null
-      if (restart()) status.say('Dependencies changed — restarted language servers')
+      if (restart()) {
+        status.say('Dependencies changed — restarted language servers')
+      }
     }, DEPENDENCY_QUIET_MS)
   }
 
@@ -387,14 +498,20 @@ export function createLsp(deps: {
   const complete = async (
     path: string,
     line: number,
-    col: number,
+    col: number
   ): Promise<CompletionReply | null> => {
-    if (!settings.config.lsp || !settings.config.lspCompletion) return null
+    if (!settings.config.lsp || !settings.config.lspCompletion) {
+      return null
+    }
     const ready = readyClients(path)
-    if (ready.length === 0) return null
+    if (ready.length === 0) {
+      return null
+    }
     flushEdits?.(path)
     for (const client of ready) {
-      const reply = normalizeCompletion(await client.complete(path, { line, character: col }))
+      const reply = normalizeCompletion(
+        await client.complete(path, { character: col, line })
+      )
       if (reply && reply.items.length > 0) {
         answeredCompletion.set(path, client.id)
         return reply
@@ -403,25 +520,46 @@ export function createLsp(deps: {
     return null
   }
 
-  const readyClientsEventually = async (path: string, timeoutMs: number): Promise<LspClient[]> => {
+  const readyClientsEventually = async (
+    path: string,
+    timeoutMs: number
+  ): Promise<LspClient[]> => {
     const deadline = Date.now() + timeoutMs
     for (;;) {
       const ready = readyClients(path)
-      if (ready.length > 0) return ready
-      if (clientsFor(path).every(client => client.dead())) return []
-      if (Date.now() >= deadline) return []
-      await new Promise(resolve => setTimeout(resolve, 50))
+      if (ready.length > 0) {
+        return ready
+      }
+      if (clientsFor(path).every((client) => client.dead())) {
+        return []
+      }
+      if (Date.now() >= deadline) {
+        return []
+      }
+      await sleep(50)
     }
   }
 
-  const definition = async (path: string, line: number, col: number): Promise<Target | null> => {
-    if (!settings.config.lsp) return null
+  const definition = async (
+    path: string,
+    line: number,
+    col: number
+  ): Promise<Target | null> => {
+    if (!settings.config.lsp) {
+      return null
+    }
     const ready = await readyClientsEventually(path, 10_000)
-    if (ready.length === 0) return null
+    if (ready.length === 0) {
+      return null
+    }
     flushEdits?.(path)
     for (const client of ready) {
-      const target = normalizeDefinition(await client.definition(path, { line, character: col }))
-      if (target) return target
+      const target = normalizeDefinition(
+        await client.definition(path, { character: col, line })
+      )
+      if (target) {
+        return target
+      }
     }
     return null
   }
@@ -429,43 +567,52 @@ export function createLsp(deps: {
   // null means "insert it as it came".
   const resolveCompletion = (
     path: string,
-    item: CompletionItem,
+    item: CompletionItem
   ): Promise<CompletionItem | null> => {
-    if (!settings.config.lsp || !settings.config.lspCompletion) return Promise.resolve(null)
+    if (!settings.config.lsp || !settings.config.lspCompletion) {
+      return Promise.resolve(null)
+    }
     // The server that answered `complete`: only it holds the handle the item resolves through.
     const ready = readyClients(path)
     const source = answeredCompletion.get(path)
-    const client = ready.find(candidate => candidate.id === source) ?? ready[0]
-    if (!client) return Promise.resolve(null)
+    const client =
+      ready.find((candidate) => candidate.id === source) ?? ready[0]
+    if (!client) {
+      return Promise.resolve(null)
+    }
     return client.resolveCompletion(item)
   }
 
   return {
-    problems,
-    servers,
     clearProblems,
     clientsFor,
     complete,
     definition,
-    resolveCompletion,
-    onFlushNeeded,
-    onDiagnosticsRefresh,
-    onMissingServer,
-    install,
-    removable,
-    uninstall,
-    generation,
-    restart,
-    restarts,
     dependenciesChanged,
     dispose,
+    generation,
+    install,
+    onDiagnosticsRefresh,
+    onFlushNeeded,
+    onMissingServer,
+    problems,
+    removable,
+    resolveCompletion,
+    restart,
+    restarts,
+    servers,
+    uninstall,
   }
 }
 
 export type Lsp = ReturnType<typeof createLsp>
 
 // Only the didChange *send* is deferred: a tab switch mid-debounce must not re-aim the edit.
-export function wireLspEffects(deps: { lsp: Lsp; settings: Settings; workspace: Workspace }) {
+export function wireLspEffects(deps: {
+  lsp: Lsp
+  settings: Settings
+  workspace: Workspace
+}) {
   const { lsp, settings, workspace } = deps
 
   interface Synced {
@@ -481,7 +628,9 @@ export function wireLspEffects(deps: { lsp: Lsp; settings: Settings; workspace: 
 
   const flushEdit = (path: string) => {
     const edit = pendingEdits.get(path)
-    if (!edit) return
+    if (!edit) {
+      return
+    }
     pendingEdits.delete(path)
     for (const client of edit.entry.clients) {
       client.changeDocument(path, edit.text)
@@ -492,10 +641,12 @@ export function wireLspEffects(deps: { lsp: Lsp; settings: Settings; workspace: 
 
   lsp.onFlushNeeded(flushEdit)
 
-  lsp.onDiagnosticsRefresh(serverId => {
+  lsp.onDiagnosticsRefresh((serverId) => {
     for (const [path, entry] of synced) {
       for (const client of entry.clients) {
-        if (client.id === serverId) client.pullDiagnostics(path)
+        if (client.id === serverId) {
+          client.pullDiagnostics(path)
+        }
       }
     }
   })
@@ -503,7 +654,9 @@ export function wireLspEffects(deps: { lsp: Lsp; settings: Settings; workspace: 
   const flushAll = () => {
     flushTimer = null
     // flushEdit removes only the entry being visited, which Map iteration allows.
-    for (const path of pendingEdits.keys()) flushEdit(path)
+    for (const path of pendingEdits.keys()) {
+      flushEdit(path)
+    }
   }
 
   createEffect(() => {
@@ -529,9 +682,13 @@ export function wireLspEffects(deps: { lsp: Lsp; settings: Settings; workspace: 
     const openSet = new Set(open)
 
     for (const [path, entry] of synced) {
-      if (openSet.has(path)) continue
+      if (openSet.has(path)) {
+        continue
+      }
       pendingEdits.delete(path)
-      for (const client of entry.clients) client.closeDocument(path)
+      for (const client of entry.clients) {
+        client.closeDocument(path)
+      }
       synced.delete(path)
       // Not every server publishes an empty set on didClose.
       lsp.clearProblems(path)
@@ -539,30 +696,36 @@ export function wireLspEffects(deps: { lsp: Lsp; settings: Settings; workspace: 
 
     for (const path of open) {
       const buffer = workspace.buffers[path]
-      if (!buffer) continue
+      if (!buffer) {
+        continue
+      }
       // Read here, in the tracked run — these are the captured values.
       const text = buffer.content
-      const dirty = buffer.dirty
+      const { dirty } = buffer
       const known = synced.get(path)
 
       // The dead client is dropped, never the entry: re-opening an open document is refused.
-      if (known?.clients.some(client => client.dead())) {
-        known.clients = known.clients.filter(client => !client.dead())
+      if (known?.clients.some((client) => client.dead())) {
+        known.clients = known.clients.filter((client) => !client.dead())
       }
 
       if (!known) {
         const clients = lsp.clientsFor(path)
-        if (clients.length === 0) continue
+        if (clients.length === 0) {
+          continue
+        }
         const filetype = filetypeForPath(path) ?? 'plaintext'
         for (const client of clients) {
           client.openDocument(path, filetype, text)
           client.pullDiagnostics(path)
         }
-        synced.set(path, { clients, text, dirty })
+        synced.set(path, { clients, dirty, text })
         continue
       }
 
-      const fresh = lsp.clientsFor(path).filter(client => !known.clients.includes(client))
+      const fresh = lsp
+        .clientsFor(path)
+        .filter((client) => !known.clients.includes(client))
       if (fresh.length > 0) {
         const filetype = filetypeForPath(path) ?? 'plaintext'
         for (const client of fresh) {
@@ -572,12 +735,14 @@ export function wireLspEffects(deps: { lsp: Lsp; settings: Settings; workspace: 
         known.clients.push(...fresh)
       }
 
-      if (text !== known.text) {
-        pendingEdits.set(path, { entry: known, text })
-        if (!flushTimer) flushTimer = setTimeout(flushAll, CHANGE_DEBOUNCE_MS)
-      } else {
+      if (text === known.text) {
         // Back to the last text sent is not "nothing to do": the queued edit describes text that is gone.
         pendingEdits.delete(path)
+      } else {
+        pendingEdits.set(path, { entry: known, text })
+        if (!flushTimer) {
+          flushTimer = setTimeout(flushAll, CHANGE_DEBOUNCE_MS)
+        }
       }
       if (known.dirty && !dirty) {
         // The pending edit goes first, so the didSave refers to the text that was written.
@@ -596,8 +761,11 @@ export function wireLspEffects(deps: { lsp: Lsp; settings: Settings; workspace: 
 
 export function problemsOn(list: Problem[], line: number): Problem[] {
   return list
-    .filter(problem => problem.line === line)
-    .toSorted((a, b) => SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity] || a.col - b.col)
+    .filter((problem) => problem.line === line)
+    .toSorted(
+      (a, b) =>
+        SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity] || a.col - b.col
+    )
 }
 
 // The problem after (`direction` 1) or before (−1) the cursor, wrapping around the file.
@@ -605,10 +773,14 @@ export function problemFrom(
   list: Problem[],
   line: number,
   col: number,
-  direction: 1 | -1,
+  direction: 1 | -1
 ): Problem | null {
-  if (list.length === 0) return null
+  if (list.length === 0) {
+    return null
+  }
   const after = (problem: Problem) => problem.line - line || problem.col - col
-  if (direction === 1) return list.find(problem => after(problem) > 0) ?? list[0]!
-  return list.findLast(problem => after(problem) < 0) ?? list.at(-1)!
+  if (direction === 1) {
+    return list.find((problem) => after(problem) > 0) ?? list[0]!
+  }
+  return list.findLast((problem) => after(problem) < 0) ?? list.at(-1)!
 }

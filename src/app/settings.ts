@@ -18,6 +18,7 @@ import type { Config, ConfigScope, SidebarPosition } from '../core/config'
 import { FILE_TOKEN } from '../core/format'
 import { bindingProblem, formatChord, parseChord } from '../core/keybindings'
 import { MARKET_URL } from '../core/market'
+import { plural } from '../core/text'
 import { loadExtensions } from '../extensions'
 import type { ExtensionLoad } from '../extensions'
 import {
@@ -29,12 +30,24 @@ import {
 } from '../icons'
 import { invalidateSyntaxStyle } from '../languages/highlight'
 import { servers } from '../lsp/servers'
-import { paintedTheme, setTheme, setTransparency, themeLabel, themeNames } from '../themes'
+import {
+  paintedTheme,
+  setTheme,
+  setTransparency,
+  themeLabel,
+  themeNames,
+} from '../themes'
 import type { ThemeName } from '../themes'
 import { ALT, setKeyOverrides } from '../ui/keys'
 import type { SettingEdit, SettingRow } from '../ui/SettingsView'
 import type { EditorBridge } from './editor'
-import { BINDABLE, customHolder, isUnbound, keyOverrides, resolveKeymap } from './keymap'
+import {
+  BINDABLE,
+  customHolder,
+  isUnbound,
+  keyOverrides,
+  resolveKeymap,
+} from './keymap'
 import type { Bindable } from './keymap'
 import type { Status } from './status'
 
@@ -46,7 +59,7 @@ const TAB_SIZES = [2, 4, 8]
 // 0 is "the opened folder only".
 const SCAN_DEPTHS = [0, 1, 2, 3, 4, 5]
 const depthLabel = (depth: number) =>
-  depth === 0 ? 'off' : `${depth} level${depth === 1 ? '' : 's'}`
+  depth === 0 ? 'off' : plural(depth, 'level')
 
 // Functions, not constants: extensions register themes and icon themes after this module runs.
 const themeList = (): ThemeName[] => themeNames()
@@ -57,7 +70,9 @@ const step = <T>(list: readonly T[], current: T, dir: 1 | -1): T =>
 
 const onOff = (value: boolean) => (value ? 'on' : 'off')
 
-type BoolKey = { [K in keyof Config]: Config[K] extends boolean ? K : never }[keyof Config]
+type BoolKey = {
+  [K in keyof Config]: Config[K] extends boolean ? K : never
+}[keyof Config]
 
 type RowSpec = Omit<SettingRow, 'local' | 'clear'> & { key: keyof Config }
 
@@ -71,8 +86,12 @@ export function createSettings(deps: {
 }) {
   const { rootDir, status, editor, dimensions } = deps
   const [user, setUser] = createStore<Config>({ ...deps.user })
-  const [project, setProject] = createStore<Partial<Config>>({ ...deps.project })
-  const [config, setConfig] = createStore<Config>(resolveConfig(deps.user, deps.project))
+  const [project, setProject] = createStore<Partial<Config>>({
+    ...deps.project,
+  })
+  const [config, setConfig] = createStore<Config>(
+    resolveConfig(deps.user, deps.project)
+  )
   const [scope, setScope] = createSignal<ConfigScope>('user')
 
   // The theme store outlives any one app instance: undo what the last one left behind.
@@ -80,7 +99,9 @@ export function createSettings(deps: {
 
   const paintTheme = (name: ThemeName) => {
     // Repainting re-highlights every buffer, and a preview lands here on every keystroke.
-    if (paintedTheme() === name) return
+    if (paintedTheme() === name) {
+      return
+    }
     setTheme(name)
     invalidateSyntaxStyle()
   }
@@ -89,7 +110,8 @@ export function createSettings(deps: {
 
   // Icons are read straight off `iconTheme`, so previewing one without writing it needs a layer.
   const [iconPreview, setIconPreview] = createSignal<string | null>(null)
-  const activeIconTheme = () => usableIconTheme(iconPreview() ?? config.iconTheme)
+  const activeIconTheme = () =>
+    usableIconTheme(iconPreview() ?? config.iconTheme)
   const previewIcons = (id: string) => setIconPreview(id)
   const restoreIcons = () => setIconPreview(null)
 
@@ -104,9 +126,15 @@ export function createSettings(deps: {
       saveUserConfig(unwrap(user))
     }
     setConfig(resolveConfig(unwrap(user), unwrap(project)))
-    if (config.theme !== before.theme) paintTheme(config.theme)
-    if (config.transparent !== before.transparent) setTransparency(config.transparent)
-    if (config.vim !== before.vim) editor.setVimMode(config.vim ? 'normal' : null)
+    if (config.theme !== before.theme) {
+      paintTheme(config.theme)
+    }
+    if (config.transparent !== before.transparent) {
+      setTransparency(config.transparent)
+    }
+    if (config.vim !== before.vim) {
+      editor.setVimMode(config.vim ? 'normal' : null)
+    }
   }
 
   const patchConfig = (patch: Partial<Config>) => patchLayer(scope(), patch)
@@ -116,29 +144,33 @@ export function createSettings(deps: {
   // In user scope this is the user file alone: a row still moves when the project pins that key.
   const view = (): Config => (scope() === 'project' ? config : user)
 
-  const configFile = () => (scope() === 'project' ? projectConfigFile(rootDir) : CONFIG_FILE)
+  const configFile = () =>
+    scope() === 'project' ? projectConfigFile(rootDir) : CONFIG_FILE
 
   // The cast is the computed key: TypeScript widens `{ [key]: boolean }` to an index signature.
   const boolRow = (
     section: string,
     key: BoolKey,
     label: string,
-    notice: (on: boolean) => string = on => `${label} ${onOff(on)}`,
+    notice: (on: boolean) => string = (on) => `${label} ${onOff(on)}`
   ): RowSpec => ({
-    section,
-    key,
-    label,
-    value: onOff(view()[key]),
     cycle: () => {
       patchConfig({ [key]: !view()[key] } as Partial<Config>)
       status.say(notice(config[key]))
     },
+    key,
+    label,
+    section,
+    value: onOff(view()[key]),
   })
 
-  const toggleScope = () => setScope(current => (current === 'user' ? 'project' : 'user'))
+  const toggleScope = () =>
+    setScope((current) => (current === 'user' ? 'project' : 'user'))
 
   const clearOverride = (key: keyof Config, label: string) => {
-    if (project[key] === undefined) return
+    if (project[key] === undefined) {
+      return
+    }
     patchLayer('project', { [key]: undefined })
     status.say(`${label} back to the user setting`)
   }
@@ -147,28 +179,43 @@ export function createSettings(deps: {
     const wasSyncing = view().themeSync
     patchConfig({ theme: name, themeSync: false })
     if (config.theme !== name) {
-      status.say(`Theme: ${themeLabel(name)} — the project's settings still decide the theme`)
+      status.say(
+        `Theme: ${themeLabel(name)} — the project's settings still decide the theme`
+      )
       return
     }
     status.say(
       wasSyncing
         ? `Theme: ${themeLabel(name)} — no longer following the OS appearance`
-        : `Theme: ${themeLabel(name)}`,
+        : `Theme: ${themeLabel(name)}`
     )
   }
 
   const applyAppearance = (appearance: Appearance) => {
     // A project pinning `theme` outranks the OS; the poll would rewrite the user file every few seconds.
-    if (project.theme !== undefined) return
+    if (project.theme !== undefined) {
+      return
+    }
     const name = appearance === 'dark' ? config.themeDark : config.themeLight
-    if (name === config.theme) return
+    if (name === config.theme) {
+      return
+    }
     patchUserConfig({ theme: name })
   }
 
-  const applySideTheme = (side: 'themeLight' | 'themeDark', name: ThemeName) => {
-    patchConfig(side === 'themeDark' ? { themeDark: name } : { themeLight: name })
-    status.say(`${side === 'themeDark' ? 'Dark' : 'Light'} theme: ${themeLabel(name)}`)
-    if (config.themeSync) applyAppearance(detectAppearance() ?? 'dark')
+  const applySideTheme = (
+    side: 'themeLight' | 'themeDark',
+    name: ThemeName
+  ) => {
+    patchConfig(
+      side === 'themeDark' ? { themeDark: name } : { themeLight: name }
+    )
+    status.say(
+      `${side === 'themeDark' ? 'Dark' : 'Light'} theme: ${themeLabel(name)}`
+    )
+    if (config.themeSync) {
+      applyAppearance(detectAppearance() ?? 'dark')
+    }
   }
 
   const toggleThemeSync = () => {
@@ -179,7 +226,9 @@ export function createSettings(deps: {
     }
     const appearance = detectAppearance()
     if (!appearance) {
-      status.say(`Follow OS appearance on — this system reports none, set ${APPEARANCE_ENV}`)
+      status.say(
+        `Follow OS appearance on — this system reports none, set ${APPEARANCE_ENV}`
+      )
       return
     }
     applyAppearance(appearance)
@@ -187,7 +236,9 @@ export function createSettings(deps: {
   }
 
   const iconNotice = (id: string): string => {
-    if (id === NO_ICONS) return 'File icons off'
+    if (id === NO_ICONS) {
+      return 'File icons off'
+    }
     const drawn = usableIconTheme(id)
     if (drawn !== id) {
       return `File icons: ${iconThemeLabel(id)} — this terminal cannot draw it, using ${iconThemeLabel(drawn)}`
@@ -214,7 +265,9 @@ export function createSettings(deps: {
     const disabled = view().disabledExtensions
     const off = disabled.includes(id)
     patchConfig({
-      disabledExtensions: off ? disabled.filter(entry => entry !== id) : [...disabled, id],
+      disabledExtensions: off
+        ? disabled.filter((entry) => entry !== id)
+        : [...disabled, id],
     })
     reloadExtensions()
     status.say(`Extension "${id}" ${off ? 'enabled' : 'disabled'}`)
@@ -240,13 +293,17 @@ export function createSettings(deps: {
     status.say(
       depth === 0
         ? 'Repositories below the folder: not looked for'
-        : `Repositories below the folder: ${depthLabel(depth)} deep`,
+        : `Repositories below the folder: ${depthLabel(depth)} deep`
     )
   }
 
   const applyCursorStyle = (style: Config['cursorStyle']) => {
     patchConfig({ cursorStyle: style })
-    status.say(config.vim ? `Cursor: ${style} — vim mode overrides it` : `Cursor: ${style}`)
+    status.say(
+      config.vim
+        ? `Cursor: ${style} — vim mode overrides it`
+        : `Cursor: ${style}`
+    )
   }
 
   const applyVim = (enabled: boolean) => {
@@ -258,7 +315,7 @@ export function createSettings(deps: {
   const extensionKey = (value: string) =>
     value
       .split(',')
-      .map(part => part.trim().replace(/^\./, '').toLowerCase())
+      .map((part) => part.trim().replace(/^\./u, '').toLowerCase())
       .filter(Boolean)
       .join(',')
 
@@ -266,46 +323,67 @@ export function createSettings(deps: {
     key === '*'
       ? 'Any file'
       : key
-          .replace(/^\./, '')
+          .replace(/^\./u, '')
           .split(',')
-          .map(part => `.${part}`)
+          .map((part) => `.${part}`)
           .join(' ')
 
   const formatterOption = (key: string, command: string[]) =>
     `${extensionLabel(key)} → ${command.join(' ')}`
 
-  const setFormatter = (previous: string | null, types: string, value: string) => {
+  const setFormatter = (
+    previous: string | null,
+    types: string,
+    value: string
+  ) => {
     const formatters = { ...view().formatters }
     const key = extensionKey(types)
-    const command = value.trim().split(/\s+/).filter(Boolean)
+    const command = value.trim().split(/\s+/u).filter(Boolean)
     if (previous !== null && (key === '' || command.length === 0)) {
-      delete formatters[previous]
+      Reflect.deleteProperty(formatters, previous)
       patchConfig({ formatters })
       return status.say(`Formatter for ${extensionLabel(previous)} removed`)
     }
-    if (!key) return status.say('Formatter file types: ts,tsx — or * for any file', 'warn')
+    if (!key) {
+      return status.say(
+        'Formatter file types: ts,tsx — or * for any file',
+        'warn'
+      )
+    }
     if (command.length === 0) {
-      return status.say('A formatter needs a command, e.g. prettier --write', 'warn')
+      return status.say(
+        'A formatter needs a command, e.g. prettier --write',
+        'warn'
+      )
     }
     if (command.length === 1 && command[0] === FILE_TOKEN) {
-      return status.say(`A formatter command needs a program, not just ${FILE_TOKEN}`, 'warn')
+      return status.say(
+        `A formatter command needs a program, not just ${FILE_TOKEN}`,
+        'warn'
+      )
     }
-    if (previous !== null && previous !== key) delete formatters[previous]
+    if (previous !== null && previous !== key) {
+      Reflect.deleteProperty(formatters, previous)
+    }
     formatters[key] = command
     patchConfig({ formatters })
     status.say(`Formatter: ${formatterOption(key, command)}`)
   }
 
   const formatterEdit = (at: number): SettingEdit => {
-    const formatters = view().formatters
+    const { formatters } = view()
     const key = Object.keys(formatters)[at] ?? null
     return {
-      title: key ? `Formatter — ${extensionLabel(key)}` : 'Add formatter',
+      apply: (values) => setFormatter(key, values[0] ?? '', values[1] ?? ''),
       fields: [
-        { label: 'File types', initial: key ?? '', placeholder: 'ts,tsx — or * for any file' },
         {
-          label: 'Command',
+          initial: key ?? '',
+          label: 'File types',
+          placeholder: 'ts,tsx — or * for any file',
+        },
+        {
           initial: key ? formatters[key]!.join(' ') : '',
+          label: 'Command',
           placeholder: 'prettier --write',
         },
       ],
@@ -314,21 +392,24 @@ export function createSettings(deps: {
         `Its path is appended, or replaces ${FILE_TOKEN}`,
         key ? 'Emptying a field removes this entry' : '',
       ].filter(Boolean),
-      apply: values => setFormatter(key, values[0] ?? '', values[1] ?? ''),
+      title: key ? `Formatter — ${extensionLabel(key)}` : 'Add formatter',
     }
   }
 
   // Empty restores the default; disabling is the Servers row, where an empty command means "off".
   const setServerCommand = (id: string, value: string) => {
     const overrides = { ...view().lspServers }
-    const command = value.trim().split(/\s+/).filter(Boolean)
-    if (command.length === 0) delete overrides[id]
-    else overrides[id] = command
+    const command = value.trim().split(/\s+/u).filter(Boolean)
+    if (command.length === 0) {
+      Reflect.deleteProperty(overrides, id)
+    } else {
+      overrides[id] = command
+    }
     patchConfig({ lspServers: overrides })
     status.say(
       command.length === 0
         ? `LSP server "${id}" back on its default command`
-        : `LSP server "${id}": ${command.join(' ')}`,
+        : `LSP server "${id}": ${command.join(' ')}`
     )
   }
 
@@ -338,12 +419,14 @@ export function createSettings(deps: {
   createEffect(() => setKeyOverrides(keyOverrides(keymap())))
 
   const setKeybinding = (id: string, value: string) => {
-    const spec = BINDABLE.find(entry => entry.id === id)
-    if (!spec) return
+    const spec = BINDABLE.find((entry) => entry.id === id)
+    if (!spec) {
+      return
+    }
     const bindings = { ...view().keybindings }
     const typed = value.trim()
     if (typed === '') {
-      delete bindings[id]
+      Reflect.deleteProperty(bindings, id)
       patchConfig({ keybindings: bindings })
       return status.say(`${spec.label} back on its default key`)
     }
@@ -353,19 +436,33 @@ export function createSettings(deps: {
       return status.say(`${spec.label} unbound`)
     }
     const chord = parseChord(typed)
-    if (!chord) return status.say(`"${typed}" is not a key chord — try Ctrl+${ALT}+K`, 'warn')
+    if (!chord) {
+      return status.say(
+        `"${typed}" is not a key chord — try Ctrl+${ALT}+K`,
+        'warn'
+      )
+    }
     const problem = bindingProblem(chord)
-    if (problem) return status.say(problem, 'warn')
+    if (problem) {
+      return status.say(problem, 'warn')
+    }
     const spelling = formatChord(chord, ALT)
     const held = customHolder(keymap(), chord, id)
-    if (held) return status.say(`${spelling} is ${held.label} — unbind that one first`, 'warn')
+    if (held) {
+      return status.say(
+        `${spelling} is ${held.label} — unbind that one first`,
+        'warn'
+      )
+    }
     bindings[id] = spelling
     patchConfig({ keybindings: bindings })
-    const taken = keymap().conflicts.find(clash => clash.key === spelling && !clash.rejected)
+    const taken = keymap().conflicts.find(
+      (clash) => clash.key === spelling && !clash.rejected
+    )
     status.say(
       taken
         ? `${spelling} → ${spec.label} — ${taken.loser} has no key now`
-        : `${spelling} → ${spec.label}`,
+        : `${spelling} → ${spec.label}`
     )
   }
 
@@ -375,15 +472,20 @@ export function createSettings(deps: {
   }
 
   const bindingEdit = (spec: Bindable): SettingEdit => ({
-    title: `Shortcut — ${spec.label}`,
-    fields: [{ initial: keymap().display.get(spec.id) ?? '', placeholder: `Ctrl+${ALT}+K` }],
+    apply: (values) => setKeybinding(spec.id, values[0] ?? ''),
+    fields: [
+      {
+        initial: keymap().display.get(spec.id) ?? '',
+        placeholder: `Ctrl+${ALT}+K`,
+      },
+    ],
     hint: [
       `One chord, e.g. Ctrl+G or Ctrl+${ALT}+K or F5`,
       'It needs Ctrl or a function key',
       '"none" takes the key away',
       'An empty value restores the default',
     ],
-    apply: values => setKeybinding(spec.id, values[0] ?? ''),
+    title: `Shortcut — ${spec.label}`,
   })
 
   const toggleDiffView = () => {
@@ -393,22 +495,29 @@ export function createSettings(deps: {
   const toggleGitPanelView = () => {
     const next = view().gitPanelView === 'tree' ? 'list' : 'tree'
     patchConfig({ gitPanelView: next })
-    status.say(`Changed files as ${config.gitPanelView === 'tree' ? 'a tree' : 'a flat list'}`)
+    status.say(
+      `Changed files as ${config.gitPanelView === 'tree' ? 'a tree' : 'a flat list'}`
+    )
   }
 
   const applyTypescriptTsdk = (value: string) => {
     const tsdk = value.trim()
     patchConfig({ typescriptTsdk: tsdk })
     status.say(
-      tsdk ? `TypeScript: ${tsdk}` : "TypeScript: whichever the project's own server finds",
+      tsdk
+        ? `TypeScript: ${tsdk}`
+        : "TypeScript: whichever the project's own server finds"
     )
   }
 
   const toggleServer = (id: string) => {
     const overrides = { ...view().lspServers }
     const disabled = overrides[id]?.length === 0
-    if (disabled) delete overrides[id]
-    else overrides[id] = []
+    if (disabled) {
+      Reflect.deleteProperty(overrides, id)
+    } else {
+      overrides[id] = []
+    }
     patchConfig({ lspServers: overrides })
     status.say(`LSP server "${id}" ${disabled ? 'enabled' : 'disabled'}`)
   }
@@ -426,13 +535,15 @@ export function createSettings(deps: {
       0,
       Math.min(
         sidebarColumns(config.sidebarWidth, dimensions().width),
-        dimensions().width - EDITOR_MIN,
-      ),
+        dimensions().width - EDITOR_MIN
+      )
     )
 
   const resizeSidebar = (width: number) => {
     const next = Math.max(SIDEBAR_MIN, Math.min(SIDEBAR_MAX, Math.round(width)))
-    if (next !== view().sidebarWidth) patchConfig({ sidebarWidth: next })
+    if (next !== view().sidebarWidth) {
+      patchConfig({ sidebarWidth: next })
+    }
   }
 
   const nudgeSidebar = (delta: number) => resizeSidebar(treeWidth() + delta)
@@ -445,7 +556,10 @@ export function createSettings(deps: {
     }
     const width = Number(trimmed)
     if (!Number.isFinite(width)) {
-      return status.say(`Sidebar width is a number of columns, or "auto"`, 'warn')
+      return status.say(
+        `Sidebar width is a number of columns, or "auto"`,
+        'warn'
+      )
     }
     resizeSidebar(width)
     status.say(`Sidebar width: ${view().sidebarWidth}`)
@@ -461,158 +575,169 @@ export function createSettings(deps: {
 
   const specs = (): RowSpec[] => [
     {
-      section: 'Appearance',
+      cycle: (dir) => applyTheme(step(themeList(), view().theme, dir)),
       key: 'theme',
       label: 'Theme',
-      value: themeLabel(view().theme),
-      cycle: dir => applyTheme(step(themeList(), view().theme, dir)),
+      section: 'Appearance',
       select: {
         options: themeList().map(themeLabel),
-        pick: at => applyTheme(themeList()[at]!),
-        preview: at => paintTheme(themeList()[at]!),
+        pick: (at) => applyTheme(themeList()[at]!),
+        preview: (at) => paintTheme(themeList()[at]!),
         restore: restoreTheme,
       },
+      value: themeLabel(view().theme),
     },
     {
-      section: 'Appearance',
+      cycle: toggleThemeSync,
       key: 'themeSync',
       label: 'Follow OS appearance',
+      section: 'Appearance',
       value: onOff(view().themeSync),
-      cycle: toggleThemeSync,
     },
     {
-      section: 'Appearance',
+      cycle: (dir) =>
+        applySideTheme('themeLight', step(themeList(), view().themeLight, dir)),
       key: 'themeLight',
       label: 'Light theme',
-      value: themeLabel(view().themeLight),
-      cycle: dir => applySideTheme('themeLight', step(themeList(), view().themeLight, dir)),
+      section: 'Appearance',
       select: {
         options: themeList().map(themeLabel),
-        pick: at => applySideTheme('themeLight', themeList()[at]!),
-        preview: at => paintTheme(themeList()[at]!),
+        pick: (at) => applySideTheme('themeLight', themeList()[at]!),
+        preview: (at) => paintTheme(themeList()[at]!),
         restore: restoreTheme,
       },
+      value: themeLabel(view().themeLight),
     },
     {
-      section: 'Appearance',
+      cycle: (dir) =>
+        applySideTheme('themeDark', step(themeList(), view().themeDark, dir)),
       key: 'themeDark',
       label: 'Dark theme',
-      value: themeLabel(view().themeDark),
-      cycle: dir => applySideTheme('themeDark', step(themeList(), view().themeDark, dir)),
+      section: 'Appearance',
       select: {
         options: themeList().map(themeLabel),
-        pick: at => applySideTheme('themeDark', themeList()[at]!),
-        preview: at => paintTheme(themeList()[at]!),
+        pick: (at) => applySideTheme('themeDark', themeList()[at]!),
+        preview: (at) => paintTheme(themeList()[at]!),
         restore: restoreTheme,
       },
+      value: themeLabel(view().themeDark),
     },
     boolRow('Appearance', 'transparent', 'Transparent background'),
     {
-      section: 'Appearance',
+      cycle: (dir) => applyIconTheme(step(iconList(), view().iconTheme, dir)),
       key: 'iconTheme',
       label: 'File icons',
-      value: iconThemeLabel(view().iconTheme),
-      cycle: dir => applyIconTheme(step(iconList(), view().iconTheme, dir)),
+      section: 'Appearance',
       select: {
         options: iconList().map(iconThemeLabel),
-        pick: at => applyIconTheme(iconList()[at]!),
+        pick: (at) => applyIconTheme(iconList()[at]!),
       },
+      value: iconThemeLabel(view().iconTheme),
     },
     boolRow('Appearance', 'tabIcons', 'File icons in tabs'),
     boolRow(
       'Appearance',
       'tooltips',
       'Hotkey tooltips (hold Ctrl for all)',
-      on => `Tooltips ${onOff(on)}`,
+      (on) => `Tooltips ${onOff(on)}`
     ),
     boolRow('Appearance', 'terminalTitle', 'Terminal title'),
     {
-      section: 'Editor',
+      cycle: () => applyVim(!view().vim),
       key: 'vim',
       label: 'Vim mode',
+      section: 'Editor',
       value: onOff(view().vim),
-      cycle: () => applyVim(!view().vim),
     },
     {
-      section: 'Editor',
+      cycle: (dir) =>
+        applyCursorStyle(step(CURSOR_STYLES, view().cursorStyle, dir)),
       key: 'cursorStyle',
       label: 'Cursor',
-      // `config.vim`, not `view().vim`: the note is about the caret on screen.
-      value: config.vim ? `${view().cursorStyle} (vim overrides)` : view().cursorStyle,
-      cycle: dir => applyCursorStyle(step(CURSOR_STYLES, view().cursorStyle, dir)),
+      section: 'Editor',
       select: {
         options: [...CURSOR_STYLES],
-        pick: at => applyCursorStyle(CURSOR_STYLES[at]!),
+        pick: (at) => applyCursorStyle(CURSOR_STYLES[at]!),
       },
+      // `config.vim`, not `view().vim`: the note is about the caret on screen.
+      value: config.vim
+        ? `${view().cursorStyle} (vim overrides)`
+        : view().cursorStyle,
     },
     boolRow('Editor', 'wrap', 'Word wrap'),
     boolRow('Editor', 'scrollPastEnd', 'Scroll past end'),
-    boolRow('Editor', 'markdownPreview', 'Open markdown rendered', on =>
-      on ? 'Markdown opens rendered' : 'Markdown opens as source',
+    boolRow('Editor', 'markdownPreview', 'Open markdown rendered', (on) =>
+      on ? 'Markdown opens rendered' : 'Markdown opens as source'
     ),
     {
-      section: 'Editor',
+      cycle: (dir) => applyTabSize(step(TAB_SIZES, view().tabSize, dir)),
       key: 'tabSize',
       label: 'Tab size',
-      value: String(view().tabSize),
-      cycle: dir => applyTabSize(step(TAB_SIZES, view().tabSize, dir)),
+      section: 'Editor',
       select: {
         options: TAB_SIZES.map(String),
-        pick: at => applyTabSize(TAB_SIZES[at]!),
+        pick: (at) => applyTabSize(TAB_SIZES[at]!),
       },
+      value: String(view().tabSize),
     },
     boolRow(
       'Editor',
       'trimOnSave',
       'Trim trailing whitespace on save',
-      on => `Trim on save ${onOff(on)}`,
+      (on) => `Trim on save ${onOff(on)}`
     ),
-    boolRow('Editor', 'formatOnSave', 'Format on save', on =>
+    boolRow('Editor', 'formatOnSave', 'Format on save', (on) =>
       on && Object.keys(config.formatters).length === 0
         ? 'Format on save on — add a command on the Formatters row'
-        : `Format on save ${onOff(on)}`,
+        : `Format on save ${onOff(on)}`
     ),
     {
-      section: 'Editor',
+      cycle: () => status.say('Enter opens the formatter list'),
       key: 'formatters',
       label: 'Formatters',
-      value:
-        Object.keys(view().formatters).length === 0
-          ? 'none'
-          : `${Object.keys(view().formatters).length} configured`,
-      cycle: () => status.say('Enter opens the formatter list'),
+      section: 'Editor',
       select: {
         options: [
-          ...Object.entries(view().formatters).map(([key, cmd]) => formatterOption(key, cmd)),
+          ...Object.entries(view().formatters).map(([key, cmd]) =>
+            formatterOption(key, cmd)
+          ),
           '+ Add formatter…',
         ],
         pick: formatterEdit,
       },
+      value:
+        Object.keys(view().formatters).length === 0
+          ? 'none'
+          : `${Object.keys(view().formatters).length} configured`,
     },
     boolRow(
       'Editor',
       'autoSaveOnBlur',
       'Auto-save on focus change and terminal blur',
-      on => `Auto-save ${onOff(on)}`,
+      (on) => `Auto-save ${onOff(on)}`
     ),
-    boolRow('Files', 'showDotfiles', 'Show dotfiles', on => `Dotfiles ${on ? 'shown' : 'hidden'}`),
+    boolRow(
+      'Files',
+      'showDotfiles',
+      'Show dotfiles',
+      (on) => `Dotfiles ${on ? 'shown' : 'hidden'}`
+    ),
     boolRow(
       'Files',
       'respectGitignore',
       'Hide git-ignored files',
-      on => `Git-ignored files ${on ? 'hidden' : 'shown'}`,
+      (on) => `Git-ignored files ${on ? 'hidden' : 'shown'}`
     ),
     {
-      section: 'Files',
-      key: 'sidebarWidth',
-      label: 'Sidebar width',
-      value: view().sidebarWidth === 'auto' ? 'auto' : String(view().sidebarWidth),
-      cycle: dir => nudgeSidebar(dir),
+      cycle: (dir) => nudgeSidebar(dir),
       edit: {
-        title: 'Sidebar width',
+        apply: (values) => applySidebarWidth(values[0] ?? ''),
         fields: [
           {
-            initial: view().sidebarWidth === 'auto' ? 'auto' : String(view().sidebarWidth),
+            initial:
+              view().sidebarWidth === 'auto'
+                ? 'auto'
+                : String(view().sidebarWidth),
             placeholder: `auto, or ${SIDEBAR_MIN}–${SIDEBAR_MAX}`,
           },
         ],
@@ -620,40 +745,46 @@ export function createSettings(deps: {
           `A column count, ${SIDEBAR_MIN}–${SIDEBAR_MAX}`,
           '"auto" takes a share of the terminal',
         ],
-        apply: values => applySidebarWidth(values[0] ?? ''),
+        title: 'Sidebar width',
       },
+      key: 'sidebarWidth',
+      label: 'Sidebar width',
+      section: 'Files',
+      value:
+        view().sidebarWidth === 'auto' ? 'auto' : String(view().sidebarWidth),
     },
     {
-      section: 'Files',
+      cycle: toggleSidebarPosition,
       key: 'sidebarPosition',
       label: 'Sidebar position',
+      section: 'Files',
       value: view().sidebarPosition,
-      cycle: toggleSidebarPosition,
     },
     {
-      section: 'Git',
+      cycle: toggleDiffView,
       key: 'diffView',
       label: 'Diff layout',
+      section: 'Git',
       value: view().diffView === 'inline' ? 'inline' : 'side-by-side',
-      cycle: toggleDiffView,
     },
     {
-      section: 'Git',
+      cycle: toggleGitPanelView,
       key: 'gitPanelView',
       label: 'Changed files',
+      section: 'Git',
       value: view().gitPanelView === 'tree' ? 'tree' : 'flat list',
-      cycle: toggleGitPanelView,
     },
     {
-      section: 'Git',
+      cycle: (dir) =>
+        applyScanDepth(step(SCAN_DEPTHS, view().gitScanDepth, dir)),
       key: 'gitScanDepth',
       label: 'Scan for repositories below the folder',
-      value: depthLabel(view().gitScanDepth),
-      cycle: dir => applyScanDepth(step(SCAN_DEPTHS, view().gitScanDepth, dir)),
+      section: 'Git',
       select: {
         options: SCAN_DEPTHS.map(depthLabel),
-        pick: at => applyScanDepth(SCAN_DEPTHS[at]!),
+        pick: (at) => applyScanDepth(SCAN_DEPTHS[at]!),
       },
+      value: depthLabel(view().gitScanDepth),
     },
     boolRow('Review', 'reviewInline', 'Inline review notes'),
     boolRow('Language servers', 'lsp', 'LSP diagnostics'),
@@ -661,142 +792,161 @@ export function createSettings(deps: {
     boolRow('Language servers', 'lspCompletion', 'Autocomplete'),
     boolRow('Language servers', 'lspAutoInstall', 'Offer to install servers'),
     {
-      section: 'Language servers',
-      key: 'typescriptTsdk',
-      label: 'TypeScript',
-      value: view().typescriptTsdk || 'from the project',
       cycle: () => status.say('Enter sets a TypeScript path'),
       edit: {
-        title: 'TypeScript path',
-        fields: [{ initial: view().typescriptTsdk, placeholder: 'node_modules/typescript/lib' }],
+        apply: (values) => applyTypescriptTsdk(values[0] ?? ''),
+        fields: [
+          {
+            initial: view().typescriptTsdk,
+            placeholder: 'node_modules/typescript/lib',
+          },
+        ],
         hint: [
           'A tsserver.js, a lib folder, or a typescript package',
           "Empty: the project's own copy, else the one druk installed",
         ],
-        apply: values => applyTypescriptTsdk(values[0] ?? ''),
+        title: 'TypeScript path',
       },
+      key: 'typescriptTsdk',
+      label: 'TypeScript',
+      section: 'Language servers',
+      value: view().typescriptTsdk || 'from the project',
     },
     {
-      section: 'Language servers',
+      cycle: () => status.say('Enter opens the server list'),
       key: 'lspServers',
       label: 'Servers',
-      value: `${servers().filter(s => (view().lspServers[s.id]?.length ?? 1) > 0).length}/${servers().length} enabled`,
-      cycle: () => status.say('Enter opens the server list'),
+      section: 'Language servers',
       select: {
-        options: servers().map(spec => serverLabel(spec.id, spec.command)),
-        pick: at => toggleServer(servers()[at]!.id),
+        options: servers().map((spec) => serverLabel(spec.id, spec.command)),
+        pick: (at) => toggleServer(servers()[at]!.id),
       },
+      value: `${servers().filter((s) => (view().lspServers[s.id]?.length ?? 1) > 0).length}/${servers().length} enabled`,
     },
     {
-      section: 'Language servers',
+      cycle: () => status.say('Enter opens the server list'),
       key: 'lspServers',
       label: 'Server commands',
-      value: `${Object.values(view().lspServers).filter(cmd => cmd.length > 0).length} custom`,
-      cycle: () => status.say('Enter opens the server list'),
+      section: 'Language servers',
       select: {
-        options: servers().map(spec => serverLabel(spec.id, spec.command)),
-        pick: at => {
+        options: servers().map((spec) => serverLabel(spec.id, spec.command)),
+        pick: (at) => {
           const spec = servers()[at]!
           const override = view().lspServers[spec.id]
           return {
-            title: `Command — ${spec.id}`,
+            apply: (values: string[]) =>
+              setServerCommand(spec.id, values[0] ?? ''),
             fields: [
-              { initial: (override && override.length > 0 ? override : spec.command).join(' ') },
+              {
+                initial: (override && override.length > 0
+                  ? override
+                  : spec.command
+                ).join(' '),
+              },
             ],
             hint: [
               'Runs as given — it talks LSP over stdio,',
               'so no file path is added',
               'An empty value restores the default',
             ],
-            apply: (values: string[]) => setServerCommand(spec.id, values[0] ?? ''),
+            title: `Command — ${spec.id}`,
           }
         },
       },
+      value: `${Object.values(view().lspServers).filter((cmd) => cmd.length > 0).length} custom`,
     },
     {
-      section: 'Keyboard',
+      cycle: () => status.say('Enter opens the shortcut list'),
       key: 'keybindings',
       label: 'Shortcuts',
-      value: `${keymap().custom.size} custom${keymap().conflicts.length > 0 ? ` · ${keymap().conflicts.length} clash` : ''}`,
-      cycle: () => status.say('Enter opens the shortcut list'),
+      section: 'Keyboard',
       select: {
         options: BINDABLE.map(bindingLabel),
-        pick: at => bindingEdit(BINDABLE[at]!),
+        pick: (at) => bindingEdit(BINDABLE[at]!),
       },
+      value: `${keymap().custom.size} custom${keymap().conflicts.length > 0 ? ` · ${keymap().conflicts.length} clash` : ''}`,
     },
     boolRow(
       'Extensions',
       'extensionUpdates',
       'Check the market at startup',
-      on => `Extension market ${onOff(on)}`,
+      (on) => `Extension market ${onOff(on)}`
     ),
     {
-      section: 'Extensions',
-      key: 'extensionRegistry',
-      label: 'Registry',
-      value: view().extensionRegistry === MARKET_URL ? 'druk' : view().extensionRegistry,
       cycle: () => status.say('Enter sets the market URL'),
       edit: {
+        apply: (values) => applyRegistry(values[0] ?? ''),
+        fields: [
+          { initial: view().extensionRegistry, placeholder: MARKET_URL },
+        ],
+        hint: [
+          'An https folder holding index.json and <id>/extension.json',
+          'Empty: druk’s own',
+        ],
         title: 'Extension registry',
-        fields: [{ initial: view().extensionRegistry, placeholder: MARKET_URL }],
-        hint: ['An https folder holding index.json and <id>/extension.json', 'Empty: druk’s own'],
-        apply: values => applyRegistry(values[0] ?? ''),
       },
+      key: 'extensionRegistry',
+      label: 'Registry',
+      section: 'Extensions',
+      value:
+        view().extensionRegistry === MARKET_URL
+          ? 'druk'
+          : view().extensionRegistry,
     },
   ]
 
   const cycleRow = (key: keyof Config) =>
     specs()
-      .find(row => row.key === key)
+      .find((row) => row.key === key)
       ?.cycle?.(1)
 
   const rows = (): SettingRow[] =>
     specs().map(({ key, ...row }) => ({
       ...row,
-      local: project[key] !== undefined,
       clear:
         scope() === 'project' && project[key] !== undefined
           ? () => clearOverride(key, row.label)
           : undefined,
+      local: project[key] !== undefined,
     }))
 
   return {
+    activeIconTheme,
+    applyAppearance,
+    applyIconTheme,
+    applyRegistry,
+    applySidebarPosition,
+    applySidebarWidth,
+    applyTabSize,
+    applyTheme,
+    applyVim,
     config,
-    keymap,
-    setKeybinding,
-    scope,
-    toggleScope,
-    setScope,
     configFile,
+    keymap,
+    nudgeSidebar,
     patchConfig,
     patchUserConfig,
-    applyTheme,
-    applyAppearance,
+    previewIcons,
     previewTheme: paintTheme,
+    reloadExtensions,
+    resizeSidebar,
+    restoreIcons,
     restoreTheme,
+    rows,
+    scope,
+    setFormatter,
+    setKeybinding,
+    setScope,
+    setServerCommand,
+    toggleDiffView,
+    toggleExtension,
+    toggleGitPanelView,
+    toggleScope,
+    toggleServer,
+    toggleSidebarPosition,
     toggleThemeSync,
     toggleWrap: () => cycleRow('wrap'),
-    applyTabSize,
-    applyVim,
-    toggleDiffView,
-    toggleGitPanelView,
-    toggleServer,
-    applyIconTheme,
-    activeIconTheme,
-    previewIcons,
-    restoreIcons,
-    reloadExtensions,
-    toggleExtension,
-    applyRegistry,
-    setFormatter,
-    setServerCommand,
-    applySidebarWidth,
-    applySidebarPosition,
-    toggleSidebarPosition,
-    rows,
     treeWidth,
-    resizeSidebar,
-    nudgeSidebar,
   }
 }
 

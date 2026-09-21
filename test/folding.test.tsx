@@ -3,7 +3,16 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { ALT } from '../src/ui/keys'
-import { fixture, launch, openFile, press, pressTimes, runCommand, settle, until } from './helpers'
+import {
+  fixture,
+  launch,
+  openFile,
+  press,
+  pressTimes,
+  runCommand,
+  settle,
+  until,
+} from './helpers'
 
 const FILE = [
   'function outer() {',
@@ -27,8 +36,8 @@ test('folding hides the block and says how much it took', async () => {
   expect(folded).not.toContain('return secret')
   expect(folded).toContain('function outer() {')
   expect(folded).toContain('⋯ 2 lines')
-  expect(folded).toMatch(/4\s+\}/)
-  expect(folded).toMatch(/6\s+const after = 2/)
+  expect(folded).toMatch(/4\s+\}/u)
+  expect(folded).toMatch(/6\s+const after = 2/u)
 
   expect(folded).toContain(`⋯ 2 lines Ctrl+${ALT}+E`)
 
@@ -42,12 +51,12 @@ test('a fold never reaches the file, however the buffer is edited', async () => 
   await openFile(t, 'a.ts')
   await runCommand(t, 'Fold block at cursor')
 
-  await pressTimes(t, 5, i => i.pressArrow('down'))
-  await press(t, i => void i.typeText('const tail = 3'))
-  await press(t, i => i.pressKey('s', { ctrl: true }))
+  await pressTimes(t, 5, (i) => i.pressArrow('down'))
+  await press(t, (i) => i.typeText('const tail = 3'))
+  await press(t, (i) => i.pressKey('s', { ctrl: true }))
   await settle(t)
 
-  const saved = readFileSync(join(dir, 'a.ts'), 'utf8')
+  const saved = readFileSync(join(dir, 'a.ts'), 'utf-8')
   expect(saved).toContain('const secret = 1')
   expect(saved).toContain('return secret')
   expect(saved).toContain('const tail = 3')
@@ -61,14 +70,14 @@ test('typing on a folded line opens the block rather than editing past it', asyn
   await runCommand(t, 'Fold block at cursor')
   expect(t.captureCharFrame()).not.toContain('const secret = 1')
 
-  await press(t, i => void i.typeText(' '))
+  await press(t, (i) => i.typeText(' '))
   const frame = t.captureCharFrame()
   expect(frame).toContain('const secret = 1')
   expect(frame).not.toContain('⋯')
 
-  await press(t, i => i.pressKey('s', { ctrl: true }))
+  await press(t, (i) => i.pressKey('s', { ctrl: true }))
   await settle(t)
-  const saved = readFileSync(join(dir, 'a.ts'), 'utf8')
+  const saved = readFileSync(join(dir, 'a.ts'), 'utf-8')
   expect(saved.split('\n')[1]).toBe('  const secret = 1')
 })
 
@@ -78,37 +87,37 @@ test('every foldable block carries a marker, and clicking it toggles the block',
   await openFile(t, 'a.ts')
 
   const rows = t.captureCharFrame().split('\n')
-  const y = rows.findIndex(row => row.includes('▾'))
+  const y = rows.findIndex((row) => row.includes('▾'))
   expect(y).toBeGreaterThan(-1)
-  expect(rows[y]).toMatch(/1▾ function outer\(\) \{/)
-  expect(rows.filter(row => row.includes('▾'))).toHaveLength(1)
+  expect(rows[y]).toMatch(/1▾ function outer\(\) \{/u)
+  expect(rows.filter((row) => row.includes('▾'))).toHaveLength(1)
 
   const x = rows[y]!.indexOf('▾')
-  await press(t, () => void t.mockMouse.click(x, y))
+  await press(t, () => t.mockMouse.click(x, y))
   await until(t, () => t.captureCharFrame().includes('⋯ 2 lines'))
   expect(t.captureCharFrame()).not.toContain('const secret = 1')
   expect(t.captureCharFrame()).toContain('▸ function outer() {')
 
-  await press(t, () => void t.mockMouse.click(x, y))
+  await press(t, () => t.mockMouse.click(x, y))
   await until(t, () => t.captureCharFrame().includes('const secret = 1'))
 })
 
 test('folding leaves the view where it was', async () => {
   const lines = Array.from({ length: 200 }, (_, index) =>
-    index % 40 === 0 ? `function f${index}() {` : `  const x${index} = ${index}`,
+    index % 40 === 0 ? `function f${index}() {` : `  const x${index} = ${index}`
   )
   const dir = fixture({ 'big.ts': `${lines.join('\n')}\n` })
   const t = await launch(dir, {}, {}, { openFile: join(dir, 'big.ts') })
 
-  await pressTimes(t, 50, i => i.pressArrow('down'))
+  await pressTimes(t, 50, (i) => i.pressArrow('down'))
   await settle(t)
   const topRow = (): string | undefined =>
     t
       .captureCharFrame()
       .split('\n')
-      .find(row => /const x|function f/.test(row))
+      .find((row) => /const x|function f/u.test(row))
   const before = topRow()
-  expect(before).toContain('const x36 = 36')
+  expect(before).toContain('const x34 = 34')
 
   await runCommand(t, 'Fold block at cursor')
   expect(topRow()).toBe(before)

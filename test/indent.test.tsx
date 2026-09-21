@@ -2,7 +2,15 @@ import { expect, test } from 'bun:test'
 
 import { getSyntaxStyle } from '../src/languages/highlight'
 import { THEMES } from '../src/themes'
-import { fixture, launch, openFile, press, pressTimes, runCommand, until } from './helpers'
+import {
+  fixture,
+  launch,
+  openFile,
+  press,
+  pressTimes,
+  runCommand,
+  until,
+} from './helpers'
 import type { Harness } from './helpers'
 import { allSegments } from './syntax'
 
@@ -13,14 +21,20 @@ async function guideColumns(content: string, tabSize: number) {
   const guide = getSyntaxStyle().getStyleId('indent.guide')
   const lines = content.split('\n')
   return segs
-    .filter(s => s.styleId === guide)
-    .flatMap(s => Array.from({ length: s.end - s.start }, (_, i) => [s.line, s.start + i] as const))
+    .filter((s) => s.styleId === guide)
+    .flatMap((s) =>
+      Array.from(
+        { length: s.end - s.start },
+        (_, i) => [s.line, s.start + i] as const
+      )
+    )
     .filter(([line, col]) => lines[line]?.[col] === ' ')
 }
 
 test('guides mark every indent stop at the configured width', async () => {
   const two = await guideColumns(NESTED, 2)
-  expect(two.length).toBe(4) // 1 + 2 + 1 for the closing "  }"
+  // 1 + 2 + 1 for the closing "  }"
+  expect(two.length).toBe(4)
 
   const four = await guideColumns(NESTED, 4)
   expect(four.length).toBeLessThan(two.length)
@@ -30,39 +44,48 @@ test('a tab indent is tinted by the renderer alone', async () => {
   const tabbed = 'function f() {\n\tif (x) {\n\t\treturn 1\n\t}\n}\n'
   const segs = await allSegments(tabbed, 'typescript', 2)
   const guide = getSyntaxStyle().getStyleId('indent.guide')
-  expect(segs.filter(s => s.styleId === guide)).toEqual([])
+  expect(segs.filter((s) => s.styleId === guide)).toEqual([])
 })
 
 test('tab size is configurable and shown on the settings page', async () => {
-  const t = await launch(fixture({ 'a.ts': NESTED }), { tabSize: 4 }, { height: 40 })
+  const t = await launch(
+    fixture({ 'a.ts': NESTED }),
+    { tabSize: 4 },
+    { height: 40 }
+  )
   await runCommand(t, 'Settings')
   const row = () =>
     t
       .captureCharFrame()
       .split('\n')
-      .find(line => line.includes('Tab size'))!
+      .find((line) => line.includes('Tab size'))!
   expect(row().trimEnd().endsWith('4')).toBe(true)
 
-  for (let i = 0; i < 16 && !row().includes('▌'); i++) {
-    await press(t, input => input.pressArrow('down'))
+  for (let i = 0; i < 16 && !row().includes('▌'); i += 1) {
+    await press(t, (input) => input.pressArrow('down'))
   }
-  await press(t, input => input.pressArrow('right'))
+  await press(t, (input) => input.pressArrow('right'))
   expect(row().trimEnd().endsWith('8')).toBe(true)
-  await press(t, input => input.pressArrow('left'))
+  await press(t, (input) => input.pressArrow('left'))
   expect(row().trimEnd().endsWith('4')).toBe(true)
 })
 
 test('tab indents keep drawing guides after the view scrolls', async () => {
-  const filler = Array.from({ length: 40 }, (_, i) => `\tconst x${i} = ${i}`).join('\n')
+  const filler = Array.from(
+    { length: 40 },
+    (_, i) => `\tconst x${i} = ${i}`
+  ).join('\n')
   const content = `${filler}\n\t\t<marker/>\n${filler}\n`
   const dir = fixture({ 'a.tsx': content })
   const t = await launch(dir, {}, {}, { openFile: `${dir}/a.tsx` })
 
-  await pressTimes(t, 45, input => input.pressArrow('down'))
+  await pressTimes(t, 45, (input) => input.pressArrow('down'))
 
   const frame = t.captureCharFrame()
   expect(frame).toContain('█ █ <marker/>')
-  const control = [...frame].filter(ch => ch !== '\n' && ch.codePointAt(0)! < 0x20)
+  const control = [...frame].filter(
+    (ch) => ch !== '\n' && ch.codePointAt(0)! < 0x20
+  )
   expect(control).toEqual([])
 })
 
@@ -74,14 +97,18 @@ function coloursOf(t: Harness, needle: string): string[][] {
   for (const line of frame.lines) {
     const cells: { ch: string; fg: string }[] = []
     for (const span of line.spans) {
-      const fg = span.fg ? Array.from(span.fg.buffer.slice(0, 3)).join(',') : '-'
-      for (const ch of span.text) cells.push({ ch, fg })
+      const fg = span.fg ? span.fg.buffer.slice(0, 3).join(',') : '-'
+      for (const ch of span.text) {
+        cells.push({ ch, fg })
+      }
     }
     const at = cells
-      .map(c => c.ch)
+      .map((c) => c.ch)
       .join('')
       .indexOf(needle)
-    if (at >= 0) rows.push(cells.slice(at, at + needle.length).map(c => c.fg))
+    if (at !== -1) {
+      rows.push(cells.slice(at, at + needle.length).map((c) => c.fg))
+    }
   }
   return rows
 }
@@ -90,7 +117,11 @@ test('a tab-indented line is coloured where its text is drawn', async () => {
   // OpenTUI addresses highlights in rendered cells and draws a tab as two.
   const body = 'KV: KVNamespace'
   const source = `interface A {\n\t${body}\n}\ninterface B {\n  ${body}\n}\n`
-  const t = await launch(fixture({ 'a.ts': source }), {}, { width: 70, height: 16 })
+  const t = await launch(
+    fixture({ 'a.ts': source }),
+    {},
+    { height: 16, width: 70 }
+  )
   await openFile(t, 'a.ts')
   await until(t, () => new Set(coloursOf(t, body).flat()).size > 1)
 
@@ -100,7 +131,9 @@ test('a tab-indented line is coloured where its text is drawn', async () => {
 
 test('indent guides are visible in every theme', () => {
   const rgb = (hex: string) =>
-    [0, 2, 4].map(i => Number.parseInt(hex.replace('#', '').slice(i, i + 2), 16))
+    [0, 2, 4].map((i) =>
+      Number.parseInt(hex.replace('#', '').slice(i, i + 2), 16)
+    )
 
   for (const [id, theme] of Object.entries(THEMES)) {
     const [bg, guide] = [rgb(theme.ui.bg), rgb(theme.ui.indentGuide)]

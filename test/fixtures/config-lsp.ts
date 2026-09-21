@@ -14,46 +14,58 @@ const validated = (settings: unknown): boolean =>
 
 process.stdin.on(
   'data',
-  createDecoder(message => {
+  createDecoder((message) => {
     if (message.method === 'initialize') {
       send({
-        jsonrpc: '2.0',
         id: message.id,
+        jsonrpc: '2.0',
         result: {
           capabilities: {
+            diagnosticProvider: {
+              interFileDependencies: false,
+              workspaceDiagnostics: false,
+            },
             textDocumentSync: 1,
-            diagnosticProvider: { interFileDependencies: false, workspaceDiagnostics: false },
           },
         },
       })
     } else if (message.method === 'initialized') {
       send({
-        jsonrpc: '2.0',
         id: CONFIG_REQUEST_ID,
+        jsonrpc: '2.0',
         method: 'workspace/configuration',
         params: { items: [{ section: 'config-lsp' }] },
       })
     } else if (message.method === 'workspace/didChangeConfiguration') {
-      viaPush = validated((message.params as { settings?: unknown } | undefined)?.settings)
+      viaPush = validated(
+        (message.params as { settings?: unknown } | undefined)?.settings
+      )
     } else if (message.method === 'textDocument/diagnostic') {
       const items = [
         ...(viaRequest ? ['configured by request'] : []),
         ...(viaPush ? ['configured by push'] : []),
       ].map((text, at) => ({
-        range: { start: { line: at, character: 0 }, end: { line: at, character: 1 } },
-        severity: 2,
         message: text,
+        range: {
+          end: { character: 1, line: at },
+          start: { character: 0, line: at },
+        },
+        severity: 2,
         source: 'config-lsp',
       }))
-      send({ jsonrpc: '2.0', id: message.id, result: { kind: 'full', items } })
+      send({ id: message.id, jsonrpc: '2.0', result: { items, kind: 'full' } })
     } else if (message.id === CONFIG_REQUEST_ID) {
       const result = message.result as unknown[] | undefined
       viaRequest = validated(result?.[0])
-      send({ jsonrpc: '2.0', id: CONFIG_REQUEST_ID + 1, method: 'workspace/diagnostic/refresh' })
+      send({
+        id: CONFIG_REQUEST_ID + 1,
+        jsonrpc: '2.0',
+        method: 'workspace/diagnostic/refresh',
+      })
     } else if (message.method === 'shutdown') {
-      send({ jsonrpc: '2.0', id: message.id, result: null })
+      send({ id: message.id, jsonrpc: '2.0', result: null })
     } else if (message.method === 'exit') {
       process.exit(0)
     }
-  }),
+  })
 )

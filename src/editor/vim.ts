@@ -9,20 +9,24 @@ type VisualKind = 'char' | 'line'
 type FindKind = 'f' | 'F' | 't' | 'T'
 
 export const MODE_LABELS: Record<VimMode, string> = {
-  normal: 'NORMAL',
   insert: 'INSERT',
+  normal: 'NORMAL',
   visual: 'VISUAL',
 }
 
 export interface VimState {
   mode: VimMode
-  pending: string // partial operator, e.g. "d" waiting for a motion, or "g"
-  count: string // numeric prefix, e.g. "12" in 12j
-  register: string // last yanked/deleted text
+  // partial operator, e.g. "d" waiting for a motion, or "g"
+  pending: string
+  // numeric prefix, e.g. "12" in 12j
+  count: string
+  // last yanked/deleted text
+  register: string
   registerLinewise: boolean
   anchor: number
   visualKind: VisualKind
-  pendingTobj: 'i' | 'a' | null // text object prefix (i = inner, a = a/an)
+  // text object prefix (i = inner, a = a/an)
+  pendingTobj: 'i' | 'a' | null
   textObjOp: '' | 'd' | 'c' | 'y'
   pendingFind: FindKind | null
   findOp: '' | 'd' | 'c' | 'y'
@@ -31,18 +35,18 @@ export interface VimState {
 
 export function initialVimState(): VimState {
   return {
-    mode: 'normal',
-    pending: '',
-    count: '',
-    register: '',
-    registerLinewise: false,
     anchor: 0,
-    visualKind: 'char',
-    pendingTobj: null,
-    textObjOp: '',
-    pendingFind: null,
+    count: '',
     findOp: '',
     lastFind: null,
+    mode: 'normal',
+    pending: '',
+    pendingFind: null,
+    pendingTobj: null,
+    register: '',
+    registerLinewise: false,
+    textObjOp: '',
+    visualKind: 'char',
   }
 }
 
@@ -62,10 +66,15 @@ function markVisual(editor: Editor, state: VimState): void {
     const text = editor.plainText
     const start = lineStart(text, Math.min(state.anchor, cursor))
     let end = lineEnd(text, Math.max(state.anchor, cursor))
-    if (end < start) end = start
+    if (end < start) {
+      end = start
+    }
     editor.setSelectionInclusive(start, end)
   } else {
-    editor.setSelectionInclusive(Math.min(state.anchor, cursor), Math.max(state.anchor, cursor))
+    editor.setSelectionInclusive(
+      Math.min(state.anchor, cursor),
+      Math.max(state.anchor, cursor)
+    )
   }
 }
 
@@ -90,56 +99,82 @@ const MOTION_KEYS = new Set([
 ])
 
 const FIND_KEYS = new Set(['f', 'F', 't', 'T'])
-const OPPOSITE: Record<FindKind, FindKind> = { f: 'F', F: 'f', t: 'T', T: 't' }
+const OPPOSITE: Record<FindKind, FindKind> = { F: 'f', T: 't', f: 'F', t: 'T' }
 
-function motion(editor: Editor, k: string, state: VimState, count: number, counted: boolean) {
-  if (!MOTION_KEYS.has(k)) return false
+function motion(
+  editor: Editor,
+  k: string,
+  state: VimState,
+  count: number,
+  counted: boolean
+) {
+  if (!MOTION_KEYS.has(k)) {
+    return false
+  }
   // A cursor move with a selection live collapses it instead of moving.
-  if (state.mode === 'visual') editor.clearSelection()
+  if (state.mode === 'visual') {
+    editor.clearSelection()
+  }
   const repeat = (fn: () => void) => {
-    for (let i = 0; i < count; i++) fn()
+    for (let i = 0; i < count; i += 1) {
+      fn()
+    }
   }
 
   switch (k) {
     case 'h':
-    case 'left':
+    case 'left': {
       repeat(() => editor.moveCursorLeft())
       return true
+    }
     case 'l':
-    case 'right':
+    case 'right': {
       repeat(() => editor.moveCursorRight())
       return true
+    }
     case 'j':
-    case 'down':
+    case 'down': {
       repeat(() => editor.moveCursorDown())
       return true
+    }
     case 'k':
-    case 'up':
+    case 'up': {
       repeat(() => editor.moveCursorUp())
       return true
-    case 'w':
+    }
+    case 'w': {
       repeat(() => editor.moveWordForward())
       return true
-    case 'b':
+    }
+    case 'b': {
       repeat(() => editor.moveWordBackward())
       return true
-    case '0':
+    }
+    case '0': {
       editor.gotoLineHome()
       return true
-    case '$':
+    }
+    case '$': {
       editor.gotoLineEnd()
       return true
-    case 'G':
+    }
+    case 'G': {
       // `gotoLine` counts from zero, vim from one.
-      if (counted) editor.gotoLine(count - 1)
-      else editor.gotoBufferEnd()
+      if (counted) {
+        editor.gotoLine(count - 1)
+      } else {
+        editor.gotoBufferEnd()
+      }
       return true
-    case '{':
+    }
+    case '{': {
       moveParagraphUp(editor, count)
       return true
-    case '}':
+    }
+    case '}': {
       moveParagraphDown(editor, count)
       return true
+    }
     case ';':
     case ',': {
       const last = state.lastFind
@@ -151,13 +186,14 @@ function motion(editor: Editor, k: string, state: VimState, count: number, count
           last.char,
           count,
           true,
-          '',
+          ''
         )
       }
       return true
     }
-    default:
+    default: {
       return false
+    }
   }
 }
 
@@ -181,18 +217,27 @@ function yankLines(editor: Editor, state: VimState, count: number): void {
 
 function deleteLine(editor: Editor, state: VimState, count: number): void {
   yankLines(editor, state, count)
-  for (let i = 0; i < count; i++) editor.deleteLine()
+  for (let i = 0; i < count; i += 1) {
+    editor.deleteLine()
+  }
 }
 
-const OPERATOR_TARGETS: Record<string, (editor: Editor, count: number) => void> = {
-  w: (e, n) => {
-    for (let i = 0; i < n; i++) e.deleteWordForward()
-  },
+const OPERATOR_TARGETS: Record<
+  string,
+  (editor: Editor, count: number) => void
+> = {
+  $: (e) => e.deleteToLineEnd(),
+  0: (e) => e.deleteToLineStart(),
   b: (e, n) => {
-    for (let i = 0; i < n; i++) e.deleteWordBackward()
+    for (let i = 0; i < n; i += 1) {
+      e.deleteWordBackward()
+    }
   },
-  $: e => e.deleteToLineEnd(),
-  0: e => e.deleteToLineStart(),
+  w: (e, n) => {
+    for (let i = 0; i < n; i += 1) {
+      e.deleteWordForward()
+    }
+  },
 }
 
 function lineStart(text: string, offset: number): number {
@@ -202,7 +247,7 @@ function lineStart(text: string, offset: number): number {
 
 function lineEnd(text: string, offset: number): number {
   const idx = text.indexOf('\n', offset)
-  return idx >= 0 ? Math.max(0, idx - 1) : text.length - 1
+  return idx === -1 ? text.length - 1 : Math.max(0, idx - 1)
 }
 
 function findTarget(
@@ -211,7 +256,7 @@ function findTarget(
   kind: FindKind,
   char: string,
   count: number,
-  repeat: boolean,
+  repeat: boolean
 ): number | null {
   const forward = kind === 'f' || kind === 't'
   const from = lineStart(text, cursor)
@@ -219,14 +264,19 @@ function findTarget(
   // `t` leaves the caret against its character, so a repeat would find the same one.
   const skip = repeat && (kind === 't' || kind === 'T') ? 1 : 0
   let left = count
-  for (let i = forward ? cursor + 1 + skip : cursor - 1 - skip; forward ? i <= to : i >= from;) {
-    if (text[i] === char && --left === 0) {
-      if (kind === 'f' || kind === 'F') return i
+  const step = forward ? 1 : -1
+  for (let i = cursor + step * (1 + skip); i >= from && i <= to; i += step) {
+    if (text[i] === char) {
+      left -= 1
+    }
+    if (text[i] === char && left === 0) {
+      if (kind === 'f' || kind === 'F') {
+        return i
+      }
       const target = kind === 't' ? i - 1 : i + 1
       // A motion that moves nowhere is a failure: `dt,` with the comma adjacent deletes nothing.
       return target === cursor ? null : target
     }
-    i += forward ? 1 : -1
   }
   return null
 }
@@ -239,12 +289,16 @@ function runFind(
   char: string,
   count: number,
   repeat: boolean,
-  op: '' | 'd' | 'c' | 'y',
+  op: '' | 'd' | 'c' | 'y'
 ): void {
   const cursor = editor.cursorOffset
   const target = findTarget(editor.plainText, cursor, kind, char, count, repeat)
-  if (target === null) return
-  if (state.mode === 'visual') editor.clearSelection()
+  if (target === null) {
+    return
+  }
+  if (state.mode === 'visual') {
+    editor.clearSelection()
+  }
   if (!op) {
     editor.cursorOffset = target
     return
@@ -253,7 +307,9 @@ function runFind(
   const forward = kind === 'f' || kind === 't'
   const start = forward ? cursor : target
   const end = forward ? target : cursor - 1
-  if (end < start) return
+  if (end < start) {
+    return
+  }
   editor.setSelectionInclusive(start, end)
   yankSelection(editor, state)
   if (op === 'y') {
@@ -267,12 +323,16 @@ function runFind(
 
 function moveParagraphUp(editor: Editor, count: number): void {
   const lines = editor.plainText.split('\n')
-  let row = editor.logicalCursor.row
+  let { row } = editor.logicalCursor
 
-  for (let c = 0; c < count; c++) {
-    if (row <= 0) break
-    row--
-    while (row > 0 && lines[row]!.trim() !== '') row--
+  for (let c = 0; c < count; c += 1) {
+    if (row <= 0) {
+      break
+    }
+    row -= 1
+    while (row > 0 && lines[row]!.trim() !== '') {
+      row -= 1
+    }
   }
 
   editor.gotoLine(row)
@@ -280,63 +340,75 @@ function moveParagraphUp(editor: Editor, count: number): void {
 
 function moveParagraphDown(editor: Editor, count: number): void {
   const lines = editor.plainText.split('\n')
-  let row = editor.logicalCursor.row
+  let { row } = editor.logicalCursor
   const maxRow = lines.length - 1
 
-  for (let c = 0; c < count; c++) {
-    if (row >= maxRow) break
-    row++
-    while (row < maxRow && lines[row]!.trim() !== '') row++
+  for (let c = 0; c < count; c += 1) {
+    if (row >= maxRow) {
+      break
+    }
+    row += 1
+    while (row < maxRow && lines[row]!.trim() !== '') {
+      row += 1
+    }
   }
 
   editor.gotoLine(Math.min(row, maxRow))
 }
 
-const PAIR_OPEN: Record<string, string> = { '{': '}', '(': ')', '[': ']' }
-const PAIR_CLOSE: Record<string, string> = { '}': '{', ')': '(', ']': '[' }
+const PAIR_OPEN: Record<string, string> = { '(': ')', '[': ']', '{': '}' }
+const PAIR_CLOSE: Record<string, string> = { ')': '(', ']': '[', '}': '{' }
 const TEXT_OBJ_TARGETS = new Set(['{', '}', '(', ')', '[', ']'])
 
 function findEnclosingPair(
   text: string,
   cursor: number,
   open: string,
-  close: string,
+  close: string
 ): { open: number; close: number } | null {
   let depth = 1
   let openIdx = -1
   // A cursor on the close bracket would count it as a nested close and never find the open.
   const start = cursor > 0 && text[cursor] === close ? cursor - 1 : cursor
-  for (let i = start; i >= 0; i--) {
-    if (text[i] === close) depth++
-    else if (text[i] === open) {
-      depth--
+  for (let i = start; i >= 0; i -= 1) {
+    if (text[i] === close) {
+      depth += 1
+    } else if (text[i] === open) {
+      depth -= 1
       if (depth === 0) {
         openIdx = i
         break
       }
     }
   }
-  if (openIdx === -1) return null
+  if (openIdx === -1) {
+    return null
+  }
 
   depth = 1
   let closeIdx = -1
-  for (let i = openIdx + 1; i < text.length; i++) {
-    if (text[i] === open) depth++
-    else if (text[i] === close) {
-      depth--
+  for (let i = openIdx + 1; i < text.length; i += 1) {
+    if (text[i] === open) {
+      depth += 1
+    } else if (text[i] === close) {
+      depth -= 1
       if (depth === 0) {
         closeIdx = i
         break
       }
     }
   }
-  if (closeIdx === -1) return null
+  if (closeIdx === -1) {
+    return null
+  }
 
-  return { open: openIdx, close: closeIdx }
+  return { close: closeIdx, open: openIdx }
 }
 
 function handleTextObject(editor: Editor, k: string, state: VimState): boolean {
-  if (!TEXT_OBJ_TARGETS.has(k)) return false
+  if (!TEXT_OBJ_TARGETS.has(k)) {
+    return false
+  }
   const open = k in PAIR_OPEN ? k : PAIR_CLOSE[k]!
   const close = PAIR_OPEN[open]!
   const text = editor.plainText
@@ -368,26 +440,35 @@ function atLineEnd(editor: Editor): boolean {
 
 // The buffer's caret sits between characters and can rest past the end of a line; vim's cannot.
 function clampToLine(editor: Editor, state: VimState): void {
-  if (state.mode === 'insert') return
-  if (atLineEnd(editor) && editor.logicalCursor.col > 0) editor.moveCursorLeft()
+  if (state.mode === 'insert') {
+    return
+  }
+  if (atLineEnd(editor) && editor.logicalCursor.col > 0) {
+    editor.moveCursorLeft()
+  }
 }
 
 function paste(editor: Editor, state: VimState, before: boolean): void {
-  if (!state.register) return
+  if (!state.register) {
+    return
+  }
   if (state.registerLinewise) {
-    if (before) editor.gotoLineStart()
-    else {
+    if (before) {
+      editor.gotoLineStart()
+    } else {
       editor.gotoLineEnd()
       editor.newLine()
     }
-    editor.insertText(state.register.replace(/\n$/, ''))
+    editor.insertText(state.register.replace(/\n$/u, ''))
     if (before) {
       editor.newLine()
       editor.moveCursorUp()
     }
   } else {
     // Past the last character, stepping right would carry the paste onto the next line.
-    if (!before && !atLineEnd(editor)) editor.moveCursorRight()
+    if (!before && !atLineEnd(editor)) {
+      editor.moveCursorRight()
+    }
     editor.insertText(state.register)
   }
 }
@@ -396,22 +477,32 @@ export function handleVimKey(
   editor: Editor,
   key: KeyEvent,
   state: VimState,
-  actions: VimActions,
+  actions: VimActions
 ): boolean {
   const consumed = dispatch(editor, key, state, actions)
   // Dropped before the clamp and repainted after: unclamped, `v$` takes the newline.
   const visual = state.mode === 'visual'
-  if (visual) editor.clearSelection()
+  if (visual) {
+    editor.clearSelection()
+  }
   clampToLine(editor, state)
-  if (visual) markVisual(editor, state)
+  if (visual) {
+    markVisual(editor, state)
+  }
   return consumed
 }
 
-function dispatch(editor: Editor, key: KeyEvent, state: VimState, actions: VimActions): boolean {
+function dispatch(
+  editor: Editor,
+  key: KeyEvent,
+  state: VimState,
+  actions: VimActions
+): boolean {
   // A place on the keyboard, not a letter: with a Cyrillic layout `dd` arrives as `вв`.
   const pressed = latinKey(key)
   // Shifted letters arrive as the lowercase name plus `shift`.
-  const k = key.shift && /^[a-z]$/.test(pressed) ? pressed.toUpperCase() : pressed
+  const k =
+    key.shift && /^[a-z]$/u.test(pressed) ? pressed.toUpperCase() : pressed
   if (state.mode === 'insert') {
     if (k === 'escape') {
       state.mode = 'normal'
@@ -429,11 +520,21 @@ function dispatch(editor: Editor, key: KeyEvent, state: VimState, actions: VimAc
     state.pendingFind = null
     state.findOp = ''
     state.count = ''
-    if (key.ctrl || k.length !== 1) return true
+    if (key.ctrl || k.length !== 1) {
+      return true
+    }
     // The character is text, so the one the layout printed, not `k`'s place on the board.
     const char = key.sequence.length === 1 ? key.sequence : key.name
-    state.lastFind = { kind, char }
-    runFind(editor, state, kind, char, Math.max(1, Number.parseInt(digits || '1', 10)), false, op)
+    state.lastFind = { char, kind }
+    runFind(
+      editor,
+      state,
+      kind,
+      char,
+      Math.max(1, Number(digits || '1')),
+      false,
+      op
+    )
     return true
   }
 
@@ -443,9 +544,12 @@ function dispatch(editor: Editor, key: KeyEvent, state: VimState, actions: VimAc
       return true
     }
     if (k === 'd' || k === 'u') {
-      for (let i = 0; i < 10; i++) {
-        if (k === 'd') editor.moveCursorDown()
-        else editor.moveCursorUp()
+      for (let i = 0; i < 10; i += 1) {
+        if (k === 'd') {
+          editor.moveCursorDown()
+        } else {
+          editor.moveCursorUp()
+        }
       }
       return true
     }
@@ -453,14 +557,14 @@ function dispatch(editor: Editor, key: KeyEvent, state: VimState, actions: VimAc
   }
 
   // A leading "0" is the line-start motion, not the start of a count.
-  if (/^\d$/.test(k) && !(k === '0' && state.count === '')) {
+  if (/^\d$/u.test(k) && !(k === '0' && state.count === '')) {
     state.count += k
     return true
   }
   // Consumed here; only an operator setter puts it back, so `3dd` reaches `dd` with its 3.
   const digits = state.count
   state.count = ''
-  const count = Math.max(1, Number.parseInt(digits || '1', 10))
+  const count = Math.max(1, Number(digits || '1'))
 
   if (state.pending) {
     const op = state.pending
@@ -494,7 +598,7 @@ function dispatch(editor: Editor, key: KeyEvent, state: VimState, actions: VimAc
           last.char,
           count,
           true,
-          op,
+          op
         )
         return true
       }
@@ -502,23 +606,32 @@ function dispatch(editor: Editor, key: KeyEvent, state: VimState, actions: VimAc
 
     if (op === 'g') {
       if (k === 'g') {
-        if (digits) editor.gotoLine(count - 1)
-        else editor.gotoBufferHome()
-        if (state.mode === 'visual') markVisual(editor, state)
+        if (digits) {
+          editor.gotoLine(count - 1)
+        } else {
+          editor.gotoBufferHome()
+        }
+        if (state.mode === 'visual') {
+          markVisual(editor, state)
+        }
       }
       return true
     }
     if (op === 'z') {
       if (k === 'z') {
-        if (digits) editor.gotoLine(count - 1)
+        if (digits) {
+          editor.gotoLine(count - 1)
+        }
         actions.centerLine()
       }
       return true
     }
     if (k === op) {
-      if (op === 'd') deleteLine(editor, state, count)
-      else if (op === 'y') yankLines(editor, state, count)
-      else if (op === 'c') {
+      if (op === 'd') {
+        deleteLine(editor, state, count)
+      } else if (op === 'y') {
+        yankLines(editor, state, count)
+      } else if (op === 'c') {
         editor.gotoLineStart()
         editor.deleteToLineEnd()
         state.mode = 'insert'
@@ -529,7 +642,9 @@ function dispatch(editor: Editor, key: KeyEvent, state: VimState, actions: VimAc
       const cut = OPERATOR_TARGETS[k]
       if (cut) {
         cut(editor, count)
-        if (op === 'c') state.mode = 'insert'
+        if (op === 'c') {
+          state.mode = 'insert'
+        }
       }
     }
     return true
@@ -562,7 +677,10 @@ function dispatch(editor: Editor, key: KeyEvent, state: VimState, actions: VimAc
       } else if (state.mode === 'visual') {
         editor.clearSelection()
         const cursor = editor.cursorOffset
-        editor.setSelectionInclusive(Math.min(state.anchor, cursor), Math.max(state.anchor, cursor))
+        editor.setSelectionInclusive(
+          Math.min(state.anchor, cursor),
+          Math.max(state.anchor, cursor)
+        )
       }
       return true
     }
@@ -579,7 +697,9 @@ function dispatch(editor: Editor, key: KeyEvent, state: VimState, actions: VimAc
 
   // Before the mode switches, so visual mode extends the selection.
   if (motion(editor, k, state, count, digits !== '')) {
-    if (state.mode === 'visual') markVisual(editor, state)
+    if (state.mode === 'visual') {
+      markVisual(editor, state)
+    }
     return true
   }
 
@@ -609,129 +729,162 @@ function dispatch(editor: Editor, key: KeyEvent, state: VimState, actions: VimAc
       editor.clearSelection()
 
       switch (k) {
-        case 'escape':
+        case 'escape': {
           state.mode = 'normal'
           break
+        }
         case 'd':
         case 'x':
-        case 'c':
+        case 'c': {
           editor.gotoLine(rowStart)
           deleteLine(editor, state, rowCount)
-          if (k === 'c') state.mode = 'insert'
-          else state.mode = 'normal'
+          state.mode = k === 'c' ? 'insert' : 'normal'
           break
-        case 'y':
+        }
+        case 'y': {
           state.register = `${lines.slice(rowStart, rowStart + rowCount).join('\n')}\n`
           state.registerLinewise = true
           editor.cursorOffset = start
           state.mode = 'normal'
           break
+        }
+        default: {
+          break
+        }
       }
       return true
     }
 
     switch (k) {
-      case 'escape':
+      case 'escape': {
         editor.clearSelection()
         state.mode = 'normal'
         break
+      }
       case 'd':
-      case 'x':
+      case 'x': {
         yankSelection(editor, state)
         editor.deleteSelection()
         state.mode = 'normal'
         break
-      case 'y':
+      }
+      case 'y': {
         yankSelection(editor, state)
         editor.clearSelection()
         editor.cursorOffset = start
         state.mode = 'normal'
         break
-      case 'c':
+      }
+      case 'c': {
         yankSelection(editor, state)
         editor.deleteSelection()
         state.mode = 'insert'
         break
+      }
+      default: {
+        break
+      }
     }
     return true
   }
 
   switch (k) {
-    case 'i':
+    case 'i': {
       state.mode = 'insert'
       break
-    case 'a':
+    }
+    case 'a': {
       editor.moveCursorRight()
       state.mode = 'insert'
       break
-    case 'I':
+    }
+    case 'I': {
       editor.gotoLineStart()
       state.mode = 'insert'
       break
-    case 'A':
+    }
+    case 'A': {
       editor.gotoLineEnd()
       state.mode = 'insert'
       break
-    case 'o':
+    }
+    case 'o': {
       editor.gotoLineEnd()
       editor.newLine()
       state.mode = 'insert'
       break
-    case 'O':
+    }
+    case 'O': {
       editor.gotoLineStart()
       editor.newLine()
       editor.moveCursorUp()
       state.mode = 'insert'
       break
-    case 'v':
+    }
+    case 'v': {
       state.visualKind = 'char'
       state.mode = 'visual'
       state.anchor = editor.cursorOffset
       markVisual(editor, state)
       break
-    case 'V':
+    }
+    case 'V': {
       state.visualKind = 'line'
       state.mode = 'visual'
       state.anchor = lineStart(editor.plainText, editor.cursorOffset)
       markVisual(editor, state)
       break
-    case 'x':
-      for (let i = 0; i < count; i++) {
+    }
+    case 'x': {
+      for (let i = 0; i < count; i += 1) {
         // `deleteChar` deletes forward: at the end of a line it would eat the newline.
         if (atLineEnd(editor)) {
-          if (editor.logicalCursor.col === 0) break
+          if (editor.logicalCursor.col === 0) {
+            break
+          }
           editor.moveCursorLeft()
         }
         editor.deleteChar()
       }
       break
-    case 'D':
+    }
+    case 'D': {
       editor.deleteToLineEnd()
       break
-    case 'C':
+    }
+    case 'C': {
       editor.deleteToLineEnd()
       state.mode = 'insert'
       break
-    case 'u':
-      for (let i = 0; i < count; i++) actions.undo()
+    }
+    case 'u': {
+      for (let i = 0; i < count; i += 1) {
+        actions.undo()
+      }
       break
-    case 'p':
+    }
+    case 'p': {
       paste(editor, state, false)
       break
-    case 'P':
+    }
+    case 'P': {
       paste(editor, state, true)
       break
+    }
     case 'd':
     case 'c':
     case 'y':
-    case 'g':
+    case 'g': {
       state.pending = k
       state.count = digits
       return true
-    case 'escape':
+    }
+    case 'escape': {
       break
-    default:
+    }
+    default: {
       return true
+    }
   }
   return true
 }

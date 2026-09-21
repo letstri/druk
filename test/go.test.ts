@@ -13,11 +13,16 @@ loadMarketExtensions()
 
 async function captured(source: string) {
   const client = await highlightClient()
-  if (!client) throw new Error('tree-sitter client unavailable')
+  if (!client) {
+    throw new Error('tree-sitter client unavailable')
+  }
   const result = await client.highlightOnce(source, 'go')
   const byGroup = new Map<string, string[]>()
   for (const [start, end, group] of result.highlights ?? []) {
-    byGroup.set(group, [...(byGroup.get(group) ?? []), source.slice(start, end)])
+    byGroup.set(group, [
+      ...(byGroup.get(group) ?? []),
+      source.slice(start, end),
+    ])
   }
   return (group: string) => byGroup.get(group) ?? []
 }
@@ -73,10 +78,15 @@ describe('go highlighting', () => {
     const parsed = await parseHighlights(SOURCE, 'go')
     const lines = SOURCE.split('\n')
     const functionStyle = styleIdForGroup('function')
-    if (functionStyle == null) throw new Error('function style unavailable')
+    if (functionStyle === null || functionStyle === undefined) {
+      throw new Error('function style unavailable')
+    }
     const names = segmentsIn(parsed, 0, WHOLE)
-      .filter(segment => lines[segment.line]?.slice(segment.start, segment.end) === 'newServer')
-      .map(segment => segment.styleId)
+      .filter(
+        (segment) =>
+          lines[segment.line]?.slice(segment.start, segment.end) === 'newServer'
+      )
+      .map((segment) => segment.styleId)
 
     expect(names).toEqual([functionStyle, functionStyle])
   })

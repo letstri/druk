@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test'
 import { execFileSync } from 'node:child_process'
 import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { setTimeout as sleep } from 'node:timers/promises'
 
 import {
   launch,
@@ -12,15 +13,16 @@ import {
   untilFrame,
   untilGone,
 } from './helpers'
+import { git as run, initRepo } from './repo'
 import { tempDir } from './temp'
 
 function repo() {
   const dir = tempDir('druk-compare-ui-')
+  initRepo(dir, 'trunk')
   const git = (...args: string[]) =>
-    execFileSync('git', args, { cwd: dir, encoding: 'utf8' }).trim()
-  git('init', '-q', '-b', 'trunk')
-  git('config', 'user.email', 'test@example.com')
-  git('config', 'user.name', 'Test')
+    run(dir, ...args)
+      .toString()
+      .trim()
   git('config', 'init.defaultBranch', 'trunk')
   writeFileSync(join(dir, 'auth.ts'), 'export const auth = false\n')
   git('add', '.')
@@ -58,10 +60,10 @@ test('B in comparison opens the fuzzy base picker', async () => {
   await openComparison(t)
   await untilFrame(t, '2 files')
 
-  await press(t, input => input.pressKey('b', { shift: true }))
+  await press(t, (input) => input.pressKey('b', { shift: true }))
   await untilFrame(t, 'Compare against branch')
-  await press(t, input => void input.typeText('develop'))
-  await press(t, input => input.pressEnter())
+  await press(t, (input) => input.typeText('develop'))
+  await press(t, (input) => input.pressEnter())
   await untilFrame(t, 'base  develop')
 
   expect(t.captureCharFrame()).toContain('2 files')
@@ -73,7 +75,7 @@ test('lowercase b keeps branch switching available inside comparison', async () 
   await openComparison(t)
   await untilFrame(t, '2 files')
 
-  await press(t, input => input.pressKey('b'))
+  await press(t, (input) => input.pressKey('b'))
   await untilFrame(t, 'Switch to branch')
 
   expect(t.captureCharFrame()).toContain('trunk')
@@ -85,10 +87,10 @@ test('/ filters comparison files without another Git selection', async () => {
   await openComparison(t)
   await untilFrame(t, '2 files')
 
-  await press(t, input => input.pressKey('/'))
+  await press(t, (input) => input.pressKey('/'))
   await untilFrame(t, 'Filter comparison')
-  await press(t, input => void input.typeText('session'))
-  await press(t, input => input.pressEnter())
+  await press(t, (input) => input.typeText('session'))
+  await press(t, (input) => input.pressEnter())
 
   const frame = t.captureCharFrame()
   expect(frame).toContain('session.ts')
@@ -101,12 +103,12 @@ test('Enter opens a lazy file diff and d switches its layout', async () => {
   await openComparison(t)
   await untilFrame(t, '2 files')
 
-  await press(t, input => input.pressEnter())
-  await press(t, input => input.pressTab())
+  await press(t, (input) => input.pressEnter())
+  await press(t, (input) => input.pressTab())
   await untilFrame(t, '+ export const auth = true')
   expect(t.captureCharFrame()).toContain('- export const auth = false')
 
-  await press(t, input => input.pressKey('d'))
+  await press(t, (input) => input.pressKey('d'))
   expect(t.captureCharFrame()).toContain('side-by-side')
 })
 
@@ -116,18 +118,18 @@ test('commit mode opens metadata, changed files and the first file diff', async 
   await openComparison(t)
   await untilFrame(t, '2 files')
 
-  await press(t, input => input.pressKey('c'))
+  await press(t, (input) => input.pressKey('c'))
   expect(t.captureCharFrame()).toContain('add authentication')
-  await press(t, input => input.pressEnter())
+  await press(t, (input) => input.pressEnter())
   await untilFrame(t, '+ export const auth = true')
-  await press(t, input => input.pressTab())
+  await press(t, (input) => input.pressTab())
 
   const frame = t.captureCharFrame()
   expect(frame).toContain('add authentication')
   expect(frame).toContain('Test <test@example.com>')
   expect(frame).toContain('2 files')
 
-  await press(t, input => input.pressArrow('right'))
+  await press(t, (input) => input.pressArrow('right'))
   await untilFrame(t, '+ export const session = true')
   expect(t.captureCharFrame()).toContain('session.ts')
 })
@@ -137,17 +139,17 @@ test('Esc closes detail before leaving comparison', async () => {
   const t = await launch(dir)
   await openComparison(t)
   await untilFrame(t, '2 files')
-  await press(t, input => input.pressEnter())
-  await press(t, input => input.pressTab())
+  await press(t, (input) => input.pressEnter())
+  await press(t, (input) => input.pressTab())
   await untilFrame(t, '+ export const auth = true')
 
   t.mockInput.pressEscape()
-  await new Promise(resolve => setTimeout(resolve, 60))
+  await sleep(60)
   await untilFrame(t, '[Files]')
   expect(t.captureCharFrame()).toContain('compare')
 
   t.mockInput.pressEscape()
-  await new Promise(resolve => setTimeout(resolve, 60))
+  await sleep(60)
   await untilGone(t, 'base  trunk')
   expect(t.captureCharFrame()).not.toContain('base  trunk')
 })
@@ -175,8 +177,11 @@ test('a branch with no introduced work has a clean comparison state', async () =
 
 test('a long comparison windows its rows as the cursor moves', async () => {
   const { dir, git } = repo()
-  for (let index = 0; index < 40; index++) {
-    writeFileSync(join(dir, `file-${index.toString().padStart(2, '0')}.ts`), `${index}\n`)
+  for (let index = 0; index < 40; index += 1) {
+    writeFileSync(
+      join(dir, `file-${index.toString().padStart(2, '0')}.ts`),
+      `${index}\n`
+    )
   }
   git('add', '.')
   git('commit', '-q', '-m', 'many files')
@@ -184,7 +189,7 @@ test('a long comparison windows its rows as the cursor moves', async () => {
 
   await openComparison(t)
   await untilFrame(t, '42 files')
-  await pressTimes(t, 25, input => input.pressArrow('down'))
+  await pressTimes(t, 25, (input) => input.pressArrow('down'))
 
   const frame = t.captureCharFrame()
   expect(frame).toContain('file-24.ts')
@@ -219,7 +224,7 @@ test('binary, deleted and renamed rows retain their comparison status', async ()
   expect(frame).toContain('new-name.txt')
   expect(frame).toContain('R ')
 
-  await press(t, input => input.pressEnter())
+  await press(t, (input) => input.pressEnter())
   await untilFrame(t, 'Binary file')
   expect(t.captureCharFrame()).toContain('textual diff is not available')
 })

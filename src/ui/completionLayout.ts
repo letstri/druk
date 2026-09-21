@@ -30,7 +30,10 @@ export interface MenuLayout {
 }
 
 export function signatureOf(item: Match['item']): string {
-  return item.labelDetails?.detail ?? (item.detail ?? '').replaceAll(/\s+/g, ' ').trim()
+  return (
+    item.labelDetails?.detail ??
+    (item.detail ?? '').replaceAll(/\s+/gu, ' ').trim()
+  )
 }
 
 function widthFor(matches: Match[], panel: boolean, max: number): number {
@@ -38,10 +41,15 @@ function widthFor(matches: Match[], panel: boolean, max: number): number {
   for (const match of matches.slice(0, MENU_ROWS)) {
     const label = Math.min(match.item.label.length, LABEL_MAX)
     const signature = Math.min(signatureOf(match.item).length, SIG_MAX)
-    const description = Math.min(match.item.labelDetails?.description?.length ?? 0, DESC_MAX)
+    const description = Math.min(
+      match.item.labelDetails?.description?.length ?? 0,
+      DESC_MAX
+    )
     content = Math.max(
       content,
-      label + (signature > 0 ? 1 + signature : 0) + (description > 0 ? 2 + description : 0),
+      label +
+        (signature > 0 ? 1 + signature : 0) +
+        (description > 0 ? 2 + description : 0)
     )
   }
   const want = Math.max(MIN_WIDTH, content + ROW_CHROME + 2)
@@ -53,25 +61,31 @@ function wrapSignature(text: string, width: number): SignatureLine[] {
   const lines: SignatureLine[] = []
   let line = ''
   let start = 0
-  for (const match of text.matchAll(/\S+/g)) {
-    const word = match[0]
+  for (const match of text.matchAll(/\S+/gu)) {
+    const [word] = match
     const at = match.index
     if (line && line.length + 1 + word.length > width) {
-      lines.push({ text: line, start })
+      lines.push({ start, text: line })
       line = ''
     }
     if (word.length > width) {
-      if (line) lines.push({ text: line, start })
+      if (line) {
+        lines.push({ start, text: line })
+      }
       for (let from = 0; from < word.length; from += width) {
-        lines.push({ text: word.slice(from, from + width), start: at + from })
+        lines.push({ start: at + from, text: word.slice(from, from + width) })
       }
       line = ''
       continue
     }
-    if (!line) start = at
+    if (!line) {
+      start = at
+    }
     line = line ? `${line} ${word}` : word
   }
-  if (line) lines.push({ text: line, start })
+  if (line) {
+    lines.push({ start, text: line })
+  }
   return lines
 }
 
@@ -79,17 +93,26 @@ function wrapBlock(text: string, width: number): string[] {
   const lines: string[] = []
   for (const paragraph of text.split('\n')) {
     if (paragraph.trim().length === 0) {
-      if (lines.length > 0) lines.push('')
-    } else lines.push(...wrapText(paragraph, width))
+      if (lines.length > 0) {
+        lines.push('')
+      }
+    } else {
+      lines.push(...wrapText(paragraph, width))
+    }
   }
   return lines
 }
 
 function capped(lines: string[], rows: number): string[] {
-  if (rows <= 0) return []
-  if (lines.length <= rows) return lines
+  if (rows <= 0) {
+    return []
+  }
+  if (lines.length <= rows) {
+    return lines
+  }
   const kept = lines.slice(0, rows)
-  kept[rows - 1] = `${kept[rows - 1]!.slice(0, Math.max(0, kept[rows - 1]!.length - 1))}…`
+  kept[rows - 1] =
+    `${kept[rows - 1]!.slice(0, Math.max(0, kept[rows - 1]!.length - 1))}…`
   return kept
 }
 
@@ -99,18 +122,18 @@ export function layoutMenu(
   info: ItemInfo | null,
   max: { width: number; height: number },
   panel: boolean,
-  floor = 0,
+  floor = 0
 ): MenuLayout {
   const width = widthFor(matches, panel, Math.max(MIN_WIDTH, max.width))
   if (matches.length === 0) {
     return {
-      width,
-      height: 3,
-      rows: 0,
-      panelRows: 0,
-      signature: [],
       documentation: [],
+      height: 3,
       origin: '',
+      panelRows: 0,
+      rows: 0,
+      signature: [],
+      width,
     }
   }
   const inner = width - 2
@@ -127,10 +150,10 @@ export function layoutMenu(
     const need = wrapped.length + docs.length + (info.source ? 1 : 0)
     panelRows = Math.max(panelRows, Math.min(room, need))
     const rows = capped(
-      wrapped.map(line => line.text),
-      Math.min(Math.max(SIG_ROWS, panelRows - docs.length), panelRows),
+      wrapped.map((line) => line.text),
+      Math.min(Math.max(SIG_ROWS, panelRows - docs.length), panelRows)
     )
-    signature = rows.map((text, at) => ({ text, start: wrapped[at]!.start }))
+    signature = rows.map((text, at) => ({ start: wrapped[at]!.start, text }))
     documentation = capped(docs, panelRows - signature.length)
     if (panelRows > signature.length + documentation.length && info.source) {
       origin = cut(info.source, inner - 2)
@@ -139,12 +162,12 @@ export function layoutMenu(
   const reserved = panelRows > 0 ? panelRows + 1 : 0
   const rows = Math.max(1, Math.min(shown, max.height - CHROME_ROWS - reserved))
   return {
-    width,
-    height: CHROME_ROWS + rows + reserved,
-    rows,
-    panelRows,
-    signature,
     documentation,
+    height: CHROME_ROWS + rows + reserved,
     origin,
+    panelRows,
+    rows,
+    signature,
+    width,
   }
 }

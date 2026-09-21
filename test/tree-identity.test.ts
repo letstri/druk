@@ -9,7 +9,7 @@ import { fixture } from './helpers'
 
 test('a refresh keeps the TreeNode identity of unchanged rows', () => {
   const dir = fixture({ 'a.ts': 'const a = 1\n', 'b.ts': 'const b = 2\n' })
-  createRoot(dispose => {
+  createRoot((dispose) => {
     const tree = createTree(dir, { expanded: [], selected: null })
     const before = tree.nodes()
 
@@ -19,7 +19,7 @@ test('a refresh keeps the TreeNode identity of unchanged rows', () => {
 
     expect(after.length).toBe(before.length + 1)
     for (const node of before) {
-      expect(after.find(other => other.path === node.path)).toBe(node)
+      expect(after.find((other) => other.path === node.path)).toBe(node)
     }
     dispose()
   })
@@ -27,15 +27,15 @@ test('a refresh keeps the TreeNode identity of unchanged rows', () => {
 
 test('a changed row gets a fresh object', () => {
   const dir = fixture({ sub: '' })
-  createRoot(dispose => {
+  createRoot((dispose) => {
     const tree = createTree(dir, { expanded: [], selected: null })
-    const before = tree.nodes().find(node => node.name === 'sub')!
+    const before = tree.nodes().find((node) => node.name === 'sub')!
     expect(before.isDir).toBe(false)
 
     Bun.spawnSync(['rm', join(dir, 'sub')])
     Bun.spawnSync(['mkdir', join(dir, 'sub')])
     tree.refreshTree()
-    const after = tree.nodes().find(node => node.name === 'sub')!
+    const after = tree.nodes().find((node) => node.name === 'sub')!
 
     expect(after.isDir).toBe(true)
     expect(after).not.toBe(before)

@@ -8,16 +8,19 @@ const documents = new Map<string, string>()
 const diagnosticsFor = (uri: string): Diagnostic[] => {
   const lines = (documents.get(uri) ?? '').split('\n')
   const found: Diagnostic[] = []
-  for (let line = 0; line < lines.length; line++) {
+  for (let line = 0; line < lines.length; line += 1) {
     for (
       let col = lines[line]!.indexOf('oops');
       col >= 0;
       col = lines[line]!.indexOf('oops', col + 4)
     ) {
       found.push({
-        range: { start: { line, character: col }, end: { line, character: col + 4 } },
-        severity: 1,
         message: 'pulled oops',
+        range: {
+          end: { character: col + 4, line },
+          start: { character: col, line },
+        },
+        severity: 1,
         source: 'pull',
       })
     }
@@ -27,31 +30,39 @@ const diagnosticsFor = (uri: string): Diagnostic[] => {
 
 process.stdin.on(
   'data',
-  createDecoder(message => {
+  createDecoder((message) => {
     if (message.method === 'initialize') {
       send({
-        jsonrpc: '2.0',
         id: message.id,
+        jsonrpc: '2.0',
         result: {
           capabilities: {
+            diagnosticProvider: {
+              interFileDependencies: true,
+              workspaceDiagnostics: false,
+            },
             textDocumentSync: 1,
-            diagnosticProvider: { interFileDependencies: true, workspaceDiagnostics: false },
           },
         },
       })
     } else if (message.method === 'textDocument/diagnostic') {
       const params = message.params as { textDocument: { uri: string } }
       send({
-        jsonrpc: '2.0',
         id: message.id,
-        result: { kind: 'full', items: diagnosticsFor(params.textDocument.uri) },
+        jsonrpc: '2.0',
+        result: {
+          items: diagnosticsFor(params.textDocument.uri),
+          kind: 'full',
+        },
       })
     } else if (message.method === 'shutdown') {
-      send({ jsonrpc: '2.0', id: message.id, result: null })
+      send({ id: message.id, jsonrpc: '2.0', result: null })
     } else if (message.method === 'exit') {
       process.exit(0)
     } else if (message.method === 'textDocument/didOpen') {
-      const params = message.params as { textDocument: { uri: string; text: string } }
+      const params = message.params as {
+        textDocument: { uri: string; text: string }
+      }
       documents.set(params.textDocument.uri, params.textDocument.text)
     } else if (message.method === 'textDocument/didChange') {
       const params = message.params as {
@@ -60,6 +71,6 @@ process.stdin.on(
       }
       documents.set(params.textDocument.uri, params.contentChanges[0]!.text)
     }
-  }),
+  })
 )
 process.stdin.on('end', () => process.exit(0))

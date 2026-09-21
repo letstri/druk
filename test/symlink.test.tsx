@@ -24,7 +24,7 @@ function linked() {
 describe('listing symlinks', () => {
   test('a link to a directory is a directory', () => {
     const { project } = linked()
-    const skills = listDir(project).find(node => node.name === 'skills')
+    const skills = listDir(project).find((node) => node.name === 'skills')
 
     expect(skills?.isDir).toBe(true)
     expect(skills?.symlink).toBe(true)
@@ -32,7 +32,7 @@ describe('listing symlinks', () => {
 
   test('a link to a file is a file, and is marked as a link', () => {
     const { project } = linked()
-    const link = listDir(project).find(node => node.name === 'linked.ts')
+    const link = listDir(project).find((node) => node.name === 'linked.ts')
 
     expect(link?.isDir).toBe(false)
     expect(link?.symlink).toBe(true)
@@ -40,7 +40,7 @@ describe('listing symlinks', () => {
 
   test('a broken link stays listed instead of disappearing', () => {
     const { project } = linked()
-    const broken = listDir(project).find(node => node.name === 'broken.ts')
+    const broken = listDir(project).find((node) => node.name === 'broken.ts')
 
     expect(broken).toBeDefined()
     expect(broken?.isDir).toBe(false)
@@ -50,14 +50,16 @@ describe('listing symlinks', () => {
     const { project } = linked()
     writeFileSync(join(project, 'plain.ts'), 'const plain = 3\n')
 
-    expect(listDir(project).find(node => node.name === 'plain.ts')?.symlink).toBeUndefined()
+    expect(
+      listDir(project).find((node) => node.name === 'plain.ts')?.symlink
+    ).toBeUndefined()
   })
 
   test('expanding a linked directory lists what it points at', () => {
     const { project } = linked()
     const rows = flattenVisible(project, new Set([join(project, 'skills')]))
 
-    expect(rows.map(node => node.name)).toContain('inside.ts')
+    expect(rows.map((node) => node.name)).toContain('inside.ts')
   })
 
   test('a link pointing at its own parent does not loop forever', () => {
@@ -75,8 +77,8 @@ describe('opening symlinks', () => {
     const { project } = linked()
     const t = await launch(project)
 
-    await press(t, input => input.pressArrow('down'))
-    await press(t, input => input.pressEnter())
+    await press(t, (input) => input.pressArrow('down'))
+    await press(t, (input) => input.pressEnter())
 
     expect(t.captureCharFrame()).toContain('inside.ts')
   })

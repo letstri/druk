@@ -41,7 +41,13 @@ export type Prompt =
   // `paths` null commits the index as it stands.
   | { kind: 'commit'; paths: string[] | null; variant: CommitVariant }
   | { kind: 'commitAmend'; subject: string; repo: string }
-  | { kind: 'commitAll'; message: string; variant: CommitVariant; repo: string; count: number }
+  | {
+      kind: 'commitAll'
+      message: string
+      variant: CommitVariant
+      repo: string
+      count: number
+    }
   | { kind: 'undoCommit'; subject: string }
   | { kind: 'stashPick'; repo: string; stashes: StashEntry[] }
   | { kind: 'stashAction'; repo: string; ref: string; message: string }
@@ -52,7 +58,11 @@ export type Prompt =
   | { kind: 'remoteAddUrl'; repo: string; name: string }
   | { kind: 'remoteRemove'; repo: string; remotes: Remote[] }
   | { kind: 'remoteRemoveConfirm'; repo: string; name: string; url: string }
-  | { kind: 'fileHistory'; repo: string; commits: { oid: string; subject: string }[] }
+  | {
+      kind: 'fileHistory'
+      repo: string
+      commits: { oid: string; subject: string }[]
+    }
   | { kind: 'discardChange'; target: DiscardTarget }
   // `from` null starts at HEAD.
   | { kind: 'newBranch'; from: string | null }
@@ -119,7 +129,12 @@ export type Prompt =
       trees: Worktree[]
       current: string
     }
-  | { kind: 'worktreeRemove'; repo: string; path: string; branch: string | null }
+  | {
+      kind: 'worktreeRemove'
+      repo: string
+      path: string
+      branch: string | null
+    }
   | { kind: 'workspaceOpen' }
   | { kind: 'workspaceDirty'; dir: string; names: string[] }
   | null

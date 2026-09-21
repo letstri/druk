@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { setTimeout as sleep } from 'node:timers/promises'
 
 import { buildCommands } from '../src/app/commands'
 import type { CommandActions } from '../src/app/commands'
@@ -16,7 +17,9 @@ describe('search', () => {
   const text = 'const alpha = 1\nlet beta = 2\n// alpha again\n'
 
   test('finds every occurrence with line and column', () => {
-    expect(searchText(text, 'alpha', 'a.ts').map(m => [m.line, m.col])).toEqual([
+    expect(
+      searchText(text, 'alpha', 'a.ts').map((m) => [m.line, m.col])
+    ).toEqual([
       [0, 6],
       [2, 3],
     ])
@@ -34,7 +37,9 @@ describe('search', () => {
     writeFileSync(join(dir, 'sub/b.ts'), 'alpha\n')
     writeFileSync(join(dir, 'node_modules/c.ts'), 'alpha\n')
 
-    const hits = searchProject(dir, 'alpha').map(m => m.path.replace(`${dir}/`, ''))
+    const hits = searchProject(dir, 'alpha').map((m) =>
+      m.path.replace(`${dir}/`, '')
+    )
     expect(hits).toEqual(['a.ts', 'sub/b.ts'])
   })
 })
@@ -49,16 +54,19 @@ describe('files', () => {
   test('an install is reported as a dependency change, and a source edit is not', async () => {
     const dir = tempDir('druk-deps-')
     const seen: Changed[] = []
-    const stop = watchTree(dir, changed => void seen.push(changed))
+    const stop = watchTree(dir, (changed) => seen.push(changed))
     try {
       writeFileSync(join(dir, 'a.ts'), 'const a = 1\n')
-      await new Promise(resolve => setTimeout(resolve, 300))
-      expect(seen.at(-1)).toEqual({ tree: true, git: false, deps: false })
+      await sleep(300)
+      expect(seen.at(-1)).toEqual({ deps: false, git: false, tree: true })
 
       mkdirSync(join(dir, 'node_modules', 'left-pad'), { recursive: true })
-      writeFileSync(join(dir, 'node_modules', 'left-pad', 'index.js'), 'module.exports = 1\n')
-      await new Promise(resolve => setTimeout(resolve, 300))
-      expect(seen.at(-1)).toEqual({ tree: true, git: false, deps: true })
+      writeFileSync(
+        join(dir, 'node_modules', 'left-pad', 'index.js'),
+        'module.exports = 1\n'
+      )
+      await sleep(300)
+      expect(seen.at(-1)).toEqual({ deps: true, git: false, tree: true })
     } finally {
       stop()
     }
@@ -69,7 +77,10 @@ describe('files', () => {
     const watcher = watchPath(dir, { recursive: true }, () => {})
     try {
       expect(() =>
-        watcher?.emit('error', new Error('ENOSPC: no space left on device, watch')),
+        watcher?.emit(
+          'error',
+          new Error('ENOSPC: no space left on device, watch')
+        )
       ).not.toThrow()
     } finally {
       watcher?.close()
@@ -102,27 +113,36 @@ describe('registries', () => {
     const actions = new Proxy({} as CommandActions, {
       get: (_t, name: string) => () => ran.push(name),
     })
-    const tree = buildCommands(actions, { activeTheme: 'dark', activeIconTheme: 'none' })
+    const tree = buildCommands(actions, {
+      activeIconTheme: 'none',
+      activeTheme: 'dark',
+    })
     const leaves = flattenCommands(tree)
 
     expect(leaves.length).toBeGreaterThan(10)
-    for (const { command } of leaves) expect(typeof command.run).toBe('function')
+    for (const { command } of leaves) {
+      expect(typeof command.run).toBe('function')
+    }
 
-    const ids = leaves.map(l => l.command.id)
+    const ids = leaves.map((l) => l.command.id)
     expect(new Set(ids).size).toBe(ids.length)
 
-    for (const { command } of leaves) command.run?.()
+    for (const { command } of leaves) {
+      command.run?.()
+    }
     expect(ran.length).toBe(leaves.length)
   })
 
   test('every theme leaf can be previewed and put back', () => {
     const ran: string[] = []
     const actions = new Proxy({} as CommandActions, {
-      get: (_t, name: string) => (arg?: unknown) => ran.push(`${name}:${arg ?? ''}`),
+      get: (_t, name: string) => (arg?: unknown) =>
+        ran.push(`${name}:${arg ?? ''}`),
     })
-    const themes = buildCommands(actions, { activeTheme: 'dark', activeIconTheme: 'none' }).find(
-      c => c.id === 'themes',
-    )
+    const themes = buildCommands(actions, {
+      activeIconTheme: 'none',
+      activeTheme: 'dark',
+    }).find((c) => c.id === 'themes')
     const leaves = themes?.children ?? []
 
     expect(leaves.length).toBe(Object.keys(THEMES).length)
@@ -131,14 +151,16 @@ describe('registries', () => {
       expect(typeof leaf.restore).toBe('function')
     }
 
-    leaves.find(c => c.id === 'themes.light')?.preview?.()
-    leaves.find(c => c.id === 'themes.light')?.restore?.()
+    leaves.find((c) => c.id === 'themes.light')?.preview?.()
+    leaves.find((c) => c.id === 'themes.light')?.restore?.()
     expect(ran).toEqual(['previewTheme:light', 'restoreTheme:'])
   })
 
   test('every theme tints the current line instead of filling it', () => {
     const channels = (hex: string) =>
-      [0, 2, 4].map(i => Number.parseInt(hex.replace('#', '').slice(i, i + 2), 16))
+      [0, 2, 4].map((i) =>
+        Number.parseInt(hex.replace('#', '').slice(i, i + 2), 16)
+      )
 
     for (const [id, theme] of Object.entries(THEMES)) {
       const [bg, line] = [channels(theme.ui.bg), channels(theme.ui.currentLine)]

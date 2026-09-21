@@ -8,22 +8,24 @@ import { diffStatusLabel } from '../src/ui/DiffView'
 import type { DiffFile } from '../src/ui/DiffView'
 
 const change = (rel: string): Change => ({
+  area: 'unstaged',
   path: `/proj/${rel}`,
   rel,
   status: 'modified',
-  area: 'unstaged',
 })
 
 const file = (rel: string, oldText: string, newText: string): DiffFile => ({
+  newText,
+  oldText,
   path: `/proj/${rel}`,
   rel,
   status: 'modified',
-  oldText,
-  newText,
 })
 
 const filesFor = (entries: Change[], oldText: string, newText: string) => {
-  const files = new Map(entries.map(entry => [entry.path, file(entry.rel, oldText, newText)]))
+  const files = new Map(
+    entries.map((entry) => [entry.path, file(entry.rel, oldText, newText)])
+  )
   return (entry: Change) => files.get(entry.path) ?? null
 }
 
@@ -35,16 +37,16 @@ test('files past the row cap are omitted unless they are the cursor file', () =>
   const fileFor = filesFor(ordered, 'old\n', 'new\n')
 
   const omitted = takeChangeSections(ordered, fileFor, new Map(), null, budget)
-  expect(omitted.sections.map(s => s.rel)).toEqual(['a.ts'])
+  expect(omitted.sections.map((s) => s.rel)).toEqual(['a.ts'])
 
   const pinned = takeChangeSections(
     ordered,
     fileFor,
     new Map(),
     slotKey(ordered[2]!.path, ordered[2]!.area),
-    budget,
+    budget
   )
-  expect(pinned.sections.map(s => s.rel)).toEqual(['a.ts', 'c.ts'])
+  expect(pinned.sections.map((s) => s.rel)).toEqual(['a.ts', 'c.ts'])
 })
 
 test('a cursor file past the cap carries the page on past it', () => {
@@ -54,18 +56,42 @@ test('a cursor file past the cap carries the page on past it', () => {
   const pin = (at: number) => slotKey(ordered[at]!.path, ordered[at]!.area)
 
   expect(
-    takeChangeSections(ordered, fileFor, new Map(), pin(2), budget).sections.map(s => s.rel),
+    takeChangeSections(
+      ordered,
+      fileFor,
+      new Map(),
+      pin(2),
+      budget
+    ).sections.map((s) => s.rel)
   ).toEqual(['c.ts'])
   expect(
-    takeChangeSections(ordered, fileFor, new Map(), pin(2), budget * 2).sections.map(s => s.rel),
+    takeChangeSections(
+      ordered,
+      fileFor,
+      new Map(),
+      pin(2),
+      budget * 2
+    ).sections.map((s) => s.rel)
   ).toEqual(['c.ts', 'd.ts'])
 
   expect(
-    takeChangeSections(ordered, fileFor, new Map(), pin(4), budget).sections.map(s => s.rel),
+    takeChangeSections(
+      ordered,
+      fileFor,
+      new Map(),
+      pin(4),
+      budget
+    ).sections.map((s) => s.rel)
   ).toEqual(['a.ts', 'e.ts'])
 
   expect(
-    takeChangeSections(ordered, fileFor, new Map(), pin(0), budget).sections.map(s => s.rel),
+    takeChangeSections(
+      ordered,
+      fileFor,
+      new Map(),
+      pin(0),
+      budget
+    ).sections.map((s) => s.rel)
   ).toEqual(['a.ts'])
 })
 
@@ -76,52 +102,58 @@ test('a section whose texts have not moved is the previous object', () => {
   const second = takeChangeSections(
     [a],
     fileFor,
-    new Map(first.sections.map(section => [section.key, section])),
-    null,
+    new Map(first.sections.map((section) => [section.key, section])),
+    null
   )
   expect(second.sections[0]).toBe(first.sections[0])
 })
 
 test('the truncated header names how many of the files are on screen', () => {
-  expect(changesSummary('Uncommitted', 1, { total: 3, adds: 2, dels: 2 })).toBe(
-    'Uncommitted · showing 1 of 3 files · +2 −2',
+  expect(changesSummary('Uncommitted', 1, { adds: 2, dels: 2, total: 3 })).toBe(
+    'Uncommitted · showing 1 of 3 files · +2 −2'
   )
-  expect(changesSummary('Uncommitted', 3, { total: 3, adds: 4, dels: 1 })).toBe(
-    'Uncommitted · 3 files · +4 −1',
+  expect(changesSummary('Uncommitted', 3, { adds: 4, dels: 1, total: 3 })).toBe(
+    'Uncommitted · 3 files · +4 −1'
   )
 })
 
 test('a binary or empty patch still costs a row toward the cap', () => {
-  const binaries = [change('a.bin'), change('b.bin'), change('c.bin'), change('d.bin')]
+  const binaries = [
+    change('a.bin'),
+    change('b.bin'),
+    change('c.bin'),
+    change('d.bin'),
+  ]
   const omitted = takeChangeSections(binaries, none, new Map(), null, 2)
-  expect(omitted.sections.map(s => s.rel)).toEqual(['a.bin', 'b.bin'])
+  expect(omitted.sections.map((s) => s.rel)).toEqual(['a.bin', 'b.bin'])
 
   const pinned = takeChangeSections(
     binaries,
     none,
     new Map(),
     slotKey(binaries[3]!.path, binaries[3]!.area),
-    2,
+    2
   )
-  expect(pinned.sections.map(s => s.rel)).toEqual(['a.bin', 'b.bin', 'd.bin'])
+  expect(pinned.sections.map((s) => s.rel)).toEqual(['a.bin', 'b.bin', 'd.bin'])
 
   const empty = [change('a.ts'), change('b.ts'), change('c.ts')]
   const same = filesFor(empty, 'same\n', 'same\n')
-  expect(takeChangeSections(empty, same, new Map(), null, 2).sections.map(s => s.rel)).toEqual([
-    'a.ts',
-    'b.ts',
-  ])
+  expect(
+    takeChangeSections(empty, same, new Map(), null, 2).sections.map(
+      (s) => s.rel
+    )
+  ).toEqual(['a.ts', 'b.ts'])
 })
 
 test('stickyHeader pins a header once it has scrolled off, and the next one pushes it', () => {
   const ys = [1, 20, 40]
   expect(stickyHeader(0, ys)).toBeNull()
   expect(stickyHeader(1, ys)).toBeNull()
-  expect(stickyHeader(2, ys)).toEqual({ index: 0, clipped: 0 })
-  expect(stickyHeader(18, ys)).toEqual({ index: 0, clipped: 0 })
-  expect(stickyHeader(19, ys)).toEqual({ index: 0, clipped: 1 })
+  expect(stickyHeader(2, ys)).toEqual({ clipped: 0, index: 0 })
+  expect(stickyHeader(18, ys)).toEqual({ clipped: 0, index: 0 })
+  expect(stickyHeader(19, ys)).toEqual({ clipped: 1, index: 0 })
   expect(stickyHeader(20, ys)).toBeNull()
-  expect(stickyHeader(21, ys)).toEqual({ index: 1, clipped: 0 })
+  expect(stickyHeader(21, ys)).toEqual({ clipped: 0, index: 1 })
 })
 
 test('diffStatusLabel names added and deleted files and leaves modified quiet', () => {

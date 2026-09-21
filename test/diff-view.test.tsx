@@ -61,16 +61,16 @@ test('"Diff current file" opens the panel on that file, cursor and all', async (
   writeFileSync(join(dir, 'b.ts'), 'BETA\n')
 
   const t = await launch(dir)
-  await press(t, i => i.pressArrow('down'))
-  await press(t, i => i.pressArrow('down'))
-  await press(t, i => i.pressEnter())
+  await press(t, (i) => i.pressArrow('down'))
+  await press(t, (i) => i.pressArrow('down'))
+  await press(t, (i) => i.pressEnter())
   await runCommand(t, 'Diff current file')
 
   let frame = t.captureCharFrame()
   expect(frame).toContain('▾ Changes')
   expect(frame).toContain('+ BETA')
 
-  await press(t, i => i.pressArrow('up'))
+  await press(t, (i) => i.pressArrow('up'))
   frame = t.captureCharFrame()
   expect(frame).toContain('+ ALPHA')
 })
@@ -80,8 +80,8 @@ test('"Diff current file" on an unchanged file says so instead of opening', asyn
   writeFileSync(join(dir, 'b.ts'), 'BETA\n')
 
   const t = await launch(dir)
-  await press(t, i => i.pressArrow('down'))
-  await press(t, i => i.pressEnter())
+  await press(t, (i) => i.pressArrow('down'))
+  await press(t, (i) => i.pressEnter())
   await runCommand(t, 'Diff current file')
 
   const frame = t.captureCharFrame()
@@ -95,7 +95,7 @@ test('"Show all changes" is a palette command', async () => {
 
   const t = await launch(dir)
   await openPalette(t)
-  await press(t, i => void i.typeText('all changes'))
+  await press(t, (i) => i.typeText('all changes'))
   expect(t.captureCharFrame()).toContain('Show all changes')
 })
 
@@ -105,15 +105,15 @@ test('Tab into the page, then s switches to side-by-side and back', async () => 
 
   const t = await launch(dir, {}, { width: 130 })
   await openDiff(t)
-  await press(t, i => i.pressTab())
-  await press(t, i => i.pressKey('s'))
+  await press(t, (i) => i.pressTab())
+  await press(t, (i) => i.pressKey('s'))
 
   const frame = t.captureCharFrame()
   expect(frame).toContain('side-by-side')
   expect(frame).toContain('- two')
   expect(frame).toContain('+ TWO')
 
-  await press(t, i => i.pressKey('s'))
+  await press(t, (i) => i.pressKey('s'))
   expect(t.captureCharFrame()).not.toContain('side-by-side')
 })
 
@@ -141,9 +141,11 @@ test('split view hatches the rows it pads a side with', async () => {
   const hatched = t
     .captureCharFrame()
     .split('\n')
-    .filter(line => line.includes(run))
+    .filter((line) => line.includes(run))
   expect(hatched.length).toBeGreaterThanOrEqual(2)
-  for (const line of hatched) expect(line).toMatch(new RegExp(`${HATCH} +\\d+ \\+ `))
+  for (const line of hatched) {
+    expect(line).toMatch(new RegExp(`${HATCH} +\\d+ \\+ `, 'u'))
+  }
 })
 
 test('the hatch fills the pane again when the diff is given more columns', async () => {
@@ -156,16 +158,20 @@ test('the hatch fills the pane again when the diff is given more columns', async
   const run = HATCH.repeat(8)
   await until(t, () => t.captureCharFrame().includes(run))
   const width = (frame: string) =>
-    Math.max(...frame.split('\n').map(line => line.match(/╱+/)?.[0].length ?? 0))
+    Math.max(
+      ...frame.split('\n').map((line) => line.match(/╱+/u)?.[0].length ?? 0)
+    )
   const narrow = width(t.captureCharFrame())
 
-  await press(t, i => i.pressKey('b', { ctrl: true }))
+  await press(t, (i) => i.pressKey('b', { ctrl: true }))
   await until(t, () => width(t.captureCharFrame()) > narrow)
   const hatched = t
     .captureCharFrame()
     .split('\n')
-    .filter(line => line.includes(run))
-  for (const line of hatched) expect(line).toMatch(new RegExp(`${HATCH} +\\d+ \\+ `))
+    .filter((line) => line.includes(run))
+  for (const line of hatched) {
+    expect(line).toMatch(new RegExp(`${HATCH} +\\d+ \\+ `, 'u'))
+  }
 })
 
 test('every change is on the page at once, whichever row the cursor is on', async () => {
@@ -178,7 +184,7 @@ test('every change is on the page at once, whichever row the cursor is on', asyn
   await untilFrame(t, '+ ALPHA')
   expect(t.captureCharFrame()).toContain('+ BETA')
 
-  await press(t, i => i.pressArrow('down'))
+  await press(t, (i) => i.pressArrow('down'))
   const frame = t.captureCharFrame()
   expect(frame).toContain('+ ALPHA')
   expect(frame).toContain('+ BETA')
@@ -189,10 +195,10 @@ test('Esc hands the page back to the panel, and the panel closes it', async () =
   writeFileSync(join(dir, 'a.ts'), 'ALPHA\n')
   writeFileSync(join(dir, 'b.ts'), 'BETA\n')
 
-  const t = await launch(dir, {}, { width: 130, height: 40 })
+  const t = await launch(dir, {}, { height: 40, width: 130 })
   await openDiff(t)
   await untilFrame(t, '+ ALPHA')
-  await press(t, i => i.pressTab())
+  await press(t, (i) => i.pressTab())
   expect(t.captureCharFrame()).toContain('Esc sidebar')
 
   await pressEscape(t)
@@ -209,7 +215,7 @@ test('with the sidebar hidden, Esc closes the diff — there is no panel to go b
 
   const t = await launch(dir, {}, { width: 130 })
   await openDiff(t)
-  await press(t, i => i.pressKey('b', { ctrl: true }))
+  await press(t, (i) => i.pressKey('b', { ctrl: true }))
   expect(t.captureCharFrame()).toContain('Esc close')
 
   await pressEscape(t)
@@ -248,37 +254,41 @@ test('long unchanged stretches stay out of the hunks', async () => {
 test('the mouse wheel scrolls the diff', async () => {
   const lines = Array.from({ length: 60 }, (_, i) => `line${i}`)
   const dir = repo({ 'a.ts': `${lines.join('\n')}\n` })
-  writeFileSync(join(dir, 'a.ts'), `${lines.map(l => `${l}!`).join('\n')}\n`)
+  writeFileSync(join(dir, 'a.ts'), `${lines.map((l) => `${l}!`).join('\n')}\n`)
 
   const t = await launch(dir)
   await openDiff(t)
   await untilFrame(t, '- line0')
 
   // A flush per tick: the renderer drops events sent faster than its minimum scroll interval.
-  for (let n = 0; n < 6; n++) await t.mockMouse.scroll(60, 10, 'down')
+  for (let n = 0; n < 6; n += 1) {
+    await t.mockMouse.scroll(60, 10, 'down')
+  }
   await untilGone(t, '- line0')
 
-  for (let n = 0; n < 8; n++) await t.mockMouse.scroll(60, 10, 'up')
+  for (let n = 0; n < 8; n += 1) {
+    await t.mockMouse.scroll(60, 10, 'up')
+  }
   await untilFrame(t, '- line0')
 })
 
 test('PageDown and Ctrl+D both page the diff, Ctrl+U comes back', async () => {
   const lines = Array.from({ length: 60 }, (_, i) => `line${i}`)
   const dir = repo({ 'a.ts': `${lines.join('\n')}\n` })
-  writeFileSync(join(dir, 'a.ts'), `${lines.map(l => `${l}!`).join('\n')}\n`)
+  writeFileSync(join(dir, 'a.ts'), `${lines.map((l) => `${l}!`).join('\n')}\n`)
 
   const t = await launch(dir)
   await openDiff(t)
   await untilFrame(t, '- line0')
-  await press(t, i => i.pressTab())
+  await press(t, (i) => i.pressTab())
 
-  await press(t, i => void i.pressKeys(['\u001B[6~']))
+  await press(t, (i) => i.pressKeys(['\u001B[6~']))
   await untilGone(t, '- line0')
 
-  await press(t, i => i.pressKey('u', { ctrl: true }))
+  await press(t, (i) => i.pressKey('u', { ctrl: true }))
   await untilFrame(t, '- line0')
 
-  await press(t, i => i.pressKey('d', { ctrl: true }))
+  await press(t, (i) => i.pressKey('d', { ctrl: true }))
   await untilGone(t, '- line0')
 })
 
@@ -287,8 +297,8 @@ test('the diff is a page: sidebar, tabs and status bar all stay around it', asyn
   writeFileSync(join(dir, 'a.ts'), 'ONE\n')
 
   const t = await launch(dir)
-  await press(t, i => i.pressArrow('down'))
-  await press(t, i => i.pressEnter())
+  await press(t, (i) => i.pressArrow('down'))
+  await press(t, (i) => i.pressEnter())
   await openDiff(t)
 
   const frame = t.captureCharFrame()
@@ -304,8 +314,8 @@ test('the palette opens over the diff, and Ctrl+W closes the page', async () => 
   writeFileSync(join(dir, 'a.ts'), 'ONE\n')
 
   const t = await launch(dir)
-  await press(t, i => i.pressArrow('down'))
-  await press(t, i => i.pressEnter())
+  await press(t, (i) => i.pressArrow('down'))
+  await press(t, (i) => i.pressEnter())
   await openDiff(t)
 
   await openPalette(t)
@@ -313,7 +323,7 @@ test('the palette opens over the diff, and Ctrl+W closes the page', async () => 
   await pressEscape(t)
   expect(t.captureCharFrame()).toContain('+1 −1')
 
-  await press(t, i => i.pressKey('w', { ctrl: true }))
+  await press(t, (i) => i.pressKey('w', { ctrl: true }))
   const frame = t.captureCharFrame()
   expect(frame).not.toContain('+1 −1')
   expect(frame).toContain('ONE')
@@ -324,7 +334,8 @@ test('a long path is cut from the left so the file header stays on screen', asyn
   const dir = tempDir('druk-diff-')
   const git = (...args: string[]) => execFileSync('git', args, { cwd: dir })
   initRepo(dir)
-  const deep = 'a-very/deeply/nested/folder/structure/with-a-quite-long-file-name.test.tsx'
+  const deep =
+    'a-very/deeply/nested/folder/structure/with-a-quite-long-file-name.test.tsx'
   mkdirSync(join(dir, deep, '..'), { recursive: true })
   writeFileSync(join(dir, deep), 'one\n')
   git('add', '.')
@@ -337,7 +348,7 @@ test('a long path is cut from the left so the file header stays on screen', asyn
   const headerRow = t
     .captureCharFrame()
     .split('\n')
-    .find(row => row.includes('name.test.tsx'))!
+    .find((row) => row.includes('name.test.tsx'))!
   expect(headerRow).toContain('…')
   expect(headerRow).toContain('name.test.tsx')
 })
@@ -357,18 +368,22 @@ test('removed lines highlight like added ones in split view', async () => {
     '',
   ].join('\n')
   const dir = repo({ 'a.tsx': base })
-  writeFileSync(join(dir, 'a.tsx'), base.replace('theme={config.theme}', 'mode={config.mode}'))
+  writeFileSync(
+    join(dir, 'a.tsx'),
+    base.replace('theme={config.theme}', 'mode={config.mode}')
+  )
 
   const t = await launch(dir, { diffView: 'split' }, { width: 130 })
   await openDiff(t)
   const removedLine = () =>
     (t.captureSpans() as { lines: { spans: Span[] }[] }).lines
-      .map(line => line.spans)
-      .find(line => line.some(span => span.text === 'theme'))
+      .map((line) => line.spans)
+      .find((line) => line.some((span) => span.text === 'theme'))
   await until(t, () => removedLine() !== undefined)
 
   const spans = removedLine()!
-  const fgOf = (text: string) => String(spans.find(span => span.text === text)?.fg)
+  const fgOf = (text: string) =>
+    String(spans.find((span) => span.text === text)?.fg)
   expect(fgOf('theme')).toBe(fgOf('mode')!)
   expect(fgOf('theme')).not.toBe(fgOf('=')!)
 })
@@ -376,8 +391,8 @@ test('removed lines highlight like added ones in split view', async () => {
 test('a clean working tree has no row to open a diff from', async () => {
   const t = await launch(repo({ 'a.ts': 'alpha\n' }))
   await runCommand(t, 'Source control')
-  await press(t, i => i.pressEnter())
-  await press(t, i => i.pressArrow('down'))
+  await press(t, (i) => i.pressEnter())
+  await press(t, (i) => i.pressArrow('down'))
 
   const frame = t.captureCharFrame()
   expect(frame).toContain('no changes')
@@ -389,9 +404,9 @@ test('unsaved edits diff against HEAD before the file is saved', async () => {
   writeFileSync(join(dir, 'a.ts'), 'saved\n')
 
   const t = await launch(dir)
-  await press(t, i => i.pressArrow('down'))
-  await press(t, i => i.pressEnter())
-  await press(t, i => void i.typeText('typed '))
+  await press(t, (i) => i.pressArrow('down'))
+  await press(t, (i) => i.pressEnter())
+  await press(t, (i) => i.typeText('typed '))
   await openDiff(t)
 
   const frame = t.captureCharFrame()
@@ -406,10 +421,10 @@ function lock(v: (i: number) => string, count = 6000): string {
 }
 
 test('a huge change renders plain and cut instead of stalling on syntax color', async () => {
-  const dir = repo({ 'package-lock.json': lock(i => `1.0.${i}`) })
+  const dir = repo({ 'package-lock.json': lock((i) => `1.0.${i}`) })
   writeFileSync(
     join(dir, 'package-lock.json'),
-    lock(i => (i % 2 ? `1.0.${i}` : `2.0.${i}`)),
+    lock((i) => (i % 2 ? `1.0.${i}` : `2.0.${i}`))
   )
 
   const t = await launch(dir, {}, { width: 130 })
@@ -417,16 +432,16 @@ test('a huge change renders plain and cut instead of stalling on syntax color', 
   await untilFrame(t, '−5999 · first 10000 lines')
   await untilFrame(t, '"1.0.0"')
 
-  await press(t, i => i.pressTab())
-  await press(t, i => void i.pressKeys(['[6~']))
+  await press(t, (i) => i.pressTab())
+  await press(t, (i) => i.pressKeys(['[6~']))
   await untilGone(t, '"1.0.0"')
 })
 
 test('a patch of thousands of rows goes plain even under the byte limit', async () => {
-  const dir = repo({ 'package-lock.json': lock(i => `1.0.${i}`, 1500) })
+  const dir = repo({ 'package-lock.json': lock((i) => `1.0.${i}`, 1500) })
   writeFileSync(
     join(dir, 'package-lock.json'),
-    lock(i => (i % 2 ? `1.0.${i}` : `2.0.${i}`), 1500),
+    lock((i) => (i % 2 ? `1.0.${i}` : `2.0.${i}`), 1500)
   )
 
   const t = await launch(dir, {}, { width: 130 })
@@ -436,11 +451,14 @@ test('a patch of thousands of rows goes plain even under the byte limit', async 
 })
 
 test('a huge change and a small one stack, each gated on its own', async () => {
-  const dir = repo({ 'a.ts': 'const a = 1\n', 'package-lock.json': lock(i => `1.0.${i}`) })
+  const dir = repo({
+    'a.ts': 'const a = 1\n',
+    'package-lock.json': lock((i) => `1.0.${i}`),
+  })
   writeFileSync(join(dir, 'a.ts'), 'const a = 2\n')
   writeFileSync(
     join(dir, 'package-lock.json'),
-    lock(i => (i % 2 ? `1.0.${i}` : `2.0.${i}`)),
+    lock((i) => (i % 2 ? `1.0.${i}` : `2.0.${i}`))
   )
 
   const t = await launch(dir, {}, { width: 130 })

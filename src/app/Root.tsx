@@ -3,7 +3,11 @@ import { basename } from 'node:path'
 import { useRenderer } from '@opentui/solid'
 import { createSignal, Show } from 'solid-js'
 
-import { loadProjectConfig, readDisabledExtensions, resolveConfig } from '../core/config'
+import {
+  loadProjectConfig,
+  readDisabledExtensions,
+  resolveConfig,
+} from '../core/config'
 import type { Config } from '../core/config'
 import { loadExtensions } from '../extensions'
 import { setTheme } from '../themes'
@@ -39,14 +43,14 @@ export function Root(props: {
   renderer.keyInput.setMaxListeners(LISTENER_CAP)
 
   const [opened, setOpened] = createSignal<Opened>({
-    rootDir: props.rootDir,
+    config: props.initialConfig,
+    first: true,
+    notice: null,
+    openCol: props.openCol ?? null,
     openFile: props.openFile ?? null,
     openLine: props.openLine ?? null,
-    openCol: props.openCol ?? null,
-    config: props.initialConfig,
     project: props.initialProject ?? loadProjectConfig(props.rootDir),
-    notice: null,
-    first: true,
+    rootDir: props.rootDir,
   })
 
   const openWorkspace = (dir: string) => {
@@ -55,14 +59,14 @@ export function Root(props: {
     const project = loadProjectConfig(dir)
     setTheme(resolveConfig(config, project).theme)
     setOpened({
-      rootDir: dir,
+      config,
+      first: false,
+      notice: `Opened ${basename(dir)}`,
+      openCol: null,
       openFile: null,
       openLine: null,
-      openCol: null,
-      config,
       project,
-      notice: `Opened ${basename(dir)}`,
-      first: false,
+      rootDir: dir,
     })
   }
 

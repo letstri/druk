@@ -124,7 +124,9 @@ describe('vim character search', () => {
     await type(t, 'wyf,')
     expect(at(t)).toBe('Ln 1, Col 7')
     await type(t, '$p')
-    expect(await save(t, file)).toBe('const a = fn(one, two);a = fn(one,\nsecond line\n')
+    expect(await save(t, file)).toBe(
+      'const a = fn(one, two);a = fn(one,\nsecond line\n'
+    )
   })
 
   test('dT deletes back to the character, keeping it', async () => {

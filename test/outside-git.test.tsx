@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { execFileSync } from 'node:child_process'
 import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { setTimeout as sleep } from 'node:timers/promises'
 
 import { watchTree } from '../src/core/fs'
 import { launch, untilFrame, untilGone } from './helpers'
@@ -32,11 +33,15 @@ describe('git work done in another terminal', () => {
   test('reading status never feeds the watcher its own tail', async () => {
     const { dir, git } = repo()
     let hits = 0
-    const stop = watchTree(dir, () => hits++)
+    const stop = watchTree(dir, () => {
+      hits += 1
+    })
     try {
-      await new Promise(resolve => setTimeout(resolve, 200))
-      for (let n = 0; n < 5; n++) git('status', '--porcelain')
-      await new Promise(resolve => setTimeout(resolve, 400))
+      await sleep(200)
+      for (let n = 0; n < 5; n += 1) {
+        git('status', '--porcelain')
+      }
+      await sleep(400)
       // `git status` rewrites .git/index: watched, the refresh rewrites it and never settles.
       expect(hits).toBe(0)
     } finally {

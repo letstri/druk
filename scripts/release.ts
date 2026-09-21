@@ -22,20 +22,22 @@ const ALL_TARGETS: TargetName[] = [
   'windows-x64-baseline',
 ]
 
-const requested = process.argv.slice(2).filter(arg => !arg.startsWith('-'))
+const requested = process.argv.slice(2).filter((arg) => !arg.startsWith('-'))
 const publish = process.argv.includes('--publish')
 
-const targets = (requested.length ? (requested as TargetName[]) : ALL_TARGETS).filter(target =>
-  existsSync(`${DIST}/${target}/${binaryName(target)}`),
-)
+const targets = (
+  requested.length ? (requested as TargetName[]) : ALL_TARGETS
+).filter((target) => existsSync(`${DIST}/${target}/${binaryName(target)}`))
 
 if (targets.length === 0) {
-  process.stderr.write('no built binaries in dist/ — run `bun run build` first\n')
+  process.stderr.write(
+    'no built binaries in dist/ — run `bun run build` first\n'
+  )
   process.exit(1)
 }
 
-await rm(NPM_DIR, { recursive: true, force: true })
-await rm(RELEASE_DIR, { recursive: true, force: true })
+await rm(NPM_DIR, { force: true, recursive: true })
+await rm(RELEASE_DIR, { force: true, recursive: true })
 await mkdir(RELEASE_DIR, { recursive: true })
 
 for (const target of targets) {
@@ -75,37 +77,41 @@ await Bun.write(
       ...rootPkg,
       // The repo is private so a stray root `npm publish` ships nothing; this copy is the real one.
       '//private': undefined,
-      'private': undefined,
-      'bin': { druk: './bin/druk.js' },
-      'files': ['bin', 'THIRD_PARTY_NOTICES.md'],
-      'scripts': { postinstall: 'node ./bin/postinstall.mjs' },
+      bin: { druk: './bin/druk.js' },
+      cpu: ['arm64', 'x64'],
+      dependencies: undefined,
+      devDependencies: undefined,
       // Node ships `fetch` from 18, which is what pulls the binary down.
-      'engines': { node: '>=18' },
-      'os': ['darwin', 'linux', 'win32'],
-      'cpu': ['arm64', 'x64'],
-      'devDependencies': undefined,
-      'dependencies': undefined,
+      engines: { node: '>=18' },
+      files: ['bin', 'THIRD_PARTY_NOTICES.md'],
+      os: ['darwin', 'linux', 'win32'],
+      private: undefined,
+      scripts: { postinstall: 'node ./bin/postinstall.mjs' },
     },
     null,
-    2,
-  )}\n`,
+    2
+  )}\n`
 )
 process.stdout.write(`packaged druk -> ${rootDir}\n`)
 
 if (publish) {
   if (targets.length !== ALL_TARGETS.length) {
-    const missing = ALL_TARGETS.filter(t => !targets.includes(t))
+    const missing = ALL_TARGETS.filter((t) => !targets.includes(t))
     process.stderr.write(
-      `refusing to publish without every platform: missing ${missing.join(', ')}\n`,
+      `refusing to publish without every platform: missing ${missing.join(', ')}\n`
     )
     process.exit(1)
   }
   // Without an explicit tag `1.0.0-beta.1` would land on `latest`; the prerelease id is the tag.
-  const tag = /-([a-z][\da-z]*)/i.exec(version)?.[1] ?? 'latest'
+  const tag = /-([a-z][\da-z]*)/iu.exec(version)?.[1] ?? 'latest'
 
   // npm forbids republishing, so a rerun of a release that already reached npm must skip it.
-  const onRegistry = async (name: string) =>
-    (await Bun.$`npm view ${name}@${version} version`.quiet().nothrow()).exitCode === 0
+  const onRegistry = async (name: string) => {
+    const view = await Bun.$`npm view ${name}@${version} version`
+      .quiet()
+      .nothrow()
+    return view.exitCode === 0
+  }
 
   if (await onRegistry('druk')) {
     process.stdout.write(`druk@${version} is already published — skipped\n`)

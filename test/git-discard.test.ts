@@ -7,12 +7,17 @@ import { discardChange, discardTarget } from '../src/core/git'
 import { initRepo } from './repo'
 import { tempDir } from './temp'
 
-const git = (cwd: string, ...args: string[]) => execFileSync('git', args, { cwd, encoding: 'utf8' })
+const git = (cwd: string, ...args: string[]) =>
+  execFileSync('git', args, { cwd, encoding: 'utf-8' })
 
-function repo(files: Record<string, string> = { 'a.txt': 'base\n', 'other.txt': 'other\n' }) {
+const TWO_FILES = { 'a.txt': 'base\n', 'other.txt': 'other\n' }
+
+function repo(files: Record<string, string> = TWO_FILES) {
   const dir = tempDir('druk-discard-')
   initRepo(dir)
-  for (const [path, content] of Object.entries(files)) writeFileSync(join(dir, path), content)
+  for (const [path, content] of Object.entries(files)) {
+    writeFileSync(join(dir, path), content)
+  }
   git(dir, 'add', '.')
   git(dir, 'commit', '-qm', 'init')
   return dir
@@ -22,11 +27,12 @@ async function discard(dir: string, path: string) {
   const target = discardTarget(dir, join(dir, path))
   expect(target).not.toBeNull()
   const result = await discardChange(target!)
-  expect(result).toEqual({ ok: true, detail: '' })
+  expect(result).toEqual({ detail: '', ok: true })
 }
 
 const porcelain = (dir: string) => git(dir, 'status', '--porcelain')
-const read = (dir: string, path: string) => readFileSync(join(dir, path), 'utf8')
+const read = (dir: string, path: string) =>
+  readFileSync(join(dir, path), 'utf-8')
 
 describe('discardChange', () => {
   test('restores unstaged, staged, mixed, and deleted tracked files from HEAD', async () => {
@@ -100,15 +106,22 @@ describe('discardChange', () => {
   })
 
   test('restores a staged rename while preserving unrelated index and worktree changes', async () => {
-    const dir = repo({ 'old name.txt': 'old\n', 'staged.txt': 'one\n', 'working.txt': 'one\n' })
+    const dir = repo({
+      'old name.txt': 'old\n',
+      'staged.txt': 'one\n',
+      'working.txt': 'one\n',
+    })
     git(dir, 'mv', 'old name.txt', 'renamed ü.txt')
     writeFileSync(join(dir, 'staged.txt'), 'staged\n')
     git(dir, 'add', 'staged.txt')
     writeFileSync(join(dir, 'working.txt'), 'working\n')
 
     const target = discardTarget(dir, join(dir, 'renamed ü.txt'))
-    expect(target?.entry).toMatchObject({ xy: 'R ', source: 'old name.txt' })
-    expect(target?.affectedPaths).toEqual([join(dir, 'renamed ü.txt'), join(dir, 'old name.txt')])
+    expect(target?.entry).toMatchObject({ source: 'old name.txt', xy: 'R ' })
+    expect(target?.affectedPaths).toEqual([
+      join(dir, 'renamed ü.txt'),
+      join(dir, 'old name.txt'),
+    ])
     await discard(dir, 'renamed ü.txt')
 
     expect(read(dir, 'old name.txt')).toBe('old\n')
@@ -126,7 +139,7 @@ describe('discardChange', () => {
     git(dir, 'config', 'status.renames', 'copies')
 
     const target = discardTarget(dir, join(dir, 'copy ü.txt'))
-    expect(target?.entry).toMatchObject({ xy: 'C ', source: 'source.txt' })
+    expect(target?.entry).toMatchObject({ source: 'source.txt', xy: 'C ' })
     expect(target?.mode).toBe('delete')
     await discard(dir, 'copy ü.txt')
 
@@ -145,7 +158,9 @@ describe('discardChange', () => {
     git(dir, 'commit', '-qam', 'main')
     try {
       git(dir, 'merge', 'other')
-    } catch {}
+    } catch {
+      // The conflict is the point.
+    }
     writeFileSync(join(dir, 'keep.txt'), 'keep staged\n')
     git(dir, 'add', 'keep.txt')
 
@@ -166,7 +181,9 @@ describe('discardChange', () => {
     git(dir, 'commit', '-qm', 'main deletes it')
     try {
       git(dir, 'merge', 'other')
-    } catch {}
+    } catch {
+      // The conflict is the point.
+    }
 
     await discard(dir, 'a.txt')
 
@@ -176,7 +193,11 @@ describe('discardChange', () => {
 
   test('leaves the files a glob in the selected name would have matched alone', async () => {
     // A path after `--` is a pathspec: without `:(literal)` the brackets are a character class.
-    const dir = repo({ '[id].tsx': 'route\n', 'i.tsx': 'innocent\n', 'd.tsx': 'other\n' })
+    const dir = repo({
+      '[id].tsx': 'route\n',
+      'd.tsx': 'other\n',
+      'i.tsx': 'innocent\n',
+    })
     writeFileSync(join(dir, '[id].tsx'), 'changed route\n')
     writeFileSync(join(dir, 'i.tsx'), 'changed innocent\n')
     writeFileSync(join(dir, 'd.tsx'), 'changed other\n')
@@ -214,8 +235,8 @@ describe('discardChange', () => {
     git(dir, 'commit', '-qm', 'track it')
     writeFileSync(join(dir, 'new.txt'), 'changed\n')
     expect(await discardChange(changedMode)).toMatchObject({
-      ok: false,
       detail: expect.stringContaining('changed'),
+      ok: false,
     })
   })
 
@@ -227,8 +248,8 @@ describe('discardChange', () => {
     writeFileSync(join(dir, 'a.txt'), 'second change\n')
     expect(porcelain(dir)).toContain(' M a.txt')
     expect(await discardChange(stale)).toMatchObject({
-      ok: false,
       detail: expect.stringContaining('changed'),
+      ok: false,
     })
     expect(read(dir, 'a.txt')).toBe('second change\n')
   })

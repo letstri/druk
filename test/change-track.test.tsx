@@ -9,25 +9,32 @@ import type { Harness } from './helpers'
 import { initRepo } from './repo'
 import { tempDir } from './temp'
 
-const SOURCE = `${Array.from({ length: 400 }, (_, index) => `const value${index} = ${index}`).join(
-  '\n',
-)}\n`
+const SOURCE = `${Array.from(
+  { length: 400 },
+  (_, index) => `const value${index} = ${index}`
+).join('\n')}\n`
 
 interface Frame {
   lines: { spans: { text: string; fg?: { buffer: Uint8Array } }[] }[]
 }
 
 const hex = (fg?: { buffer: Uint8Array }) =>
-  fg ? `#${Array.from(fg.buffer.slice(0, 3), v => v.toString(16).padStart(2, '0')).join('')}` : ''
+  fg
+    ? `#${Array.from(fg.buffer.slice(0, 3), (v) => v.toString(16).padStart(2, '0')).join('')}`
+    : ''
 
 const track = (t: Harness) => {
   const frame = t.captureSpans() as unknown as Frame
   return frame.lines
     .slice(1)
-    .flatMap(line => line.spans.filter(span => span.text.includes('▎')).map(span => hex(span.fg)))
+    .flatMap((line) =>
+      line.spans
+        .filter((span) => span.text.includes('▎'))
+        .map((span) => hex(span.fg))
+    )
 }
 
-async function repoWith(edit: (lines: string[]) => void) {
+function repoWith(edit: (lines: string[]) => void) {
   const dir = tempDir('druk-track-')
   const git = (...args: string[]) => execFileSync('git', args, { cwd: dir })
   initRepo(dir)
@@ -42,7 +49,7 @@ async function repoWith(edit: (lines: string[]) => void) {
 }
 
 async function open(dir: string) {
-  const t = await launch(dir, {}, { width: 100, height: 24 })
+  const t = await launch(dir, {}, { height: 24, width: 100 })
   await openFile(t, 'big.ts')
   await settle(t, 300)
   return t
@@ -50,7 +57,9 @@ async function open(dir: string) {
 
 describe('the change track', () => {
   test('shows changes far below the viewport, which is the point of it', async () => {
-    const t = await open(await repoWith(lines => (lines[380] = '// changed down here')))
+    const t = await open(
+      await repoWith((lines) => (lines[380] = '// changed down here'))
+    )
 
     expect(track(t)).toContain(ui.gitModified)
   })
@@ -68,22 +77,22 @@ describe('the change track', () => {
   })
 
   test('marks are git colours only — the minimap’s syntax bars are gone', async () => {
-    const t = await open(await repoWith(lines => (lines[5] = '// changed')))
+    const t = await open(await repoWith((lines) => (lines[5] = '// changed')))
     const marks = track(t)
 
     expect(marks).toContain(ui.gitModified)
     const gitColors = new Set([ui.gitAdded, ui.gitModified, ui.gitDeleted])
-    expect(marks.every(color => gitColors.has(color))).toBe(true)
+    expect(marks.every((color) => gitColors.has(color))).toBe(true)
   })
 })
 
 describe('the track agrees with the scrollbar', () => {
   const WRAPPED = `${Array.from(
     { length: 300 },
-    (_, index) => `const value${index} = ${'x'.repeat(160)} // ${index}`,
+    (_, index) => `const value${index} = ${'x'.repeat(160)} // ${index}`
   ).join('\n')}\n`
 
-  async function wrappedRepo(changeAt: number) {
+  function wrappedRepo(changeAt: number) {
     const dir = tempDir('druk-wrapped-')
     const git = (...args: string[]) => execFileSync('git', args, { cwd: dir })
     initRepo(dir)
@@ -102,31 +111,35 @@ describe('the track agrees with the scrollbar', () => {
     t
       .captureCharFrame()
       .split('\n')
-      .filter(row => row.length > 0)
-      .flatMap((row, index) => (index > 0 && row.includes(glyph) ? [index] : []))
+      .filter((row) => row.length > 0)
+      .flatMap((row, index) =>
+        index > 0 && row.includes(glyph) ? [index] : []
+      )
 
   test('scrolling to a mark puts the thumb beside it', async () => {
     const t = await open(await wrappedRepo(150))
     const mark = rowsOf(t, '▎')[0]!
 
-    await press(t, input => input.pressKey('g', { ctrl: true }))
-    await press(t, input => void input.typeText('150'))
-    await press(t, input => input.pressEnter())
+    await press(t, (input) => input.pressKey('g', { ctrl: true }))
+    await press(t, (input) => input.typeText('150'))
+    await press(t, (input) => input.pressEnter())
     await settle(t, 300)
 
     const thumb = rowsOf(t, '█')
     expect(thumb.length).toBeGreaterThan(0)
-    expect(Math.min(...thumb.map(row => Math.abs(row - mark)))).toBeLessThanOrEqual(2)
-  }, 30000)
+    expect(
+      Math.min(...thumb.map((row) => Math.abs(row - mark)))
+    ).toBeLessThanOrEqual(2)
+  }, 30_000)
 
   test('a change near the end is marked near the end', async () => {
     const t = await open(await wrappedRepo(290))
     const rows = t
       .captureCharFrame()
       .split('\n')
-      .filter(row => row.length > 0)
+      .filter((row) => row.length > 0)
     const mark = rowsOf(t, '▎')[0]!
 
     expect(mark).toBeGreaterThan(rows.length * 0.8)
-  }, 30000)
+  }, 30_000)
 })

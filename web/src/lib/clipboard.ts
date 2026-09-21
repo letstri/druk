@@ -4,7 +4,7 @@ export function copyText(text: string): Promise<void> {
     area.value = text
     area.style.position = 'fixed'
     area.style.opacity = '0'
-    document.body.appendChild(area)
+    document.body.append(area)
     area.select()
     document.execCommand('copy')
     area.remove()

@@ -4,23 +4,13 @@ import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { launch, press, pressEscape, runCommand, until } from './helpers'
-import { tempDir } from './temp'
+import { originWithClones } from './repo'
 
-const git = (cwd: string, ...args: string[]) => execFileSync('git', args, { cwd })
+const git = (cwd: string, ...args: string[]) =>
+  execFileSync('git', args, { cwd })
 
 function diverged() {
-  const base = tempDir('druk-push-')
-  const origin = join(base, 'origin.git')
-  execFileSync('git', ['init', '-q', '--bare', '-b', 'main', origin])
-
-  const clone = (name: string) => {
-    const dir = join(base, name)
-    execFileSync('git', ['clone', '-q', origin, dir])
-    git(dir, 'config', 'user.email', `${name}@example.com`)
-    git(dir, 'config', 'user.name', name)
-    git(dir, 'config', 'commit.gpgsign', 'false')
-    return dir
-  }
+  const { origin, clone } = originWithClones('druk-push-')
 
   const mine = clone('mine')
   writeFileSync(join(mine, 'a.ts'), 'const a = 1\n')
@@ -41,7 +31,9 @@ function diverged() {
 }
 
 const remoteLog = (origin: string) =>
-  execFileSync('git', ['log', '--format=%s', 'main'], { cwd: origin }).toString()
+  execFileSync('git', ['log', '--format=%s', 'main'], {
+    cwd: origin,
+  }).toString()
 
 test('a rejected push offers to merge origin in and push again', async () => {
   const { mine, origin } = diverged()
@@ -51,7 +43,7 @@ test('a rejected push offers to merge origin in and push again', async () => {
   await until(t, () => t.captureCharFrame().includes('Push rejected'))
   expect(t.captureCharFrame()).toContain("origin/main has commits you don't")
 
-  await press(t, i => i.pressEnter())
+  await press(t, (i) => i.pressEnter())
   await until(t, () => remoteLog(origin).includes('mine alone'))
   expect(remoteLog(origin)).toContain('from elsewhere')
 })

@@ -1,6 +1,11 @@
 import { describe, expect, test } from 'bun:test'
 
-import { conflictAt, conflictFrom, parseConflicts, resolveConflict } from '../src/core/conflicts'
+import {
+  conflictAt,
+  conflictFrom,
+  parseConflicts,
+  resolveConflict,
+} from '../src/core/conflicts'
 
 const CONFLICTED = [
   'const a = 1',
@@ -28,11 +33,11 @@ describe('parsing', () => {
   test('finds the block and names both sides', () => {
     const [conflict] = parseConflicts(CONFLICTED)
     expect(conflict).toEqual({
-      start: 1,
       base: null,
-      separator: 3,
       end: 5,
       ours: 'HEAD',
+      separator: 3,
+      start: 1,
       theirs: 'feature/x',
     })
   })
@@ -44,16 +49,21 @@ describe('parsing', () => {
   })
 
   test('an unterminated block is not a conflict', () => {
-    expect(parseConflicts('<<<<<<< HEAD\nours\nno separator, no end\n')).toEqual([])
+    expect(
+      parseConflicts('<<<<<<< HEAD\nours\nno separator, no end\n')
+    ).toEqual([])
     expect(parseConflicts('<<<<<<< HEAD\nours\n=======\ntheirs\n')).toEqual([])
   })
 
   test('eight angle brackets is not a marker', () => {
-    expect(parseConflicts('<<<<<<<< HEAD\nx\n=======\ny\n>>>>>>> b\n')).toEqual([])
+    expect(parseConflicts('<<<<<<<< HEAD\nx\n=======\ny\n>>>>>>> b\n')).toEqual(
+      []
+    )
   })
 
   test('a CRLF file parses', () => {
-    const text = '<<<<<<< HEAD\r\nours\r\n=======\r\ntheirs\r\n>>>>>>> other\r\n'
+    const text =
+      '<<<<<<< HEAD\r\nours\r\n=======\r\ntheirs\r\n>>>>>>> other\r\n'
     expect(parseConflicts(text)).toHaveLength(1)
   })
 
@@ -104,19 +114,19 @@ describe('resolving', () => {
 
   test('ours keeps the first side and drops every marker', () => {
     expect(resolveConflict(CONFLICTED, conflict!, 'ours')).toBe(
-      'const a = 1\nconst b = 2\nconst c = 4\n',
+      'const a = 1\nconst b = 2\nconst c = 4\n'
     )
   })
 
   test('theirs keeps the second', () => {
     expect(resolveConflict(CONFLICTED, conflict!, 'theirs')).toBe(
-      'const a = 1\nconst b = 3\nconst c = 4\n',
+      'const a = 1\nconst b = 3\nconst c = 4\n'
     )
   })
 
   test('both keeps them in the order the markers had them', () => {
     expect(resolveConflict(CONFLICTED, conflict!, 'both')).toBe(
-      'const a = 1\nconst b = 2\nconst b = 3\nconst c = 4\n',
+      'const a = 1\nconst b = 2\nconst b = 3\nconst c = 4\n'
     )
   })
 
@@ -127,7 +137,8 @@ describe('resolving', () => {
   })
 
   test('CRLF endings outside the block survive it', () => {
-    const text = 'a\r\n<<<<<<< HEAD\r\nours\r\n=======\r\ntheirs\r\n>>>>>>> other\r\nb\r\n'
+    const text =
+      'a\r\n<<<<<<< HEAD\r\nours\r\n=======\r\ntheirs\r\n>>>>>>> other\r\nb\r\n'
     const [crlf] = parseConflicts(text)
     expect(resolveConflict(text, crlf!, 'ours')).toBe('a\r\nours\r\nb\r\n')
   })

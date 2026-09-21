@@ -22,4 +22,5 @@ if (!target) {
   process.exit(1)
 }
 
-await (await import('./main')).main(target)
+const { main } = await import('./main')
+await main(target)

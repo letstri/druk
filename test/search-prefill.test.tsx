@@ -24,7 +24,7 @@ describe('search opens on what is selected', () => {
     const t = await withOpenFile()
     await selectOnFirstRow(t, 'alpha')
 
-    await press(t, input => input.pressKey('f', { ctrl: true }))
+    await press(t, (input) => input.pressKey('f', { ctrl: true }))
     const frame = t.captureCharFrame()
     expect(frame).toContain('Search in file')
     expect(frame).toContain('alpha')
@@ -35,7 +35,7 @@ describe('search opens on what is selected', () => {
     const t = await withOpenFile()
     await selectOnFirstRow(t, 'alpha')
 
-    await press(t, input => input.pressKey('r', { ctrl: true }))
+    await press(t, (input) => input.pressKey('r', { ctrl: true }))
     await settle(t, 200)
     expect(t.captureCharFrame()).toContain('Search in project')
     expect(t.captureCharFrame()).toContain('1 of 2')
@@ -43,10 +43,12 @@ describe('search opens on what is selected', () => {
 
   test('a selection made with Shift+arrows counts as much as a drag', async () => {
     const t = await withOpenFile()
-    for (let i = 0; i < 5; i++) t.mockInput.pressArrow('right', { shift: true })
+    for (let i = 0; i < 5; i += 1) {
+      t.mockInput.pressArrow('right', { shift: true })
+    }
     await settle(t)
 
-    await press(t, input => input.pressKey('f', { ctrl: true }))
+    await press(t, (input) => input.pressKey('f', { ctrl: true }))
     expect(t.captureCharFrame()).not.toContain('Type at least 2 characters')
     expect(t.captureCharFrame()).toContain('1 of 2')
   })
@@ -58,14 +60,14 @@ describe('search opens on what is selected', () => {
     await t.mockMouse.drag(from, 1, from + 6, 2)
     await settle(t)
 
-    await press(t, input => input.pressKey('f', { ctrl: true }))
+    await press(t, (input) => input.pressKey('f', { ctrl: true }))
     expect(t.captureCharFrame()).toContain('Type at least 2 characters')
   })
 
   test('with nothing selected the field is empty, as before', async () => {
     const t = await withOpenFile()
 
-    await press(t, input => input.pressKey('f', { ctrl: true }))
+    await press(t, (input) => input.pressKey('f', { ctrl: true }))
     expect(t.captureCharFrame()).toContain('Type at least 2 characters')
   })
 })

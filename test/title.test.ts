@@ -15,18 +15,22 @@ test('a console that prints OSC strings gets no title', () => {
   expect(supportsTitle(env('linux'), true)).toBe(false)
   expect(supportsTitle(env('dumb'), true)).toBe(false)
   expect(supportsTitle(env('xterm-256color'), false)).toBe(false)
-  expect(supportsTitle({ TERM: 'linux', DRUK_TITLE: '1' }, true)).toBe(true)
-  expect(supportsTitle({ TERM: 'xterm', DRUK_TITLE: '0' }, true)).toBe(false)
+  expect(supportsTitle({ DRUK_TITLE: '1', TERM: 'linux' }, true)).toBe(true)
+  expect(supportsTitle({ DRUK_TITLE: '0', TERM: 'xterm' }, true)).toBe(false)
 })
 
 test('a control character in the name cannot end the sequence early', () => {
-  expect(encodeTitle('a\x07b\x1Bc')).toBe('\x1B]0;abc\x07')
+  expect(encodeTitle('a\u0007b\u001Bc')).toBe('\u001B]0;abc\u0007')
 })
 
 test('the title names the file, the project and the dirty mark', () => {
   expect(formatTitle('druk', null, false)).toBe('druk — druk')
-  expect(formatTitle('druk', '/p/src/app/App.tsx', false)).toBe('App.tsx — druk — druk')
-  expect(formatTitle('druk', '/p/src/app/App.tsx', true)).toBe('● App.tsx — druk — druk')
+  expect(formatTitle('druk', '/p/src/app/App.tsx', false)).toBe(
+    'App.tsx — druk — druk'
+  )
+  expect(formatTitle('druk', '/p/src/app/App.tsx', true)).toBe(
+    '● App.tsx — druk — druk'
+  )
 })
 
 test('the title is pushed once, repeats are skipped, and the stack is popped', () => {
@@ -38,5 +42,10 @@ test('the title is pushed once, repeats are skipped, and the stack is popped', (
   setTerminalTitle('two', write, tty, true)
   restoreTerminalTitle(write)
   restoreTerminalTitle(write)
-  expect(out).toEqual(['\x1B[22;2t', '\x1B]0;one\x07', '\x1B]0;two\x07', '\x1B[23;2t'])
+  expect(out).toEqual([
+    '\u001B[22;2t',
+    '\u001B]0;one\u0007',
+    '\u001B]0;two\u0007',
+    '\u001B[23;2t',
+  ])
 })

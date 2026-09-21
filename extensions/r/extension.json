@@ -70,7 +70,13 @@
   "languageServers": [
     {
       "id": "r",
-      "command": ["R", "--no-echo", "--no-init-file", "-e", "languageserver::run()"],
+      "command": [
+        "R",
+        "--no-echo",
+        "--no-init-file",
+        "-e",
+        "languageserver::run()"
+      ],
       "filetypes": ["r"],
       "install": {
         "kind": "manual",

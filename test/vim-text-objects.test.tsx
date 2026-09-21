@@ -4,18 +4,18 @@ import { join } from 'node:path'
 import { fixture, launch, press, pressEscape } from './helpers'
 import { at, save, type, vimEditor } from './vim-harness'
 
+async function bEdit(content: string) {
+  const dir = fixture({ 'a.ts': content })
+  const t = await launch(dir, { vim: true })
+  await press(t, (i) => i.pressArrow('down'))
+  await press(t, (i) => i.pressEnter())
+  return { dir, file: join(dir, 'a.ts'), t }
+}
+
 describe('text objects', () => {
   const BRACE = 'const x = { hello }\n'
   const PAREN = 'const x = ( hello )\n'
   const BRACKET = 'const x = [ hello ]\n'
-
-  async function bEdit(content: string) {
-    const dir = fixture({ 'a.ts': content })
-    const t = await launch(dir, { vim: true })
-    await press(t, i => i.pressArrow('down'))
-    await press(t, i => i.pressEnter())
-    return { t, dir, file: join(dir, 'a.ts') }
-  }
 
   test('di{ deletes the inner block from normal mode', async () => {
     const { t, file } = await bEdit(BRACE)

@@ -8,11 +8,11 @@ async function opened(content: string, trimOnSave: boolean) {
   const dir = fixture({ 'a.ts': 'placeholder\n' })
   writeFileSync(join(dir, 'a.ts'), content)
   const t = await launch(dir, { trimOnSave })
-  await press(t, i => i.pressArrow('down'))
-  await press(t, i => i.pressEnter())
-  const save = () => press(t, i => i.pressKey('s', { ctrl: true }))
-  const onDisk = () => readFileSync(join(dir, 'a.ts'), 'utf8')
-  return { t, save, onDisk }
+  await press(t, (i) => i.pressArrow('down'))
+  await press(t, (i) => i.pressEnter())
+  const save = () => press(t, (i) => i.pressKey('s', { ctrl: true }))
+  const onDisk = () => readFileSync(join(dir, 'a.ts'), 'utf-8')
+  return { onDisk, save, t }
 }
 
 test('trim on save strips trailing whitespace and adds the final newline', async () => {
@@ -26,7 +26,7 @@ test('the trim reaches the editor as one undoable step', async () => {
   await save()
   expect(t.captureCharFrame()).not.toContain('unsaved')
 
-  await press(t, i => i.pressKey('z', { ctrl: true }))
+  await press(t, (i) => i.pressKey('z', { ctrl: true }))
   expect(t.captureCharFrame()).toContain('unsaved')
 })
 

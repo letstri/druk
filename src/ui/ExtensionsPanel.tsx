@@ -1,15 +1,22 @@
 import { TextAttributes } from '@opentui/core'
-import { createEffect, createMemo, For, on, Show } from 'solid-js'
+import { createEffect, createMemo, on, Show } from 'solid-js'
 
 import type { ExtensionCategory } from '../extensions'
 import { ui } from '../themes'
 import { useHover, useHoverKey } from './hover'
-import { createScrollList, rowBg, scrollbarOptions } from './list'
-import { PanelHeader } from './PanelHeader'
+import { createScrollList, rowBg } from './list'
+import { Panel, PanelHeader } from './PanelHeader'
+import { PanelList } from './PanelList'
 import { TextInput } from './TextInput'
 
 export type ExtensionRow =
-  | { kind: 'section'; id: string; label: string; count: number; collapsed: boolean }
+  | {
+      kind: 'section'
+      id: string
+      label: string
+      count: number
+      collapsed: boolean
+    }
   | {
       kind: 'installed'
       id: string
@@ -32,10 +39,12 @@ export type ExtensionRow =
   | { kind: 'note'; id: string; label: string }
 
 // `Show`'s `when` takes a value, not a predicate: these hand it the narrowed row.
-const sectionRow = (row: ExtensionRow) => (row.kind === 'section' ? row : undefined)
-const installedRow = (row: ExtensionRow) => (row.kind === 'installed' ? row : undefined)
+const sectionRow = (row: ExtensionRow) =>
+  row.kind === 'section' ? row : undefined
+const installedRow = (row: ExtensionRow) =>
+  row.kind === 'installed' ? row : undefined
 
-export interface ExtensionsPanelProps {
+interface ExtensionsPanelProps {
   rows: ExtensionRow[]
   cursor: number
   installedCount: number
@@ -50,23 +59,30 @@ export interface ExtensionsPanelProps {
 
 export function ExtensionsPanel(props: ExtensionsPanelProps) {
   // A memo so the reveal below fires on the cursor's *value* — see GitPanel.
-  const cursor = createMemo(() => Math.max(0, Math.min(props.cursor, props.rows.length - 1)))
+  const cursor = createMemo(() =>
+    Math.max(0, Math.min(props.cursor, props.rows.length - 1))
+  )
 
   const list = createScrollList(() => props.rows.length)
-  const visible = createMemo(() => props.rows.slice(list.window().start, list.window().end))
   const search = useHover()
   const rowHover = useHoverKey<number>()
 
-  createEffect(on(cursor, row => list.reveal(row)))
+  createEffect(on(cursor, (row) => list.reveal(row)))
 
   const version = (row: ExtensionRow) => {
-    if (row.kind === 'available') return row.version
-    if (row.kind !== 'installed') return ''
+    if (row.kind === 'available') {
+      return row.version
+    }
+    if (row.kind !== 'installed') {
+      return ''
+    }
     return row.update ? `→ ${row.update}` : row.version
   }
 
   const categories = (row: ExtensionRow) => {
-    if (row.kind !== 'installed' && row.kind !== 'available') return ''
+    if (row.kind !== 'installed' && row.kind !== 'available') {
+      return ''
+    }
     const text = row.categories.join(' ')
     // 5 for the glyph column, 2 for the gaps either side, 1 for the trailing pad.
     const room = props.width - 5 - row.label.length - version(row).length - 3
@@ -74,16 +90,12 @@ export function ExtensionsPanel(props: ExtensionsPanelProps) {
   }
 
   return (
-    <box
-      width={props.width}
-      flexDirection="column"
-      backgroundColor={ui.sidebarBg}
-      flexShrink={0}
-      flexGrow={1}
-      flexBasis={0}
-      onMouseDown={() => props.onFocus()}
-    >
-      <PanelHeader title="Extensions" width={props.width} focused={props.focused}>
+    <Panel width={props.width} onFocus={props.onFocus}>
+      <PanelHeader
+        title="Extensions"
+        width={props.width}
+        focused={props.focused}
+      >
         <text
           fg={props.focused ? ui.text : ui.dim}
           bg={ui.sidebarBg}
@@ -137,105 +149,116 @@ export function ExtensionsPanel(props: ExtensionsPanelProps) {
           </box>
         }
       >
-        <scrollbox
-          ref={list.ref}
-          flexGrow={1}
-          backgroundColor={ui.sidebarBg}
-          scrollbarOptions={scrollbarOptions()}
-        >
-          {/* Spacers keep the scrollable extent honest while only a window exists. */}
-          <box height={list.window().start} flexShrink={0} backgroundColor={ui.sidebarBg} />
-          <For each={visible()}>
-            {(row, at) => {
-              const index = () => list.window().start + at()
-              const bg = () => rowBg(index() === cursor(), props.focused, rowHover.hovered(index()))
-              return (
-                <box
-                  height={1}
-                  flexDirection="row"
-                  backgroundColor={bg()}
-                  // Not stopped: the panel's own handler runs after this and focuses it.
-                  onMouseDown={() => props.onActivate(index())}
-                  onMouseOver={() => rowHover.enter(index())}
-                  onMouseOut={() => rowHover.leave(index())}
-                >
-                  <Show when={sectionRow(row)}>
-                    {(section: () => ExtensionRow & { kind: 'section' }) => (
-                      <>
+        <PanelList list={list} items={props.rows}>
+          {(row, index) => {
+            const bg = () =>
+              rowBg(
+                index() === cursor(),
+                props.focused,
+                rowHover.hovered(index())
+              )
+            return (
+              <box
+                height={1}
+                flexDirection="row"
+                backgroundColor={bg()}
+                // Not stopped: the panel's own handler runs after this and focuses it.
+                onMouseDown={() => props.onActivate(index())}
+                onMouseOver={() => rowHover.enter(index())}
+                onMouseOut={() => rowHover.leave(index())}
+              >
+                <Show when={sectionRow(row)}>
+                  {(section: () => ExtensionRow & { kind: 'section' }) => (
+                    <>
+                      <text
+                        fg={ui.dim}
+                        bg={bg()}
+                        flexShrink={0}
+                        content={` ${section().collapsed ? '▸' : '▾'} `}
+                      />
+                      <box flexGrow={1} backgroundColor={bg()}>
                         <text
-                          fg={ui.dim}
+                          wrapMode="none"
+                          fg={ui.folder}
                           bg={bg()}
-                          flexShrink={0}
-                          content={` ${section().collapsed ? '▸' : '▾'} `}
+                          content={section().label}
+                          attributes={TextAttributes.BOLD}
                         />
-                        <box flexGrow={1} backgroundColor={bg()}>
-                          <text
-                            wrapMode="none"
-                            fg={ui.folder}
-                            bg={bg()}
-                            content={section().label}
-                            attributes={TextAttributes.BOLD}
-                          />
-                        </box>
-                        <text
-                          fg={ui.faint}
-                          bg={bg()}
-                          flexShrink={0}
-                          content={`${section().count} `}
-                        />
-                      </>
-                    )}
-                  </Show>
-                  <Show when={row.kind === 'note'}>
-                    <text wrapMode="none" fg={ui.faint} bg={bg()} content={`   ${row.label}`} />
-                  </Show>
-                  <Show when={row.kind === 'installed' || row.kind === 'available'}>
-                    {/* The state glyph never gives: shrinking it slides every name left. */}
-                    <text
-                      fg={row.kind === 'installed' && row.disabled ? ui.faint : ui.accent}
-                      bg={bg()}
-                      flexShrink={0}
-                      content={
-                        row.kind === 'installed' ? `   ${row.disabled ? '✗' : '✓'} ` : '   + '
-                      }
-                    />
-                    <text
-                      wrapMode="none"
-                      fg={row.kind === 'installed' && row.disabled ? ui.dim : ui.text}
-                      bg={bg()}
-                      flexShrink={1}
-                      content={row.label}
-                    />
-                    <Show when={categories(row)}>
+                      </box>
                       <text
                         fg={ui.faint}
                         bg={bg()}
                         flexShrink={0}
-                        content={`  ${categories(row)}`}
+                        content={`${section().count} `}
                       />
-                    </Show>
-                    <box flexGrow={1} backgroundColor={bg()} />
+                    </>
+                  )}
+                </Show>
+                <Show when={row.kind === 'note'}>
+                  <text
+                    wrapMode="none"
+                    fg={ui.faint}
+                    bg={bg()}
+                    content={`   ${row.label}`}
+                  />
+                </Show>
+                <Show
+                  when={row.kind === 'installed' || row.kind === 'available'}
+                >
+                  {/* The state glyph never gives: shrinking it slides every name left. */}
+                  <text
+                    fg={
+                      row.kind === 'installed' && row.disabled
+                        ? ui.faint
+                        : ui.accent
+                    }
+                    bg={bg()}
+                    flexShrink={0}
+                    content={
+                      row.kind === 'installed'
+                        ? `   ${row.disabled ? '✗' : '✓'} `
+                        : '   + '
+                    }
+                  />
+                  <text
+                    wrapMode="none"
+                    fg={
+                      row.kind === 'installed' && row.disabled
+                        ? ui.dim
+                        : ui.text
+                    }
+                    bg={bg()}
+                    flexShrink={1}
+                    content={row.label}
+                  />
+                  <Show when={categories(row)}>
                     <text
-                      fg={installedRow(row)?.update ? ui.accent : ui.faint}
+                      fg={ui.faint}
                       bg={bg()}
                       flexShrink={0}
-                      content={`${version(row)} `}
+                      content={`  ${categories(row)}`}
                     />
                   </Show>
-                </box>
-              )
-            }}
-          </For>
-          <box
-            height={Math.max(0, props.rows.length - list.window().end)}
-            flexShrink={0}
-            backgroundColor={ui.sidebarBg}
-          />
-        </scrollbox>
+                  <box flexGrow={1} backgroundColor={bg()} />
+                  <text
+                    fg={installedRow(row)?.update ? ui.accent : ui.faint}
+                    bg={bg()}
+                    flexShrink={0}
+                    content={`${version(row)} `}
+                  />
+                </Show>
+              </box>
+            )
+          }}
+        </PanelList>
       </Show>
       <box height={1} backgroundColor={ui.sidebarBg} paddingLeft={1}>
-        <text fg={ui.faint} bg={ui.sidebarBg} content="↑↓ · Enter · Bksp uninstall" />
+        <text
+          fg={ui.faint}
+          bg={ui.sidebarBg}
+          content="↑↓ · Enter · Bksp uninstall"
+        />
       </box>
-    </box>
+    </Panel>
   )
 }

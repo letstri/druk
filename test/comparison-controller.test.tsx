@@ -1,22 +1,23 @@
 import { expect, test } from 'bun:test'
-import { execFileSync } from 'node:child_process'
 import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { setTimeout as sleep } from 'node:timers/promises'
 
 import { createRoot } from 'solid-js'
 
 import { createComparison } from '../src/app/comparison'
 import { createGit } from '../src/app/git'
 import { createStatus } from '../src/app/status'
+import { git as run, initRepo } from './repo'
 import { tempDir } from './temp'
 
 function repo() {
   const dir = tempDir('druk-controller-')
+  initRepo(dir, 'trunk')
   const git = (...args: string[]) =>
-    execFileSync('git', args, { cwd: dir, encoding: 'utf8' }).trim()
-  git('init', '-q', '-b', 'trunk')
-  git('config', 'user.email', 'test@example.com')
-  git('config', 'user.name', 'Test')
+    run(dir, ...args)
+      .toString()
+      .trim()
   git('config', 'init.defaultBranch', 'trunk')
   writeFileSync(join(dir, 'seed.txt'), 'seed\n')
   git('add', '.')
@@ -32,17 +33,21 @@ function repo() {
 async function until(condition: () => boolean, timeout = 4000) {
   const started = Date.now()
   while (!condition() && Date.now() - started < timeout) {
-    await new Promise(resolve => setTimeout(resolve, 10))
+    await sleep(10)
   }
   expect(condition()).toBe(true)
 }
 
 test('controller loads, filters and keeps independent file and commit cursors', async () => {
   const { dir } = repo()
-  const root = createRoot(dispose => {
+  const root = createRoot((dispose) => {
     const git = createGit(dir, () => 'tree')
     git.setBranch('feature')
-    const comparison = createComparison({ rootDir: dir, git, status: createStatus() })
+    const comparison = createComparison({
+      git,
+      rootDir: dir,
+      status: createStatus(),
+    })
     return { comparison, dispose }
   })
 
@@ -57,7 +62,9 @@ test('controller loads, filters and keeps independent file and commit cursors', 
   expect(root.comparison.filteredFiles()).toHaveLength(2)
 
   root.comparison.setFilter('auth')
-  expect(root.comparison.filteredFiles().map(file => file.path)).toEqual(['auth.ts'])
+  expect(root.comparison.filteredFiles().map((file) => file.path)).toEqual([
+    'auth.ts',
+  ])
   root.comparison.move(4)
   expect(root.comparison.fileCursor()).toBe(0)
 
@@ -75,21 +82,29 @@ test('controller loads, filters and keeps independent file and commit cursors', 
 test('controller changes base through the existing branch model', async () => {
   const { dir, git: runGit } = repo()
   runGit('branch', 'develop', 'trunk')
-  const root = createRoot(dispose => {
+  const root = createRoot((dispose) => {
     const git = createGit(dir, () => 'tree')
     git.setBranch('feature')
-    const comparison = createComparison({ rootDir: dir, git, status: createStatus() })
+    const comparison = createComparison({
+      git,
+      rootDir: dir,
+      status: createStatus(),
+    })
     return { comparison, dispose }
   })
 
   root.comparison.open()
   await until(() => root.comparison.state() === 'ready')
   root.comparison.openBasePicker()
-  const develop = root.comparison.basePick()?.find(branch => branch.name === 'develop')
+  const develop = root.comparison
+    .basePick()
+    ?.find((branch) => branch.name === 'develop')
   expect(develop).toBeDefined()
   root.comparison.chooseBase(develop!)
   await until(
-    () => root.comparison.state() === 'ready' && root.comparison.result()?.base.name === 'develop',
+    () =>
+      root.comparison.state() === 'ready' &&
+      root.comparison.result()?.base.name === 'develop'
   )
   expect(root.comparison.basePick()).toBeNull()
   root.dispose()
@@ -97,10 +112,14 @@ test('controller changes base through the existing branch model', async () => {
 
 test('controller lazily opens selected file content and closes detail first', async () => {
   const { dir } = repo()
-  const root = createRoot(dispose => {
+  const root = createRoot((dispose) => {
     const git = createGit(dir, () => 'tree')
     git.setBranch('feature')
-    const comparison = createComparison({ rootDir: dir, git, status: createStatus() })
+    const comparison = createComparison({
+      git,
+      rootDir: dir,
+      status: createStatus(),
+    })
     return { comparison, dispose }
   })
 
@@ -122,27 +141,33 @@ test('controller lazily opens selected file content and closes detail first', as
 test('controller opens the base picker instead of guessing main', () => {
   const { dir, git: runGit } = repo()
   runGit('config', '--unset', 'init.defaultBranch')
-  const root = createRoot(dispose => {
+  const root = createRoot((dispose) => {
     const git = createGit(dir, () => 'tree')
     git.setBranch('feature')
-    const comparison = createComparison({ rootDir: dir, git, status: createStatus() })
+    const comparison = createComparison({
+      git,
+      rootDir: dir,
+      status: createStatus(),
+    })
     return { comparison, dispose }
   })
 
   root.comparison.open()
 
   expect(root.comparison.state()).toBe('idle')
-  expect(root.comparison.basePick()?.map(branch => branch.name)).toContain('trunk')
+  expect(root.comparison.basePick()?.map((branch) => branch.name)).toContain(
+    'trunk'
+  )
   root.dispose()
 })
 
 test('controller reports detached HEAD as an explicit comparison error', async () => {
   const { dir, git: runGit } = repo()
   runGit('switch', '--detach', '-q')
-  const root = createRoot(dispose => {
+  const root = createRoot((dispose) => {
     const comparison = createComparison({
-      rootDir: dir,
       git: createGit(dir, () => 'tree'),
+      rootDir: dir,
       status: createStatus(),
     })
     return { comparison, dispose }
@@ -157,10 +182,14 @@ test('controller reports detached HEAD as an explicit comparison error', async (
 
 test('controller opens commit metadata and its first file diff lazily', async () => {
   const { dir } = repo()
-  const root = createRoot(dispose => {
+  const root = createRoot((dispose) => {
     const git = createGit(dir, () => 'tree')
     git.setBranch('feature')
-    const comparison = createComparison({ rootDir: dir, git, status: createStatus() })
+    const comparison = createComparison({
+      git,
+      rootDir: dir,
+      status: createStatus(),
+    })
     return { comparison, dispose }
   })
 
@@ -169,10 +198,14 @@ test('controller opens commit metadata and its first file diff lazily', async ()
   root.comparison.toggleMode()
   root.comparison.openSelection()
   await until(
-    () => root.comparison.selectedCommit() !== null && root.comparison.selectedContent() !== null,
+    () =>
+      root.comparison.selectedCommit() !== null &&
+      root.comparison.selectedContent() !== null
   )
 
-  expect(root.comparison.selectedCommit()?.commit.subject).toBe('add authentication')
+  expect(root.comparison.selectedCommit()?.commit.subject).toBe(
+    'add authentication'
+  )
   expect(root.comparison.selectedFile()?.path).toBe('auth.ts')
   root.comparison.moveDetail(1)
   await until(() => {
@@ -193,16 +226,22 @@ test('controller opens commit metadata and its first file diff lazily', async ()
 test('a newer base choice wins over an earlier load still in flight', async () => {
   const { dir, git: runGit } = repo()
   runGit('branch', 'develop', 'trunk')
-  const root = createRoot(dispose => {
+  const root = createRoot((dispose) => {
     const git = createGit(dir, () => 'tree')
     git.setBranch('feature')
-    const comparison = createComparison({ rootDir: dir, git, status: createStatus() })
+    const comparison = createComparison({
+      git,
+      rootDir: dir,
+      status: createStatus(),
+    })
     return { comparison, dispose }
   })
 
   root.comparison.open()
   root.comparison.openBasePicker()
-  const develop = root.comparison.basePick()?.find(branch => branch.name === 'develop')
+  const develop = root.comparison
+    .basePick()
+    ?.find((branch) => branch.name === 'develop')
   expect(develop).toBeDefined()
   root.comparison.chooseBase(develop!)
   await until(() => root.comparison.state() === 'ready')

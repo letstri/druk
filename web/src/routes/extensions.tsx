@@ -6,28 +6,28 @@ import catalog from '../../../extensions/index.json'
 export const Route = createFileRoute('/extensions')({
   component: Extensions,
   head: () => ({
+    links: [{ href: 'https://druk.sh/extensions', rel: 'canonical' }],
     meta: [
       { title: 'druk extensions — languages, servers, themes, icons' },
       {
-        name: 'description',
         content:
           "Every extension in druk's market: languages and their servers, themes, icon sets. A manifest is JSON, not code — installing one runs nothing.",
+        name: 'description',
       },
-      { property: 'og:title', content: 'druk extensions' },
+      { content: 'druk extensions', property: 'og:title' },
       {
+        content:
+          'Languages, language servers, themes and icon sets for druk. JSON manifests, not code.',
         property: 'og:description',
-        content:
-          'Languages, language servers, themes and icon sets for druk. JSON manifests, not code.',
       },
-      { property: 'og:url', content: 'https://druk.sh/extensions' },
-      { name: 'twitter:title', content: 'druk extensions' },
+      { content: 'https://druk.sh/extensions', property: 'og:url' },
+      { content: 'druk extensions', name: 'twitter:title' },
       {
-        name: 'twitter:description',
         content:
           'Languages, language servers, themes and icon sets for druk. JSON manifests, not code.',
+        name: 'twitter:description',
       },
     ],
-    links: [{ rel: 'canonical', href: 'https://druk.sh/extensions' }],
   }),
 })
 
@@ -83,9 +83,15 @@ const GROUPS: { key: Category; label: string; note: string }[] = [
 ]
 
 function groupOf(extension: Extension): Category {
-  if (extension.categories.includes('language')) return 'language'
-  if (extension.categories.includes('theme')) return 'theme'
-  if (extension.categories.includes('icons')) return 'icons'
+  if (extension.categories.includes('language')) {
+    return 'language'
+  }
+  if (extension.categories.includes('theme')) {
+    return 'theme'
+  }
+  if (extension.categories.includes('icons')) {
+    return 'icons'
+  }
   return 'lsp'
 }
 
@@ -108,7 +114,7 @@ function Row({ extension }: { extension: Extension }) {
   const { themes, icons, filetypes } = extension.provides
   // A lone filetype named after the extension repeats the row's name.
   const registers = [...filetypes, ...themes, ...icons].filter(
-    (name, _, all) => all.length > 1 || name !== extension.id,
+    (name, _, all) => all.length > 1 || name !== extension.id
   )
   return (
     <div className="ext">
@@ -117,11 +123,17 @@ function Row({ extension }: { extension: Extension }) {
           {extension.name}
         </a>
         <span className="ext-ver">{extension.version}</span>
-        {BUILTIN.has(extension.id) ? <span className="ext-tag built">built in</span> : null}
-        {extension.categories.includes('lsp') ? <span className="ext-tag">lsp</span> : null}
+        {BUILTIN.has(extension.id) ? (
+          <span className="ext-tag built">built in</span>
+        ) : null}
+        {extension.categories.includes('lsp') ? (
+          <span className="ext-tag">lsp</span>
+        ) : null}
       </div>
       <div className="ext-desc">{extension.description}</div>
-      {registers.length > 0 ? <div className="ext-regs">{registers.join('  ')}</div> : null}
+      {registers.length > 0 ? (
+        <div className="ext-regs">{registers.join('  ')}</div>
+      ) : null}
     </div>
   )
 }
@@ -132,33 +144,38 @@ function Extensions() {
 
   const indexed = useMemo(
     () =>
-      EXTENSIONS.map(extension => ({
+      EXTENSIONS.map((extension) => ({
         extension,
-        text: haystack(extension),
         group: groupOf(extension),
+        text: haystack(extension),
       })),
-    [],
+    []
   )
 
   const needle = query.trim().toLowerCase()
   const hits = indexed.filter(
-    row => (only === 'all' || row.group === only) && (needle === '' || row.text.includes(needle)),
+    (row) =>
+      (only === 'all' || row.group === only) &&
+      (needle === '' || row.text.includes(needle))
   )
 
-  const counts = (key: Category) => indexed.filter(row => row.group === key).length
+  const counts = (key: Category) =>
+    indexed.filter((row) => row.group === key).length
 
   return (
     <main className="term">
       <div className="session">
         <h1 className="comment">
-          # <span className="title">druk</span> extensions — {EXTENSIONS.length} in the market.
+          # <span className="title">druk</span> extensions — {EXTENSIONS.length}{' '}
+          in the market.
         </h1>
         <p className="comment">
-          # a manifest is JSON, not code: installing one runs nothing. grammars are already in the
-          binary, so a language extension is one small file.
+          # a manifest is JSON, not code: installing one runs nothing. grammars
+          are already in the binary, so a language extension is one small file.
         </p>
         <p className="prompt" style={{ marginTop: '1.5rem' }}>
-          <span className="ps1">$</span> druk . <span className="comment"># then Ctrl+Opt+X</span>
+          <span className="ps1">$</span> druk .{' '}
+          <span className="comment"># then Ctrl+Opt+X</span>
         </p>
         <p className="comment">
           # or drop the manifest in ~/.config/druk/extensions/&lt;id&gt;.json
@@ -178,7 +195,7 @@ function Extensions() {
               placeholder="filter by name, language, theme…"
               autoComplete="off"
               spellCheck={false}
-              onChange={event => setQuery(event.target.value)}
+              onChange={(event) => setQuery(event.target.value)}
             />
           </label>
           <div className="chips">
@@ -190,7 +207,7 @@ function Extensions() {
             >
               all {EXTENSIONS.length}
             </button>
-            {GROUPS.map(group => (
+            {GROUPS.map((group) => (
               <button
                 key={group.key}
                 type="button"
@@ -206,22 +223,25 @@ function Extensions() {
 
         {hits.length === 0 ? (
           <p className="comment out">
-            # nothing matches {JSON.stringify(query)} — the panel's search is the same one, and it
-            reads ids and filetypes too.
+            # nothing matches {JSON.stringify(query)} — the panel's search is
+            the same one, and it reads ids and filetypes too.
           </p>
         ) : null}
 
-        {GROUPS.map(group => {
-          const rows = hits.filter(row => row.group === group.key)
-          if (rows.length === 0) return null
+        {GROUPS.map((group) => {
+          const rows = hits.filter((row) => row.group === group.key)
+          if (rows.length === 0) {
+            return null
+          }
           return (
             <div key={group.key} className="group">
               <p className="prompt">
-                <span className="ps1">▾</span> <span className="group-name">{group.label}</span>{' '}
+                <span className="ps1">▾</span>{' '}
+                <span className="group-name">{group.label}</span>{' '}
                 <span className="comment"># {group.note}</span>
               </p>
               <div className="out">
-                {rows.map(row => (
+                {rows.map((row) => (
                   <Row key={row.extension.id} extension={row.extension} />
                 ))}
               </div>
@@ -232,12 +252,14 @@ function Extensions() {
 
       <section className="section">
         <p className="prompt">
-          <span className="ps1">$</span> <span className="comment"># adding one</span>
+          <span className="ps1">$</span>{' '}
+          <span className="comment"># adding one</span>
         </p>
         <div className="out">
           <p className="comment">
-            # a folder under extensions/ holding extension.json, then bun run extensions. served raw
-            from main, so a merged pull request is installable without a druk release.
+            # a folder under extensions/ holding extension.json, then bun run
+            extensions. served raw from main, so a merged pull request is
+            installable without a druk release.
           </p>
           <p className="prompt" style={{ marginTop: '0.75rem' }}>
             <span className="ps1">$</span> open{' '}

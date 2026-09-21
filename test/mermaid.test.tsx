@@ -38,7 +38,7 @@ test('a left-to-right flowchart puts its layers in columns', () => {
   const text = draw(`graph LR
   A[One] -->|next| B[Two]
 `)!
-  const row = text.split('\n').find(line => line.includes('One'))!
+  const row = text.split('\n').find((line) => line.includes('One'))!
   expect(row).toContain('Two')
   expect(row).toContain('next')
   expect(row).toContain('▶')
@@ -75,8 +75,8 @@ test('a class diagram keeps its members and points inheritance at the parent', (
   expect(text).toContain('+int age')
   expect(text).toContain('+swim()')
   expect(text).toContain('▽')
-  expect(lines.findIndex(line => line.includes('Duck'))).toBeLessThan(
-    lines.findIndex(line => line.includes('Animal')),
+  expect(lines.findIndex((line) => line.includes('Duck'))).toBeLessThan(
+    lines.findIndex((line) => line.includes('Animal'))
   )
 })
 
@@ -140,7 +140,11 @@ graph TD
 `
 
 test('a mermaid fence is drawn in the markdown preview, not printed as source', async () => {
-  const t: Harness = await launch(fixture({ 'doc.md': DOC }), {}, { width: 100, height: 30 })
+  const t: Harness = await launch(
+    fixture({ 'doc.md': DOC }),
+    {},
+    { height: 30, width: 100 }
+  )
   await openFile(t, 'doc.md')
   await runCommand(t, 'Markdown: rendered')
   await until(t, () => t.captureCharFrame().includes('Language server'))

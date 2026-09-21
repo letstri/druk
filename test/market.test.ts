@@ -22,34 +22,44 @@ import { tempDir } from './temp'
 const REGISTRY = 'https://example.test/extensions/'
 
 const MANIFEST = {
+  description: 'nimlangserver',
   id: 'nim',
+  languageServers: [
+    { command: ['nimlangserver'], filetypes: ['nim'], id: 'nim' },
+  ],
   name: 'Nim',
   version: '1.2.0',
-  description: 'nimlangserver',
-  languageServers: [{ id: 'nim', command: ['nimlangserver'], filetypes: ['nim'] }],
 }
 
 const INDEX = {
   extensions: [
     {
+      categories: ['language', 'lsp'],
+      description: 'nimlangserver',
       id: 'nim',
       name: 'Nim',
+      provides: {
+        extensions: ['.nim'],
+        filetypes: ['nim'],
+        icons: [],
+        themes: [],
+      },
       version: '1.2.0',
-      description: 'nimlangserver',
-      provides: { themes: [], icons: [], filetypes: ['nim'], extensions: ['.nim'] },
-      categories: ['language', 'lsp'],
     },
   ],
 }
 
-const serving = (bodies: Record<string, unknown>, seen: string[] = []): Fetcher =>
-  (url => {
+const serving = (
+  bodies: Record<string, unknown>,
+  seen: string[] = []
+): Fetcher =>
+  ((url) => {
     seen.push(url)
     const body = bodies[url]
     return Promise.resolve(
       body === undefined
         ? new Response('nope', { status: 404 })
-        : new Response(typeof body === 'string' ? body : JSON.stringify(body)),
+        : new Response(typeof body === 'string' ? body : JSON.stringify(body))
     )
   }) as Fetcher
 
@@ -64,28 +74,34 @@ test('a malformed catalog row is dropped, not fatal', () => {
       'not an object',
     ],
   })
-  expect(parsed.map(entry => entry.id)).toEqual(['ok'])
+  expect(parsed.map((entry) => entry.id)).toEqual(['ok'])
   expect(parsed[0]).toEqual({
+    categories: [],
+    description: '',
     id: 'ok',
     name: 'ok',
+    provides: { extensions: [], filetypes: [], icons: [], themes: [] },
     version: '1.0.0',
-    description: '',
-    provides: { themes: [], icons: [], filetypes: [], extensions: [] },
-    categories: [],
   })
 })
 
 test('the catalog is read from the registry directory', async () => {
   const seen: string[] = []
-  const catalog = await fetchCatalog(REGISTRY, serving({ [`${REGISTRY}index.json`]: INDEX }, seen))
+  const catalog = await fetchCatalog(
+    REGISTRY,
+    serving({ [`${REGISTRY}index.json`]: INDEX }, seen)
+  )
   expect(seen).toEqual([`${REGISTRY}index.json`])
-  expect(catalog?.map(entry => entry.id)).toEqual(['nim'])
+  expect(catalog?.map((entry) => entry.id)).toEqual(['nim'])
 })
 
 test('a registry that answers with nothing usable leaves no catalog', async () => {
   expect(await fetchCatalog(REGISTRY, serving({}))).toBeNull()
   expect(
-    await fetchCatalog(REGISTRY, serving({ [`${REGISTRY}index.json`]: '{ not json' })),
+    await fetchCatalog(
+      REGISTRY,
+      serving({ [`${REGISTRY}index.json`]: '{ not json' })
+    )
   ).toBeNull()
 })
 
@@ -97,22 +113,27 @@ test("druk's own registry is the default, and it is https", () => {
 test('a manifest is fetched from <registry><id>/extension.json and validated', async () => {
   const seen: string[] = []
   const result = await fetchExtension('nim', {
-    registry: REGISTRY,
     fetcher: serving({ [`${REGISTRY}nim/extension.json`]: MANIFEST }, seen),
+    registry: REGISTRY,
   })
   expect(seen).toEqual([`${REGISTRY}nim/extension.json`])
-  expect(result.ok && result.extension.servers[0]?.command).toEqual(['nimlangserver'])
+  expect(result.ok && result.extension.servers[0]?.command).toEqual([
+    'nimlangserver',
+  ])
 })
 
 test('a manifest druk would reject is refused before anything is written', async () => {
   for (const body of [
     { id: 'nim' },
-    { id: 'other', languageServers: [{ id: 'nim', command: ['x'], filetypes: ['nim'] }] },
+    {
+      id: 'other',
+      languageServers: [{ command: ['x'], filetypes: ['nim'], id: 'nim' }],
+    },
     'not json at all',
   ]) {
     const result = await fetchExtension('nim', {
-      registry: REGISTRY,
       fetcher: serving({ [`${REGISTRY}nim/extension.json`]: body }),
+      registry: REGISTRY,
     })
     expect(result.ok).toBe(false)
   }
@@ -120,23 +141,31 @@ test('a manifest druk would reject is refused before anything is written', async
 
 async function fetchedOk(manifest: unknown, id = 'nim') {
   const result = await fetchExtension(id, {
-    registry: REGISTRY,
     fetcher: serving({ [`${REGISTRY}${id}/extension.json`]: manifest }),
+    registry: REGISTRY,
   })
-  if (!result.ok) throw new Error(result.error)
+  if (!result.ok) {
+    throw new Error(result.error)
+  }
   return result
 }
 
 test('a fetched manifest is written where loadExtensions finds it', async () => {
   const root = temp('extensions')
   const project = temp('project')
-  expect(await writeExtension('nim', await fetchedOk(MANIFEST), root)).toBeNull()
-  expect(JSON.parse(readFileSync(join(root, 'nim', 'extension.json'), 'utf8'))).toEqual(MANIFEST)
+  expect(
+    await writeExtension('nim', await fetchedOk(MANIFEST), root)
+  ).toBeNull()
+  expect(
+    JSON.parse(readFileSync(join(root, 'nim', 'extension.json'), 'utf-8'))
+  ).toEqual(MANIFEST)
 
   const load = loadExtensions(project, [], root)
   expect(load.problems).toEqual([])
   expect(
-    load.extensions.filter(extension => !extension.builtin).map(extension => extension.id),
+    load.extensions
+      .filter((extension) => !extension.builtin)
+      .map((extension) => extension.id)
   ).toEqual(['nim'])
 
   expect(removeFromDisk('nim', root)).toBeNull()
@@ -151,15 +180,21 @@ test('the cache survives a round trip and knows when it is old', () => {
 
   writeCachedCatalog(INDEX.extensions as MarketEntry[], 1000, file)
   const cached = readCachedCatalog(file)
-  expect(cached?.extensions.map(entry => entry.id)).toEqual(['nim'])
+  expect(cached?.extensions.map((entry) => entry.id)).toEqual(['nim'])
   expect(isStale(cached, 1000 + 60_000)).toBe(false)
   expect(isStale(cached, 1000 + 31 * 60 * 1000)).toBe(true)
 })
 
 test('only an installed extension with a lower version is an update', () => {
   const catalog = INDEX.extensions as MarketEntry[]
-  expect(updatesFor([{ id: 'nim', version: '1.1.0' }], catalog, isNewer)).toHaveLength(1)
-  expect(updatesFor([{ id: 'nim', version: '1.2.0' }], catalog, isNewer)).toEqual([])
-  expect(updatesFor([{ id: 'nim', version: '2.0.0' }], catalog, isNewer)).toEqual([])
+  expect(
+    updatesFor([{ id: 'nim', version: '1.1.0' }], catalog, isNewer)
+  ).toHaveLength(1)
+  expect(
+    updatesFor([{ id: 'nim', version: '1.2.0' }], catalog, isNewer)
+  ).toEqual([])
+  expect(
+    updatesFor([{ id: 'nim', version: '2.0.0' }], catalog, isNewer)
+  ).toEqual([])
   expect(updatesFor([], catalog, isNewer)).toEqual([])
 })

@@ -16,11 +16,11 @@ const MIN_LABEL = 8
 const SQUEEZE = 1.08
 
 const SCOPE_LABELS: Record<KeyScope, string> = {
-  tree: 'file tree',
   editor: 'editor',
+  extensions: 'extensions',
   git: 'source control',
   review: 'review',
-  extensions: 'extensions',
+  tree: 'file tree',
 }
 
 type Line =
@@ -41,7 +41,8 @@ function fill(sections: HelpSection[], limit: number): HelpSection[][] {
   let used = 0
   for (const section of sections) {
     const current = columns.at(-1)!
-    const cost = current.length > 0 ? blockHeight(section) + 1 : blockHeight(section)
+    const cost =
+      current.length > 0 ? blockHeight(section) + 1 : blockHeight(section)
     if (current.length > 0 && used + cost > limit) {
       columns.push([section])
       used = blockHeight(section)
@@ -58,44 +59,58 @@ function pack(sections: HelpSection[], cols: number): HelpSection[][] {
   let high = columnHeight(sections)
   while (low < high) {
     const middle = Math.floor((low + high) / 2)
-    if (fill(sections, middle).length <= cols) high = middle
-    else low = middle + 1
+    if (fill(sections, middle).length <= cols) {
+      high = middle
+    } else {
+      low = middle + 1
+    }
   }
   return fill(sections, low)
 }
 
 const naturalWidth = (column: HelpSection[]) =>
   Math.max(
-    ...column.map(section => section.title.length),
-    ...column.flatMap(section =>
-      section.rows.map(([key, label]) => INDENT + key.length + KEY_GAP + label.length),
-    ),
+    ...column.map((section) => section.title.length),
+    ...column.flatMap((section) =>
+      section.rows.map(
+        ([key, label]) => INDENT + key.length + KEY_GAP + label.length
+      )
+    )
   ) + GAP
 
 function shares(columns: HelpSection[][], inner: number): number[] {
   const naturals = columns.map(naturalWidth)
   const wanted = naturals.reduce((sum, width) => sum + width, 0)
-  if (wanted > inner) return naturals.map(width => Math.floor((width * inner) / wanted))
+  if (wanted > inner) {
+    return naturals.map((width) => Math.floor((width * inner) / wanted))
+  }
   const extra = Math.floor((inner - wanted) / columns.length)
-  return naturals.map(width => width + extra)
+  return naturals.map((width) => width + extra)
 }
 
 function measure(column: HelpSection[], width: number, rows: number) {
   const all = column.flatMap<Line>((section, index) => [
     ...(index > 0 ? [{ kind: 'gap' } as const] : []),
     { kind: 'header', text: section.title },
-    ...section.rows.map(([key, label]) => ({ kind: 'key', key, label }) as const),
+    ...section.rows.map(
+      ([key, label]) => ({ key, kind: 'key', label }) as const
+    ),
   ])
   const kept = all.slice(0, rows - 1)
   // A column cut after a heading's last key would end on a separating blank line.
-  while (kept.at(-1)?.kind === 'gap') kept.pop()
+  while (kept.at(-1)?.kind === 'gap') {
+    kept.pop()
+  }
   const lines: Line[] = all.length > rows ? [...kept, { kind: 'more' }] : all
   const room = width - GAP - INDENT - KEY_GAP
   const keyWidth = Math.min(
-    Math.max(0, ...column.flatMap(section => section.rows.map(([key]) => key.length))),
-    Math.max(1, room - MIN_LABEL),
+    Math.max(
+      0,
+      ...column.flatMap((section) => section.rows.map(([key]) => key.length))
+    ),
+    Math.max(1, room - MIN_LABEL)
   )
-  return { lines, keyWidth, labelWidth: Math.max(MIN_LABEL, room - keyWidth) }
+  return { keyWidth, labelWidth: Math.max(MIN_LABEL, room - keyWidth), lines }
 }
 
 export function KeyPeek(props: { pane: KeyScope }) {
@@ -104,12 +119,17 @@ export function KeyPeek(props: { pane: KeyScope }) {
   const layout = createMemo(() => {
     const sections = keySectionsFor(props.pane)
     const inner = dimensions().width - 2 - PAD * 2
-    const maxCols = Math.max(1, Math.min(sections.length, Math.floor(inner / MIN_COL)))
+    const maxCols = Math.max(
+      1,
+      Math.min(sections.length, Math.floor(inner / MIN_COL))
+    )
 
     let columns = pack(sections, 1)
-    for (let cols = maxCols; cols > 1; cols--) {
+    for (let cols = maxCols; cols > 1; cols -= 1) {
       const candidate = pack(sections, cols)
-      const wanted = candidate.map(naturalWidth).reduce((sum, width) => sum + width, 0)
+      const wanted = candidate
+        .map(naturalWidth)
+        .reduce((sum, width) => sum + width, 0)
       if (wanted <= inner * SQUEEZE) {
         columns = candidate
         break
@@ -119,7 +139,7 @@ export function KeyPeek(props: { pane: KeyScope }) {
     for (
       let cols = columns.length + 1;
       cols <= maxCols && Math.max(...columns.map(columnHeight)) > maxRows;
-      cols++
+      cols += 1
     ) {
       columns = pack(sections, cols)
     }
@@ -133,7 +153,7 @@ export function KeyPeek(props: { pane: KeyScope }) {
     }))
   })
 
-  const rows = () => Math.max(...layout().map(column => column.lines.length))
+  const rows = () => Math.max(...layout().map((column) => column.lines.length))
 
   return (
     <box
@@ -153,11 +173,15 @@ export function KeyPeek(props: { pane: KeyScope }) {
       zIndex={90}
     >
       <For each={layout()}>
-        {column => (
+        {(column) => (
           <box width={column.width} flexShrink={0} flexDirection="column">
             <For each={column.lines}>
-              {line => (
-                <box height={1} flexDirection="row" backgroundColor={ui.panelBg}>
+              {(line) => (
+                <box
+                  height={1}
+                  flexDirection="row"
+                  backgroundColor={ui.panelBg}
+                >
                   <Switch>
                     <Match when={line.kind === 'header' && line}>
                       {(header: () => { text: string }) => (
@@ -177,13 +201,18 @@ export function KeyPeek(props: { pane: KeyScope }) {
                             bg={ui.panelBg}
                             content={
                               ' '.repeat(INDENT) +
-                              cut(row().key, column.keyWidth).padEnd(column.keyWidth)
+                              cut(row().key, column.keyWidth).padEnd(
+                                column.keyWidth
+                              )
                             }
                           />
                           <text
                             fg={ui.dim}
                             bg={ui.panelBg}
-                            content={' '.repeat(KEY_GAP) + cut(row().label, column.labelWidth)}
+                            content={
+                              ' '.repeat(KEY_GAP) +
+                              cut(row().label, column.labelWidth)
+                            }
                           />
                         </>
                       )}

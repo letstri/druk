@@ -7,22 +7,28 @@ import { fixture, launch, openFile, settle, untilFrame } from './helpers'
 import type { Harness } from './helpers'
 
 interface Frame {
-  lines: { spans: { text: string; fg?: { buffer: Uint8Array }; bg?: { buffer: Uint8Array } }[] }[]
+  lines: {
+    spans: {
+      text: string
+      fg?: { buffer: Uint8Array }
+      bg?: { buffer: Uint8Array }
+    }[]
+  }[]
 }
 
 const hex = (color?: { buffer: Uint8Array }) =>
   color
-    ? `#${Array.from(color.buffer.slice(0, 3), v => v.toString(16).padStart(2, '0')).join('')}`
+    ? `#${Array.from(color.buffer.slice(0, 3), (v) => v.toString(16).padStart(2, '0')).join('')}`
     : ''
 
 const rowBgs = (t: Harness, y: number) => {
   const frame = t.captureSpans() as unknown as Frame
-  return frame.lines[y]?.spans.map(span => hex(span.bg)) ?? []
+  return frame.lines[y]?.spans.map((span) => hex(span.bg)) ?? []
 }
 
 const glyphFg = (t: Harness, y: number, glyph: string) => {
   const frame = t.captureSpans() as unknown as Frame
-  const span = frame.lines[y]?.spans.find(s => s.text.includes(glyph))
+  const span = frame.lines[y]?.spans.find((s) => s.text.includes(glyph))
   return hex(span?.fg)
 }
 
@@ -30,11 +36,13 @@ const rowOf = (t: Harness, text: string) =>
   t
     .captureCharFrame()
     .split('\n')
-    .findIndex(line => line.includes(text))
+    .findIndex((line) => line.includes(text))
 
 describe('hover on clickable rows', () => {
   test('a tree row under the pointer tints, and untints when it leaves', async () => {
-    const t = await launch(fixture({ 'a.ts': 'const a = 1\n', 'b.ts': 'const b = 2\n' }))
+    const t = await launch(
+      fixture({ 'a.ts': 'const a = 1\n', 'b.ts': 'const b = 2\n' })
+    )
 
     const y = rowOf(t, 'b.ts')
     expect(y).toBeGreaterThan(0)
@@ -76,7 +84,7 @@ describe('hover on clickable rows', () => {
 
   test('the fold chevron under the pointer takes the accent', async () => {
     const t = await launch(
-      fixture({ 'a.ts': 'function outer() {\n  const a = 1\n  return a\n}\n' }),
+      fixture({ 'a.ts': 'function outer() {\n  const a = 1\n  return a\n}\n' })
     )
     await openFile(t, 'a.ts')
 

@@ -13,7 +13,7 @@ describe('vim mode basics', () => {
 
   test('i enters insert mode and Esc leaves it, with the sidebar showing', async () => {
     const { t } = await vimEditor()
-    await press(t, i => i.pressKey('i'))
+    await press(t, (i) => i.pressKey('i'))
     expect(t.captureCharFrame()).toContain('INSERT')
 
     await pressEscape(t)
@@ -23,38 +23,38 @@ describe('vim mode basics', () => {
 
   test('normal mode swallows unknown keys instead of typing them', async () => {
     const { t, file } = await vimEditor()
-    await press(t, i => void i.typeText('qqq'))
-    await press(t, i => i.pressKey('i'))
-    await press(t, i => void i.typeText('X'))
-    await press(t, i => i.pressKey('s', { ctrl: true }))
+    await press(t, (i) => i.typeText('qqq'))
+    await press(t, (i) => i.pressKey('i'))
+    await press(t, (i) => i.typeText('X'))
+    await press(t, (i) => i.pressKey('s', { ctrl: true }))
 
-    expect(readFileSync(file, 'utf8')).toBe('Xone\ntwo\nthree\n')
+    expect(readFileSync(file, 'utf-8')).toBe('Xone\ntwo\nthree\n')
   })
 
   test('dd deletes a line and p puts it back', async () => {
     const { t, file } = await vimEditor()
-    await press(t, i => void i.typeText('dd'))
-    await press(t, i => i.pressKey('s', { ctrl: true }))
-    expect(readFileSync(file, 'utf8')).toBe('two\nthree\n')
+    await press(t, (i) => i.typeText('dd'))
+    await press(t, (i) => i.pressKey('s', { ctrl: true }))
+    expect(readFileSync(file, 'utf-8')).toBe('two\nthree\n')
 
-    await press(t, i => void i.typeText('p'))
-    await press(t, i => i.pressKey('s', { ctrl: true }))
-    expect(readFileSync(file, 'utf8')).toBe('two\none\nthree\n')
+    await press(t, (i) => i.typeText('p'))
+    await press(t, (i) => i.pressKey('s', { ctrl: true }))
+    expect(readFileSync(file, 'utf-8')).toBe('two\none\nthree\n')
   })
 
   test('a count applies to the operator that follows it', async () => {
     const { t, file } = await vimEditor('a\nb\nc\nd\n')
-    await press(t, i => void i.typeText('2dd'))
-    await press(t, i => i.pressKey('s', { ctrl: true }))
-    expect(readFileSync(file, 'utf8')).toBe('c\nd\n')
+    await press(t, (i) => i.typeText('2dd'))
+    await press(t, (i) => i.pressKey('s', { ctrl: true }))
+    expect(readFileSync(file, 'utf-8')).toBe('c\nd\n')
   })
 
   test('a count is not carried into the next command', async () => {
     const { t, file } = await vimEditor('a\nb\nc\nd\n')
-    await press(t, i => void i.typeText('2j'))
-    await press(t, i => void i.typeText('dd'))
-    await press(t, i => i.pressKey('s', { ctrl: true }))
-    expect(readFileSync(file, 'utf8')).toBe('a\nb\nd\n')
+    await press(t, (i) => i.typeText('2j'))
+    await press(t, (i) => i.typeText('dd'))
+    await press(t, (i) => i.pressKey('s', { ctrl: true }))
+    expect(readFileSync(file, 'utf-8')).toBe('a\nb\nd\n')
   })
 })
 
@@ -240,7 +240,7 @@ describe('normal-mode edits', () => {
     const { t, file } = await vimEditor()
     await type(t, 'dd')
     await type(t, 'u')
-    await press(t, i => i.pressKey('r', { ctrl: true }))
+    await press(t, (i) => i.pressKey('r', { ctrl: true }))
     await settle(t)
     expect(await save(t, file)).toBe('two\nthree\n')
   })
@@ -252,7 +252,7 @@ describe('viewport', () => {
     t
       .captureCharFrame()
       .split('\n')
-      .flatMap(row => row.match(/line \d+/) ?? [])
+      .flatMap((row) => row.match(/line \d+/u) ?? [])
 
   test('zz puts the cursor line in the middle of the window', async () => {
     const { t } = await vimEditor(long)

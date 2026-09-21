@@ -31,36 +31,40 @@ interface PickerSpec {
 }
 
 const PICKERS: Record<BranchMode, PickerSpec> = {
-  switch: {
-    title: 'Switch to branch',
-    keep: branch => !branch.current,
-    empty: 'No other branch to switch to',
-  },
-  from: { title: 'New branch from', keep: () => true, empty: 'No branch to start from' },
-  merge: {
-    title: 'Merge into the current branch',
-    keep: branch => !branch.current,
-    empty: 'No other branch to merge',
-  },
-  rename: {
-    title: 'Rename branch',
-    keep: branch => !branch.remote,
-    empty: 'No local branch to rename',
-  },
   delete: {
-    title: 'Delete branch',
-    keep: branch => !branch.remote && !branch.current,
     empty: 'No other local branch to delete',
+    keep: (branch) => !branch.remote && !branch.current,
+    title: 'Delete branch',
   },
   deleteForce: {
-    title: 'Delete branch (force)',
-    keep: branch => !branch.remote && !branch.current,
     empty: 'No other local branch to delete',
+    keep: (branch) => !branch.remote && !branch.current,
+    title: 'Delete branch (force)',
   },
   diffBase: {
-    title: 'Compare against branch',
-    keep: () => true,
     empty: 'No branch to compare against',
+    keep: () => true,
+    title: 'Compare against branch',
+  },
+  from: {
+    empty: 'No branch to start from',
+    keep: () => true,
+    title: 'New branch from',
+  },
+  merge: {
+    empty: 'No other branch to merge',
+    keep: (branch) => !branch.current,
+    title: 'Merge into the current branch',
+  },
+  rename: {
+    empty: 'No local branch to rename',
+    keep: (branch) => !branch.remote,
+    title: 'Rename branch',
+  },
+  switch: {
+    empty: 'No other branch to switch to',
+    keep: (branch) => !branch.current,
+    title: 'Switch to branch',
   },
 }
 
@@ -72,7 +76,10 @@ export function createBranches(deps: {
 }) {
   const { status, git, gitOp, prompts } = deps
 
-  const [pick, setPick] = createSignal<{ mode: BranchMode; branches: Branch[] } | null>(null)
+  const [pick, setPick] = createSignal<{
+    mode: BranchMode
+    branches: Branch[]
+  } | null>(null)
 
   const pickTitle = () => {
     const open = pick()
@@ -81,69 +88,99 @@ export function createBranches(deps: {
 
   const open = (mode: BranchMode) => {
     const repo = git.activeRepo()
-    if (repo === null) return status.say(noRepository(git), 'warn')
+    if (repo === null) {
+      return status.say(noRepository(git), 'warn')
+    }
     const spec = PICKERS[mode]
     const branches = listBranches(repo).filter(spec.keep)
-    if (branches.length === 0) return status.say(spec.empty)
-    setPick({ mode, branches })
+    if (branches.length === 0) {
+      return status.say(spec.empty)
+    }
+    setPick({ branches, mode })
   }
 
   const create = (name: string, from: string | null) =>
-    gitOp('Creating branch', repo => createBranch(repo, name, from), {
-      touchesTree: { kind: 'sync' },
+    gitOp('Creating branch', (repo) => createBranch(repo, name, from), {
       done: () => `On ${name}`,
+      touchesTree: { kind: 'sync' },
     })
 
   const newBranch = () => {
-    if (git.activeRepo() === null) return status.say(noRepository(git), 'warn')
-    prompts.setPrompt({ kind: 'newBranch', from: null })
+    if (git.activeRepo() === null) {
+      return status.say(noRepository(git), 'warn')
+    }
+    prompts.setPrompt({ from: null, kind: 'newBranch' })
   }
 
   const choose = (branch: Branch) => {
     const mode = pick()?.mode
     setPick(null)
     switch (mode) {
-      case 'switch':
-        return gitOp('Switching branch', repo => switchBranch(repo, branch.name, branch.remote), {
-          touchesTree: { kind: 'sync' },
-          done: () => `On ${localBranchName(branch.name)}`,
-        })
-      case 'from':
-        return prompts.setPrompt({ kind: 'newBranch', from: branch.name })
-      case 'merge':
+      case 'switch': {
+        return gitOp(
+          'Switching branch',
+          (repo) => switchBranch(repo, branch.name, branch.remote),
+          {
+            done: () => `On ${localBranchName(branch.name)}`,
+            touchesTree: { kind: 'sync' },
+          }
+        )
+      }
+      case 'from': {
+        return prompts.setPrompt({ from: branch.name, kind: 'newBranch' })
+      }
+      case 'merge': {
         return prompts.setPrompt({ kind: 'mergeBranch', name: branch.name })
-      case 'rename':
-        return prompts.setPrompt({ kind: 'renameBranch', from: branch.name })
-      case 'diffBase':
+      }
+      case 'rename': {
+        return prompts.setPrompt({ from: branch.name, kind: 'renameBranch' })
+      }
+      case 'diffBase': {
         git.setDiffBase(branch.name)
         return status.say(`Comparing against ${branch.name}`)
+      }
       case 'delete':
-      case 'deleteForce':
+      case 'deleteForce': {
         return prompts.setPrompt({
+          force: mode === 'deleteForce',
           kind: 'deleteBranch',
           name: branch.name,
-          force: mode === 'deleteForce',
         })
+      }
+      default: {
+        break
+      }
     }
   }
 
   const rename = (from: string, to: string) =>
-    gitOp('Renaming branch', repo => renameBranch(repo, from, to), {
+    gitOp('Renaming branch', (repo) => renameBranch(repo, from, to), {
       done: () => `Renamed ${from} to ${to}`,
     })
 
   const remove = (name: string, force: boolean) =>
-    gitOp('Deleting branch', repo => deleteBranch(repo, name, force), {
+    gitOp('Deleting branch', (repo) => deleteBranch(repo, name, force), {
       done: () => `Deleted ${name}`,
     })
 
   const merge = (name: string) =>
-    gitOp('Merging', repo => mergeBranch(repo, name), {
+    gitOp('Merging', (repo) => mergeBranch(repo, name), {
+      done: (result) => result.detail || `Merged ${name}`,
       touchesTree: { kind: 'sync' },
-      done: result => result.detail || `Merged ${name}`,
     })
 
-  return { pick, setPick, pickTitle, open, newBranch, choose, create, rename, remove, merge }
+  return {
+    choose,
+    create,
+    merge,
+    newBranch,
+    open,
+    pick,
+    pickTitle,
+    remove,
+    rename,
+    setPick,
+  }
 }
 
 export type Branches = ReturnType<typeof createBranches>

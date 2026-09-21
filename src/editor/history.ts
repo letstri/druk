@@ -13,15 +13,24 @@ export class History {
   private redoStack: Snapshot[] = []
   private pending: Snapshot | null = null
   private lastEditAt = 0
+  private current: Snapshot
 
-  constructor(private current: Snapshot) {}
+  constructor(current: Snapshot) {
+    this.current = current
+  }
 
   record(next: Snapshot, now: number): void {
-    if (next.content === this.current.content) return
+    if (next.content === this.current.content) {
+      return
+    }
 
-    if (this.pending && now - this.lastEditAt > BURST_MS) this.commit()
+    if (this.pending && now - this.lastEditAt > BURST_MS) {
+      this.commit()
+    }
     // The incoming edit's cursor, not `current`'s: that one is an edit stale.
-    if (!this.pending) this.pending = { content: this.current.content, cursor: next.cursor }
+    if (!this.pending) {
+      this.pending = { content: this.current.content, cursor: next.cursor }
+    }
 
     this.current = next
     this.lastEditAt = now
@@ -31,7 +40,9 @@ export class History {
   undo(): Snapshot | null {
     this.commit()
     const previous = this.undoStack.pop()
-    if (!previous) return null
+    if (!previous) {
+      return null
+    }
     this.redoStack.push(this.current)
     this.current = previous
     return previous
@@ -39,7 +50,9 @@ export class History {
 
   redo(): Snapshot | null {
     const next = this.redoStack.pop()
-    if (!next) return null
+    if (!next) {
+      return null
+    }
     this.undoStack.push(this.current)
     this.current = next
     return next
@@ -53,9 +66,13 @@ export class History {
   }
 
   private commit(): void {
-    if (!this.pending) return
+    if (!this.pending) {
+      return
+    }
     this.undoStack.push(this.pending)
-    if (this.undoStack.length > LIMIT) this.undoStack.shift()
+    if (this.undoStack.length > LIMIT) {
+      this.undoStack.shift()
+    }
     this.pending = null
   }
 }

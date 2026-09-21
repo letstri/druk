@@ -5,7 +5,9 @@ export interface Window {
 }
 
 export function lineAt(lineSources: readonly number[], row: number): number {
-  if (lineSources.length === 0) return row
+  if (lineSources.length === 0) {
+    return row
+  }
   return lineSources[Math.max(0, Math.min(lineSources.length - 1, row))] ?? row
 }
 
@@ -13,7 +15,7 @@ export function logicalWindow(
   scrollY: number,
   height: number,
   lineSources: readonly number[],
-  overscan: number,
+  overscan: number
 ): Window {
   return {
     from: Math.max(0, lineAt(lineSources, scrollY) - overscan),

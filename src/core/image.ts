@@ -26,25 +26,38 @@ export function decodeImage(path: string): RawImage {
     const data = png.palette ? convertIndexedToRgb(png) : png.data
     const channels = png.palette ? 3 : png.channels
     return {
-      width: png.width,
-      height: png.height,
-      pixels: toRgba(data, png.width * png.height, channels, png.palette ? 8 : png.depth),
       bytes: bytes.byteLength,
+      height: png.height,
+      pixels: toRgba(
+        data,
+        png.width * png.height,
+        channels,
+        png.palette ? 8 : png.depth
+      ),
+      width: png.width,
     }
   }
-  const jpg = decodeJpeg(bytes, { useTArray: true, formatAsRGBA: true })
-  return { width: jpg.width, height: jpg.height, pixels: jpg.data, bytes: bytes.byteLength }
+  const jpg = decodeJpeg(bytes, { formatAsRGBA: true, useTArray: true })
+  return {
+    bytes: bytes.byteLength,
+    height: jpg.height,
+    pixels: jpg.data,
+    width: jpg.width,
+  }
 }
 
 function toRgba(
   data: Uint8Array | Uint8ClampedArray | Uint16Array,
   count: number,
   channels: number,
-  depth: number,
+  depth: number
 ): Uint8Array {
-  const read = depth === 16 ? (i: number) => (data[i] ?? 0) >> 8 : (i: number) => data[i] ?? 0
+  const read =
+    depth === 16
+      ? (i: number) => Math.floor((data[i] ?? 0) / 256)
+      : (i: number) => data[i] ?? 0
   const out = new Uint8Array(count * 4)
-  for (let p = 0; p < count; p++) {
+  for (let p = 0; p < count; p += 1) {
     const at = p * channels
     const o = p * 4
     if (channels >= 3) {
@@ -77,28 +90,36 @@ export interface CellFit {
   pixelRows: number
 }
 
-export function cellFit(img: RawImage, maxCols: number, maxRows: number): CellFit {
+export function cellFit(
+  img: RawImage,
+  maxCols: number,
+  maxRows: number
+): CellFit {
   const scale = Math.min(maxCols / img.width, (maxRows * 2) / img.height, 1)
   const pixelRows = Math.max(1, Math.round(img.height * scale))
   return {
     cols: Math.max(1, Math.round(img.width * scale)),
-    rows: Math.ceil(pixelRows / 2),
     pixelRows,
+    rows: Math.ceil(pixelRows / 2),
   }
 }
 
-export function toCells(img: RawImage, maxCols: number, maxRows: number): CellImage {
+export function toCells(
+  img: RawImage,
+  maxCols: number,
+  maxRows: number
+): CellImage {
   const { cols, rows, pixelRows } = cellFit(img, maxCols, maxRows)
   const cells = new Uint8Array(cols * rows * 8)
-  for (let y = 0; y < pixelRows; y++) {
-    for (let x = 0; x < cols; x++) {
+  for (let y = 0; y < pixelRows; y += 1) {
+    for (let x = 0; x < cols; x += 1) {
       const rgba = boxAverage(img, x, y, cols, pixelRows)
       const cell = (Math.floor(y / 2) * cols + x) * 8 + (y % 2) * 4
       cells.set(rgba, cell)
     }
   }
   // An odd pixel count leaves the last row's lower halves at alpha 0: the viewer's pane background.
-  return { cols, rows, cells }
+  return { cells, cols, rows }
 }
 
 function boxAverage(
@@ -106,7 +127,7 @@ function boxAverage(
   tx: number,
   ty: number,
   targetW: number,
-  targetH: number,
+  targetH: number
 ): [number, number, number, number] {
   const x0 = Math.floor((tx * img.width) / targetW)
   const x1 = Math.max(x0 + 1, Math.floor(((tx + 1) * img.width) / targetW))
@@ -116,8 +137,8 @@ function boxAverage(
   let g = 0
   let b = 0
   let a = 0
-  for (let y = y0; y < y1; y++) {
-    for (let x = x0; x < x1; x++) {
+  for (let y = y0; y < y1; y += 1) {
+    for (let x = x0; x < x1; x += 1) {
       const at = (y * img.width + x) * 4
       r += img.pixels[at]!
       g += img.pixels[at + 1]!
@@ -126,7 +147,12 @@ function boxAverage(
     }
   }
   const n = (x1 - x0) * (y1 - y0)
-  return [Math.round(r / n), Math.round(g / n), Math.round(b / n), Math.round(a / n)]
+  return [
+    Math.round(r / n),
+    Math.round(g / n),
+    Math.round(b / n),
+    Math.round(a / n),
+  ]
 }
 
 export interface ScaledImage {
@@ -135,15 +161,19 @@ export interface ScaledImage {
   pixels: Uint8Array
 }
 
-export function resample(img: RawImage, maxWidth: number, maxHeight: number): ScaledImage {
+export function resample(
+  img: RawImage,
+  maxWidth: number,
+  maxHeight: number
+): ScaledImage {
   const scale = Math.min(maxWidth / img.width, maxHeight / img.height, 1)
   const width = Math.max(1, Math.round(img.width * scale))
   const height = Math.max(1, Math.round(img.height * scale))
   const pixels = new Uint8Array(width * height * 4)
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
       pixels.set(boxAverage(img, x, y, width, height), (y * width + x) * 4)
     }
   }
-  return { width, height, pixels }
+  return { height, pixels, width }
 }

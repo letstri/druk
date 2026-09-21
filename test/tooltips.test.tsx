@@ -13,11 +13,15 @@ const rgb = (hex: string) => {
 
 function spanBg(t: Harness, text: string) {
   const capture = t.captureSpans() as unknown as {
-    lines: { spans: { text: string; bg?: { buffer: Record<string, number> } }[] }[]
+    lines: {
+      spans: { text: string; bg?: { buffer: Record<string, number> } }[]
+    }[]
   }
   for (const line of capture.lines) {
     for (const span of line.spans) {
-      if (!span.text.includes(text) || !span.bg) continue
+      if (!span.text.includes(text) || !span.bg) {
+        continue
+      }
       const { buffer } = span.bg
       return `${buffer['0']},${buffer['1']},${buffer['2']}`
     }
@@ -27,15 +31,17 @@ function spanBg(t: Harness, text: string) {
 
 function cellOf(t: Harness, text: string) {
   const lines = t.captureCharFrame().split('\n')
-  const y = lines.findIndex(line => line.includes(text))
+  const y = lines.findIndex((line) => line.includes(text))
   expect(y).toBeGreaterThanOrEqual(0)
   return { x: lines[y]!.indexOf(text), y }
 }
 
 // Kitty's modifier-key report: `CSI <code> u` for the press, `;1:3` for the release.
-const LEFT_CTRL = 57442
-const press = (t: Harness) => t.renderer.stdin.emit('data', Buffer.from(`\x1B[${LEFT_CTRL}u`))
-const release = (t: Harness) => t.renderer.stdin.emit('data', Buffer.from(`\x1B[${LEFT_CTRL};1:3u`))
+const LEFT_CTRL = 57_442
+const press = (t: Harness) =>
+  t.renderer.stdin.emit('data', Buffer.from(`\u001B[${LEFT_CTRL}u`))
+const release = (t: Harness) =>
+  t.renderer.stdin.emit('data', Buffer.from(`\u001B[${LEFT_CTRL};1:3u`))
 
 const HELD = 700
 
@@ -56,46 +62,52 @@ const EXT_TIP = ` Ctrl+${ALT}+X `
 
 describe('tooltip placement', () => {
   test('a control near the top is annotated below it, one near the bottom above', () => {
-    const [top] = placeTooltips([{ id: 1, text: ' back ', x: 0, y: 0, width: 3, height: 1 }], {
-      width: 40,
-      height: 20,
-    })
-    expect(top).toEqual({ id: 1, text: ' back ', left: 0, top: 1 })
+    const [top] = placeTooltips(
+      [{ height: 1, id: 1, text: ' back ', width: 3, x: 0, y: 0 }],
+      {
+        height: 20,
+        width: 40,
+      }
+    )
+    expect(top).toEqual({ id: 1, left: 0, text: ' back ', top: 1 })
 
-    const [bottom] = placeTooltips([{ id: 2, text: ' save ', x: 4, y: 19, width: 3, height: 1 }], {
-      width: 40,
-      height: 20,
-    })
-    expect(bottom).toEqual({ id: 2, text: ' save ', left: 4, top: 18 })
+    const [bottom] = placeTooltips(
+      [{ height: 1, id: 2, text: ' save ', width: 3, x: 4, y: 19 }],
+      {
+        height: 20,
+        width: 40,
+      }
+    )
+    expect(bottom).toEqual({ id: 2, left: 4, text: ' save ', top: 18 })
   })
 
   test('two controls on one row are stacked rather than drawn over each other', () => {
     const placed = placeTooltips(
       [
-        { id: 1, text: ' Ctrl+Opt+Z ', x: 0, y: 0, width: 2, height: 1 },
-        { id: 2, text: ' Ctrl+Opt+Y ', x: 2, y: 0, width: 2, height: 1 },
+        { height: 1, id: 1, text: ' Ctrl+Opt+Z ', width: 2, x: 0, y: 0 },
+        { height: 1, id: 2, text: ' Ctrl+Opt+Y ', width: 2, x: 2, y: 0 },
       ],
-      { width: 40, height: 20 },
+      { height: 20, width: 40 }
     )
-    expect(placed.map(tip => tip.top)).toEqual([1, 2])
+    expect(placed.map((tip) => tip.top)).toEqual([1, 2])
   })
 
   test('a tooltip at the right edge is pulled back onto the screen', () => {
     const [tip] = placeTooltips(
-      [{ id: 1, text: ' Ln 1, Col 1 ', x: 36, y: 19, width: 3, height: 1 }],
-      { width: 40, height: 20 },
+      [{ height: 1, id: 1, text: ' Ln 1, Col 1 ', width: 3, x: 36, y: 19 }],
+      { height: 20, width: 40 }
     )
     expect(tip!.left).toBe(40 - ' Ln 1, Col 1 '.length)
   })
 
   test('a tooltip is never drawn over a control, its own or another', () => {
     const [tip] = placeTooltips(
-      [{ id: 1, text: ' Ctrl+Opt+Z ', x: 1, y: 0, width: 2, height: 1 }],
-      { width: 40, height: 20 },
+      [{ height: 1, id: 1, text: ' Ctrl+Opt+Z ', width: 2, x: 1, y: 0 }],
+      { height: 20, width: 40 },
       [
-        { x: 1, y: 0, width: 2, height: 1 },
-        { x: 1, y: 1, width: 20, height: 1 },
-      ],
+        { height: 1, width: 2, x: 1, y: 0 },
+        { height: 1, width: 20, x: 1, y: 1 },
+      ]
     )
     expect(tip!.top).toBe(2)
   })
@@ -103,12 +115,12 @@ describe('tooltip placement', () => {
   test('an anchor with nowhere left to go is dropped, not overlapped', () => {
     const placed = placeTooltips(
       [
-        { id: 1, text: ' one ', x: 0, y: 0, width: 2, height: 1 },
-        { id: 2, text: ' two ', x: 0, y: 0, width: 2, height: 1 },
+        { height: 1, id: 1, text: ' one ', width: 2, x: 0, y: 0 },
+        { height: 1, id: 2, text: ' two ', width: 2, x: 0, y: 0 },
       ],
-      { width: 10, height: 2 },
+      { height: 2, width: 10 }
     )
-    expect(placed.map(tip => tip.id)).toEqual([1])
+    expect(placed.map((tip) => tip.id)).toEqual([1])
   })
 })
 
@@ -168,7 +180,7 @@ describe('hover tooltips', () => {
     const t = await launch(
       fixture({ 'a.ts': 'const a = 1\n', 'src/b.ts': 'const b = 2\n' }),
       { sidebarWidth: 45 },
-      { width: 120 },
+      { width: 120 }
     )
     t.mockInput.pressArrow('down')
     t.mockInput.pressArrow('right')
@@ -180,7 +192,7 @@ describe('hover tooltips', () => {
     const tipRow = t
       .captureCharFrame()
       .split('\n')
-      .findIndex(line => line.includes(tip))
+      .findIndex((line) => line.includes(tip))
     expect(tipRow).toBe(at.y + 1)
   })
 
@@ -225,7 +237,9 @@ describe('hover tooltips', () => {
   })
 
   test('nothing is drawn while the setting is off', async () => {
-    const t = await launch(fixture({ 'a.ts': 'const a = 1\n' }), { tooltips: false })
+    const t = await launch(fixture({ 'a.ts': 'const a = 1\n' }), {
+      tooltips: false,
+    })
     await openFile(t, 'a.ts')
     await rest(t, 'Git')
     expect(t.captureCharFrame()).not.toContain(GIT_TIP)
@@ -255,7 +269,12 @@ describe('holding Ctrl', () => {
   })
 
   test('with tooltips off the hold lights nothing at all', async () => {
-    const t = await launch(fixture({ 'a.ts': 'const a = 1\n' }), { tooltips: false }, {}, kitty)
+    const t = await launch(
+      fixture({ 'a.ts': 'const a = 1\n' }),
+      { tooltips: false },
+      {},
+      kitty
+    )
     await openFile(t, 'a.ts')
     press(t)
     await settle(t, HELD)

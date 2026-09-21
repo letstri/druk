@@ -1,20 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 
-import { getSyntaxStyle } from '../src/languages/highlight'
-import { allSegments } from './syntax'
-
-async function painted(source: string, filetype: string) {
-  const segments = await allSegments(source, filetype)
-  const lines = source.split('\n')
-  const style = getSyntaxStyle()
-  const byGroup = new Map<number, string[]>()
-  for (const segment of segments) {
-    const text = lines[segment.line]?.slice(segment.start, segment.end) ?? ''
-    if (!text.trim()) continue
-    byGroup.set(segment.styleId, [...(byGroup.get(segment.styleId) ?? []), text])
-  }
-  return (group: string) => byGroup.get(style.getStyleId(group)!) ?? []
-}
+import { allSegments, painted } from './syntax'
 
 const TAILWIND = `@import 'tailwindcss';
 @extension 'tailwind-scrollbar';
@@ -81,7 +67,7 @@ describe('scss and sass', () => {
   test('scss keeps nesting, mixins and variables lit', async () => {
     const group = await painted(
       '$brand: #f00;\n@mixin flex { display: flex; }\n.card {\n  color: $brand;\n  &:hover { top: 1px; }\n}\n',
-      'scss',
+      'scss'
     )
 
     expect(group('constant')).toContain('#f00')

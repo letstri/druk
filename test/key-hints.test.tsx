@@ -4,7 +4,16 @@ import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { ALT } from '../src/ui/keys'
-import { fixture, launch, openPalette, press, pressTimes, runCommand, until } from './helpers'
+import {
+  fixture,
+  launch,
+  openFile,
+  openPalette,
+  press,
+  pressTimes,
+  runCommand,
+  until,
+} from './helpers'
 import type { Harness } from './helpers'
 import { initRepo } from './repo'
 import { tempDir } from './temp'
@@ -41,19 +50,24 @@ test('the source-control panel brings its keys into the footer', async () => {
 
 test('the footer offers to follow the specifier the cursor is on', async () => {
   const dir = fixture({ 'a.ts': "import 'bun'\n" })
-  const t = await launch(dir, {}, { width: 120 }, { openFile: join(dir, 'a.ts') })
+  const t = await launch(
+    dir,
+    {},
+    { width: 120 },
+    { openFile: join(dir, 'a.ts') }
+  )
 
   await until(t, () => bar(t).includes('Ctrl+F find'))
   expect(bar(t)).not.toContain('open path')
 
-  await pressTimes(t, 10, input => input.pressArrow('right'))
+  await pressTimes(t, 10, (input) => input.pressArrow('right'))
   await until(t, () => bar(t).includes(`Ctrl+${ALT}+O open path`))
 }, 15_000)
 
 test('a rebound command shows its new chord in the palette', async () => {
   const t = await launch(fixture(PROJECT), { keybindings: { save: 'Ctrl+J' } })
   await openPalette(t)
-  await press(t, input => void input.typeText('Save file'))
+  await press(t, (input) => input.typeText('Save file'))
   expect(t.captureCharFrame()).toContain('Ctrl+J')
 })
 
@@ -69,3 +83,19 @@ test('a command with no key earns no tip', async () => {
   await runCommand(t, 'Toggle word wrap')
   expect(bar(t)).not.toContain('Tip:')
 })
+
+test('the footer names the definition key where a server serves the file', async () => {
+  const dir = fixture({ 'a.ts': 'const a = 1\n', 'notes.txt': 'plain\n' })
+  const fake = join(import.meta.dir, 'fixtures', 'fake-lsp.ts')
+  const t = await launch(
+    dir,
+    { lsp: true, lspServers: { typescript: [process.execPath, fake] } },
+    { width: 120 },
+    { openFile: join(dir, 'a.ts') }
+  )
+
+  await until(t, () => bar(t).includes('F12 definition'))
+
+  await openFile(t, 'notes.txt')
+  await until(t, () => !bar(t).includes('F12 definition'))
+}, 20_000)

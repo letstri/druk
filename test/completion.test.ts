@@ -20,12 +20,14 @@ describe('normalizeCompletion', () => {
   test('accepts a bare array, a list, and rejects junk', () => {
     expect(normalizeCompletion(null)).toBeNull()
     expect(normalizeCompletion([{ label: 'a' }])).toEqual({
-      items: [{ label: 'a' }],
       isIncomplete: false,
-    })
-    expect(normalizeCompletion({ isIncomplete: true, items: [{ label: 'a' }] })).toEqual({
       items: [{ label: 'a' }],
+    })
+    expect(
+      normalizeCompletion({ isIncomplete: true, items: [{ label: 'a' }] })
+    ).toEqual({
       isIncomplete: true,
+      items: [{ label: 'a' }],
     })
     expect(normalizeCompletion({ nonsense: 1 })).toBeNull()
   })
@@ -56,7 +58,7 @@ describe('extendsWord', () => {
 
 describe('fuzzyMatch', () => {
   test('empty query matches everything with no highlight', () => {
-    expect(fuzzyMatch('', 'anything')).toEqual({ score: 0, positions: [] })
+    expect(fuzzyMatch('', 'anything')).toEqual({ positions: [], score: 0 })
   })
 
   test('non-subsequence fails', () => {
@@ -77,11 +79,15 @@ describe('fuzzyMatch', () => {
   })
 
   test('length is not scored, so an equal prefix match ties', () => {
-    expect(fuzzyMatch('tab', 'table')!.score).toBe(fuzzyMatch('tab', 'tableOfContents')!.score)
+    expect(fuzzyMatch('tab', 'table')!.score).toBe(
+      fuzzyMatch('tab', 'tableOfContents')!.score
+    )
   })
 
   test('the same letters in the same case beat a case-folded match', () => {
-    expect(fuzzyMatch('tab', 'table')!.score).toBeGreaterThan(fuzzyMatch('tab', 'Table')!.score)
+    expect(fuzzyMatch('tab', 'table')!.score).toBeGreaterThan(
+      fuzzyMatch('tab', 'Table')!.score
+    )
   })
 })
 
@@ -94,13 +100,16 @@ describe('filterCompletions', () => {
   ]
 
   test('drops non-matches and puts the tight match first', () => {
-    const got = filterCompletions(items, 'map').map(m => m.item.label)
+    const got = filterCompletions(items, 'map').map((m) => m.item.label)
     expect(got).not.toContain('unrelated')
     expect(got[0]).toBe('map')
   })
 
   test('matches filterText but only highlights an honest label', () => {
-    const [match] = filterCompletions([{ label: '★ send', filterText: 'send' }], 'se')
+    const [match] = filterCompletions(
+      [{ filterText: 'send', label: '★ send' }],
+      'se'
+    )
     expect(match).toBeDefined()
     expect(match!.positions).toEqual([])
   })
@@ -111,8 +120,8 @@ describe('filterCompletions', () => {
         { label: 'b', sortText: '2' },
         { label: 'a', sortText: '1' },
       ],
-      '',
-    ).map(m => m.item.label)
+      ''
+    ).map((m) => m.item.label)
     expect(got).toEqual(['a', 'b'])
   })
 
@@ -123,8 +132,8 @@ describe('filterCompletions', () => {
         { label: 'tableName', sortText: '16' },
         { label: 'table', sortText: '11' },
       ],
-      'tab',
-    ).map(m => m.item.label)
+      'tab'
+    ).map((m) => m.item.label)
     expect(got[0]).toBe('table')
   })
 
@@ -134,8 +143,8 @@ describe('filterCompletions', () => {
         { label: 'pgTable', sortText: '11' },
         { label: 'table', sortText: '16' },
       ],
-      'tab',
-    ).map(m => m.item.label)
+      'tab'
+    ).map((m) => m.item.label)
     expect(got[0]).toBe('table')
   })
 })
@@ -144,101 +153,141 @@ describe('filterCompletions', () => {
 /* oxlint-disable no-template-curly-in-string */
 describe('stripSnippet', () => {
   test('placeholders keep their text, stops vanish, caret lands on the first stop', () => {
-    expect(stripSnippet('foo($1)')).toEqual({ text: 'foo()', caret: 4 })
-    expect(stripSnippet('foo(${1:arg})')).toEqual({ text: 'foo(arg)', caret: 4 })
-    expect(stripSnippet('${1|red,green|}')).toEqual({ text: 'red', caret: 0 })
-    expect(stripSnippet('plain')).toEqual({ text: 'plain', caret: null })
-    expect(stripSnippet('done$0')).toEqual({ text: 'done', caret: null })
+    expect(stripSnippet('foo($1)')).toEqual({ caret: 4, text: 'foo()' })
+    expect(stripSnippet('foo(${1:arg})')).toEqual({
+      caret: 4,
+      text: 'foo(arg)',
+    })
+    expect(stripSnippet('${1|red,green|}')).toEqual({ caret: 0, text: 'red' })
+    expect(stripSnippet('plain')).toEqual({ caret: null, text: 'plain' })
+    expect(stripSnippet('done$0')).toEqual({ caret: null, text: 'done' })
   })
 })
 
 describe('applyCompletion', () => {
   test('replaces the typed prefix when the item has no textEdit', () => {
-    const got = applyCompletion('const x = ma\n', { line: 0, character: 12 }, 10, {
-      label: 'map',
-    })
+    const got = applyCompletion(
+      'const x = ma\n',
+      { character: 12, line: 0 },
+      10,
+      {
+        label: 'map',
+      }
+    )
     expect(got.content).toBe('const x = map\n')
-    expect(got.cursor).toEqual({ line: 0, character: 13 })
+    expect(got.cursor).toEqual({ character: 13, line: 0 })
   })
 
   test('honours the server textEdit range', () => {
-    const got = applyCompletion('a.me\n', { line: 0, character: 4 }, 2, {
+    const got = applyCompletion('a.me\n', { character: 4, line: 0 }, 2, {
       label: 'method',
       textEdit: {
-        range: { start: { line: 0, character: 2 }, end: { line: 0, character: 4 } },
         newText: 'method',
+        range: {
+          end: { character: 4, line: 0 },
+          start: { character: 2, line: 0 },
+        },
       },
     })
     expect(got.content).toBe('a.method\n')
-    expect(got.cursor).toEqual({ line: 0, character: 8 })
+    expect(got.cursor).toEqual({ character: 8, line: 0 })
   })
 
   test('extends a stale textEdit to cover characters typed during the request', () => {
-    const got = applyCompletion('consol\n', { line: 0, character: 6 }, 0, {
+    const got = applyCompletion('consol\n', { character: 6, line: 0 }, 0, {
       label: 'console',
       textEdit: {
-        range: { start: { line: 0, character: 0 }, end: { line: 0, character: 3 } },
         newText: 'console',
+        range: {
+          end: { character: 3, line: 0 },
+          start: { character: 0, line: 0 },
+        },
       },
     })
     expect(got.content).toBe('console\n')
   })
 
   test('applies additionalTextEdits and keeps the cursor on the primary insert', () => {
-    const got = applyCompletion('const y = druk\n', { line: 0, character: 14 }, 10, {
-      label: 'drukImported',
-      additionalTextEdits: [
-        {
-          range: { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } },
-          newText: 'import { drukImported } from "druk"\n',
-        },
-      ],
-    })
-    expect(got.content).toBe('import { drukImported } from "druk"\nconst y = drukImported\n')
-    expect(got.cursor).toEqual({ line: 1, character: 22 })
+    const got = applyCompletion(
+      'const y = druk\n',
+      { character: 14, line: 0 },
+      10,
+      {
+        additionalTextEdits: [
+          {
+            newText: 'import { drukImported } from "druk"\n',
+            range: {
+              end: { character: 0, line: 0 },
+              start: { character: 0, line: 0 },
+            },
+          },
+        ],
+        label: 'drukImported',
+      }
+    )
+    expect(got.content).toBe(
+      'import { drukImported } from "druk"\nconst y = drukImported\n'
+    )
+    expect(got.cursor).toEqual({ character: 22, line: 1 })
   })
 
   test('snippet inserts land the caret on the first stop', () => {
-    const got = applyCompletion('fo\n', { line: 0, character: 2 }, 0, {
-      label: 'foo',
+    const got = applyCompletion('fo\n', { character: 2, line: 0 }, 0, {
       insertText: 'foo(${1:x})',
       insertTextFormat: 2,
+      label: 'foo',
     })
     expect(got.content).toBe('foo(x)\n')
-    expect(got.cursor).toEqual({ line: 0, character: 4 })
+    expect(got.cursor).toEqual({ character: 4, line: 0 })
   })
 
   test('multi-line snippets are re-indented to the line they land on', () => {
-    const got = applyCompletion('  def name() do\n', { line: 0, character: 15 }, 13, {
-      label: 'do/end block',
-      textEdit: {
-        range: { start: { line: 0, character: 13 }, end: { line: 0, character: 15 } },
-        newText: 'do\n  $0\nend',
-      },
-      insertTextFormat: 2,
-    })
+    const got = applyCompletion(
+      '  def name() do\n',
+      { character: 15, line: 0 },
+      13,
+      {
+        insertTextFormat: 2,
+        label: 'do/end block',
+        textEdit: {
+          newText: 'do\n  $0\nend',
+          range: {
+            end: { character: 15, line: 0 },
+            start: { character: 13, line: 0 },
+          },
+        },
+      }
+    )
     expect(got.content).toBe('  def name() do\n    \n  end\n')
-    expect(got.cursor).toEqual({ line: 1, character: 4 })
+    expect(got.cursor).toEqual({ character: 4, line: 1 })
   })
 
   test('a multi-line insert at column 0 keeps the server text as-is', () => {
-    const got = applyCompletion('def name() do\n', { line: 0, character: 13 }, 11, {
-      label: 'do/end block',
-      textEdit: {
-        range: { start: { line: 0, character: 11 }, end: { line: 0, character: 13 } },
-        newText: 'do\n  $0\nend',
-      },
-      insertTextFormat: 2,
-    })
+    const got = applyCompletion(
+      'def name() do\n',
+      { character: 13, line: 0 },
+      11,
+      {
+        insertTextFormat: 2,
+        label: 'do/end block',
+        textEdit: {
+          newText: 'do\n  $0\nend',
+          range: {
+            end: { character: 13, line: 0 },
+            start: { character: 11, line: 0 },
+          },
+        },
+      }
+    )
     expect(got.content).toBe('def name() do\n  \nend\n')
-    expect(got.cursor).toEqual({ line: 1, character: 2 })
+    expect(got.cursor).toEqual({ character: 2, line: 1 })
   })
 
   test('a plain-text multi-line insert is not re-indented', () => {
-    const got = applyCompletion('    foo\n', { line: 0, character: 7 }, 4, {
-      label: 'block',
+    const got = applyCompletion('    foo\n', { character: 7, line: 0 }, 4, {
       insertText: 'a\nb\nc',
       insertTextFormat: 1,
+      label: 'block',
     })
     expect(got.content).toBe('    a\nb\nc\n')
   })
@@ -249,37 +298,40 @@ describe('plainMarkup', () => {
     expect(
       plainMarkup({
         kind: 'markdown',
-        value: '# Title\n\nCalls **now** with `arg`.\n\n```ts\nfn()\n```\n\n- one\n- two',
-      }),
+        value:
+          '# Title\n\nCalls **now** with `arg`.\n\n```ts\nfn()\n```\n\n- one\n- two',
+      })
     ).toBe('Title\n\nCalls now with arg.\n\nfn()\n\n• one\n• two')
     expect(plainMarkup('plain text')).toBe('plain text')
-    expect(plainMarkup(undefined)).toBe('')
+    expect(plainMarkup()).toBe('')
   })
 
   test('itemInfo collapses a multi-line signature and reads both deprecation spellings', () => {
-    expect(itemInfo({ label: 'a', detail: '(x: number)\n  => void' }).detail).toBe(
-      '(x: number) => void',
-    )
-    expect(itemInfo({ label: 'a', labelDetails: { detail: '(x)' } }).detail).toBe('(x)')
+    expect(
+      itemInfo({ detail: '(x: number)\n  => void', label: 'a' }).detail
+    ).toBe('(x: number) => void')
+    expect(
+      itemInfo({ label: 'a', labelDetails: { detail: '(x)' } }).detail
+    ).toBe('(x)')
     expect(isDeprecated({ label: 'a', tags: [1] })).toBe(true)
-    expect(isDeprecated({ label: 'a', deprecated: true })).toBe(true)
+    expect(isDeprecated({ deprecated: true, label: 'a' })).toBe(true)
     expect(isDeprecated({ label: 'a' })).toBe(false)
   })
 })
 
 describe('layoutMenu', () => {
   const many = Array.from({ length: 30 }, (_, at) => ({
-    item: { label: `item${at}`, kind: 3 },
-    score: 0,
+    item: { kind: 3, label: `item${at}` },
     positions: [],
+    score: 0,
   }))
-  const roomy = { width: 120, height: 40 }
+  const roomy = { height: 40, width: 120 }
 
   const info = {
+    deprecated: false,
     detail: '(a: number) => void',
     documentation: 'Does a thing.',
     source: '',
-    deprecated: false,
   }
 
   test('caps the list and adds the counter row', () => {
@@ -291,17 +343,27 @@ describe('layoutMenu', () => {
 
   test('the panel holds the resolved lines, and the box never wraps a signature thin', () => {
     const layout = layoutMenu(many, info, roomy, true)
-    expect(layout.signature).toEqual([{ text: '(a: number) => void', start: 0 }])
+    expect(layout.signature).toEqual([
+      { start: 0, text: '(a: number) => void' },
+    ])
     expect(layout.documentation).toEqual(['Does a thing.'])
     expect(layout.width).toBeGreaterThanOrEqual(56)
   })
 
   test('a wrapped signature keeps each row offset into the string it was cut from', () => {
-    const long = 'const draw: <Value extends number>(props: Props<Value>) => Element'
-    const layout = layoutMenu(many, { ...info, detail: long }, { width: 40, height: 40 }, true)
+    const long =
+      'const draw: <Value extends number>(props: Props<Value>) => Element'
+    const layout = layoutMenu(
+      many,
+      { ...info, detail: long },
+      { height: 40, width: 40 },
+      true
+    )
     expect(layout.signature.length).toBeGreaterThan(1)
     for (const line of layout.signature) {
-      expect(long.slice(line.start, line.start + line.text.length)).toBe(line.text)
+      expect(long.slice(line.start, line.start + line.text.length)).toBe(
+        line.text
+      )
     }
   })
 
@@ -310,19 +372,29 @@ describe('layoutMenu', () => {
     const layout = layoutMenu(many, wordy, roomy, true)
     expect(layout.signature.length).toBe(6)
     expect(layout.signature.at(-1)!.text).not.toContain('…')
-    const both = layoutMenu(many, { ...wordy, documentation: 'doc. '.repeat(200) }, roomy, true)
+    const both = layoutMenu(
+      many,
+      { ...wordy, documentation: 'doc. '.repeat(200) },
+      roomy,
+      true
+    )
     expect(both.signature.length).toBe(3)
     expect(both.documentation.length).toBe(both.panelRows - 3)
   })
 
   test('the origin only fills a row the panel would have drawn blank', () => {
-    const spare = layoutMenu(many, { ...info, source: 'druk/alpha' }, roomy, true)
+    const spare = layoutMenu(
+      many,
+      { ...info, source: 'druk/alpha' },
+      roomy,
+      true
+    )
     expect(spare.origin).toBe('druk/alpha')
     const full = layoutMenu(
       many,
       { ...info, documentation: 'doc. '.repeat(200), source: 'druk/alpha' },
       roomy,
-      true,
+      true
     )
     expect(full.origin).toBe('')
   })
@@ -335,9 +407,14 @@ describe('layoutMenu', () => {
     expect(filled.panelRows).toBe(2)
     const wordy = layoutMenu(
       many,
-      { detail: 'x '.repeat(200), documentation: 'y '.repeat(400), source: '', deprecated: false },
+      {
+        deprecated: false,
+        detail: 'x '.repeat(200),
+        documentation: 'y '.repeat(400),
+        source: '',
+      },
       roomy,
-      true,
+      true
     )
     expect(wordy.panelRows).toBe(9)
     const kept = layoutMenu(many, info, roomy, true, wordy.panelRows)
@@ -345,11 +422,13 @@ describe('layoutMenu', () => {
     expect(kept.height).toBe(wordy.height)
     expect(kept.width).toBe(wordy.width)
     expect(layoutMenu(many, null, roomy, true, 4).panelRows).toBe(4)
-    expect(layoutMenu(many, info, { width: 120, height: 19 }, true, 9).panelRows).toBe(3)
+    expect(
+      layoutMenu(many, info, { height: 19, width: 120 }, true, 9).panelRows
+    ).toBe(3)
   })
 
   test('a short pane drops the panel before it drops the list', () => {
-    const layout = layoutMenu(many, info, { width: 120, height: 6 }, true)
+    const layout = layoutMenu(many, info, { height: 6, width: 120 }, true)
     expect(layout.panelRows).toBe(0)
     expect(layout.signature).toEqual([])
     expect(layout.rows).toBe(3)
@@ -357,17 +436,20 @@ describe('layoutMenu', () => {
   })
 
   test('an empty list is the notice row alone', () => {
-    expect(layoutMenu([], null, roomy, true)).toMatchObject({ rows: 0, height: 3 })
+    expect(layoutMenu([], null, roomy, true)).toMatchObject({
+      height: 3,
+      rows: 0,
+    })
   })
 })
 
 describe('matchRuns', () => {
   test('splits a label into hit and miss runs', () => {
     expect(matchRuns('flatMap', [0, 4, 5, 6])).toEqual([
-      { text: 'f', hit: true },
-      { text: 'lat', hit: false },
-      { text: 'Map', hit: true },
+      { hit: true, text: 'f' },
+      { hit: false, text: 'lat' },
+      { hit: true, text: 'Map' },
     ])
-    expect(matchRuns('plain', [])).toEqual([{ text: 'plain', hit: false }])
+    expect(matchRuns('plain', [])).toEqual([{ hit: false, text: 'plain' }])
   })
 })

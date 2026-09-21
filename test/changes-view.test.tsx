@@ -25,25 +25,25 @@ interface Frame {
 
 const hex = (color?: { buffer: Uint8Array }) =>
   color
-    ? `#${Array.from(color.buffer.slice(0, 3), v => v.toString(16).padStart(2, '0')).join('')}`
+    ? `#${Array.from(color.buffer.slice(0, 3), (v) => v.toString(16).padStart(2, '0')).join('')}`
     : ''
 
 const rowBgs = (t: Harness, y: number) => {
   const frame = t.captureSpans() as unknown as Frame
-  return frame.lines[y]?.spans.map(span => hex(span.bg)) ?? []
+  return frame.lines[y]?.spans.map((span) => hex(span.bg)) ?? []
 }
 
 const rowOf = (t: Harness, text: string) =>
   t
     .captureCharFrame()
     .split('\n')
-    .findIndex(line => line.includes(text))
+    .findIndex((line) => line.includes(text))
 
 const rowsWith = (t: Harness, text: string) =>
   t
     .captureCharFrame()
     .split('\n')
-    .filter(line => line.includes(text)).length
+    .filter((line) => line.includes(text)).length
 
 function repo(files: Record<string, string>) {
   const dir = tempDir('druk-changes-')
@@ -57,7 +57,8 @@ function repo(files: Record<string, string>) {
   return dir
 }
 
-const many = (tag: string) => `${Array.from({ length: 40 }, (_, i) => `${tag}${i}`).join('\n')}\n`
+const many = (tag: string) =>
+  `${Array.from({ length: 40 }, (_, i) => `${tag}${i}`).join('\n')}\n`
 
 test('Show all changes stacks every file in the editor slot', async () => {
   const dir = repo({ 'a.ts': 'alpha\n', 'b.ts': 'beta\n' })
@@ -96,7 +97,7 @@ test('arrows in the panel do not open a one-file diff over the page', async () =
   const t = await launch(dir, {}, { height: 40 })
   await runCommand(t, 'Show all changes')
   await untilFrame(t, '+ ALPHA')
-  await press(t, i => i.pressArrow('down'))
+  await press(t, (i) => i.pressArrow('down'))
 
   const frame = t.captureCharFrame()
   expect(frame).toContain('Uncommitted')
@@ -109,8 +110,8 @@ test('a save under the page refreshes the stacked diffs', async () => {
   writeFileSync(join(dir, 'b.ts'), 'BETA\n')
 
   const t = await launch(dir, {}, { height: 40 })
-  await press(t, i => i.pressArrow('down'))
-  await press(t, i => i.pressEnter())
+  await press(t, (i) => i.pressArrow('down'))
+  await press(t, (i) => i.pressEnter())
   await runCommand(t, 'Show all changes')
   await untilFrame(t, '+ ALPHA')
   writeFileSync(join(dir, 'a.ts'), 'GAMMA\n')
@@ -125,7 +126,7 @@ test('a in the source-control panel opens the page', async () => {
   const t = await launch(dir, {}, { height: 40 })
   await runCommand(t, 'Source control')
   await untilFrame(t, 'Changes')
-  await press(t, i => i.pressKey('a'))
+  await press(t, (i) => i.pressKey('a'))
   await untilFrame(t, 'Uncommitted')
   expect(t.captureCharFrame()).toContain('+ ALPHA')
 })
@@ -162,7 +163,9 @@ test('Enter on an Incoming commit closes the page so the commit is visible', asy
 
   const theirs = join(base, 'theirs')
   execFileSync('git', ['clone', '-q', origin, theirs])
-  execFileSync('git', ['config', 'user.email', 'theirs@example.com'], { cwd: theirs })
+  execFileSync('git', ['config', 'user.email', 'theirs@example.com'], {
+    cwd: theirs,
+  })
   execFileSync('git', ['config', 'user.name', 'Theirs'], { cwd: theirs })
   execFileSync('git', ['config', 'commit.gpgsign', 'false'], { cwd: theirs })
   writeFileSync(join(theirs, 'remote.ts'), 'const r = 1\n')
@@ -176,9 +179,9 @@ test('Enter on an Incoming commit closes the page so the commit is visible', asy
   await runCommand(t, 'Show all changes')
   await untilFrame(t, 'Uncommitted')
   await untilFrame(t, 'from elsewhere')
-  await pressTimes(t, 8, i => i.pressArrow('up'))
-  await pressTimes(t, 3, i => i.pressArrow('down'))
-  await press(t, i => i.pressEnter())
+  await pressTimes(t, 8, (i) => i.pressArrow('up'))
+  await pressTimes(t, 3, (i) => i.pressArrow('down'))
+  await press(t, (i) => i.pressEnter())
   await untilGone(t, 'Uncommitted')
   await untilFrame(t, 'const r = 1')
 })
@@ -190,7 +193,7 @@ test('Enter in the panel opens the file and closes the page', async () => {
   const t = await launch(dir, {}, { height: 40 })
   await runCommand(t, 'Show all changes')
   await untilFrame(t, 'Uncommitted')
-  await press(t, i => i.pressEnter())
+  await press(t, (i) => i.pressEnter())
   await untilGone(t, 'Uncommitted')
   expect(t.captureCharFrame()).toContain('ALPHA')
 })
@@ -203,9 +206,9 @@ test('opening the page scrolls to the file under the panel cursor', async () => 
   const t = await launch(dir, {}, { height: 24 })
   await runCommand(t, 'Source control')
   await untilFrame(t, 'b.ts')
-  await press(t, i => i.pressArrow('down'))
-  await press(t, i => i.pressArrow('down'))
-  await press(t, i => i.pressKey('a'))
+  await press(t, (i) => i.pressArrow('down'))
+  await press(t, (i) => i.pressArrow('down'))
+  await press(t, (i) => i.pressKey('a'))
   await untilFrame(t, 'Uncommitted')
   await untilFrame(t, '+ BETA')
   expect(t.captureCharFrame()).not.toContain('+ new0')
@@ -218,10 +221,10 @@ test('the page closes once nothing is left to show', async () => {
   const t = await launch(dir, {}, { height: 40 })
   await runCommand(t, 'Show all changes')
   await untilFrame(t, 'Uncommitted')
-  await press(t, i => i.pressArrow('down'))
-  await press(t, i => void i.typeText('d'))
+  await press(t, (i) => i.pressArrow('down'))
+  await press(t, (i) => i.typeText('d'))
   await untilFrame(t, 'Discard changes')
-  await press(t, i => i.pressEnter())
+  await press(t, (i) => i.pressEnter())
   await untilGone(t, 'Uncommitted')
 })
 
@@ -234,14 +237,14 @@ test('after the list shrinks the page still follows the highlighted file', async
   const t = await launch(dir, {}, { height: 24 })
   await runCommand(t, 'Source control')
   await untilFrame(t, 'c.ts')
-  await press(t, i => i.pressArrow('down'))
-  await press(t, i => i.pressArrow('down'))
-  await press(t, i => i.pressArrow('down'))
-  await press(t, i => i.pressKey('a'))
+  await press(t, (i) => i.pressArrow('down'))
+  await press(t, (i) => i.pressArrow('down'))
+  await press(t, (i) => i.pressArrow('down'))
+  await press(t, (i) => i.pressKey('a'))
   await untilFrame(t, '+ GAMMA')
-  await press(t, i => void i.typeText('d'))
+  await press(t, (i) => i.typeText('d'))
   await untilFrame(t, 'Discard changes')
-  await press(t, i => i.pressEnter())
+  await press(t, (i) => i.pressEnter())
   await untilGone(t, '+ GAMMA')
   await untilFrame(t, '+ BETA')
   expect(t.captureCharFrame()).not.toContain('+ new0')
@@ -257,8 +260,10 @@ test('a file header names the path above the patch and leaves a gap', async () =
   await untilFrame(t, '+ ALPHA')
 
   const lines = t.captureCharFrame().split('\n')
-  const header = lines.findIndex(row => row.includes('▾') && row.includes('a.ts'))
-  const patch = lines.findIndex(row => row.includes('+ ALPHA'))
+  const header = lines.findIndex(
+    (row) => row.includes('▾') && row.includes('a.ts')
+  )
+  const patch = lines.findIndex((row) => row.includes('+ ALPHA'))
   expect(header).toBeGreaterThanOrEqual(0)
   expect(patch).toBeGreaterThan(header + 1)
   expect(t.captureCharFrame()).toContain('b.ts')
@@ -271,12 +276,12 @@ test('← folds a file to its header and → opens it again', async () => {
   const t = await launch(dir, {}, { height: 40 })
   await runCommand(t, 'Show all changes')
   await untilFrame(t, '+ ALPHA')
-  await press(t, i => i.pressTab())
-  await press(t, i => i.pressKey('h'))
+  await press(t, (i) => i.pressTab())
+  await press(t, (i) => i.pressKey('h'))
   await untilGone(t, '+ ALPHA')
   expect(t.captureCharFrame()).toContain('▸')
   expect(t.captureCharFrame()).toContain('a.ts')
-  await press(t, i => i.pressKey('l'))
+  await press(t, (i) => i.pressKey('l'))
   await untilFrame(t, '+ ALPHA')
   expect(t.captureCharFrame()).toContain('▾')
 })
@@ -289,20 +294,20 @@ test('Tab and Shift+Tab walk the file headers that ← folds', async () => {
   const t = await launch(dir, {}, { height: 40 })
   await runCommand(t, 'Show all changes')
   await untilFrame(t, '+ ALPHA')
-  await press(t, i => i.pressTab())
+  await press(t, (i) => i.pressTab())
   const a = rowOf(t, '▾ M a.ts')
   const b = rowOf(t, '▾ M b.ts')
   expect(rowBgs(t, a)).toContain(ui.accent)
   expect(rowBgs(t, a)).toContain(ui.treeSelectedBg)
   expect(rowBgs(t, b)).not.toContain(ui.accent)
-  await press(t, i => i.pressTab())
+  await press(t, (i) => i.pressTab())
   expect(rowBgs(t, rowOf(t, '▾ M b.ts'))).toContain(ui.accent)
   expect(rowBgs(t, rowOf(t, '▾ M a.ts'))).not.toContain(ui.accent)
-  await press(t, i => i.pressKey('h'))
+  await press(t, (i) => i.pressKey('h'))
   await untilGone(t, '+ BETA')
   expect(t.captureCharFrame()).toContain('+ ALPHA')
-  await press(t, i => i.pressTab({ shift: true }))
-  await press(t, i => i.pressKey('h'))
+  await press(t, (i) => i.pressTab({ shift: true }))
+  await press(t, (i) => i.pressKey('h'))
   await untilGone(t, '+ ALPHA')
 })
 
@@ -324,8 +329,8 @@ test('a scrolled file keeps its header at the top of the page', async () => {
   const t = await launch(dir, {}, { height: 24 })
   await runCommand(t, 'Show all changes')
   await untilFrame(t, '▾ M a.ts')
-  await press(t, i => i.pressTab())
-  await press(t, i => i.pressKey('d', { ctrl: true }))
+  await press(t, (i) => i.pressTab())
+  await press(t, (i) => i.pressKey('d', { ctrl: true }))
   await untilGone(t, '+ new0')
   expect(t.captureCharFrame()).toContain('▾ M a.ts')
 })
@@ -338,17 +343,21 @@ test('folding the stuck file does not leave its header drawn twice', async () =>
   const t = await launch(dir, {}, { height: 24 })
   await runCommand(t, 'Show all changes')
   await untilFrame(t, '▾ M a.ts')
-  await press(t, i => i.pressTab())
-  await press(t, i => i.pressKey('d', { ctrl: true }))
+  await press(t, (i) => i.pressTab())
+  await press(t, (i) => i.pressKey('d', { ctrl: true }))
   await untilGone(t, '+ new0')
 
-  await press(t, i => i.pressKey('h'))
+  await press(t, (i) => i.pressKey('h'))
   await untilFrame(t, '▸ M a.ts')
   await until(t, () => rowsWith(t, '+40 −40') === 1)
 })
 
 test('clicking a file above the one on screen scrolls back to it', async () => {
-  const dir = repo({ 'a.ts': many('old'), 'b.ts': many('old'), 'c.ts': many('old') })
+  const dir = repo({
+    'a.ts': many('old'),
+    'b.ts': many('old'),
+    'c.ts': many('old'),
+  })
   writeFileSync(join(dir, 'a.ts'), many('alpha'))
   writeFileSync(join(dir, 'b.ts'), many('beta'))
   writeFileSync(join(dir, 'c.ts'), many('gamma'))
@@ -373,8 +382,8 @@ test('Tab walks the files and puts the one it lands on at the top', async () => 
   await runCommand(t, 'Show all changes')
   await untilFrame(t, '▾ M a.ts')
 
-  await press(t, i => i.pressTab())
-  await press(t, i => i.pressTab())
+  await press(t, (i) => i.pressTab())
+  await press(t, (i) => i.pressTab())
   await untilFrame(t, '▾ M b.ts')
   expect(rowOf(t, '▾ M b.ts')).toBe(2)
 })
@@ -388,7 +397,7 @@ test('Shift+S in the panel flips the page to side-by-side', async () => {
   await untilFrame(t, '+ TWO')
   expect(t.captureCharFrame()).toContain('inline')
 
-  await press(t, i => i.pressKey('s', { shift: true }))
+  await press(t, (i) => i.pressKey('s', { shift: true }))
   await untilFrame(t, 'side-by-side')
 })
 
@@ -397,14 +406,14 @@ test('flipping the layout keeps the file being read at the top', async () => {
   writeFileSync(join(dir, 'a.ts'), many('alpha'))
   writeFileSync(join(dir, 'b.ts'), many('beta'))
 
-  const t = await launch(dir, {}, { width: 130, height: 24 })
+  const t = await launch(dir, {}, { height: 24, width: 130 })
   await runCommand(t, 'Show all changes')
   await untilFrame(t, '▾ M a.ts')
-  await press(t, i => i.pressArrow('down'))
+  await press(t, (i) => i.pressArrow('down'))
   await untilFrame(t, '▾ M b.ts')
   expect(rowOf(t, '▾ M b.ts')).toBe(2)
 
-  await press(t, i => i.pressKey('s', { shift: true }))
+  await press(t, (i) => i.pressKey('s', { shift: true }))
   await untilFrame(t, 'side-by-side')
   expect(rowOf(t, '▾ M b.ts')).toBe(2)
 })
@@ -414,18 +423,18 @@ test('flipping the layout holds where the wheel left the page, not the panel cur
   writeFileSync(join(dir, 'a.ts'), many('alpha'))
   writeFileSync(join(dir, 'b.ts'), many('beta'))
 
-  const t = await launch(dir, {}, { width: 130, height: 24 })
+  const t = await launch(dir, {}, { height: 24, width: 130 })
   await runCommand(t, 'Show all changes')
   await untilFrame(t, '▾ M a.ts')
 
   const atTop = () => rowOf(t, '▾ M b.ts') >= 0 && rowOf(t, '▾ M b.ts') <= 5
-  for (let n = 0; n < 200 && !atTop(); n++) {
+  for (let n = 0; n < 200 && !atTop(); n += 1) {
     await t.mockMouse.scroll(80, 10, 'down')
     await settle(t)
   }
   expect(atTop()).toBe(true)
 
-  await press(t, i => i.pressKey('s', { shift: true }))
+  await press(t, (i) => i.pressKey('s', { shift: true }))
   await untilFrame(t, 'side-by-side')
   expect(t.captureCharFrame()).toContain('▾ M b.ts')
   expect(t.captureCharFrame()).toContain('+ beta0')
@@ -440,11 +449,13 @@ test('Space on the page stages the file its header names', async () => {
   const t = await launch(dir, {}, { height: 40 })
   await runCommand(t, 'Show all changes')
   await untilFrame(t, '▾ M a.ts')
-  await press(t, i => i.pressTab())
-  await press(t, i => void i.typeText(' '))
+  await press(t, (i) => i.pressTab())
+  await press(t, (i) => i.typeText(' '))
 
   await until(t, () =>
-    execFileSync('git', ['status', '--porcelain'], { cwd: dir }).toString().startsWith('M  a.ts'),
+    execFileSync('git', ['status', '--porcelain'], { cwd: dir })
+      .toString()
+      .startsWith('M  a.ts')
   )
   await untilFrame(t, 'staged')
 })
@@ -454,17 +465,19 @@ test('the stage button on a header stages that file, not the row under the point
   writeFileSync(join(dir, 'a.ts'), 'ALPHA\n')
   writeFileSync(join(dir, 'b.ts'), 'BETA\n')
 
-  const t = await launch(dir, {}, { width: 130, height: 40 })
+  const t = await launch(dir, {}, { height: 40, width: 130 })
   await runCommand(t, 'Show all changes')
   await untilFrame(t, '▾ M b.ts')
-  await press(t, i => i.pressTab())
-  await press(t, i => i.pressTab())
+  await press(t, (i) => i.pressTab())
+  await press(t, (i) => i.pressTab())
 
   const row = rowOf(t, '▾ M b.ts')
   const at = t.captureCharFrame().split('\n')[row]!.lastIndexOf('+')
   await t.mockMouse.click(at, row)
   await until(t, () =>
-    execFileSync('git', ['status', '--porcelain'], { cwd: dir }).toString().includes('M  b.ts'),
+    execFileSync('git', ['status', '--porcelain'], { cwd: dir })
+      .toString()
+      .includes('M  b.ts')
   )
   expect(t.captureCharFrame()).toContain('+ BETA')
 })

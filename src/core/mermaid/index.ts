@@ -31,5 +31,7 @@ function renderDiagram(diagram: Diagram): Line[] | null {
 }
 
 export function diagramToText(lines: Line[]): string {
-  return lines.map(line => line.map(segment => segment.text).join('')).join('\n')
+  return lines
+    .map((line) => line.map((segment) => segment.text).join(''))
+    .join('\n')
 }

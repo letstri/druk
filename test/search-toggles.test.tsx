@@ -7,9 +7,9 @@ const CONTENT = 'alpha ALPHA alphabet\nAlphabet soup\n'
 
 async function openSearch() {
   const t = await launch(fixture({ 'a.ts': CONTENT }))
-  await press(t, i => i.pressArrow('down'))
-  await press(t, i => i.pressEnter())
-  await press(t, i => i.pressKey('f', { ctrl: true }))
+  await press(t, (i) => i.pressArrow('down'))
+  await press(t, (i) => i.pressEnter())
+  await press(t, (i) => i.pressKey('f', { ctrl: true }))
   return t
 }
 
@@ -24,15 +24,21 @@ describe('buildQuery', () => {
   })
 
   test('whole word bounds the match', () => {
-    expect(searchText('cat concatenate', 'cat', 'a.ts', { wholeWord: true })).toHaveLength(1)
+    expect(
+      searchText('cat concatenate', 'cat', 'a.ts', { wholeWord: true })
+    ).toHaveLength(1)
   })
 
   test('case sensitivity is honoured', () => {
-    expect(searchText('a A', 'a', 'a.ts', { caseSensitive: true })).toHaveLength(1)
+    expect(
+      searchText('a A', 'a', 'a.ts', { caseSensitive: true })
+    ).toHaveLength(1)
   })
 
   test('regex matches report their real length', () => {
-    const [match] = searchText('foo123bar', String.raw`\d+`, 'a.ts', { regex: true })
+    const [match] = searchText('foo123bar', String.raw`\d+`, 'a.ts', {
+      regex: true,
+    })
     expect(match).toMatchObject({ col: 3, length: 3 })
   })
 })
@@ -40,10 +46,10 @@ describe('buildQuery', () => {
 describe('search panel toggles', () => {
   test('Ctrl+C makes the search case-sensitive', async () => {
     const t = await openSearch()
-    await press(t, i => void i.typeText('ALPHA'))
+    await press(t, (i) => i.typeText('ALPHA'))
     expect(t.captureCharFrame()).toContain('of 4')
 
-    await press(t, i => i.pressKey('c', { ctrl: true }))
+    await press(t, (i) => i.pressKey('c', { ctrl: true }))
     const frame = t.captureCharFrame()
     expect(frame).toContain('1 of 1')
     expect(frame).toContain('case')
@@ -51,20 +57,20 @@ describe('search panel toggles', () => {
 
   test('Ctrl+W matches whole words only', async () => {
     const t = await openSearch()
-    await press(t, i => void i.typeText('alpha'))
+    await press(t, (i) => i.typeText('alpha'))
     expect(t.captureCharFrame()).toContain('of 4')
 
-    await press(t, i => i.pressKey('w', { ctrl: true }))
+    await press(t, (i) => i.pressKey('w', { ctrl: true }))
     expect(t.captureCharFrame()).toContain('of 2')
   })
 
   test('Ctrl+R turns the query into a regex, and says when it is invalid', async () => {
     const t = await openSearch()
-    await press(t, i => i.pressKey('r', { ctrl: true }))
-    await press(t, i => void i.typeText('al.ha'))
+    await press(t, (i) => i.pressKey('r', { ctrl: true }))
+    await press(t, (i) => i.typeText('al.ha'))
     expect(t.captureCharFrame()).toContain('of 4')
 
-    await press(t, i => void i.typeText('('))
+    await press(t, (i) => i.typeText('('))
     expect(t.captureCharFrame()).toContain('Invalid regex')
   })
 })

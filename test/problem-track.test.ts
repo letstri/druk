@@ -3,7 +3,7 @@ import { describe, expect, test } from 'bun:test'
 import { problemRows } from '../src/editor/problems'
 import type { ProblemSeverity } from '../src/lsp/protocol'
 
-const marks = (entries: Array<[number, ProblemSeverity]>) =>
+const marks = (entries: [number, ProblemSeverity][]) =>
   new Map(entries.map(([line, severity]) => [line, { severity }]))
 
 describe('problems down the track', () => {
@@ -29,7 +29,7 @@ describe('problems down the track', () => {
         [2, 'warning'],
       ]),
       30,
-      10,
+      10
     )
 
     expect(rows[0]).toBe('error')
@@ -42,14 +42,16 @@ describe('problems down the track', () => {
         [40, 'hint'],
       ]),
       100,
-      10,
+      10
     )
 
     expect(rows.some(Boolean)).toBe(false)
   })
 
   test('lines outside the file are ignored rather than clamped onto a row', () => {
-    expect(problemRows(marks([[500, 'error']]), 100, 10).some(Boolean)).toBe(false)
+    expect(problemRows(marks([[500, 'error']]), 100, 10).some(Boolean)).toBe(
+      false
+    )
   })
 
   test('nothing to draw on is an empty result, not a crash', () => {

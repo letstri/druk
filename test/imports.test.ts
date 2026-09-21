@@ -8,7 +8,9 @@ import { fixture } from './helpers'
 describe('the token under the cursor', () => {
   test('a quoted specifier wins wherever in it the cursor sits', () => {
     const line = "import { a } from './core/fs'"
-    for (const col of [19, 22, 28]) expect(pathTokenAt(line, col)).toBe('./core/fs')
+    for (const col of [19, 22, 28]) {
+      expect(pathTokenAt(line, col)).toBe('./core/fs')
+    }
     expect(pathTokenAt(line, 18)).toBe('./core/fs')
   })
 
@@ -40,6 +42,11 @@ describe('whether the footer offers to follow it', () => {
 describe('where a specifier resolves', () => {
   const project = () =>
     fixture({
+      'notes.md': 'see src/a.ts\n',
+      'src/a.ts': 'export const a = 1\n',
+      'src/deep/index.ts': 'export const deep = 3\n',
+      'src/lib/index.ts': 'export const lib = 4\n',
+      'src/nested/b.tsx': 'export const b = 2\n',
       'tsconfig.json': `{
         // A comment and a trailing comma: what a real tsconfig holds.
         "compilerOptions": {
@@ -47,44 +54,54 @@ describe('where a specifier resolves', () => {
           "paths": { "@/*": ["src/*"], "~lib": ["src/lib/index.ts"], },
         },
       }`,
-      'src/a.ts': 'export const a = 1\n',
-      'src/nested/b.tsx': 'export const b = 2\n',
-      'src/deep/index.ts': 'export const deep = 3\n',
-      'src/lib/index.ts': 'export const lib = 4\n',
-      'notes.md': 'see src/a.ts\n',
     })
 
   test('relative, extensionless and index specifiers', () => {
     const root = project()
     const from = join(root, 'src')
-    expect(resolveImportPath('./nested/b', from, root)).toBe(join(root, 'src/nested/b.tsx'))
+    expect(resolveImportPath('./nested/b', from, root)).toBe(
+      join(root, 'src/nested/b.tsx')
+    )
     expect(resolveImportPath('./a.ts', from, root)).toBe(join(root, 'src/a.ts'))
-    expect(resolveImportPath('../src/deep', from, root)).toBe(join(root, 'src/deep/index.ts'))
+    expect(resolveImportPath('../src/deep', from, root)).toBe(
+      join(root, 'src/deep/index.ts')
+    )
     expect(resolveImportPath('./missing', from, root)).toBeNull()
   })
 
   test('a path written against the project root', () => {
     const root = project()
-    expect(resolveImportPath('src/a.ts', root, root)).toBe(join(root, 'src/a.ts'))
+    expect(resolveImportPath('src/a.ts', root, root)).toBe(
+      join(root, 'src/a.ts')
+    )
   })
 
   test('tsconfig aliases, comments and trailing commas included', () => {
     const root = project()
     const from = join(root, 'src/nested')
     expect(resolveImportPath('@/a', from, root)).toBe(join(root, 'src/a.ts'))
-    expect(resolveImportPath('@/deep', from, root)).toBe(join(root, 'src/deep/index.ts'))
-    expect(resolveImportPath('~lib', from, root)).toBe(join(root, 'src/lib/index.ts'))
-    expect(resolveImportPath('src/nested/b', from, root)).toBe(join(root, 'src/nested/b.tsx'))
+    expect(resolveImportPath('@/deep', from, root)).toBe(
+      join(root, 'src/deep/index.ts')
+    )
+    expect(resolveImportPath('~lib', from, root)).toBe(
+      join(root, 'src/lib/index.ts')
+    )
+    expect(resolveImportPath('src/nested/b', from, root)).toBe(
+      join(root, 'src/nested/b.tsx')
+    )
     expect(resolveImportPath('@/nope', from, root)).toBeNull()
   })
 
   test('an alias declared in an extended config still resolves', () => {
     const root = fixture({
-      'tsconfig.base.json': '{ "compilerOptions": { "paths": { "#/*": ["./lib/*"] } } }',
-      'tsconfig.json': '{ "extends": "./tsconfig.base" }',
       'lib/thing.ts': 'export const thing = 1\n',
+      'tsconfig.base.json':
+        '{ "compilerOptions": { "paths": { "#/*": ["./lib/*"] } } }',
+      'tsconfig.json': '{ "extends": "./tsconfig.base" }',
     })
-    expect(resolveImportPath('#/thing', root, root)).toBe(join(root, 'lib/thing.ts'))
+    expect(resolveImportPath('#/thing', root, root)).toBe(
+      join(root, 'lib/thing.ts')
+    )
   })
 
   test('what is not a file on disk', () => {
@@ -97,30 +114,44 @@ describe('where a specifier resolves', () => {
 
 describe('a definition reply', () => {
   const uri = 'file:///tmp/druk/def.ts'
-  const range = { start: { line: 3, character: 5 }, end: { line: 3, character: 9 } }
+  const range = {
+    end: { character: 9, line: 3 },
+    start: { character: 5, line: 3 },
+  }
 
   test('every shape the spec allows becomes one target', () => {
-    const target = { path: '/tmp/druk/def.ts', line: 3, col: 5 }
-    expect(normalizeDefinition({ uri, range })).toEqual(target)
-    expect(normalizeDefinition([{ uri, range }])).toEqual(target)
+    const target = { col: 5, line: 3, path: '/tmp/druk/def.ts' }
+    expect(normalizeDefinition({ range, uri })).toEqual(target)
+    expect(normalizeDefinition([{ range, uri }])).toEqual(target)
     expect(
-      normalizeDefinition([{ targetUri: uri, targetRange: range, targetSelectionRange: range }]),
+      normalizeDefinition([
+        { targetRange: range, targetSelectionRange: range, targetUri: uri },
+      ])
     ).toEqual(target)
   })
 
   test('the selection range wins over the declaration range', () => {
-    const declaration = { start: { line: 1, character: 0 }, end: { line: 6, character: 1 } }
+    const declaration = {
+      end: { character: 1, line: 6 },
+      start: { character: 0, line: 1 },
+    }
     expect(
       normalizeDefinition([
-        { targetUri: uri, targetRange: declaration, targetSelectionRange: range },
-      ]),
-    ).toEqual({ path: '/tmp/druk/def.ts', line: 3, col: 5 })
+        {
+          targetRange: declaration,
+          targetSelectionRange: range,
+          targetUri: uri,
+        },
+      ])
+    ).toEqual({ col: 5, line: 3, path: '/tmp/druk/def.ts' })
   })
 
   test('nothing, an empty answer, and a scheme that is not a file', () => {
     expect(normalizeDefinition(null)).toBeNull()
     expect(normalizeDefinition([])).toBeNull()
-    expect(normalizeDefinition({ uri: 'jdt://contents/rt.jar', range })).toBeNull()
+    expect(
+      normalizeDefinition({ range, uri: 'jdt://contents/rt.jar' })
+    ).toBeNull()
     expect(normalizeDefinition({ range })).toBeNull()
   })
 })

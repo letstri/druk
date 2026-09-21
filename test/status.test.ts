@@ -5,7 +5,7 @@ import { createRoot } from 'solid-js'
 import { createStatus } from '../src/app/status'
 
 test('a claim takes the free slot and its release gives it back', () => {
-  const root = createRoot(dispose => ({ status: createStatus(), dispose }))
+  const root = createRoot((dispose) => ({ dispose, status: createStatus() }))
   const release = root.status.claimBusy({ label: 'Installing eslint' })
 
   expect(root.status.busy()).toEqual({ label: 'Installing eslint' })
@@ -15,14 +15,14 @@ test('a claim takes the free slot and its release gives it back', () => {
 })
 
 test('an install that finds the slot taken never clears the counter in it', () => {
-  const root = createRoot(dispose => ({ status: createStatus(), dispose }))
+  const root = createRoot((dispose) => ({ dispose, status: createStatus() }))
   const { status } = root
-  const deleting = status.claimBusy({ label: 'Deleting', done: 0, total: 500 })
+  const deleting = status.claimBusy({ done: 0, label: 'Deleting', total: 500 })
   const installing = status.claimBusy({ label: 'Installing catppuccin' })
 
-  expect(status.busy()).toEqual({ label: 'Deleting', done: 0, total: 500 })
+  expect(status.busy()).toEqual({ done: 0, label: 'Deleting', total: 500 })
   installing()
-  expect(status.busy()).toEqual({ label: 'Deleting', done: 0, total: 500 })
+  expect(status.busy()).toEqual({ done: 0, label: 'Deleting', total: 500 })
 
   let ran = false
   status.whileFree(() => {

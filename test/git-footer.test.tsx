@@ -5,29 +5,20 @@ import { join } from 'node:path'
 
 import { launch, until } from './helpers'
 import type { Harness } from './helpers'
-import { tempDir } from './temp'
+import { originWithClones } from './repo'
 
-const git = (cwd: string, ...args: string[]) => execFileSync('git', args, { cwd })
+const git = (cwd: string, ...args: string[]) =>
+  execFileSync('git', args, { cwd })
 
 function remoteSetup() {
-  const base = tempDir('druk-footer-')
-  const origin = join(base, 'origin.git')
-  execFileSync('git', ['init', '-q', '--bare', '-b', 'main', origin])
-
-  const clone = (name: string) => {
-    const dir = join(base, name)
-    execFileSync('git', ['clone', '-q', origin, dir])
-    git(dir, 'config', 'user.email', `${name}@example.com`)
-    git(dir, 'config', 'user.name', name)
-    return dir
-  }
+  const { clone } = originWithClones('druk-footer-')
 
   const mine = clone('mine')
   writeFileSync(join(mine, 'a.ts'), 'const a = 1\n')
   git(mine, 'add', '.')
   git(mine, 'commit', '-qm', 'first')
   git(mine, 'push', '-q', '-u', 'origin', 'main')
-  return { mine, clone }
+  return { clone, mine }
 }
 
 const footer = (t: Harness) => t.captureCharFrame().split('\n').at(-2)!
@@ -59,9 +50,9 @@ describe('the footer', () => {
     const t = await launch(mine)
 
     expect(footer(t)).toContain('main')
-    expect(footer(t)).not.toMatch(/↑\d/)
-    expect(footer(t)).not.toMatch(/↓\d/)
-    expect(footer(t)).not.toMatch(/~\d/)
+    expect(footer(t)).not.toMatch(/↑\d/u)
+    expect(footer(t)).not.toMatch(/↓\d/u)
+    expect(footer(t)).not.toMatch(/~\d/u)
   })
 
   test('the counts follow a commit made outside the editor', async () => {
@@ -73,6 +64,6 @@ describe('the footer', () => {
 
     git(mine, 'commit', '-aqm', 'done')
     await until(t, () => footer(t).includes('↑1'))
-    expect(footer(t)).not.toMatch(/~\d/)
+    expect(footer(t)).not.toMatch(/~\d/u)
   })
 })

@@ -14,11 +14,73 @@ const EAST = 2
 const SOUTH = 4
 const WEST = 8
 
+// The four directions are 1/2/4/8, so a union adds only what is not already set.
+function union(held: number, add: number): number {
+  let out = held
+  for (const dir of [NORTH, EAST, SOUTH, WEST]) {
+    if (add % (dir * 2) >= dir && out % (dir * 2) < dir) {
+      out += dir
+    }
+  }
+  return out
+}
+
 // Indexed by the direction bits leaving the cell.
 const GLYPHS: Record<Stroke, string[]> = {
-  solid: [' ', '│', '─', '└', '│', '│', '┌', '├', '─', '┘', '─', '┴', '┐', '┤', '┬', '┼'],
-  dotted: [' ', '┆', '┄', '└', '┆', '┆', '┌', '├', '┄', '┘', '┄', '┴', '┐', '┤', '┬', '┼'],
-  thick: [' ', '┃', '━', '┗', '┃', '┃', '┏', '┣', '━', '┛', '━', '┻', '┓', '┫', '┳', '╋'],
+  dotted: [
+    ' ',
+    '┆',
+    '┄',
+    '└',
+    '┆',
+    '┆',
+    '┌',
+    '├',
+    '┄',
+    '┘',
+    '┄',
+    '┴',
+    '┐',
+    '┤',
+    '┬',
+    '┼',
+  ],
+  solid: [
+    ' ',
+    '│',
+    '─',
+    '└',
+    '│',
+    '│',
+    '┌',
+    '├',
+    '─',
+    '┘',
+    '─',
+    '┴',
+    '┐',
+    '┤',
+    '┬',
+    '┼',
+  ],
+  thick: [
+    ' ',
+    '┃',
+    '━',
+    '┗',
+    '┃',
+    '┃',
+    '┏',
+    '┣',
+    '━',
+    '┛',
+    '━',
+    '┻',
+    '┓',
+    '┫',
+    '┳',
+    '╋',
+  ],
 }
 
 export class Canvas {
@@ -44,7 +106,9 @@ export class Canvas {
   }
 
   set(x: number, y: number, char: string, role: Role): void {
-    if (x < 0 || y < 0) return
+    if (x < 0 || y < 0) {
+      return
+    }
     this.reserve(x, y)
     this.chars[y]![x] = char
     this.roles[y]![x] = role
@@ -55,39 +119,71 @@ export class Canvas {
     let at = x
     for (const char of text) {
       this.set(at, y, char, role)
-      at++
+      at += 1
     }
   }
 
   charLine(x0: number, x1: number, y: number, char: string, role: Role): void {
-    for (let x = Math.min(x0, x1); x <= Math.max(x0, x1); x++) this.set(x, y, char, role)
+    for (let x = Math.min(x0, x1); x <= Math.max(x0, x1); x += 1) {
+      this.set(x, y, char, role)
+    }
   }
 
-  charColumn(y0: number, y1: number, x: number, char: string, role: Role): void {
-    for (let y = Math.min(y0, y1); y <= Math.max(y0, y1); y++) this.set(x, y, char, role)
+  charColumn(
+    y0: number,
+    y1: number,
+    x: number,
+    char: string,
+    role: Role
+  ): void {
+    for (let y = Math.min(y0, y1); y <= Math.max(y0, y1); y += 1) {
+      this.set(x, y, char, role)
+    }
   }
 
-  private connect(x: number, y: number, dirs: number, stroke: Stroke, role: Role): void {
-    if (x < 0 || y < 0) return
+  private connect(
+    x: number,
+    y: number,
+    dirs: number,
+    stroke: Stroke,
+    role: Role
+  ): void {
+    if (x < 0 || y < 0) {
+      return
+    }
     this.reserve(x, y)
-    this.bits[y]![x] = (this.bits[y]![x] ?? 0) | dirs
+    this.bits[y]![x] = union(this.bits[y]![x] ?? 0, dirs)
     this.strokes[y]![x] = stroke
-    if (this.chars[y]![x] === undefined) this.roles[y]![x] = role
+    if (this.chars[y]![x] === undefined) {
+      this.roles[y]![x] = role
+    }
   }
 
   hline(x0: number, x1: number, y: number, stroke: Stroke, role: Role): void {
     const from = Math.min(x0, x1)
     const to = Math.max(x0, x1)
-    for (let x = from; x <= to; x++) {
-      this.connect(x, y, (x > from ? WEST : 0) | (x < to ? EAST : 0), stroke, role)
+    for (let x = from; x <= to; x += 1) {
+      this.connect(
+        x,
+        y,
+        (x > from ? WEST : 0) + (x < to ? EAST : 0),
+        stroke,
+        role
+      )
     }
   }
 
   vline(y0: number, y1: number, x: number, stroke: Stroke, role: Role): void {
     const from = Math.min(y0, y1)
     const to = Math.max(y0, y1)
-    for (let y = from; y <= to; y++) {
-      this.connect(x, y, (y > from ? NORTH : 0) | (y < to ? SOUTH : 0), stroke, role)
+    for (let y = from; y <= to; y += 1) {
+      this.connect(
+        x,
+        y,
+        (y > from ? NORTH : 0) + (y < to ? SOUTH : 0),
+        stroke,
+        role
+      )
     }
   }
 
@@ -101,16 +197,21 @@ export class Canvas {
       const bits = this.bits[y]!
       const strokes = this.strokes[y]!
       const resolved = chars.map(
-        (char, x) => char ?? GLYPHS[strokes[x] ?? 'solid']![bits[x] ?? 0] ?? ' ',
+        (char, x) => char ?? GLYPHS[strokes[x] ?? 'solid']![bits[x] ?? 0] ?? ' '
       )
       let end = resolved.length
-      while (end > 0 && (resolved[end - 1] ?? ' ') === ' ') end--
+      while (end > 0 && (resolved[end - 1] ?? ' ') === ' ') {
+        end -= 1
+      }
       const line: Line = []
-      for (let x = 0; x < end; x++) {
+      for (let x = 0; x < end; x += 1) {
         const role = roles[x] ?? 'muted'
         const last = line.at(-1)
-        if (last && last.role === role) last.text += resolved[x] ?? ' '
-        else line.push({ text: resolved[x] ?? ' ', role })
+        if (last && last.role === role) {
+          last.text += resolved[x] ?? ' '
+        } else {
+          line.push({ role, text: resolved[x] ?? ' ' })
+        }
       }
       return line
     })

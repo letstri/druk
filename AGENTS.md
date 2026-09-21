@@ -65,15 +65,22 @@ scrolls sideways only with the caret),
 scrolling on past the last line until it is the only one left on screen
 (`scrollPastEnd`, on as it is in VS Code, settings → Editor → Scroll past end —
 the buffer stops with the last line at the *bottom*, so the end of a file is
-otherwise read from the very edge of the terminal; `allowScrollPastEnd` in
+otherwise read from the very edge of the terminal; `ownScrolling` in
 `src/ui/EditorPane.tsx` rewrites the renderable's `handleScroll` for it, and has
-to drag the caret along and drop the scroll margin while it is out there, the
-renderer keeping the caret on screen being what would otherwise pull the view
-straight back; it rewrites `onResize` as well, since `setViewportSize` re-clamps
-the offset to the last screenful and the pane resizes on its own — the marks
-beside the scrollbar are a column that exists only while the file has something
-to put in it, so a language server publishing its first diagnostic narrows the
-editor by one and dropped the reader back to the end of the file),
+to drag the caret along, the Zig view pinning the viewport to the caret as it
+draws being what would otherwise pull the view straight back — which is also why
+there is no scrolling *away* from the caret at all, VS Code's arrangement being
+out of reach until upstream can detach the two; it rewrites `onResize` as well,
+since `setViewportSize` re-clamps the offset to the last screenful and the pane
+resizes on its own. `ownScrolling` is where the scroll margin is put to 0, VS
+Code's `cursorSurroundingLines`: OpenTUI's own 0.2 is a *fifth of the pane*, so
+every caret step scrolled the view four rows before the caret had reached an
+edge, and that is a constructor option on the renderable — only
+`EditorView.setScrollMargin` reaches it afterwards. The three columns right of
+the text — the problem track, the change track and the scrollbar — are drawn
+whether or not they have anything in them, since a pane that narrows by one
+re-wraps every line the reader is looking at, and a language server publishing
+its first diagnostic is not a thing the reader did),
 selecting a word by double-click and a line by triple-click — and every selection
 is on the clipboard the moment it is made, the status bar saying what was taken:
 a drag when the mouse comes up (`copyOnSelect` in `src/ui/selection.ts`, off the
@@ -936,18 +943,20 @@ dependency rule, and recipes for the extension points:
 | icon theme | an `icons` entry in a market manifest — one codepoint per glyph, since the tree gives it the arrow's single column, and a two-cell glyph is dropped rather than drawn (a Nerd Font one is not two-cell, wherever in the private-use planes it sits). A map's value may name an entry in `definitions`, whose `open` is the expanded form of a folder, so a set of thousands lists each icon once. `unicode` alone is built in (`src/icons/index.ts`), being the set any font already has |
 | extension contribution kind | a list on the manifest (`src/extensions/manifest.ts`) parsed into `Extension` (`src/extensions/types.ts`), registered in `loadExtensions` (`src/extensions/index.ts`), and a `register…`/`clearExtension…` pair on whichever registry owns it — the registry has to be read through a function everywhere, since extensions load after the modules that list its contents are evaluated |
 | tooltip on a chrome button | `useTooltip('<command id>')` on the element (`src/ui/tooltip.ts`), plus `ref` on its box — `TooltipLayer` draws every registered target, so nothing else has to change. A chord in force is what makes a tooltip exist at all: an unbound command draws nothing, the chord being the only thing a tooltip ever says |
+| filterable modal list | `FilterList` (`src/ui/FilterList.tsx`) — the query field, the fixed-height window of rows and the footer. Matching and keys stay with the caller: the command palette filters on a submenu trail and walks into it, which no shared predicate spells. A caller passes its already-filtered items, the selected index and a row renderer; `windowAround` does the scrolling |
+| scroll that must survive a layout pass | `retryFrames` (`src/ui/list.ts`) — a scrollbox clamps an offset against the height it still has, and the layout pass writes the new one later than any macrotask, so one shot lands short. The callback reports whether it landed; `defer` waits a macrotask first, for a reveal that grows the list |
 | previewable value | `preview` + `restore` on the palette `Command` (`src/app/commands.ts`) or on a row's `select` (`src/ui/SettingsView.tsx`) — `preview` paints while the selection sits on the value, `restore` runs when the list is torn down, so it must put back what the config says rather than remember what it replaced |
 | setting | `src/core/config.ts` (`Config`, `DEFAULTS`, `VALIDATORS` — one validator per key, since the project file is read key by key) + a row in `src/app/settings.ts` (`specs`, with the `key` it edits — `boolRow(section, key, label)` is the whole of an on/off one, message included, and takes a `notice` where that message is not `<label> on/off`) so the settings page shows it — the page windows its rows to the terminal height, so a test that asserts on a late row needs a tall terminal or arrow keys to reach it (the wheel moves that window too, leaving the selection where the keyboard left it — a test wheeling it needs a flush per tick, OpenTUI's scroll acceleration dropping events sent faster than its minimum interval) |
-| editor-slot page | a `PageKind` in `src/app/workspace.ts`, a `Show` in `App.tsx` over the editor column (zIndex 60) keyed on `workspace.page()`, and a view that takes `width` / `focused` / `blocked` / `onClose` — Settings, LSP status, all-changes (`ChangesView`, whose `ChangeSection` the controller imports), and the commit and comparison detail pages. A page is a **tab**: its id is `druk://<kind>` (`pageId`/`pageKindOf`), it sits in `views()` beside the file paths, and one kind is one tab — `openPage` lands on the one already open, `closePage` closes it. `page()` is the kind the *active* tab names; `pageOpen(kind)` whether its tab exists at all, which is what a refresh asks — a page keeps its state while another tab is read. A page owning state outside the workspace registers `workspace.onPageClose(kind, …)` so closing the tab tears it down, and `App.tsx` mirrors the other way with an effect, so a view that closes itself takes its tab with it. `activePath()` deliberately keeps naming the file *under* the page, so landing on a page tab leaves the editor's buffer, cursor, vim mode and undo stack alone |
+| editor-slot page | `Page` (`src/ui/PanelHeader.tsx`) is the shell — the solid background and the title/hints bar every one of them draws — then a `PageKind` in `src/app/workspace.ts`, a `Show` in `App.tsx` over the editor column (zIndex 60) keyed on `workspace.page()`, and a view that takes `width` / `focused` / `blocked` / `onClose` — Settings, LSP status, all-changes (`ChangesView`, whose `ChangeSection` the controller imports), and the commit and comparison detail pages. A page is a **tab**: its id is `druk://<kind>` (`pageId`/`pageKindOf`), it sits in `views()` beside the file paths, and one kind is one tab — `openPage` lands on the one already open, `closePage` closes it. `page()` is the kind the *active* tab names; `pageOpen(kind)` whether its tab exists at all, which is what a refresh asks — a page keeps its state while another tab is read. A page owning state outside the workspace registers `workspace.onPageClose(kind, …)` so closing the tab tears it down, and `App.tsx` mirrors the other way with an effect, so a view that closes itself takes its tab with it. `activePath()` deliberately keeps naming the file *under* the page, so landing on a page tab leaves the editor's buffer, cursor, vim mode and undo stack alone |
 | command | `src/app/commands.ts` + bind it in `src/app/actions.ts`; the implementation goes in the controller that owns the state (`workspace.ts`, `fileOps.ts`, `git.ts`, …). `withKeymap` (`commands.ts`) lays the keymap over the built tree: a rebound command's palette `hint` is replaced by the user's own chord, and every leaf run from the palette names its key in the status bar (`keyTip` in `src/ui/keys.ts`) — so a hand-written `hint` only has to be right for the defaults |
 | keybinding | a row in `BINDABLE` (`src/app/keymap.ts`) plus a handler under the same id in `src/app/keyboard.ts` — or, for an editor-only key, `src/ui/EditorPane.tsx` — advertised in `src/ui/keys.ts` (feeds the footer hints, help overlay, Ctrl+K peek and the welcome screen), with the row's `ids` naming the commands it spells out |
-| footer hint | `hint` on the key's row in `src/ui/keys.ts`, scoped to any `KeyScope` — or, for a panel letter the help table lists as one combined row, an entry in `PANEL_HINTS` there. Ranked, and the footer cuts from the tail, so a hint's rank is its survival on a narrow terminal. The status bar reads `panes.keyPane()`, so a panel's hints replace the tree's while it shows. One that depends on where the caret is goes through `hintsFor`'s `extra` argument instead, built in `StatusBar` from `chordFor` so a rebind renames it: `goto.file` is offered only while `hasPathAt` (`src/core/imports.ts`) says the cursor is on a path or a module specifier — a syntactic check, since a bare `'bun'` resolves through the language server and nothing on disk can be asked about it per keystroke |
+| footer hint | `hint` on the key's row in `src/ui/keys.ts`, scoped to any `KeyScope` — or, for a panel letter the help table lists as one combined row, an entry in `PANEL_HINTS` there. Ranked, and the footer cuts from the tail, so a hint's rank is its survival on a narrow terminal. The status bar reads `panes.keyPane()`, so a panel's hints replace the tree's while it shows. One that depends on where the caret is goes through `hintsFor`'s `extra` argument instead, built in `StatusBar` from `chordFor` so a rebind renames it: `goto.file` is offered only while `hasPathAt` (`src/core/imports.ts`) says the cursor is on a path or a module specifier — a syntactic check, since a bare `'bun'` resolves through the language server and nothing on disk can be asked about it per keystroke, and `goto.definition` while some extension declares a server for the open file's filetype (`resolveServers`, the specs rather than a running client — spawning one to answer a hint is a side effect a memo may not have, and an uninstalled server is an offer druk already makes) |
 | git error message | a row in `KNOWN` in `src/core/git.ts`, with the git output it matches pinned in `test/git.test.tsx` |
 | workspace-switcher entry | `workspaceEntries` in `src/core/workspaces.ts` — every path there is `resolvedPath`'d, since `git worktree list` prints the symlink-resolved spelling (`/private/var/…`) and the folder druk was opened with is the other one, and without that the workspace you are in is listed twice and marked current neither time. `src/app/workspaces.ts` is the offer and the checks; the *switch* is `Root.tsx`, which remounts `<App/>` — nothing may try to move an existing controller onto another `rootDir` |
 | terminal progress | the one status slot (`src/app/status.ts`) — a git mutation, bulk file op or install occupies it. A background operation takes it with `claimBusy`, which hands back the release and refuses to hand back anything else: an install that finds the slot taken runs without it rather than clearing a bulk delete's counter, since that would idle the bar mid-rewrite *and* reopen `whileFree` for a second op. `setBusy` is for updating a count already claimed. `reportProgress` (`src/core/progress.ts`) writes OSC 9;4 so Ghostty, WezTerm, iTerm2, kitty, Windows Terminal and recent VTE draw their own loader; an unsupported terminal is a no-op, and an exit hook puts the indicator out where `onCleanup` never runs |
 | market extension | a folder under `extensions/` holding `extension.json`, then `bun run extensions` to regenerate `extensions/index.json` — `test/extensions-repo.test.ts` fails when the committed index is stale, and bumping the manifest `version` is what makes installed copies see an update |
 | row in the extensions panel | `src/app/extensionsPanel.ts` (the cursor, the fold state and what Enter does); `src/ui/ExtensionsPanel.tsx` owns the `ExtensionRow` type, draws whatever `rows()` returns and reports clicks, and the keys live in `src/app/keyboard.ts` beside the tree's and the git panel's. Row/view-model types live in the ui component and the controller imports them — the `SettingRow` arrangement, enforced by `test/boundaries.test.ts` |
-| sidebar view | `SidebarView` in `src/ui/SidebarTabs.tsx` (its title row is `PanelHeader`, which draws the view's name uppercase as VS Code does and takes that view's own buttons as children) (add a `short` initial — the strip falls back to those in a narrow sidebar), a branch in `App.tsx`'s sidebar, one in `keyboard.ts`'s pane switch, a `KeyScope` in `src/ui/keys.ts` with a `SCOPE_LABELS` entry in `KeyPeek.tsx`, nothing on `src/app/panes.ts` (`toggleView` takes the view's name), and its place in the Shift+Tab cycle, which is spelt out as one `showView` per pane block in `keyboard.ts` rather than held as a list |
+| sidebar view | `SidebarView` in `src/ui/SidebarTabs.tsx` — the view itself is `Panel` + `PanelHeader` + `PanelList`, all in `src/ui/PanelHeader.tsx` bar the last: `Panel` is the outer column (its `flexBasis={0}` is load-bearing), `PanelHeader` the title row, which draws the view's name uppercase as VS Code does and takes that view's own buttons as children (`CollapseAll` is the `▴` two of them share), and `PanelList` (`src/ui/PanelList.tsx`) the windowed scrollbox — it takes `createScrollList`'s handle and the *whole* row list, renders the window and keeps the spacers that hold the scrollable extent honest, so a panel writes only its own row. (add a `short` initial — the strip falls back to those in a narrow sidebar), a branch in `App.tsx`'s sidebar, one in `keyboard.ts`'s pane switch, a `KeyScope` in `src/ui/keys.ts` with a `SCOPE_LABELS` entry in `KeyPeek.tsx`, nothing on `src/app/panes.ts` (`toggleView` takes the view's name), and its place in the Shift+Tab cycle, which is spelt out as one `showView` per pane block in `keyboard.ts` rather than held as a list |
 | branch-comparison behaviour | git queries and models in `src/core/git.ts`, state and caches in `src/app/comparison.ts`, rows in `ComparePanel` and the detail page in `ComparisonView` |
 | review row or key | `src/app/review.ts` (the notes, their replies, the fetched comments, the rows and what Enter does); `ui/ReviewPanel.tsx` draws `rows()` and reports clicks, the keys sit in `keyboard.ts` beside the git panel's, and the note's shape and where it is persisted are `src/core/review.ts`. A reply is a note carrying `parent`, so anything that lists remarks reads `threadStarts()` rather than `notes()` — a thread is one mark, one heading count and one card |
 | source-control row kind | `ChangeRow` in `src/core/changeTree.ts` — `changeRows` builds the headings and `rowArea`/`rowRel`/`foldKey` are how a row's fold state is addressed, the area being part of the key because one path can sit under both headings at once. `changesFor` answers what a row *stands for*, and reads the change list rather than the rows: a folded folder's files are not in `rows` and staging one still has to reach them |
@@ -1012,8 +1021,18 @@ The editable surfaces — the editor's textarea and `TextInput`, which every pro
 filter and the commit box are built from — take `EDIT_KEYS` (`src/ui/editKeys.ts`),
 OpenTUI's own `defaultTextareaKeyBindings` plus what macOS expects of them: a
 binding is keyed by name plus `ctrl`/`shift`/`meta`/`super`, and the table has no
-`super` row, so Cmd+Backspace did nothing. Extending that list is the supported
-path, so a chord added here is not a trade-off to record.
+`super` row, so Cmd+Backspace did nothing. It is also where Home and End are put
+back on the *line*: OpenTUI gives the bare keys `buffer-home`/`buffer-end`, so End
+threw the reader at the bottom of the file, where every GUI editor spells that
+Ctrl+End — and the `visual-` forms of both, so a wrapped row ends where it wraps,
+as VS Code's do. Extending that list is the supported path (a later entry wins the
+merge), so a chord added here is not a trade-off to record.
+
+What that table holds is also what `BINDABLE` may not take: bare Ctrl+←/→ is the
+textarea's word motion — the chord every editor on Linux and Windows uses for it — and
+the keymap runs *before* the textarea, so a binding there does not shadow the editor
+key, it deletes it. Previous/next tab carried it as an alias and is down to
+Ctrl+Opt+←/→ and Ctrl+PgUp/PgDn for that reason.
 
 Text is selectable with the mouse in the editor's buffer and in a diff pane, and
 nowhere else: every text renderable is selectable by default, so a drag across a tree
@@ -1106,7 +1125,7 @@ slider emits `change`, which is what a scroll listener subscribes to).
 
 Where the native path genuinely does not exist, prefer the *smallest* departure, in this
 order: a public option or event; a public method; a documented subclass hook overridden
-in place (`ignoreScrollOutsideBounds` and `allowScrollPastEnd` in `src/ui/EditorPane.tsx`
+in place (`ignoreScrollOutsideBounds` and `ownScrolling` in `src/ui/EditorPane.tsx`
 are the pattern — a bound original, one named helper, a comment saying which member is
 protected and why the override exists); and, last, reimplementation. Never spell one out
 mid-component, and never patch the same member from two files — one helper, imported.
@@ -1180,7 +1199,7 @@ real app off-screen and gives you the frame as text, so UI is assertable.
 
 ```tsx
 const t = await launch(fixture({ 'a.ts': 'const a = 1\n' }))
-await press(t, i => i.pressEnter())          // opens the file
+await press(t, (i) => i.pressEnter())          // opens the file
 expect(t.captureCharFrame()).toContain('const a = 1')
 ```
 
@@ -1289,6 +1308,12 @@ Some OpenTUI element names are snake_case (`line_number` is the one druk uses).
   length; add to it rather than trusting a type.
 - Prefer the smallest change that fits the surrounding code; match its idiom.
 - Formatting and lint are enforced by oxfmt/oxlint — run them rather than hand-aligning.
+  Both extend [ultracite](https://www.ultracite.ai)'s preset (`ultracite/oxlint/core`,
+  `ultracite/oxfmt`); `oxc.ignore.ts` holds the paths both skip, `**/*.md` among them,
+  since the prose here is wrapped by hand and oxfmt's `proseWrap` would unwrap every
+  paragraph. The rule block in `oxlint.config.ts` is only what the preset and this
+  codebase genuinely disagree on, each entry load-bearing — prefer an
+  `oxlint-disable-next-line` with a reason at the one site over a new entry there.
 - Keep modules focused; if a file is becoming a grab bag, split it along feature lines.
 
 ### Scope

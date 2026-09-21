@@ -17,7 +17,9 @@ import { initRepo } from './repo'
 
 const run = (dir: string, ...args: string[]) => {
   const result = Bun.spawnSync(['git', ...args], { cwd: dir })
-  if (result.exitCode !== 0) throw new Error(result.stderr.toString())
+  if (result.exitCode !== 0) {
+    throw new Error(result.stderr.toString())
+  }
 }
 
 function repo() {
@@ -62,8 +64,8 @@ test('a commit elsewhere closes the page for the file it committed', async () =>
 test('an edit elsewhere to the open file rebuilds the page against HEAD', async () => {
   const dir = repo()
   const t = await launch(dir)
-  await press(t, i => i.pressArrow('down'))
-  await press(t, i => i.pressEnter())
+  await press(t, (i) => i.pressArrow('down'))
+  await press(t, (i) => i.pressEnter())
   await openDiff(t)
   await untilFrame(t, 'alpha changed')
 
@@ -103,9 +105,18 @@ function watchErrors() {
   const original = console.error
   const seen: string[] = []
   console.error = (...args: unknown[]) => {
-    seen.push(args.map(arg => (arg instanceof Error ? arg.message : String(arg))).join(' '))
+    seen.push(
+      args
+        .map((arg) => (arg instanceof Error ? arg.message : String(arg)))
+        .join(' ')
+    )
   }
-  return { seen, stop: () => void (console.error = original) }
+  return {
+    seen,
+    stop: () => {
+      console.error = original
+    },
+  }
 }
 
 test('paging between changes with nothing to show keeps drawing them', async () => {
@@ -115,13 +126,13 @@ test('paging between changes with nothing to show keeps drawing them', async () 
     await openDiff(t, 1)
     await untilFrame(t, 'beta changed')
 
-    await press(t, i => i.pressArrow('down'))
+    await press(t, (i) => i.pressArrow('down'))
     await untilFrame(t, 'No changes in this file')
-    await press(t, i => i.pressArrow('down'))
+    await press(t, (i) => i.pressArrow('down'))
     await untilFrame(t, 'd.ts')
 
-    await press(t, i => i.pressArrow('up'))
-    await press(t, i => i.pressArrow('up'))
+    await press(t, (i) => i.pressArrow('up'))
+    await press(t, (i) => i.pressArrow('up'))
     await untilFrame(t, 'beta changed')
   } finally {
     errors.stop()

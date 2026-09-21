@@ -1,29 +1,37 @@
 import { readdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { join } from 'node:path'
 
 import { entryFor } from '../src/core/market'
 import type { MarketEntry } from '../src/core/market'
 import { parseManifest } from '../src/extensions/manifest'
 import type { Extension } from '../src/extensions/types'
 
-export const MARKET_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', 'extensions')
+export const MARKET_DIR = join(import.meta.dirname, '..', 'extensions')
 export const INDEX_FILE = join(MARKET_DIR, 'index.json')
 
 export function marketIds(dir = MARKET_DIR): string[] {
   return readdirSync(dir, { withFileTypes: true })
-    .filter(entry => entry.isDirectory())
-    .map(entry => entry.name)
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
     .toSorted()
 }
 
 export function readMarket(dir = MARKET_DIR): Extension[] {
-  return marketIds(dir).map(id => {
+  return marketIds(dir).map((id) => {
     const source = join(dir, id, 'extension.json')
-    const { extension, problems } = parseManifest(JSON.parse(readFileSync(source, 'utf8')), source)
-    if (!extension) throw new Error(`${id}: ${problems[0]?.reason ?? 'not an extension'}`)
-    if (problems.length > 0) throw new Error(`${id}: ${problems[0]!.reason}`)
-    if (extension.id !== id) throw new Error(`${id}: manifest declares itself "${extension.id}"`)
+    const { extension, problems } = parseManifest(
+      JSON.parse(readFileSync(source, 'utf-8')),
+      source
+    )
+    if (!extension) {
+      throw new Error(`${id}: ${problems[0]?.reason ?? 'not an extension'}`)
+    }
+    if (problems.length > 0) {
+      throw new Error(`${id}: ${problems[0]!.reason}`)
+    }
+    if (extension.id !== id) {
+      throw new Error(`${id}: manifest declares itself "${extension.id}"`)
+    }
     return extension
   })
 }
@@ -38,5 +46,7 @@ const serialize = (index: { extensions: MarketEntry[] }): string =>
 if (import.meta.main) {
   const index = buildIndex()
   writeFileSync(INDEX_FILE, serialize(index))
-  process.stdout.write(`wrote extensions/index.json — ${index.extensions.length} extensions\n`)
+  process.stdout.write(
+    `wrote extensions/index.json — ${index.extensions.length} extensions\n`
+  )
 }

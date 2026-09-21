@@ -1,7 +1,11 @@
 import { createSignal } from 'solid-js'
 
 import { comparisonCommitDetail, comparisonFileContent } from '../core/git'
-import type { ComparisonCommitDetail, ComparisonContent, ComparisonFile } from '../core/git'
+import type {
+  ComparisonCommitDetail,
+  ComparisonContent,
+  ComparisonFile,
+} from '../core/git'
 import type { Status } from './status'
 
 export function createCommitView(deps: { status: Status }) {
@@ -13,37 +17,60 @@ export function createCommitView(deps: { status: Status }) {
   let generation = 0
 
   const loadContent = async (target: ComparisonFile, run: number) => {
-    if (!repoDir) return
+    if (!repoDir) {
+      return
+    }
     const loaded = await comparisonFileContent(repoDir, target)
-    if (run !== generation) return
-    if (!loaded.ok) return deps.status.say(loaded.detail, 'error')
+    if (run !== generation) {
+      return
+    }
+    if (!loaded.ok) {
+      return deps.status.say(loaded.detail, 'error')
+    }
     setContent(loaded.value)
   }
 
   const open = (repo: string, oid: string) => {
-    const run = ++generation
+    generation += 1
+    const run = generation
     repoDir = repo
     void (async () => {
       const loaded = await comparisonCommitDetail(repo, oid)
-      if (run !== generation) return
-      if (!loaded.ok) return deps.status.say(loaded.detail, 'error')
+      if (run !== generation) {
+        return
+      }
+      if (!loaded.ok) {
+        return deps.status.say(loaded.detail, 'error')
+      }
       setCommit(loaded.value)
       setFileCursor(0)
       setContent(null)
       const first = loaded.value.files[0] ?? null
       setFile(first)
-      if (first) void loadContent(first, run)
+      if (first) {
+        void loadContent(first, run)
+      }
     })()
   }
 
   const moveFile = (delta: number) => {
     const detail = commit()
-    if (!detail) return
-    const next = Math.max(0, Math.min(detail.files.length - 1, fileCursor() + delta))
-    if (next === fileCursor()) return
+    if (!detail) {
+      return
+    }
+    const next = Math.max(
+      0,
+      Math.min(detail.files.length - 1, fileCursor() + delta)
+    )
+    if (next === fileCursor()) {
+      return
+    }
     const target = detail.files[next]
-    if (!target) return
-    const run = ++generation
+    if (!target) {
+      return
+    }
+    generation += 1
+    const run = generation
     setFileCursor(next)
     setFile(target)
     setContent(null)
@@ -51,7 +78,7 @@ export function createCommitView(deps: { status: Status }) {
   }
 
   const close = () => {
-    generation++
+    generation += 1
     setCommit(null)
     setFile(null)
     setContent(null)
@@ -60,7 +87,7 @@ export function createCommitView(deps: { status: Status }) {
 
   const isOpen = () => commit() !== null
 
-  return { commit, file, content, open, moveFile, close, isOpen }
+  return { close, commit, content, file, isOpen, moveFile, open }
 }
 
 export type CommitView = ReturnType<typeof createCommitView>

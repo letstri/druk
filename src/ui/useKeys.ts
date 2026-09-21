@@ -9,7 +9,7 @@ export function useKeys(handler: (key: KeyEvent, latin: string) => void) {
     const text = key.sequence
     const hasText =
       key.source === 'kitty' &&
-      /^[\d:]+;[\d:]*;\d[\d:]*u$/.test(key.raw.slice(2)) &&
+      /^[\d:]+;[\d:]*;\d[\d:]*u$/u.test(key.raw.slice(2)) &&
       text.length > 0 &&
       !/\p{Cc}/u.test(text)
     // `meta` is Alt *or* Meta, so meta without option is a real Meta chord.
@@ -17,14 +17,17 @@ export function useKeys(handler: (key: KeyEvent, latin: string) => void) {
       key.meta = false
       key.option = false
       // Space commits a composition and an IME commit could spell `return`: no name for multi-codepoint text.
-      key.name = [...text].length > 1 ? '' : text === ' ' ? 'space' : text.toLowerCase()
+      key.name =
+        [...text].length > 1 ? '' : text === ' ' ? 'space' : text.toLowerCase()
     }
     // This runs as a global handler, ahead of the focused textarea's own.
     if (!hasText && key.capsLock && !key.ctrl && !key.meta && key.sequence) {
       key.sequence = capsChar(key.sequence, key.shift)
     }
     const latin = latinKey(key)
-    if (key.ctrl || key.meta) key.name = latin
+    if (key.ctrl || key.meta) {
+      key.name = latin
+    }
     handler(key, latin)
   })
 }

@@ -2,7 +2,15 @@ import { basename, dirname } from 'node:path'
 
 import type { BorderSides, MouseEvent } from '@opentui/core'
 import { useRenderer, useTerminalDimensions } from '@opentui/solid'
-import { createEffect, createMemo, createSignal, on, onCleanup, onMount, Show } from 'solid-js'
+import {
+  createEffect,
+  createMemo,
+  createSignal,
+  on,
+  onCleanup,
+  onMount,
+  Show,
+} from 'solid-js'
 
 import { watchAppearance } from '../core/appearance'
 import { loadProjectConfig, resolveConfig } from '../core/config'
@@ -13,7 +21,11 @@ import { hasPathAt } from '../core/imports'
 import { isMarkdownPath } from '../core/markdown'
 import { reportProgress } from '../core/progress'
 import { watchNotes } from '../core/review'
-import { formatTitle, restoreTerminalTitle, setTerminalTitle } from '../core/title'
+import {
+  formatTitle,
+  restoreTerminalTitle,
+  setTerminalTitle,
+} from '../core/title'
 import { checkForUpdate, currentVersion } from '../core/update'
 import { extensionProblems } from '../extensions'
 import { iconFor } from '../icons'
@@ -21,7 +33,7 @@ import { languageLabel } from '../languages'
 import { filetypeForPath } from '../languages/highlight'
 import { SEVERITY_RANK } from '../lsp/protocol'
 import type { ProblemSeverity } from '../lsp/protocol'
-import { servers as serverSpecs } from '../lsp/servers'
+import { resolveServers, servers as serverSpecs } from '../lsp/servers'
 import { ui } from '../themes'
 import { ChangesView } from '../ui/ChangesView'
 import { CommitGraphView } from '../ui/CommitGraphView'
@@ -100,7 +112,7 @@ export function App(props: {
 }) {
   const renderer = useRenderer()
   const dimensions = useTerminalDimensions()
-  const rootDir = props.rootDir
+  const { rootDir } = props
   const projectName = basename(rootDir) || rootDir
   const single = props.openFile ?? null
 
@@ -109,124 +121,126 @@ export function App(props: {
   const status = createStatus()
   copyOnSelect(status.say)
   // First, so a restore's warning is the later, louder message.
-  if (props.notice) status.say(props.notice)
+  if (props.notice) {
+    status.say(props.notice)
+  }
   const project = props.initialProject ?? loadProjectConfig(rootDir)
   const initial = resolveConfig(props.initialConfig, project)
   const editor = createEditorBridge(initial.vim)
   const settings = createSettings({
-    user: props.initialConfig,
+    dimensions,
+    editor,
     project,
     rootDir,
     status,
-    editor,
-    dimensions,
+    user: props.initialConfig,
   })
   const tree = createTree(
     rootDir,
     { expanded: restored.expanded, selected: restored.activePath },
-    () => hiddenNodes(rootDir, settings.config),
+    () => hiddenNodes(rootDir, settings.config)
   )
   const panes = createPanes(tree, restored.sidebar)
-  const preview = createPreview({ tree, panes })
+  const preview = createPreview({ panes, tree })
   const git = createGit(
     rootDir,
     () => settings.config.gitPanelView,
-    () => panes.view() === 'git',
+    () => panes.view() === 'git'
   )
-  const comparison = createComparison({ rootDir, git, status })
+  const comparison = createComparison({ git, rootDir, status })
   const promptState = createPromptState()
-  const lsp = createLsp({ rootDir, settings, status, prompts: promptState })
+  const lsp = createLsp({ prompts: promptState, rootDir, settings, status })
   const market = createMarket({
+    onServersReload: lsp.restart,
+    prompts: promptState,
     rootDir,
     settings,
     status,
-    prompts: promptState,
-    onServersReload: lsp.restart,
   })
 
   lsp.onMissingServer(market.suggestForFiletype)
   onCleanup(lsp.dispose)
   onCleanup(() => reportProgress({ kind: 'off' }))
   const workspace = createWorkspace({
-    rootDir,
-    single,
-    restored,
-    settings,
-    status,
-    tree,
-    panes,
     editor,
     git,
+    panes,
+    restored,
+    rootDir,
     setPrompt: promptState.setPrompt,
+    settings,
+    single,
+    status,
+    tree,
   })
   const extensionsPanel = createExtensionsPanel({
-    settings,
-    market,
-    status,
     lsp,
+    market,
     prompts: promptState,
+    settings,
+    status,
   })
-  const navigation = createNavigation({ workspace, editor, panes, status })
-  const fileOps = createFileOps({ rootDir, status, tree, workspace, renderer })
+  const navigation = createNavigation({ editor, panes, status, workspace })
+  const fileOps = createFileOps({ renderer, rootDir, status, tree, workspace })
   const gitOp = createGitOp({ git, status, workspace })
   const workspaces = createWorkspaces({
-    rootDir,
-    status,
     git,
     gitOp,
-    workspace,
-    setPrompt: promptState.setPrompt,
     open: props.onOpenWorkspace,
+    rootDir,
+    setPrompt: promptState.setPrompt,
+    status,
+    workspace,
   })
-  const branches = createBranches({ status, git, gitOp, prompts: promptState })
+  const branches = createBranches({ git, gitOp, prompts: promptState, status })
   const commitView = createCommitView({ status })
   const commitGraph = createCommitGraph()
   workspace.onPageClose('commit', commitView.close)
   workspace.onPageClose('graph', commitGraph.close)
   workspace.onPageClose('compare', comparison.closeDetail)
   createEffect(
-    on(commitView.isOpen, open =>
-      open ? workspace.openPage('commit') : workspace.closePage('commit'),
-    ),
+    on(commitView.isOpen, (open) =>
+      open ? workspace.openPage('commit') : workspace.closePage('commit')
+    )
   )
   createEffect(
-    on(commitGraph.active, open =>
-      open ? workspace.openPage('graph') : workspace.closePage('graph'),
-    ),
+    on(commitGraph.active, (open) =>
+      open ? workspace.openPage('graph') : workspace.closePage('graph')
+    )
   )
   createEffect(
-    on(comparison.detailOpen, open =>
-      open ? workspace.openPage('compare') : workspace.closePage('compare'),
-    ),
+    on(comparison.detailOpen, (open) =>
+      open ? workspace.openPage('compare') : workspace.closePage('compare')
+    )
   )
   const review = createReview({ rootDir, status, workspace })
   const promptHandlers = createPromptHandlers({
-    renderer,
-    state: promptState,
-    status,
-    tree,
-    panes,
+    branches,
+    commitView,
     editor,
-    workspace,
     fileOps,
     git,
     gitOp,
-    commitView,
-    branches,
     lsp,
     market,
+    panes,
+    renderer,
     review,
+    state: promptState,
+    status,
+    tree,
+    workspace,
     workspaces,
   })
   const overlays = createOverlays({
-    renderer,
-    promptState,
-    workspace,
-    git,
     branches,
     comparison,
-    panes,
     editor,
+    git,
+    panes,
+    promptState,
+    renderer,
+    workspace,
   })
 
   const activeImage = () => {
@@ -242,30 +256,30 @@ export function App(props: {
     preview.target() !== null
 
   const ctx: AppContext = {
-    rootDir,
-    editorCovered,
-    status,
-    settings,
-    tree,
-    panes,
-    preview,
+    branches,
+    commitGraph,
+    commitView,
+    comparison,
     editor,
+    editorCovered,
+    extensions: extensionsPanel,
+    fileOps,
     git,
     gitOp,
     lsp,
     market,
-    extensions: extensionsPanel,
+    navigation,
+    overlays,
+    panes,
+    preview,
+    prompts: { ...promptState, ...promptHandlers },
     review,
-    branches,
-    commitView,
-    commitGraph,
-    comparison,
+    rootDir,
+    settings,
+    status,
+    tree,
     workspace,
     workspaces,
-    navigation,
-    fileOps,
-    prompts: { ...promptState, ...promptHandlers },
-    overlays,
   }
 
   const repoName = createMemo(() => {
@@ -273,7 +287,14 @@ export function App(props: {
     return git.repos().length > 1 && active ? basename(active) : null
   })
 
-  wireGitEffects({ rootDir, git, tree, editor, workspace, config: settings.config })
+  wireGitEffects({
+    config: settings.config,
+    editor,
+    git,
+    rootDir,
+    tree,
+    workspace,
+  })
   wireLspEffects({ lsp, settings, workspace })
   const { commands, actions } = createCommands(ctx)
   const keyboard = installKeyboard(ctx, actions)
@@ -284,34 +305,49 @@ export function App(props: {
 
   // The false branch restores the shell's own title rather than simply skipping.
   createEffect(() => {
-    if (!settings.config.terminalTitle) return restoreTerminalTitle()
+    if (!settings.config.terminalTitle) {
+      return restoreTerminalTitle()
+    }
     const path = workspace.activePath()
-    setTerminalTitle(formatTitle(projectName, path, Boolean(workspace.activeBuffer()?.dirty)))
+    setTerminalTitle(
+      formatTitle(projectName, path, Boolean(workspace.activeBuffer()?.dirty))
+    )
   })
   onCleanup(() => restoreTerminalTitle())
 
   // `statusEntries` is the async fill `revision` only starts: without it the page rebuilds stale.
   createEffect(
     on(
-      () => [git.revision(), editor.reloadKey(), git.diffBase(), git.statusEntries()] as const,
+      () =>
+        [
+          git.revision(),
+          editor.reloadKey(),
+          git.diffBase(),
+          git.statusEntries(),
+        ] as const,
       () => {
         actions.refreshChanges()
         comparison.refresh()
-      },
-    ),
+      }
+    )
   )
 
   // Only on the way in: resting on a heading is how a whole group is staged.
   createEffect(
     on(
-      () => [panes.view(), git.rows().some(row => row.kind === 'file')] as const,
+      () =>
+        [panes.view(), git.rows().some((row) => row.kind === 'file')] as const,
       ([view, hasFile], previous) => {
-        if (view !== 'git' || !hasFile) return
+        if (view !== 'git' || !hasFile) {
+          return
+        }
         const opened = previous?.[0] !== 'git'
-        if (opened || (!previous?.[1] && git.gitCursor() === 0)) actions.gitLandOnFile()
+        if (opened || (!previous?.[1] && git.gitCursor() === 0)) {
+          actions.gitLandOnFile()
+        }
       },
-      { defer: true },
-    ),
+      { defer: true }
+    )
   )
 
   const { config } = settings
@@ -321,14 +357,18 @@ export function App(props: {
   const grip = useHover()
 
   const gripHeight = () =>
-    Math.max(GRIP_MIN, Math.min(GRIP_MAX, Math.round((dimensions().height - 2) / 5)))
+    Math.max(
+      GRIP_MIN,
+      Math.min(GRIP_MAX, Math.round((dimensions().height - 2) / 5))
+    )
 
   // On the left the pointer's x is the width; on the right the sidebar follows the divider at x.
   const sidebarWidthFromPointer = (x: number) =>
     config.sidebarPosition === 'right' ? dimensions().width - x - 1 : x
 
   // The editor's column: every page drawn over its slot is sized from this.
-  const slotWidth = () => dimensions().width - (panes.sidebar() ? settings.treeWidth() + 1 : 0)
+  const slotWidth = () =>
+    dimensions().width - (panes.sidebar() ? settings.treeWidth() + 1 : 0)
 
   const slotHeight = () => dimensions().height - 2
 
@@ -338,13 +378,24 @@ export function App(props: {
   }
 
   const problemLines = createMemo(() => {
-    const lines = new Map<number, { severity: ProblemSeverity; message: string }>()
+    const lines = new Map<
+      number,
+      { severity: ProblemSeverity; message: string }
+    >()
     const path = workspace.activePath()
-    if (!path) return lines
+    if (!path) {
+      return lines
+    }
     for (const problem of lsp.problems[path] ?? []) {
       const held = lines.get(problem.line)
-      if (!held || SEVERITY_RANK[problem.severity] < SEVERITY_RANK[held.severity]) {
-        lines.set(problem.line, { severity: problem.severity, message: problem.message })
+      if (
+        !held ||
+        SEVERITY_RANK[problem.severity] < SEVERITY_RANK[held.severity]
+      ) {
+        lines.set(problem.line, {
+          message: problem.message,
+          severity: problem.severity,
+        })
       }
     }
     return lines
@@ -358,25 +409,43 @@ export function App(props: {
   const tabSeverity = (path: string): 'error' | 'warning' | null => {
     let worst: 'warning' | null = null
     for (const problem of lsp.problems[path] ?? []) {
-      if (problem.severity === 'error') return 'error'
-      if (problem.severity === 'warning') worst = 'warning'
+      if (problem.severity === 'error') {
+        return 'error'
+      }
+      if (problem.severity === 'warning') {
+        worst = 'warning'
+      }
     }
     return worst
   }
 
   const pathUnderCursor = createMemo(() => {
     const path = workspace.activePath()
-    if (!path || activeImage() || workspace.renderedPath()) return false
+    if (!path || activeImage() || workspace.renderedPath()) {
+      return false
+    }
     const at = editor.cursor()
     const line = workspace.buffers[path]?.content.split('\n')[at.line]
     return line !== undefined && hasPathAt(line, at.col)
   })
 
+  const definitionServed = createMemo(() => {
+    const path = workspace.activePath()
+    if (!path || !config.lsp || activeImage() || workspace.renderedPath()) {
+      return false
+    }
+    return resolveServers(filetypeForPath(path), config.lspServers).length > 0
+  })
+
   // The changes page's own header is at the top of the editor slot: a reader in the sidebar
   // never looks there, and Tab is how they get in at all.
   const changesHints = (): Hint[] => {
-    if (workspace.page() !== 'allChanges') return []
-    if (panes.focus() !== 'editor') return [{ key: 'Tab', label: 'file', rank: 4 }]
+    if (workspace.page() !== 'allChanges') {
+      return []
+    }
+    if (panes.focus() !== 'editor') {
+      return [{ key: 'Tab', label: 'file', rank: 4 }]
+    }
     return [
       { key: 'Tab', label: 'file', rank: 4 },
       { key: 'Enter', label: 'open', rank: 5 },
@@ -385,10 +454,12 @@ export function App(props: {
   }
 
   const graphHints = (): Hint[] => {
-    if (workspace.page() !== 'graph' || panes.focus() !== 'editor') return []
+    if (workspace.page() !== 'graph' || panes.focus() !== 'editor') {
+      return []
+    }
     return [
       { key: 'Enter', label: 'details', rank: 4 },
-      { key: 'o', label: 'remote', rank: 5, id: 'git.openCommitWeb' },
+      { id: 'git.openCommitWeb', key: 'o', label: 'remote', rank: 5 },
       { key: 'Esc', label: panes.sidebar() ? 'sidebar' : 'close', rank: 6 },
     ]
   }
@@ -398,20 +469,25 @@ export function App(props: {
     let errors = 0
     let warnings = 0
     for (const problem of (path ? lsp.problems[path] : undefined) ?? []) {
-      if (problem.severity === 'error') errors++
-      else if (problem.severity === 'warning') warnings++
+      if (problem.severity === 'error') {
+        errors += 1
+      } else if (problem.severity === 'warning') {
+        warnings += 1
+      }
     }
     return { errors, warnings }
   })
 
   const serverList = createMemo(() =>
-    Object.values(lsp.servers).toSorted((a, b) => a.id.localeCompare(b.id)),
+    Object.values(lsp.servers).toSorted((a, b) => a.id.localeCompare(b.id))
   )
 
   // Keyed on the view, not the path: a page over the editor slot has nothing to render.
   const markdownTab = () => {
     const view = workspace.activeView()
-    if (!view || !isMarkdownPath(view)) return null
+    if (!view || !isMarkdownPath(view)) {
+      return null
+    }
     return { rendered: view === workspace.renderedPath() }
   }
 
@@ -422,27 +498,36 @@ export function App(props: {
 
   onMount(() => {
     const { invalid, conflicts } = settings.keymap()
-    const bad = invalid[0]
-    const clash = conflicts.find(entry => entry.rejected)
-    const badExtension = extensionProblems()[0]
+    const [bad] = invalid
+    const clash = conflicts.find((entry) => entry.rejected)
+    const [badExtension] = extensionProblems()
     const unknownServer = Object.keys(settings.config.lspServers).find(
-      id => !serverSpecs().some(spec => spec.id === id),
+      (id) => !serverSpecs().some((spec) => spec.id === id)
     )
-    if (bad) say(`Shortcut "${bad.value}" for ${bad.label}: ${bad.reason}`, 'warn')
-    else if (clash) {
+    if (bad) {
+      say(`Shortcut "${bad.value}" for ${bad.label}: ${bad.reason}`, 'warn')
+    } else if (clash) {
       say(
         `${clash.key} is bound twice — ${clash.winner} keeps it, ${clash.loser} has no key`,
-        'warn',
+        'warn'
       )
     } else if (badExtension) {
-      say(`Extension ${basename(dirname(badExtension.source))}: ${badExtension.reason}`, 'warn')
+      say(
+        `Extension ${basename(dirname(badExtension.source))}: ${badExtension.reason}`,
+        'warn'
+      )
     } else if (unknownServer) {
-      say(`lspServers: no installed extension brings a server "${unknownServer}"`, 'warn')
+      say(
+        `lspServers: no installed extension brings a server "${unknownServer}"`,
+        'warn'
+      )
     }
-    if (restored.failed) workspace.setNotice({ name: basename(single!), reason: restored.failed })
+    if (restored.failed) {
+      workspace.setNotice({ name: basename(single!), reason: restored.failed })
+    }
     const line = props.openLine
     const buffer = workspace.activeBuffer()
-    if (line != null && buffer) {
+    if (line !== null && line !== undefined && buffer) {
       const lines = buffer.content.split('\n')
       const row = Math.min(line, lines.length - 1)
       editor.requestGoto(row, Math.min(props.openCol ?? 0, lines[row]!.length))
@@ -453,15 +538,19 @@ export function App(props: {
   createEffect(
     on(
       () => config.themeSync,
-      sync => {
-        if (!sync) return
+      (sync) => {
+        if (!sync) {
+          return
+        }
         onCleanup(watchAppearance(settings.applyAppearance))
-      },
-    ),
+      }
+    )
   )
 
   onMount(() => {
-    if (props.checkUpdates === false) return
+    if (props.checkUpdates === false) {
+      return
+    }
     let cancelled = false
     onCleanup(() => {
       cancelled = true
@@ -479,57 +568,74 @@ export function App(props: {
   createEffect(
     on(
       () => panes.sidebar() && panes.view() === 'extensions',
-      showing => {
-        if (showing) void market.openPanel()
-      },
-    ),
+      (showing) => {
+        if (showing) {
+          void market.openPanel()
+        }
+      }
+    )
   )
 
   // The count, not the view: a note another writer adds under an open panel changes no view.
   createEffect(
     on(
-      () => (panes.sidebar() && panes.view() === 'review' ? review.count() : -1),
-      count => {
-        if (count > 0 && panes.focus() === 'tree') actions.reviewShow()
-      },
-    ),
+      () =>
+        panes.sidebar() && panes.view() === 'review' ? review.count() : -1,
+      (count) => {
+        if (count > 0 && panes.focus() === 'tree') {
+          actions.reviewShow()
+        }
+      }
+    )
   )
 
   // OpenTUI's key parser swallows CSI I / CSI O, so raw stdin is the only place to see a blur.
   onMount(() => {
-    if (process.stdout.isTTY) process.stdout.write('\x1B[?1004h')
+    if (process.stdout.isTTY) {
+      process.stdout.write('\u001B[?1004h')
+    }
     const onStdin = (chunk: Buffer | string) => {
-      if (config.autoSaveOnBlur && chunk.toString().includes('\x1B[O')) {
+      if (config.autoSaveOnBlur && chunk.toString().includes('\u001B[O')) {
         workspace.saveDirtyOnBlur()
       }
     }
     renderer.stdin.on('data', onStdin)
     onCleanup(() => {
       renderer.stdin.off('data', onStdin)
-      if (process.stdout.isTTY) process.stdout.write('\x1B[?1004l')
+      if (process.stdout.isTTY) {
+        process.stdout.write('\u001B[?1004l')
+      }
     })
   })
 
   createEffect(
-    on(git.repos, repos => {
+    on(git.repos, (repos) => {
       const stops = repos
-        .filter(repo => repo !== rootDir)
-        .map(repo => watchGitRefs(repo, () => git.bump()))
+        .filter((repo) => repo !== rootDir)
+        .map((repo) => watchGitRefs(repo, () => git.bump()))
       onCleanup(() => {
-        for (const stop of stops) stop()
+        for (const stop of stops) {
+          stop()
+        }
       })
-    }),
+    })
   )
 
   onMount(() => onCleanup(watchNotes(review.reloadNotes)))
 
   onMount(() =>
     onCleanup(
-      watchTree(rootDir, changed => {
-        if (changed.git) git.bump()
+      watchTree(rootDir, (changed) => {
+        if (changed.git) {
+          git.bump()
+        }
         // No server watches its own node_modules — see `dependenciesChanged`.
-        if (changed.deps) lsp.dependenciesChanged()
-        if (!changed.tree) return
+        if (changed.deps) {
+          lsp.dependenciesChanged()
+        }
+        if (!changed.tree) {
+          return
+        }
         const warning = workspace.clashWarning(workspace.syncFromDisk())
         if (warning) {
           say(warning, 'warn')
@@ -539,18 +645,27 @@ export function App(props: {
         ) {
           say(READY)
         }
-      }),
-    ),
+      })
+    )
   )
 
   return (
-    <box flexDirection="column" width="100%" height="100%" backgroundColor={ui.bg}>
+    <box
+      flexDirection="column"
+      width="100%"
+      height="100%"
+      backgroundColor={ui.bg}
+    >
       {/* Drag capture is on the row, not the divider: the pointer leaves a one-column target at once. */}
       <box
-        flexDirection={config.sidebarPosition === 'right' ? 'row-reverse' : 'row'}
+        flexDirection={
+          config.sidebarPosition === 'right' ? 'row-reverse' : 'row'
+        }
         flexGrow={1}
         onMouseDrag={(event: MouseEvent) => {
-          if (resizing()) settings.resizeSidebar(sidebarWidthFromPointer(event.x))
+          if (resizing()) {
+            settings.resizeSidebar(sidebarWidthFromPointer(event.x))
+          }
         }}
         onMouseDragEnd={() => setResizing(false)}
         onMouseUp={() => setResizing(false)}
@@ -567,7 +682,7 @@ export function App(props: {
               focused={panes.focus() === 'tree'}
               width={settings.treeWidth()}
               reviewCount={review.count()}
-              onSelect={view => panes.showView(view)}
+              onSelect={(view) => panes.showView(view)}
             />
             <Show when={panes.view() === 'extensions'}>
               <ExtensionsPanel
@@ -608,12 +723,12 @@ export function App(props: {
                 cutPaths={fileOps.cut()}
                 markedPaths={tree.marked()}
                 iconTheme={settings.activeIconTheme()}
-                onActivate={node => {
+                onActivate={(node) => {
                   // Leaving preview on would put it back over the file on the way to the tree.
                   preview.close()
                   workspace.activateNode(node)
                 }}
-                onPin={node => workspace.pinTab(node.path)}
+                onPin={(node) => workspace.pinTab(node.path)}
                 onFocus={() => panes.setFocus('tree')}
                 onCollapseAll={tree.collapseAll}
                 onSwitchWorkspace={workspaces.pick}
@@ -639,7 +754,10 @@ export function App(props: {
                     commitMessage={git.commitMessage()}
                     messageEditing={git.messageEditing()}
                     hasMessageHistory={git.messageHistory().length > 0}
-                    hasUpstream={git.upstream()?.name != null}
+                    hasUpstream={
+                      git.upstream()?.name !== null &&
+                      git.upstream()?.name !== undefined
+                    }
                     onFocus={() => panes.setFocus('tree')}
                     onActivate={actions.gitActivateRow}
                     onCollapseAll={actions.gitCollapseAll}
@@ -666,7 +784,7 @@ export function App(props: {
                   width={settings.treeWidth()}
                   error={comparison.error()}
                   onFocus={() => panes.setFocus('tree')}
-                  onActivate={index => {
+                  onActivate={(index) => {
                     if (comparison.mode() === 'files') {
                       comparison.move(index - comparison.fileCursor())
                     } else {
@@ -696,7 +814,9 @@ export function App(props: {
               flexShrink={0}
               backgroundColor={ui.bg}
               border={BORDER_LEFT}
-              borderColor={resizing() ? ui.accent : grip.hovered() ? ui.dim : ui.border}
+              borderColor={
+                resizing() ? ui.accent : grip.hovered() ? ui.dim : ui.border
+              }
               onMouseDown={startResize}
             />
           </box>
@@ -704,22 +824,25 @@ export function App(props: {
         <box flexGrow={1} flexDirection="column">
           <Tabs
             width={slotWidth()}
-            tabs={workspace.views().map(id => {
+            tabs={workspace.views().map((id) => {
               const kind = pageKindOf(id)
               return {
+                dirty: workspace.buffers[id]?.dirty ?? false,
+                icon:
+                  config.tabIcons && !kind && id !== workspace.renderedPath()
+                    ? iconFor(settings.activeIconTheme(), {
+                        isDir: false,
+                        name: basename(id),
+                      })
+                    : null,
                 id,
                 name: kind
                   ? PAGE_TITLES[kind]
                   : id === workspace.renderedPath()
                     ? `¶ ${basename(id)}`
                     : basename(id),
-                dirty: workspace.buffers[id]?.dirty ?? false,
                 preview: id === workspace.previewPath(),
                 severity: kind ? null : tabSeverity(id),
-                icon:
-                  config.tabIcons && !kind && id !== workspace.renderedPath()
-                    ? iconFor(settings.activeIconTheme(), { name: basename(id), isDir: false })
-                    : null,
               }
             })}
             activeId={workspace.activeView()}
@@ -741,7 +864,9 @@ export function App(props: {
               branch={git.branch()}
               version={currentVersion()}
               filetype={
-                workspace.activePath() ? filetypeForPath(workspace.activePath()!) : undefined
+                workspace.activePath()
+                  ? filetypeForPath(workspace.activePath()!)
+                  : undefined
               }
               // The terminal's cursor tracks the focused textarea over everything, bleeding into a page.
               focused={panes.focus() === 'editor' && !editorCovered()}
@@ -764,20 +889,28 @@ export function App(props: {
               conflicts={workspace.mergeConflicts()}
               reviews={review.marks()}
               reviewText={config.reviewInline}
-              reviewCard={panes.sidebar() && panes.view() === 'review' ? review.card() : null}
+              reviewCard={
+                panes.sidebar() && panes.view() === 'review'
+                  ? review.card()
+                  : null
+              }
               complete={
                 config.lsp && config.lspCompletion
                   ? (line, col) => {
                       const path = workspace.activePath()
-                      return path ? lsp.complete(path, line, col) : Promise.resolve(null)
+                      return path
+                        ? lsp.complete(path, line, col)
+                        : Promise.resolve(null)
                     }
                   : null
               }
               resolveCompletion={
                 config.lsp && config.lspCompletion
-                  ? item => {
+                  ? (item) => {
                       const path = workspace.activePath()
-                      return path ? lsp.resolveCompletion(path, item) : Promise.resolve(null)
+                      return path
+                        ? lsp.resolveCompletion(path, item)
+                        : Promise.resolve(null)
                     }
                   : null
               }
@@ -795,7 +928,14 @@ export function App(props: {
             />
             <Show when={activeImage()}>
               {(path: () => string) => (
-                <box position="absolute" top={0} left={0} width="100%" height="100%" zIndex={40}>
+                <box
+                  position="absolute"
+                  top={0}
+                  left={0}
+                  width="100%"
+                  height="100%"
+                  zIndex={40}
+                >
                   <ImageView
                     path={path()}
                     width={slotWidth()}
@@ -808,7 +948,14 @@ export function App(props: {
             </Show>
             <Show when={workspace.renderedPath()}>
               {(path: () => string) => (
-                <box position="absolute" top={0} left={0} width="100%" height="100%" zIndex={40}>
+                <box
+                  position="absolute"
+                  top={0}
+                  left={0}
+                  width="100%"
+                  height="100%"
+                  zIndex={40}
+                >
                   <MarkdownView
                     path={path()}
                     name={basename(path())}
@@ -823,7 +970,14 @@ export function App(props: {
               )}
             </Show>
             <Show when={workspace.page() === 'settings'}>
-              <box position="absolute" top={0} left={0} width="100%" height="100%" zIndex={60}>
+              <box
+                position="absolute"
+                top={0}
+                left={0}
+                width="100%"
+                height="100%"
+                zIndex={60}
+              >
                 <SettingsView
                   rows={settings.rows()}
                   scope={settings.scope()}
@@ -838,7 +992,14 @@ export function App(props: {
               </box>
             </Show>
             <Show when={workspace.page() === 'lspStatus'}>
-              <box position="absolute" top={0} left={0} width="100%" height="100%" zIndex={60}>
+              <box
+                position="absolute"
+                top={0}
+                left={0}
+                width="100%"
+                height="100%"
+                zIndex={60}
+              >
                 <LspStatusView
                   servers={serverList()}
                   width={slotWidth()}
@@ -852,12 +1013,21 @@ export function App(props: {
               </box>
             </Show>
             <Show when={workspace.page() === 'allChanges'}>
-              <box position="absolute" top={0} left={0} width="100%" height="100%" zIndex={60}>
+              <box
+                position="absolute"
+                top={0}
+                left={0}
+                width="100%"
+                height="100%"
+                zIndex={60}
+              >
                 <ChangesView
                   sections={actions.allChanges()}
                   meta={actions.allChangesMeta()}
                   focusKey={rowSlotKey(git.cursorRow())}
-                  title={git.diffBase() ? `Against ${git.diffBase()}` : 'Uncommitted'}
+                  title={
+                    git.diffBase() ? `Against ${git.diffBase()}` : 'Uncommitted'
+                  }
                   mode={config.diffView}
                   width={slotWidth()}
                   focused={panes.focus() === 'editor'}
@@ -868,13 +1038,24 @@ export function App(props: {
                   onToggleStage={actions.gitToggleStageKey}
                   onOpen={actions.openChangeKey}
                   escLabel={panes.sidebar() ? 'sidebar' : 'close'}
-                  onClose={() => (panes.sidebar() ? panes.showView('git') : workspace.closePage())}
+                  onClose={() =>
+                    panes.sidebar()
+                      ? panes.showView('git')
+                      : workspace.closePage()
+                  }
                 />
               </box>
             </Show>
             <Show when={preview.target()}>
               {(target: () => PreviewTarget) => (
-                <box position="absolute" top={0} left={0} width="100%" height="100%" zIndex={65}>
+                <box
+                  position="absolute"
+                  top={0}
+                  left={0}
+                  width="100%"
+                  height="100%"
+                  zIndex={65}
+                >
                   <PreviewPane
                     path={target().path}
                     isDir={target().isDir}
@@ -888,7 +1069,14 @@ export function App(props: {
               )}
             </Show>
             <Show when={workspace.page() === 'compare'}>
-              <box position="absolute" top={0} left={0} width="100%" height="100%" zIndex={55}>
+              <box
+                position="absolute"
+                top={0}
+                left={0}
+                width="100%"
+                height="100%"
+                zIndex={55}
+              >
                 <ComparisonView
                   file={comparison.selectedFile()}
                   content={comparison.selectedContent()}
@@ -905,7 +1093,14 @@ export function App(props: {
               </box>
             </Show>
             <Show when={workspace.page() === 'graph'}>
-              <box position="absolute" top={0} left={0} width="100%" height="100%" zIndex={55}>
+              <box
+                position="absolute"
+                top={0}
+                left={0}
+                width="100%"
+                height="100%"
+                zIndex={55}
+              >
                 <CommitGraphView
                   rows={commitGraph.rows()}
                   cursor={commitGraph.cursor()}
@@ -921,12 +1116,23 @@ export function App(props: {
                   onMoveTo={commitGraph.moveTo}
                   onOpen={actions.openGraphCommit}
                   onOpenWeb={actions.openCommitOnWeb}
-                  onClose={() => (panes.sidebar() ? panes.showView('git') : commitGraph.close())}
+                  onClose={() =>
+                    panes.sidebar()
+                      ? panes.showView('git')
+                      : commitGraph.close()
+                  }
                 />
               </box>
             </Show>
             <Show when={workspace.page() === 'commit'}>
-              <box position="absolute" top={0} left={0} width="100%" height="100%" zIndex={55}>
+              <box
+                position="absolute"
+                top={0}
+                left={0}
+                width="100%"
+                height="100%"
+                zIndex={55}
+              >
                 <ComparisonView
                   file={commitView.file()}
                   content={commitView.content()}
@@ -952,7 +1158,9 @@ export function App(props: {
           activeImage()
             ? 'image'
             : workspace.activePath()
-              ? languageLabel(filetypeForPath(workspace.activePath()!) ?? 'plain')
+              ? languageLabel(
+                  filetypeForPath(workspace.activePath()!) ?? 'plain'
+                )
               : undefined
         }
         // A viewer tab has no caret: the numbers would be wherever the editor last was.
@@ -962,7 +1170,9 @@ export function App(props: {
             : undefined
         }
         dirty={workspace.activeBuffer()?.dirty ?? false}
-        vimMode={workspace.activePath() && !activeImage() ? editor.vimMode() : null}
+        vimMode={
+          workspace.activePath() && !activeImage() ? editor.vimMode() : null
+        }
         repo={repoName()}
         branch={git.branch()}
         ahead={git.upstream()?.ahead ?? 0}
@@ -971,6 +1181,7 @@ export function App(props: {
         problems={problemCounts()}
         focus={panes.keyPane()}
         pathUnderCursor={panes.keyPane() === 'editor' && pathUnderCursor()}
+        definitionServed={panes.keyPane() === 'editor' && definitionServed()}
         extraHints={[...changesHints(), ...graphHints()]}
         busy={status.busy()}
         onBranch={actions.gitSwitchBranch}

@@ -18,7 +18,11 @@ describe('welcome screen', () => {
   })
 
   test('trims the key list instead of overflowing a short terminal', async () => {
-    const t = await launch(fixture({ 'a.ts': 'const a = 1\n' }), {}, { height: 10 })
+    const t = await launch(
+      fixture({ 'a.ts': 'const a = 1\n' }),
+      {},
+      { height: 10 }
+    )
     const frame = t.captureCharFrame()
 
     expect(frame).toContain('druk')
@@ -27,8 +31,8 @@ describe('welcome screen', () => {
 
   test('goes away once a file is open', async () => {
     const t = await launch(fixture({ 'a.ts': 'const a = 1\n' }))
-    await press(t, i => i.pressArrow('down'))
-    await press(t, i => i.pressEnter())
+    await press(t, (i) => i.pressArrow('down'))
+    await press(t, (i) => i.pressEnter())
 
     const frame = t.captureCharFrame()
     expect(frame).toContain('const a = 1')

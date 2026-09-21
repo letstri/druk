@@ -1,6 +1,14 @@
 import { expect, test } from 'bun:test'
 
-import { fixture, launch, openFile, pressEscape, runCommand, settle, until } from './helpers'
+import {
+  fixture,
+  launch,
+  openFile,
+  pressEscape,
+  runCommand,
+  settle,
+  until,
+} from './helpers'
 import type { Harness } from './helpers'
 
 const DOC = `# Title
@@ -60,7 +68,7 @@ test('the rendered view shows unsaved edits, not the file on disk', async () => 
 })
 
 test('the tab strip carries the rendered view as a button, on markdown tabs only', async () => {
-  const t = await launch(fixture({ 'doc.md': DOC, 'a.ts': 'const a = 1\n' }))
+  const t = await launch(fixture({ 'a.ts': 'const a = 1\n', 'doc.md': DOC }))
   await openFile(t, 'doc.md')
   await until(t, () => frame(t).includes('¶ preview'))
 
@@ -82,7 +90,7 @@ test('a file that is not markdown says so instead of rendering', async () => {
 })
 
 test('markdownPreview opens a markdown file rendered, and the toggle still reaches the source', async () => {
-  const t = await launch(fixture({ 'doc.md': DOC, 'a.ts': 'const a = 1\n' }), {
+  const t = await launch(fixture({ 'a.ts': 'const a = 1\n', 'doc.md': DOC }), {
     markdownPreview: true,
   })
   await openFile(t, 'doc.md')

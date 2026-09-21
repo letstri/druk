@@ -17,7 +17,9 @@ describe('toggleComment', () => {
 
   test('a block comments at its shallowest indent', () => {
     const text = '  if (x) {\n    y()\n  }\n'
-    expect(toggleComment(text, 0, 2, '//')).toBe('  // if (x) {\n  //   y()\n  // }\n')
+    expect(toggleComment(text, 0, 2, '//')).toBe(
+      '  // if (x) {\n  //   y()\n  // }\n'
+    )
   })
 
   test('a mixed block gets commented, not toggled line by line', () => {

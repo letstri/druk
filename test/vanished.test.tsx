@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { rmSync } from 'node:fs'
 import { join } from 'node:path'
+import { setTimeout as sleep } from 'node:timers/promises'
 
 import { fixture, launch, openFile, press, settle } from './helpers'
 import type { Harness } from './helpers'
@@ -12,7 +13,7 @@ async function open(t: Harness, name: string) {
 }
 
 async function watcherSettles(t: Harness) {
-  await new Promise(resolve => setTimeout(resolve, 300))
+  await sleep(300)
   await settle(t)
 }
 
@@ -50,7 +51,7 @@ describe('a file deleted outside the editor', () => {
     const dir = fixture(PROJECT)
     const t = await launch(dir)
     await open(t, 'a.ts')
-    await press(t, input => void input.typeText('EDIT'))
+    await press(t, (input) => input.typeText('EDIT'))
 
     rmSync(join(dir, 'a.ts'))
     await watcherSettles(t)
@@ -59,7 +60,7 @@ describe('a file deleted outside the editor', () => {
     expect(frame.split('\n')[0]).toContain('a.ts')
     expect(frame).toContain('EDITconst a = 1')
 
-    await press(t, input => input.pressKey('s', { ctrl: true }))
+    await press(t, (input) => input.pressKey('s', { ctrl: true }))
     expect(t.captureCharFrame()).toContain('was deleted on disk')
   })
 
@@ -67,7 +68,7 @@ describe('a file deleted outside the editor', () => {
     const dir = fixture(PROJECT)
     const t = await launch(dir)
     await open(t, 'a.ts')
-    await press(t, input => void input.typeText('EDIT'))
+    await press(t, (input) => input.typeText('EDIT'))
 
     rmSync(join(dir, 'a.ts'))
     await watcherSettles(t)

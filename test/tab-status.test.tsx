@@ -1,7 +1,15 @@
 import { expect, test } from 'bun:test'
 import { join } from 'node:path'
 
-import { fixture, launch, loadMarketExtensions, openFile, press, until } from './helpers'
+import {
+  fixture,
+  launch,
+  loadMarketExtensions,
+  openFile,
+  press,
+  servedBy,
+  until,
+} from './helpers'
 
 loadMarketExtensions()
 
@@ -9,45 +17,48 @@ const FAKE = join(import.meta.dir, 'fixtures', 'fake-lsp.ts')
 
 const LSP_WAIT = 15_000
 
-const tabRow = (t: Awaited<ReturnType<typeof launch>>) => t.captureCharFrame().split('\n')[0]!
+const tabRow = (t: Awaited<ReturnType<typeof launch>>) =>
+  t.captureCharFrame().split('\n')[0]!
 
 const withFake = (dir: string) =>
   launch(
     dir,
-    { lsp: true, lspServers: { typescript: [process.execPath, FAKE], eslint: [], oxlint: [] } },
+    servedBy(process.execPath, FAKE),
     {},
-    { openFile: join(dir, 'a.ts') },
+    { openFile: join(dir, 'a.ts') }
   )
 
 test('a tab wears the mark of its file worst diagnostic', async () => {
   const t = await withFake(fixture({ 'a.ts': 'const a = 1\n' }))
 
-  await press(t, input => void input.typeText('nag'))
+  await press(t, (input) => input.typeText('nag'))
   await until(t, () => tabRow(t).includes('▲ a.ts'), LSP_WAIT)
 
-  await press(t, input => void input.typeText('oops'))
+  await press(t, (input) => input.typeText('oops'))
   await until(t, () => tabRow(t).includes('● a.ts'), LSP_WAIT)
-}, 30000)
+}, 30_000)
 
 test('the mark goes when the diagnostics do', async () => {
   const t = await withFake(fixture({ 'a.ts': 'const a = 1\n' }))
 
-  await press(t, input => void input.typeText('oops'))
+  await press(t, (input) => input.typeText('oops'))
   await until(t, () => tabRow(t).includes('● a.ts'), LSP_WAIT)
 
-  for (let at = 0; at < 4; at++) await press(t, input => input.pressBackspace())
+  for (let at = 0; at < 4; at += 1) {
+    await press(t, (input) => input.pressBackspace())
+  }
   await until(t, () => !tabRow(t).includes('● a.ts'), LSP_WAIT)
   expect(tabRow(t)).toContain('a.ts')
-}, 30000)
+}, 30_000)
 
 test('a modified tab is marked, and unmarked once it is saved', async () => {
   const dir = fixture({ 'a.ts': 'const a = 1\n' })
   const t = await launch(dir, {}, {}, { openFile: join(dir, 'a.ts') })
 
-  await press(t, input => void input.typeText('x'))
+  await press(t, (input) => input.typeText('x'))
   expect(tabRow(t)).toContain('a.ts ●')
 
-  await press(t, input => input.pressKey('s', { ctrl: true }))
+  await press(t, (input) => input.pressKey('s', { ctrl: true }))
   await until(t, () => !tabRow(t).includes('a.ts ●'))
 })
 

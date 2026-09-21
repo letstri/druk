@@ -4,7 +4,7 @@ import { dirname, isAbsolute, join, resolve } from 'node:path'
 
 const QUOTES = new Set(['"', "'", '`'])
 
-const PATH_CHAR = /[\w@~./\\#$+-]/
+const PATH_CHAR = /[\w@~./\\#$+-]/u
 
 /** Source before compiled output, so `./foo` lands on `foo.ts` and not a built `foo.js`. */
 const EXTENSIONS = [
@@ -25,7 +25,7 @@ const EXTENSIONS = [
   '.md',
 ]
 
-const URL_SCHEME = /^[a-z][a-z\d+.-]*:\/\//i
+const URL_SCHEME = /^[a-z][a-z\d+.-]*:\/\//iu
 
 const isFile = (path: string): boolean => {
   try {
@@ -36,13 +36,19 @@ const isFile = (path: string): boolean => {
 }
 
 function quotedAt(lineText: string, col: number): string | null {
-  for (let at = 0; at < lineText.length; at++) {
+  for (let at = 0; at < lineText.length; at += 1) {
     const quote = lineText[at]!
-    if (!QUOTES.has(quote)) continue
+    if (!QUOTES.has(quote)) {
+      continue
+    }
     const close = lineText.indexOf(quote, at + 1)
-    if (close < 0) return null
+    if (close === -1) {
+      return null
+    }
     // Inclusive of both quotes: the caret sits *before* its character.
-    if (col >= at && col <= close) return lineText.slice(at + 1, close)
+    if (col >= at && col <= close) {
+      return lineText.slice(at + 1, close)
+    }
     at = close
   }
   return null
@@ -50,26 +56,38 @@ function quotedAt(lineText: string, col: number): string | null {
 
 export function pathTokenAt(lineText: string, col: number): string | null {
   const quoted = quotedAt(lineText, col)
-  if (quoted !== null) return quoted.trim() || null
+  if (quoted !== null) {
+    return quoted.trim() || null
+  }
 
   const at = Math.max(0, Math.min(col, lineText.length))
   let start = at
-  while (start > 0 && PATH_CHAR.test(lineText[start - 1]!)) start--
+  while (start > 0 && PATH_CHAR.test(lineText[start - 1]!)) {
+    start -= 1
+  }
   let end = at
-  while (end < lineText.length && PATH_CHAR.test(lineText[end]!)) end++
+  while (end < lineText.length && PATH_CHAR.test(lineText[end]!)) {
+    end += 1
+  }
   // Sentence punctuation is the prose's: `see src/core/fs.ts.` names a file that exists.
-  const token = lineText.slice(start, end).replace(/[.,;:]+$/, '')
+  const token = lineText.slice(start, end).replace(/[.,;:]+$/u, '')
   return token || null
 }
 
 function fileAt(candidate: string): string | null {
-  if (isFile(candidate)) return candidate
+  if (isFile(candidate)) {
+    return candidate
+  }
   for (const ext of EXTENSIONS) {
-    if (isFile(candidate + ext)) return candidate + ext
+    if (isFile(candidate + ext)) {
+      return candidate + ext
+    }
   }
   for (const ext of EXTENSIONS) {
     const index = join(candidate, `index${ext}`)
-    if (isFile(index)) return index
+    if (isFile(index)) {
+      return index
+    }
   }
   return null
 }
@@ -77,18 +95,24 @@ function fileAt(candidate: string): string | null {
 type Json = Record<string, unknown>
 
 const objectAt = (value: unknown): Json | null =>
-  typeof value === 'object' && value !== null && !Array.isArray(value) ? (value as Json) : null
+  typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? (value as Json)
+    : null
 
 // One pass: a regex stripping comments would gut a string holding a slash pair.
 function parseJsonc(text: string): unknown {
   let out = ''
   let inString = false
-  for (let at = 0; at < text.length; at++) {
+  for (let at = 0; at < text.length; at += 1) {
     const char = text[at]!
     if (inString) {
       out += char
-      if (char === '\\') out += text[++at] ?? ''
-      else if (char === '"') inString = false
+      if (char === '\\') {
+        at += 1
+        out += text[at] ?? ''
+      } else if (char === '"') {
+        inString = false
+      }
       continue
     }
     if (char === '"') {
@@ -97,36 +121,46 @@ function parseJsonc(text: string): unknown {
       continue
     }
     if (char === '/' && text[at + 1] === '/') {
-      while (at < text.length && text[at] !== '\n') at++
+      while (at < text.length && text[at] !== '\n') {
+        at += 1
+      }
       out += '\n'
       continue
     }
     if (char === '/' && text[at + 1] === '*') {
       const end = text.indexOf('*/', at + 2)
-      at = end < 0 ? text.length : end + 1
+      at = end === -1 ? text.length : end + 1
       continue
     }
     if (
       char === ',' &&
-      (nextMeaningful(text, at + 1) === '}' || nextMeaningful(text, at + 1) === ']')
-    )
+      (nextMeaningful(text, at + 1) === '}' ||
+        nextMeaningful(text, at + 1) === ']')
+    ) {
       continue
+    }
     out += char
   }
   return JSON.parse(out)
 }
 
 function nextMeaningful(text: string, from: number): string {
-  for (let at = from; at < text.length; at++) {
+  for (let at = from; at < text.length; at += 1) {
     const char = text[at]!
-    if (/\s/.test(char)) continue
+    if (/\s/u.test(char)) {
+      continue
+    }
     if (char === '/' && text[at + 1] === '/') {
-      while (at < text.length && text[at] !== '\n') at++
+      while (at < text.length && text[at] !== '\n') {
+        at += 1
+      }
       continue
     }
     if (char === '/' && text[at + 1] === '*') {
       const end = text.indexOf('*/', at + 2)
-      if (end < 0) return ''
+      if (end === -1) {
+        return ''
+      }
       at = end + 1
       continue
     }
@@ -142,73 +176,109 @@ interface Aliases {
 }
 
 function stringList(value: unknown): string[] | null {
-  if (!Array.isArray(value)) return null
-  const list = value.filter((entry): entry is string => typeof entry === 'string')
+  if (!Array.isArray(value)) {
+    return null
+  }
+  const list = value.filter(
+    (entry): entry is string => typeof entry === 'string'
+  )
   return list.length > 0 ? list : null
 }
 
 // Only a relative `extends` is followed: a package name would mean walking node_modules.
 function loadAliases(file: string, depth = 0): Aliases | null {
-  if (depth > 4 || !isFile(file)) return null
+  if (depth > 4 || !isFile(file)) {
+    return null
+  }
   let json: unknown
   try {
-    json = parseJsonc(readFileSync(file, 'utf8'))
+    json = parseJsonc(readFileSync(file, 'utf-8'))
   } catch {
     return null
   }
   const root = objectAt(json)
-  if (!root) return null
+  if (!root) {
+    return null
+  }
   const dir = dirname(file)
   const options = objectAt(root.compilerOptions) ?? {}
-  const baseUrl = typeof options.baseUrl === 'string' ? resolve(dir, options.baseUrl) : null
+  const baseUrl =
+    typeof options.baseUrl === 'string' ? resolve(dir, options.baseUrl) : null
   const declared = objectAt(options.paths)
   const paths: Record<string, string[]> = {}
   for (const [pattern, targets] of Object.entries(declared ?? {})) {
     const list = stringList(targets)
-    if (list) paths[pattern] = list
+    if (list) {
+      paths[pattern] = list
+    }
   }
   if (Object.keys(paths).length > 0 || baseUrl) {
-    return { base: baseUrl ?? dir, paths, baseUrl }
+    return { base: baseUrl ?? dir, baseUrl, paths }
   }
   const extend = root.extends
-  if (typeof extend !== 'string' || !extend.startsWith('.')) return null
+  if (typeof extend !== 'string' || !extend.startsWith('.')) {
+    return null
+  }
   // `extends: "./tsconfig.base"` already has an extname; the file is tsconfig.base.json.
-  const parent = resolve(dir, extend.endsWith('.json') ? extend : `${extend}.json`)
+  const parent = resolve(
+    dir,
+    extend.endsWith('.json') ? extend : `${extend}.json`
+  )
   return loadAliases(parent, depth + 1)
 }
 
 function aliasCandidates(spec: string, rootDir: string): string[] {
   const aliases =
-    loadAliases(join(rootDir, 'tsconfig.json')) ?? loadAliases(join(rootDir, 'jsconfig.json'))
-  if (!aliases) return []
+    loadAliases(join(rootDir, 'tsconfig.json')) ??
+    loadAliases(join(rootDir, 'jsconfig.json'))
+  if (!aliases) {
+    return []
+  }
   const candidates: { length: number; path: string }[] = []
   for (const [pattern, targets] of Object.entries(aliases.paths)) {
     const star = pattern.indexOf('*')
-    if (star < 0) {
+    if (star === -1) {
       if (pattern === spec) {
-        candidates.push(...targets.map(target => ({ length: pattern.length, path: target })))
+        candidates.push(
+          ...targets.map((target) => ({ length: pattern.length, path: target }))
+        )
       }
       continue
     }
     const prefix = pattern.slice(0, star)
     const suffix = pattern.slice(star + 1)
-    if (!spec.startsWith(prefix) || !spec.endsWith(suffix)) continue
-    if (spec.length < prefix.length + suffix.length) continue
+    if (!spec.startsWith(prefix) || !spec.endsWith(suffix)) {
+      continue
+    }
+    if (spec.length < prefix.length + suffix.length) {
+      continue
+    }
     const middle = spec.slice(prefix.length, spec.length - suffix.length)
     candidates.push(
-      ...targets.map(target => ({ length: prefix.length, path: target.replace('*', middle) })),
+      ...targets.map((target) => ({
+        length: prefix.length,
+        path: target.replace('*', middle),
+      }))
     )
   }
   const resolved = candidates
     .toSorted((a, b) => b.length - a.length)
-    .map(candidate => resolve(aliases.base, candidate.path))
-  if (aliases.baseUrl) resolved.push(resolve(aliases.baseUrl, spec))
+    .map((candidate) => resolve(aliases.base, candidate.path))
+  if (aliases.baseUrl) {
+    resolved.push(resolve(aliases.baseUrl, spec))
+  }
   return resolved
 }
 
-export function resolveImportPath(spec: string, fromDir: string, rootDir: string): string | null {
+export function resolveImportPath(
+  spec: string,
+  fromDir: string,
+  rootDir: string
+): string | null {
   const token = spec.trim()
-  if (!token || URL_SCHEME.test(token)) return null
+  if (!token || URL_SCHEME.test(token)) {
+    return null
+  }
 
   const direct = token.startsWith('~/')
     ? [join(homedir(), token.slice(2))]
@@ -217,19 +287,25 @@ export function resolveImportPath(spec: string, fromDir: string, rootDir: string
       : [resolve(fromDir, token), resolve(rootDir, token)]
   for (const candidate of direct) {
     const found = fileAt(candidate)
-    if (found) return found
+    if (found) {
+      return found
+    }
   }
 
   // An alias never starts with `.` or `/`: those forms have had their answer.
-  if (token.startsWith('.') || token.startsWith('~/') || isAbsolute(token)) return null
+  if (token.startsWith('.') || token.startsWith('~/') || isAbsolute(token)) {
+    return null
+  }
   for (const candidate of aliasCandidates(token, rootDir)) {
     const found = fileAt(candidate)
-    if (found) return found
+    if (found) {
+      return found
+    }
   }
   return null
 }
 
-const SPECIFIER_LINE = /\b(?:import|require|export|from)\b/
+const SPECIFIER_LINE = /\b(?:import|require|export|from)\b/u
 
 /**
  * Whether `goto.file` has anything to follow here — the footer's cue, so no disk access:
@@ -237,7 +313,11 @@ const SPECIFIER_LINE = /\b(?:import|require|export|from)\b/
  */
 export function hasPathAt(lineText: string, col: number): boolean {
   const token = pathTokenAt(lineText, col)
-  if (!token || /\s/.test(token)) return false
-  if (token.includes('/') || token.includes('\\')) return true
+  if (!token || /\s/u.test(token)) {
+    return false
+  }
+  if (token.includes('/') || token.includes('\\')) {
+    return true
+  }
   return quotedAt(lineText, col) !== null && SPECIFIER_LINE.test(lineText)
 }

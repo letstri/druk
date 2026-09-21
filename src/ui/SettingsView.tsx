@@ -8,6 +8,7 @@ import type { ConfigScope } from '../core/config'
 import { fuzzyScore } from '../core/search'
 import { ui } from '../themes'
 import { useHover } from './hover'
+import { Page } from './PanelHeader'
 import { SettingEditor } from './SettingEditor'
 import type { SettingEdit } from './SettingEditor'
 import { SettingPicker } from './SettingPicker'
@@ -25,6 +26,7 @@ export interface SettingRow {
   cycle: (dir: 1 | -1) => void
   select?: {
     options: string[]
+    // oxlint-disable-next-line typescript/no-invalid-void-type -- a pick may answer with nothing.
     pick: (index: number) => void | SettingEdit
     preview?: (index: number) => void
     restore?: () => void
@@ -35,7 +37,7 @@ export interface SettingRow {
   clear?: () => void
 }
 
-export interface SettingsViewProps {
+interface SettingsViewProps {
   rows: SettingRow[]
   scope: ConfigScope
   onToggleScope: () => void
@@ -58,8 +60,12 @@ export function SettingsView(props: SettingsViewProps) {
   // In page order: sorting by score would scramble the sections.
   const rows = createMemo(() => {
     const q = query().trim()
-    if (!q) return props.rows
-    return props.rows.filter(row => fuzzyScore(`${row.section} ${row.label}`, q) !== null)
+    if (!q) {
+      return props.rows
+    }
+    return props.rows.filter(
+      (row) => fuzzyScore(`${row.section} ${row.label}`, q) !== null
+    )
   })
 
   const selected = () => Math.min(index(), Math.max(0, rows().length - 1))
@@ -72,60 +78,98 @@ export function SettingsView(props: SettingsViewProps) {
   }
 
   const activate = (row: SettingRow) => {
-    if (row.edit) setEditing(row.edit)
-    else if (row.select) setPicking(true)
-    else row.cycle(1)
+    if (row.edit) {
+      setEditing(row.edit)
+    } else if (row.select) {
+      setPicking(true)
+    } else {
+      row.cycle(1)
+    }
   }
 
   useKeys((key: KeyEvent, k: string) => {
     // A page, not a modal: the value list owns the keyboard while open, so j/k type into its filter.
-    if (props.blocked || !props.focused || key.defaultPrevented || picking() || editing()) return
+    if (
+      props.blocked ||
+      !props.focused ||
+      key.defaultPrevented ||
+      picking() ||
+      editing()
+    ) {
+      return
+    }
     const count = Math.max(1, rows().length)
     // While the filter is up every printable key belongs to it; Esc backs out of it first.
     if (searching()) {
-      if (k === 'up') setIndex((selected() - 1 + count) % count)
-      else if (k === 'down') setIndex((selected() + 1) % count)
-      else if (k === 'return' || k === 'enter') {
+      if (k === 'up') {
+        setIndex((selected() - 1 + count) % count)
+      } else if (k === 'down') {
+        setIndex((selected() + 1) % count)
+      } else if (k === 'return' || k === 'enter') {
         const row = rows()[selected()]
-        if (row) activate(row)
-      } else if (k === 'escape') closeSearch()
-      else return
+        if (row) {
+          activate(row)
+        }
+      } else if (k === 'escape') {
+        closeSearch()
+      } else {
+        return
+      }
       key.preventDefault()
       return
     }
-    if (k === 'up' || k === 'k') setIndex((selected() - 1 + count) % count)
-    else if (k === 'down' || k === 'j') setIndex((selected() + 1) % count)
-    else if (k === 'home') setIndex(0)
-    else if (k === 'end') setIndex(count - 1)
-    else if (k === 'left' || k === 'h') rows()[selected()]?.cycle(-1)
-    else if (k === 'right' || k === 'l') rows()[selected()]?.cycle(1)
-    else if (k === 'tab') props.onToggleScope()
-    else if (k === 'backspace' || k === 'delete') {
+    if (k === 'up' || k === 'k') {
+      setIndex((selected() - 1 + count) % count)
+    } else if (k === 'down' || k === 'j') {
+      setIndex((selected() + 1) % count)
+    } else if (k === 'home') {
+      setIndex(0)
+    } else if (k === 'end') {
+      setIndex(count - 1)
+    } else if (k === 'left' || k === 'h') {
+      rows()[selected()]?.cycle(-1)
+    } else if (k === 'right' || k === 'l') {
+      rows()[selected()]?.cycle(1)
+    } else if (k === 'tab') {
+      props.onToggleScope()
+    } else if (k === 'backspace' || k === 'delete') {
       const clear = rows()[selected()]?.clear
-      if (!clear) return
+      if (!clear) {
+        return
+      }
       clear()
     } else if (!key.ctrl && (k === '/' || key.sequence === '/')) {
       setSearching(true)
       setIndex(0)
     } else if (k === 'return' || k === 'enter' || k === 'space') {
       const row = rows()[selected()]
-      if (row) activate(row)
-    } else if (k === 'escape' || k === 'q') props.onClose()
-    else return
+      if (row) {
+        activate(row)
+      }
+    } else if (k === 'escape' || k === 'q') {
+      props.onClose()
+    } else {
+      return
+    }
     key.preventDefault()
   })
 
   // Measured in drawn rows: a heading costs its own row plus a blank one above it.
-  const heading = (at: number) => at === 0 || rows()[at - 1]!.section !== rows()[at]!.section
+  const heading = (at: number) =>
+    at === 0 || rows()[at - 1]!.section !== rows()[at]!.section
   const cost = (at: number) => (heading(at) ? (at > 0 ? 3 : 2) : 1)
-  const budget = () => Math.max(3, dimensions().height - 4 - (searching() ? 2 : 0))
+  const budget = () =>
+    Math.max(3, dimensions().height - 4 - (searching() ? 2 : 0))
 
   const [top, setTop] = createSignal(0)
 
   const fits = (from: number) => {
     let drawn = 0
     let count = 0
-    while (from + count < rows().length && drawn + cost(from + count) <= budget()) {
+    while (
+      from + count < rows().length &&
+      drawn + cost(from + count) <= budget()
+    ) {
       drawn += cost(from + count)
       count += 1
     }
@@ -134,87 +178,102 @@ export function SettingsView(props: SettingsViewProps) {
 
   // `on`, so only a moved selection touches the window: a rebuild would yank a wheel-scrolled page.
   createEffect(
-    on(selected, at => {
-      setTop(previous => {
-        if (at < previous) return at
+    on(selected, (at) => {
+      setTop((previous) => {
+        if (at < previous) {
+          return at
+        }
         let start = previous
-        while (start < at && start + fits(start) <= at) start += 1
+        while (start < at && start + fits(start) <= at) {
+          start += 1
+        }
         return start
       })
-    }),
+    })
   )
 
   const visible = createMemo(() => {
     const start = Math.min(top(), Math.max(0, rows().length - 1))
-    return { start, rows: rows().slice(start, start + fits(start)) }
+    return { rows: rows().slice(start, start + fits(start)), start }
   })
 
   const maxTop = () => {
     let start = Math.max(0, rows().length - 1)
-    while (start > 0 && start - 1 + fits(start - 1) >= rows().length) start -= 1
+    while (start > 0 && start - 1 + fits(start - 1) >= rows().length) {
+      start -= 1
+    }
     return start
   }
 
   const wheel = (event: MouseEvent) => {
-    const scroll = event.scroll
-    if (picking() || editing() || !scroll) return
-    if (scroll.direction !== 'up' && scroll.direction !== 'down') return
+    const { scroll } = event
+    if (picking() || editing() || !scroll) {
+      return
+    }
+    if (scroll.direction !== 'up' && scroll.direction !== 'down') {
+      return
+    }
     const delta = Math.max(1, scroll.delta)
-    setTop(previous =>
+    setTop((previous) =>
       Math.max(
         0,
-        Math.min(scroll.direction === 'down' ? previous + delta : previous - delta, maxTop()),
-      ),
+        Math.min(
+          scroll.direction === 'down' ? previous + delta : previous - delta,
+          maxTop()
+        )
+      )
     )
   }
 
-  const title = () => ` Settings — ${props.scope === 'project' ? 'Project' : 'User'}`
+  const title = () =>
+    ` Settings — ${props.scope === 'project' ? 'Project' : 'User'}`
 
   const hints = () => {
     const reset = selectedRow()?.clear ? ' · Bksp reset' : ''
     const full = searching()
       ? ' ↑↓ move · Enter change · Esc filter off '
       : ` ↑↓ move · ←→ change · Tab scope${reset} · / filter · Esc close `
-    if (full.length + title().length + 2 <= props.width) return full
+    if (full.length + title().length + 2 <= props.width) {
+      return full
+    }
     return searching() ? ' ↑↓ · Enter · Esc ' : ' ↑↓ · ←→ · Tab · / · Esc '
   }
 
   const valueRoom = () => Math.max(8, Math.floor(props.width / 2) - 4)
 
   const footer = () => {
-    const marked = props.rows.some(row => row.local)
-    const legend = !marked
-      ? ''
-      : props.scope === 'project'
+    const marked = props.rows.some((row) => row.local)
+    const legend = marked
+      ? props.scope === 'project'
         ? ' · ◆ set here'
         : ' · ◆ set by project'
+      : ''
     const home = homedir()
     let path =
       home && props.configFile.startsWith(`${home}/`)
         ? `~${props.configFile.slice(home.length)}`
         : props.configFile
     const room = Math.max(8, props.width - 2 - legend.length)
-    if (path.length > room) path = `…${path.slice(path.length - room + 1)}`
+    if (path.length > room) {
+      path = `…${path.slice(path.length - room + 1)}`
+    }
     return ` ${path}${legend}`
   }
 
   return (
-    <box
-      width="100%"
-      height="100%"
-      flexDirection="column"
-      backgroundColor={ui.solidBg}
-      onMouseDown={() => props.onFocus()}
-      onMouseScroll={wheel}
+    <Page
+      title={title()}
+      hints={hints()}
+      onFocus={props.onFocus}
+      onWheel={wheel}
     >
-      <box flexDirection="row" backgroundColor={ui.solidBarBg}>
-        <text fg={ui.text} bg={ui.solidBarBg} flexShrink={0} content={title()} />
-        <box flexGrow={1} backgroundColor={ui.solidBarBg} />
-        <text fg={ui.dim} bg={ui.solidBarBg} flexShrink={0} content={hints()} />
-      </box>
-
       <Show when={searching()}>
-        <box flexDirection="row" backgroundColor={ui.solidBg} paddingLeft={2} paddingRight={2}>
+        <box
+          flexDirection="row"
+          backgroundColor={ui.solidBg}
+          paddingLeft={2}
+          paddingRight={2}
+        >
           <box flexGrow={1}>
             {/* Two focused inputs split the typing, so the field is plain text while the list is up. */}
             <Show
@@ -230,7 +289,7 @@ export function SettingsView(props: SettingsViewProps) {
               <TextInput
                 value={query()}
                 placeholder="Filter settings…"
-                onInput={value => {
+                onInput={(value) => {
                   setQuery(value)
                   setIndex(0)
                   setTop(0)
@@ -252,7 +311,11 @@ export function SettingsView(props: SettingsViewProps) {
           const active = () => i() === selected()
           const hover = useHover()
           const bg = () =>
-            active() ? ui.treeSelectedBg : hover.hovered() ? ui.hoverBg : ui.solidBg
+            active()
+              ? ui.treeSelectedBg
+              : hover.hovered()
+                ? ui.hoverBg
+                : ui.solidBg
           const showHeading = () => heading(i())
           return (
             <>
@@ -260,20 +323,32 @@ export function SettingsView(props: SettingsViewProps) {
                 <Show when={i() > 0}>
                   <text fg={ui.solidBg} bg={ui.solidBg} content="" />
                 </Show>
-                <text fg={ui.faint} bg={ui.solidBg} content={`  ${row.section}`} />
+                <text
+                  fg={ui.faint}
+                  bg={ui.solidBg}
+                  content={`  ${row.section}`}
+                />
               </Show>
               <box
                 flexDirection="row"
                 backgroundColor={bg()}
                 onMouseDown={() => {
                   props.onFocus()
-                  if (active()) activate(row)
-                  else setIndex(i())
+                  if (active()) {
+                    activate(row)
+                  } else {
+                    setIndex(i())
+                  }
                 }}
                 onMouseOver={hover.enter}
                 onMouseOut={hover.leave}
               >
-                <text fg={ui.accent} bg={bg()} flexShrink={0} content={active() ? '▌ ' : '  '} />
+                <text
+                  fg={ui.accent}
+                  bg={bg()}
+                  flexShrink={0}
+                  content={active() ? '▌ ' : '  '}
+                />
                 <text
                   wrapMode="none"
                   fg={active() ? ui.text : ui.dim}
@@ -309,13 +384,17 @@ export function SettingsView(props: SettingsViewProps) {
             <SettingPicker
               title={row?.label ?? ''}
               options={row?.select?.options ?? []}
-              activeIndex={(row?.select?.options ?? []).indexOf(row?.value ?? '')}
+              activeIndex={(row?.select?.options ?? []).indexOf(
+                row?.value ?? ''
+              )}
               paneWidth={props.width}
-              onPick={at => {
+              onPick={(at) => {
                 // Close first: picking rebuilds the rows, and a keyed read then tears the popup down.
                 setPicking(false)
                 const edit = row?.select?.pick(at)
-                if (edit) setEditing(edit)
+                if (edit) {
+                  setEditing(edit)
+                }
               }}
               onClose={() => setPicking(false)}
               onPreview={row?.select?.preview}
@@ -330,14 +409,16 @@ export function SettingsView(props: SettingsViewProps) {
           <SettingEditor
             edit={edit}
             paneWidth={props.width}
-            onDone={values => {
+            onDone={(values) => {
               // Close first, as the picker does: applying rebuilds the rows.
               setEditing(null)
-              if (values !== null) edit.apply(values)
+              if (values !== null) {
+                edit.apply(values)
+              }
             }}
           />
         )}
       </Show>
-    </box>
+    </Page>
   )
 }

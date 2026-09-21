@@ -15,17 +15,29 @@ rediscovered.
 
 ## A. A native path exists — replacing degrades a feature
 
-### A1. Editor scroll past the end
-- **Custom**: `allowScrollPastEnd` (`src/ui/EditorPane.tsx:253`), ~60 lines rewriting
-  the textarea's protected `handleScroll` and `onResize`.
+### A1. Editor scroll past the end, and the scroll margin
+- **Custom**: `ownScrolling` (`src/ui/EditorPane.tsx:190`), ~50 lines rewriting the
+  textarea's protected `handleScroll` and `onResize`, plus one
+  `EditorView.setScrollMargin(0)`.
 - **Native**: `EditorView.setViewport` clamps to the last screenful; `handleScroll`
-  stops with the last line at the bottom. There is no `scrollBeyondLastLine` option
-  and `scrollMargin` has no setter on the renderable.
+  stops with the last line at the bottom. There is no `scrollBeyondLastLine` option,
+  and the renderable's `scrollMargin` is a constructor option with no setter — only
+  `EditorView.setScrollMargin` reaches it after construction.
 - **Degrades**: the `scrollPastEnd` setting goes (VS Code's default, and druk's).
   The end of a file is then only readable from the very bottom row of the terminal.
-  The `onResize` half goes with it, so the first diagnostic a language server
-  publishes — which adds the problems track column and re-lays the pane — drops the
-  reader back to the end of the file.
+  The margin goes back to OpenTUI's 0.2 — a fifth of the pane — so the view scrolls
+  four rows before the caret has reached an edge, where VS Code's
+  `cursorSurroundingLines` is 0.
+
+### A1b. Scrolling away from the caret — *not* reachable
+
+Not a trade-off: the Zig view pins the viewport to the cursor as it draws. A
+`setViewport(…, moveCursor: false)` lands (`getViewport` reports the new offset) and
+is undone before the frame reaches the screen, so a wheel notch either drags the
+caret along or does nothing at all. OpenTUI's own `handleScroll` passes
+`moveCursor: true` for that reason and druk follows it. VS Code's behaviour — the
+caret staying put while the view moves away, and the view snapping back to it on the
+next keystroke — needs an upstream way to detach the two. Re-check on a bump.
 
 ### A2. Programmatic scrolling of the editor
 - **Custom**: `scrollByRows` / `scrollToRow` / `scrollTo` (`src/ui/EditorPane.tsx:1416`),

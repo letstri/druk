@@ -22,7 +22,9 @@ let exitHookInstalled = false
 function trackChild(child: ChildProcess) {
   liveChildren.add(child)
   child.once('exit', () => liveChildren.delete(child))
-  if (exitHookInstalled) return
+  if (exitHookInstalled) {
+    return
+  }
   exitHookInstalled = true
   process.on('exit', () => {
     for (const live of liveChildren) {
@@ -61,7 +63,7 @@ const MESSAGE_LEVEL: Record<number, string> = {
 export function spawnLspClient(options: LspClientOptions) {
   const [executable, ...args] = options.command
   // A `.cmd` shim (npm's on Windows) needs a shell (spawn fails EINVAL) and quoting for spaces.
-  const shell = /\.(?:cmd|bat)$/i.test(executable!)
+  const shell = /\.(?:cmd|bat)$/iu.test(executable!)
   const child = spawn(shell ? `"${executable}"` : executable!, args, {
     cwd: options.rootDir,
     shell,
@@ -70,14 +72,19 @@ export function spawnLspClient(options: LspClientOptions) {
   })
   trackChild(child)
 
-  const log = (kind: ServerLogLine['kind'], text: string) => options.onLog?.({ kind, text })
+  const log = (kind: ServerLogLine['kind'], text: string) =>
+    options.onLog?.({ kind, text })
   log('event', `spawned ${options.command.join(' ')}`)
 
   let stderrTail = ''
   child.stderr?.on('data', (chunk: Buffer) => {
     const lines = (stderrTail + chunk.toString()).split('\n')
     stderrTail = lines.pop() ?? ''
-    for (const line of lines) if (line.trim().length > 0) log('stderr', line)
+    for (const line of lines) {
+      if (line.trim().length > 0) {
+        log('stderr', line)
+      }
+    }
   })
 
   let state: 'starting' | 'ready' | 'dead' = 'starting'
@@ -95,83 +102,126 @@ export function spawnLspClient(options: LspClientOptions) {
   const versions = new Map<string, number>()
 
   const send = (message: RpcMessage) => {
-    if (child.stdin?.writable) child.stdin.write(encodeMessage(message))
+    if (child.stdin?.writable) {
+      child.stdin.write(encodeMessage(message))
+    }
   }
 
-  const request = (method: string, params?: unknown) =>
-    new Promise<unknown>((resolve, reject) => {
-      const id = nextId++
-      pending.set(id, { resolve, reject })
-      send({ jsonrpc: '2.0', id, method, params })
-    })
+  const request = (method: string, params?: unknown) => {
+    const { promise, reject, resolve } = Promise.withResolvers<unknown>()
+    const id = nextId
+    nextId += 1
+    pending.set(id, { reject, resolve })
+    send({ id, jsonrpc: '2.0', method, params })
+    return promise
+  }
 
   const notify = (method: string, params: unknown) => {
     const message: RpcMessage = { jsonrpc: '2.0', method, params }
-    if (state === 'starting') queued.push(message)
-    else if (state === 'ready') send(message)
+    if (state === 'starting') {
+      queued.push(message)
+    } else if (state === 'ready') {
+      send(message)
+    }
   }
 
   const pullDiagnostics = (path: string) => {
-    if (state === 'starting') return void pendingPulls.add(path)
-    if (state !== 'ready' || !pullProvider) return
+    if (state === 'starting') {
+      pendingPulls.add(path)
+      return
+    }
+    if (state !== 'ready' || !pullProvider) {
+      return
+    }
     const uri = pathToFileURL(path).href
-    void request('textDocument/diagnostic', { textDocument: { uri } })
-      .then(result => {
+    void (async () => {
+      try {
+        const result = await request('textDocument/diagnostic', {
+          textDocument: { uri },
+        })
         // `unchanged` means the last report still holds — not an empty list.
         const report = result as DiagnosticReport | null
-        if (report?.kind === 'full') options.onDiagnostics(uri, report.items ?? [])
-      })
-      .catch(() => {})
+        if (report?.kind === 'full') {
+          options.onDiagnostics(uri, report.items ?? [])
+        }
+      } catch {
+        // A server that cannot answer a pull leaves the last report standing.
+      }
+    })()
   }
 
   // Vue relay: every entry must be answered, null if need be, or the server hangs the feature.
   const answerTsserverRequests = async (params: unknown) => {
-    if (!Array.isArray(params)) return
+    if (!Array.isArray(params)) {
+      return
+    }
     const answers: [number, unknown][] = []
     for (const entry of params as unknown[]) {
-      if (!Array.isArray(entry)) continue
-      const [id, command, args] = entry as [number, string, unknown]
+      if (!Array.isArray(entry)) {
+        continue
+      }
+      const [id, method, payload] = entry as [number, string, unknown]
       let body: unknown = null
       try {
-        body = (await options.onTsserverRequest?.(command, args)) ?? null
+        body = (await options.onTsserverRequest?.(method, payload)) ?? null
       } catch {
         body = null
       }
       answers.push([id, body])
     }
-    if (answers.length > 0) notify('tsserver/response', answers)
+    if (answers.length > 0) {
+      notify('tsserver/response', answers)
+    }
   }
 
   const die = (reason: string | null, missing = false) => {
-    if (state === 'dead') return
+    if (state === 'dead') {
+      return
+    }
     state = 'dead'
     log('event', reason === null || disposed ? 'stopped' : reason)
-    for (const waiter of pending.values()) waiter.reject(new Error(reason ?? 'disposed'))
+    for (const waiter of pending.values()) {
+      waiter.reject(new Error(reason ?? 'disposed'))
+    }
     pending.clear()
     queued.length = 0
-    if (reason !== null && !disposed) options.onFail(reason, missing)
+    if (reason !== null && !disposed) {
+      options.onFail(reason, missing)
+    }
   }
 
   const onMessage = (message: RpcMessage) => {
-    if (message.method !== undefined && message.id != null) {
+    if (
+      message.method !== undefined &&
+      message.id !== null &&
+      message.id !== undefined
+    ) {
       // A server → client request left unanswered stalls some servers.
       if (message.method === 'workspace/configuration') {
-        const items = (message.params as { items?: unknown[] } | undefined)?.items ?? []
-        send({ jsonrpc: '2.0', id: message.id, result: items.map(() => options.settings ?? null) })
+        const items =
+          (message.params as { items?: unknown[] } | undefined)?.items ?? []
+        send({
+          id: message.id,
+          jsonrpc: '2.0',
+          result: items.map(() => options.settings ?? null),
+        })
       } else if (message.method === 'workspace/diagnostic/refresh') {
-        send({ jsonrpc: '2.0', id: message.id, result: null })
+        send({ id: message.id, jsonrpc: '2.0', result: null })
         options.onRefreshDiagnostics?.()
       } else if (
         message.method === 'client/registerCapability' ||
         message.method === 'client/unregisterCapability' ||
         message.method === 'window/workDoneProgress/create'
       ) {
-        send({ jsonrpc: '2.0', id: message.id, result: null })
+        send({ id: message.id, jsonrpc: '2.0', result: null })
       } else {
         send({
-          jsonrpc: '2.0',
+          error: {
+            code: -32_601,
+            message: `method not found: ${message.method}`,
+          },
           id: message.id,
-          error: { code: -32601, message: `method not found: ${message.method}` },
+          jsonrpc: '2.0',
         })
       }
     } else if (message.method === 'textDocument/publishDiagnostics') {
@@ -179,23 +229,36 @@ export function spawnLspClient(options: LspClientOptions) {
       options.onDiagnostics(params.uri, params.diagnostics ?? [])
     } else if (message.method === 'tsserver/request') {
       void answerTsserverRequests(message.params)
-    } else if (message.method === 'window/logMessage' || message.method === 'window/showMessage') {
-      const params = message.params as { type?: number; message?: string } | undefined
-      log('server', `${MESSAGE_LEVEL[params?.type ?? 4] ?? 'log'}: ${params?.message ?? ''}`)
-    } else if (message.id != null) {
+    } else if (
+      message.method === 'window/logMessage' ||
+      message.method === 'window/showMessage'
+    ) {
+      const params = message.params as
+        | { type?: number; message?: string }
+        | undefined
+      log(
+        'server',
+        `${MESSAGE_LEVEL[params?.type ?? 4] ?? 'log'}: ${params?.message ?? ''}`
+      )
+    } else if (message.id !== null && message.id !== undefined) {
       const waiter = pending.get(message.id as number)
-      if (!waiter) return
+      if (!waiter) {
+        return
+      }
       pending.delete(message.id as number)
-      if (message.error) waiter.reject(new Error(message.error.message))
-      else waiter.resolve(message.result)
+      if (message.error) {
+        waiter.reject(new Error(message.error.message))
+      } else {
+        waiter.resolve(message.result)
+      }
     }
   }
 
   child.stdout?.on('data', createDecoder(onMessage))
-  child.on('error', error =>
+  child.on('error', (error) =>
     'code' in error && error.code === 'ENOENT'
       ? die('is not installed, or not on PATH', true)
-      : die(error.message),
+      : die(error.message)
   )
   child.on('exit', () => die('exited'))
 
@@ -208,50 +271,64 @@ export function spawnLspClient(options: LspClientOptions) {
   }
 
   const initTimeout = setTimeout(() => {
-    if (state !== 'starting') return
+    if (state !== 'starting') {
+      return
+    }
     die('did not answer initialize')
     killNow()
   }, INITIALIZE_TIMEOUT_MS)
   initTimeout.unref?.()
 
   const rootUri = pathToFileURL(options.rootDir).href
-  void request('initialize', {
-    processId: process.pid,
-    rootUri,
-    capabilities: {
-      // Without `configuration` a server never asks, and eslint then lints nothing.
-      workspace: {
-        configuration: true,
-        workspaceFolders: true,
-        didChangeConfiguration: { dynamicRegistration: true },
-        diagnostics: { refreshSupport: true },
-      },
-      textDocument: {
-        synchronization: { didSave: true },
-        publishDiagnostics: {},
-        definition: { linkSupport: true },
-        // Both models: typescript-go only answers pulls.
-        diagnostic: { dynamicRegistration: false, relatedDocumentSupport: false },
-        completion: {
-          completionItem: {
-            // Servers send `${1:}` syntax regardless; completion.ts strips it on insert.
-            snippetSupport: false,
-            insertReplaceSupport: true,
-            labelDetailsSupport: true,
-            documentationFormat: ['markdown', 'plaintext'],
-            deprecatedSupport: true,
-            tagSupport: { valueSet: [1] },
-            // Servers withhold these from the list until asked per chosen item.
-            resolveSupport: { properties: ['documentation', 'detail', 'additionalTextEdits'] },
+  const initialize = async () => {
+    try {
+      const result = await request('initialize', {
+        capabilities: {
+          textDocument: {
+            completion: {
+              completionItem: {
+                deprecatedSupport: true,
+                documentationFormat: ['markdown', 'plaintext'],
+                insertReplaceSupport: true,
+                labelDetailsSupport: true,
+                // Servers withhold these from the list until asked per chosen item.
+                resolveSupport: {
+                  properties: [
+                    'documentation',
+                    'detail',
+                    'additionalTextEdits',
+                  ],
+                },
+                // Servers send `${1:}` syntax regardless; completion.ts strips it on insert.
+                snippetSupport: false,
+                tagSupport: { valueSet: [1] },
+              },
+            },
+            definition: { linkSupport: true },
+            // Both models: typescript-go only answers pulls.
+            diagnostic: {
+              dynamicRegistration: false,
+              relatedDocumentSupport: false,
+            },
+            publishDiagnostics: {},
+            synchronization: { didSave: true },
+          },
+          // Without `configuration` a server never asks, and eslint then lints nothing.
+          workspace: {
+            configuration: true,
+            diagnostics: { refreshSupport: true },
+            didChangeConfiguration: { dynamicRegistration: true },
+            workspaceFolders: true,
           },
         },
-      },
-    },
-    workspaceFolders: [{ uri: rootUri, name: 'workspace' }],
-    initializationOptions: options.initializationOptions,
-  })
-    .then(result => {
-      if (state !== 'starting') return
+        initializationOptions: options.initializationOptions,
+        processId: process.pid,
+        rootUri,
+        workspaceFolders: [{ name: 'workspace', uri: rootUri }],
+      })
+      if (state !== 'starting') {
+        return
+      }
       const capabilities = (
         result as {
           capabilities?: {
@@ -261,9 +338,12 @@ export function spawnLspClient(options: LspClientOptions) {
           }
         } | null
       )?.capabilities
-      resolveProvider = capabilities?.completionProvider?.resolveProvider === true
-      pullProvider = capabilities?.diagnosticProvider != null
-      commands = new Set(capabilities?.executeCommandProvider?.commands ?? [])
+      resolveProvider =
+        capabilities?.completionProvider?.resolveProvider === true
+      pullProvider =
+        capabilities?.diagnosticProvider !== null &&
+        capabilities?.diagnosticProvider !== undefined
+      commands = new Set(capabilities?.executeCommandProvider?.commands)
       send({ jsonrpc: '2.0', method: 'initialized', params: {} })
       // After `initialized` (the protocol) and before the queued didOpens (the settings).
       if (options.settings !== undefined) {
@@ -274,85 +354,37 @@ export function spawnLspClient(options: LspClientOptions) {
         })
       }
       state = 'ready'
-      log('event', `initialized — diagnostics ${pullProvider ? 'pulled' : 'published'}`)
-      for (const message of queued) send(message)
+      log(
+        'event',
+        `initialized — diagnostics ${pullProvider ? 'pulled' : 'published'}`
+      )
+      for (const message of queued) {
+        send(message)
+      }
       queued.length = 0
       // After the didOpens above, or the server is asked about documents it has not seen.
-      for (const path of pendingPulls) pullDiagnostics(path)
+      for (const path of pendingPulls) {
+        pullDiagnostics(path)
+      }
       pendingPulls.clear()
-    })
-    .catch((error: unknown) => {
+    } catch (error: unknown) {
       // An error *response* to initialize leaves the client `starting` forever otherwise.
       die(error instanceof Error ? error.message : 'initialize failed')
-    })
-    .finally(() => clearTimeout(initTimeout))
+    } finally {
+      clearTimeout(initTimeout)
+    }
+  }
+  initialize()
 
   return {
-    id: options.id,
-
-    ready: () => state === 'ready',
-
-    // Not `!ready()`: a starting client is un-ready too, and its sync is about to be honoured.
-    dead: () => state === 'dead',
-
-    pullDiagnostics,
-
-    supportsCommand(command: string): boolean {
-      return commands.has(command)
-    },
-
-    executeCommand(command: string, args: unknown[]): Promise<unknown> {
-      if (state !== 'ready') return Promise.resolve(null)
-      return request('workspace/executeCommand', { command, arguments: args }).catch(() => null)
-    },
-
-    documents(): string[] {
-      return [...versions.keys()].map(uri => relative(options.rootDir, fileURLToPath(uri)))
-    },
-
-    openDocument(path: string, languageId: string, text: string) {
-      const uri = pathToFileURL(path).href
-      versions.set(uri, 1)
-      log('event', `opened ${relative(options.rootDir, path)}`)
-      notify('textDocument/didOpen', { textDocument: { uri, languageId, version: 1, text } })
-    },
-
     changeDocument(path: string, text: string) {
       const uri = pathToFileURL(path).href
       const version = (versions.get(uri) ?? 1) + 1
       versions.set(uri, version)
       notify('textDocument/didChange', {
-        textDocument: { uri, version },
         contentChanges: [{ text }],
+        textDocument: { uri, version },
       })
-    },
-
-    complete(path: string, position: { line: number; character: number }): Promise<unknown> {
-      if (state !== 'ready') return Promise.resolve(null)
-      return request('textDocument/completion', {
-        textDocument: { uri: pathToFileURL(path).href },
-        position,
-      }).catch(() => null)
-    },
-
-    definition(path: string, position: { line: number; character: number }): Promise<unknown> {
-      if (state !== 'ready') return Promise.resolve(null)
-      return request('textDocument/definition', {
-        textDocument: { uri: pathToFileURL(path).href },
-        position,
-      }).catch(() => null)
-    },
-
-    resolveCompletion(item: CompletionItem): Promise<CompletionItem | null> {
-      if (state !== 'ready' || !resolveProvider) return Promise.resolve(null)
-      return request('completionItem/resolve', item).then(
-        result => result as CompletionItem | null,
-        () => null,
-      )
-    },
-
-    saveDocument(path: string) {
-      notify('textDocument/didSave', { textDocument: { uri: pathToFileURL(path).href } })
     },
 
     closeDocument(path: string) {
@@ -362,12 +394,49 @@ export function spawnLspClient(options: LspClientOptions) {
       notify('textDocument/didClose', { textDocument: { uri } })
     },
 
+    complete(
+      path: string,
+      position: { line: number; character: number }
+    ): Promise<unknown> {
+      if (state !== 'ready') {
+        return Promise.resolve(null)
+      }
+      return request('textDocument/completion', {
+        position,
+        textDocument: { uri: pathToFileURL(path).href },
+      }).catch(() => null)
+    },
+
+    // Not `!ready()`: a starting client is un-ready too, and its sync is about to be honoured.
+    dead: () => state === 'dead',
+
+    definition(
+      path: string,
+      position: { line: number; character: number }
+    ): Promise<unknown> {
+      if (state !== 'ready') {
+        return Promise.resolve(null)
+      }
+      return request('textDocument/definition', {
+        position,
+        textDocument: { uri: pathToFileURL(path).href },
+      }).catch(() => null)
+    },
+
     // Never blocks: App teardown and tests must not wait on a server.
     dispose() {
-      if (disposed) return
+      if (disposed) {
+        return
+      }
       disposed = true
       if (state === 'ready') {
-        void request('shutdown').catch(() => {})
+        void (async () => {
+          try {
+            await request('shutdown')
+          } catch {
+            // A server already gone has nothing to shut down.
+          }
+        })()
         send({ jsonrpc: '2.0', method: 'exit' })
       }
       die(null)
@@ -376,6 +445,57 @@ export function spawnLspClient(options: LspClientOptions) {
         backstop.unref?.()
         child.once('exit', () => clearTimeout(backstop))
       }
+    },
+
+    documents(): string[] {
+      return [...versions.keys()].map((uri) =>
+        relative(options.rootDir, fileURLToPath(uri))
+      )
+    },
+
+    executeCommand(command: string, params: unknown[]): Promise<unknown> {
+      if (state !== 'ready') {
+        return Promise.resolve(null)
+      }
+      return request('workspace/executeCommand', {
+        arguments: params,
+        command,
+      }).catch(() => null)
+    },
+
+    id: options.id,
+
+    openDocument(path: string, languageId: string, text: string) {
+      const uri = pathToFileURL(path).href
+      versions.set(uri, 1)
+      log('event', `opened ${relative(options.rootDir, path)}`)
+      notify('textDocument/didOpen', {
+        textDocument: { languageId, text, uri, version: 1 },
+      })
+    },
+
+    pullDiagnostics,
+
+    ready: () => state === 'ready',
+
+    resolveCompletion(item: CompletionItem): Promise<CompletionItem | null> {
+      if (state !== 'ready' || !resolveProvider) {
+        return Promise.resolve(null)
+      }
+      return request('completionItem/resolve', item).then(
+        (result) => result as CompletionItem | null,
+        () => null
+      )
+    },
+
+    saveDocument(path: string) {
+      notify('textDocument/didSave', {
+        textDocument: { uri: pathToFileURL(path).href },
+      })
+    },
+
+    supportsCommand(command: string): boolean {
+      return commands.has(command)
     },
   }
 }

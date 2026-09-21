@@ -41,7 +41,12 @@
     {
       "id": "typescript",
       "command": ["typescript-language-server", "--stdio"],
-      "filetypes": ["typescript", "typescriptreact", "javascript", "javascriptreact"],
+      "filetypes": [
+        "typescript",
+        "typescriptreact",
+        "javascript",
+        "javascriptreact"
+      ],
       "install": {
         "kind": "npm",
         "packages": ["typescript-language-server", "typescript@5"]

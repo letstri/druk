@@ -1,18 +1,32 @@
 import { TextAttributes } from '@opentui/core'
 import type { KeyEvent, ScrollBoxRenderable } from '@opentui/core'
 import { useTerminalDimensions } from '@opentui/solid'
-import { createEffect, createMemo, For, on, onCleanup, onMount, Show } from 'solid-js'
+import {
+  createEffect,
+  createMemo,
+  For,
+  on,
+  onCleanup,
+  onMount,
+  Show,
+} from 'solid-js'
 
 import type { GraphCommit, GraphRow } from '../core/git'
 import { ui } from '../themes'
 import { laneSpans, refChips } from './graphLanes'
 import type { RefKind } from './graphLanes'
 import { useHoverKey } from './hover'
-import { createScrollList, followScroll, restoreScroll } from './list'
+import {
+  createScrollList,
+  followScroll,
+  restoreScroll,
+  scrollbarOptions,
+} from './list'
+import { Page } from './PanelHeader'
 import { cut } from './text'
 import { useKeys } from './useKeys'
 
-export interface CommitGraphViewProps {
+interface CommitGraphViewProps {
   rows: GraphRow[]
   cursor: number
   loading: boolean
@@ -51,14 +65,18 @@ const REF_COLORS: Record<RefKind, () => string> = {
 export function CommitGraphView(props: CommitGraphViewProps) {
   const dimensions = useTerminalDimensions()
   const list = createScrollList(() => props.rows.length)
-  const visible = createMemo(() => props.rows.slice(list.window().start, list.window().end))
+  const visible = createMemo(() =>
+    props.rows.slice(list.window().start, list.window().end)
+  )
   const hover = useHoverKey<number>()
 
   let box: ScrollBoxRenderable | undefined
 
   // The page unmounts whenever a commit opens over it: it comes back where the reader left it.
   onMount(() => {
-    if (!box) return
+    if (!box) {
+      return
+    }
     const cancel = restoreScroll(box, props.scrollTop)
     onCleanup(cancel)
   })
@@ -66,60 +84,68 @@ export function CommitGraphView(props: CommitGraphViewProps) {
   createEffect(
     on(
       () => props.cursor,
-      row => list.reveal(row),
-      { defer: true },
-    ),
+      (row) => list.reveal(row),
+      { defer: true }
+    )
   )
 
   const page = () => Math.max(1, dimensions().height - 3)
 
   useKeys((key: KeyEvent, k: string) => {
-    if (props.blocked || !props.focused || key.defaultPrevented) return
-    if (k === 'up' || k === 'k') props.onMove(-1)
-    else if (k === 'down' || k === 'j') props.onMove(1)
-    else if (k === 'pageup' || (key.ctrl && k === 'u')) props.onMove(-page())
-    else if (k === 'pagedown' || (key.ctrl && k === 'd')) props.onMove(page())
-    else if (k === 'return' || k === 'enter') props.onOpen()
-    else if (k === 'o') props.onOpenWeb()
-    else if (k === 'escape' || k === 'q') props.onClose()
-    else return
+    if (props.blocked || !props.focused || key.defaultPrevented) {
+      return
+    }
+    if (k === 'up' || k === 'k') {
+      props.onMove(-1)
+    } else if (k === 'down' || k === 'j') {
+      props.onMove(1)
+    } else if (k === 'pageup' || (key.ctrl && k === 'u')) {
+      props.onMove(-page())
+    } else if (k === 'pagedown' || (key.ctrl && k === 'd')) {
+      props.onMove(page())
+    } else if (k === 'return' || k === 'enter') {
+      props.onOpen()
+    } else if (k === 'o') {
+      props.onOpenWeb()
+    } else if (k === 'escape' || k === 'q') {
+      props.onClose()
+    } else {
+      return
+    }
     key.preventDefault()
   })
 
   const hints = () => {
     const esc = `Esc ${props.escLabel ?? 'close'}`
     const full = ` ↑↓ commit · Enter details · o remote · ${esc} `
-    if (full.length + 20 <= props.width) return full
+    if (full.length + 20 <= props.width) {
+      return full
+    }
     const short = ` Enter details · o remote · ${esc} `
     return short.length + 20 <= props.width ? short : ` Enter details · ${esc} `
   }
 
   const header = () => {
-    const commits = props.rows.filter(row => row.commit).length
-    const summary = props.loading ? 'Loading the graph…' : `Commit graph · ${commits} commits`
+    const commits = props.rows.filter((row) => row.commit).length
+    const summary = props.loading
+      ? 'Loading the graph…'
+      : `Commit graph · ${commits} commits`
     return ` ${cut(summary, Math.max(8, props.width - hints().length - 1))}`
   }
 
   return (
-    <box
-      width="100%"
-      height="100%"
-      flexDirection="column"
-      backgroundColor={ui.solidBg}
-      onMouseDown={() => props.onFocus()}
-    >
-      <box flexDirection="row" flexShrink={0} backgroundColor={ui.solidBarBg}>
-        <text wrapMode="none" fg={ui.text} bg={ui.solidBarBg} flexShrink={0} content={header()} />
-        <box flexGrow={1} backgroundColor={ui.solidBarBg} />
-        <text wrapMode="none" fg={ui.dim} bg={ui.solidBarBg} flexShrink={0} content={hints()} />
-      </box>
+    <Page title={header()} hints={hints()} onFocus={props.onFocus}>
       <Show
         when={props.rows.length > 0}
         fallback={
           <box flexGrow={1} paddingLeft={2} paddingTop={1}>
             <text
               fg={ui.dim}
-              content={props.loading ? 'Reading the history…' : 'No commits in this repository.'}
+              content={
+                props.loading
+                  ? 'Reading the history…'
+                  : 'No commits in this repository.'
+              }
             />
           </box>
         }
@@ -132,12 +158,14 @@ export function CommitGraphView(props: CommitGraphViewProps) {
           }}
           flexGrow={1}
           backgroundColor={ui.solidBg}
-          scrollbarOptions={{
-            trackOptions: { foregroundColor: ui.scrollbar, backgroundColor: ui.solidBg },
-          }}
+          scrollbarOptions={scrollbarOptions(ui.solidBg)}
         >
           {/* Spacers keep the scrollable extent honest while only a window exists. */}
-          <box height={list.window().start} flexShrink={0} backgroundColor={ui.solidBg} />
+          <box
+            height={list.window().start}
+            flexShrink={0}
+            backgroundColor={ui.solidBg}
+          />
           <For each={visible()}>
             {(row, at) => {
               const index = () => list.window().start + at()
@@ -153,21 +181,32 @@ export function CommitGraphView(props: CommitGraphViewProps) {
               const wide = () => props.width >= WIDE
               // The graph column is git's own art: it may not shrink, or the lanes bend.
               const room = () =>
-                Math.max(8, props.width - row.graph.length - 10 - (wide() ? AUTHOR + 13 : 1))
+                Math.max(
+                  8,
+                  props.width -
+                    row.graph.length -
+                    10 -
+                    (wide() ? AUTHOR + 13 : 1)
+                )
               const lanes = () => laneSpans(row.graph, LANES())
               // Chips are whole or absent: half a branch name is worse than none.
               const chips = () => {
                 const all = refChips(row.commit?.refs ?? [])
                 let left = Math.max(0, room() - MIN_SUBJECT)
-                return all.filter(chip => {
+                return all.filter((chip) => {
                   const width = chip.label.length + 1
-                  if (width > left) return false
+                  if (width > left) {
+                    return false
+                  }
                   left -= width
                   return true
                 })
               }
               const chipsWidth = () =>
-                chips().reduce((total, chip) => total + chip.label.length + 1, 0)
+                chips().reduce(
+                  (total, chip) => total + chip.label.length + 1,
+                  0
+                )
               return (
                 <box
                   height={1}
@@ -180,9 +219,15 @@ export function CommitGraphView(props: CommitGraphViewProps) {
                   onMouseOver={() => hover.enter(index())}
                   onMouseOut={() => hover.leave(index())}
                 >
-                  <text wrapMode="none" fg={ui.dim} bg={bg()} flexShrink={0} content=" " />
+                  <text
+                    wrapMode="none"
+                    fg={ui.dim}
+                    bg={bg()}
+                    flexShrink={0}
+                    content=" "
+                  />
                   <For each={lanes()}>
-                    {span => (
+                    {(span) => (
                       <text
                         wrapMode="none"
                         fg={span.color}
@@ -202,15 +247,23 @@ export function CommitGraphView(props: CommitGraphViewProps) {
                           flexShrink={0}
                           content={`${commit().shortOid} `}
                         />
-                        <box flexGrow={1} flexDirection="row" backgroundColor={bg()}>
+                        <box
+                          flexGrow={1}
+                          flexDirection="row"
+                          backgroundColor={bg()}
+                        >
                           <For each={chips()}>
-                            {chip => (
+                            {(chip) => (
                               <text
                                 wrapMode="none"
                                 fg={REF_COLORS[chip.kind]()}
                                 bg={bg()}
                                 flexShrink={0}
-                                attributes={chip.kind === 'head' ? TextAttributes.BOLD : undefined}
+                                attributes={
+                                  chip.kind === 'head'
+                                    ? TextAttributes.BOLD
+                                    : undefined
+                                }
                                 content={`${chip.label} `}
                               />
                             )}
@@ -219,7 +272,10 @@ export function CommitGraphView(props: CommitGraphViewProps) {
                             wrapMode="none"
                             fg={ui.text}
                             bg={bg()}
-                            content={cut(commit().subject, Math.max(1, room() - chipsWidth()))}
+                            content={cut(
+                              commit().subject,
+                              Math.max(1, room() - chipsWidth())
+                            )}
                           />
                         </box>
                         <Show when={wide()}>
@@ -245,6 +301,6 @@ export function CommitGraphView(props: CommitGraphViewProps) {
           />
         </scrollbox>
       </Show>
-    </box>
+    </Page>
   )
 }

@@ -19,14 +19,18 @@ function repo(committed: string) {
 }
 
 const subject = (dir: string) =>
-  execFileSync('git', ['log', '-1', '--format=%s'], { cwd: dir }).toString().trim()
+  execFileSync('git', ['log', '-1', '--format=%s'], { cwd: dir })
+    .toString()
+    .trim()
 const porcelain = (dir: string) =>
   execFileSync('git', ['status', '--porcelain'], { cwd: dir }).toString()
 
 // A generous budget: git under a full run's load blew the 5s default.
-async function until(t: Harness, cond: () => boolean, ms = 15000) {
+async function until(t: Harness, cond: () => boolean, ms = 15_000) {
   const start = Date.now()
-  while (!cond() && Date.now() - start < ms) await settle(t, 25)
+  while (!cond() && Date.now() - start < ms) {
+    await settle(t, 25)
+  }
   expect(cond()).toBe(true)
 }
 
@@ -42,14 +46,14 @@ test('commit picker shows every change and commits them all on Enter', async () 
   expect(picker).toContain('[x] M a.ts')
   expect(picker).toContain('[x] U b.ts')
 
-  await press(t, i => i.pressEnter())
+  await press(t, (i) => i.pressEnter())
   expect(t.captureCharFrame()).toContain('Commit message')
-  await press(t, i => void i.typeText('add things'))
-  await press(t, i => i.pressEnter())
+  await press(t, (i) => i.typeText('add things'))
+  await press(t, (i) => i.pressEnter())
 
   await until(t, () => subject(dir) === 'add things')
   expect(porcelain(dir)).toBe('')
-}, 20000)
+}, 20_000)
 
 test('a file unchecked in the picker stays out of the commit', async () => {
   const dir = repo('one\n')
@@ -58,20 +62,20 @@ test('a file unchecked in the picker stays out of the commit', async () => {
 
   const t = await launch(dir)
   await runCommand(t, 'Commit')
-  await press(t, i => i.pressArrow('down'))
-  await press(t, i => void i.typeText(' '))
+  await press(t, (i) => i.pressArrow('down'))
+  await press(t, (i) => i.typeText(' '))
   expect(t.captureCharFrame()).toContain('1 of 2 files')
   expect(t.captureCharFrame()).toContain('[ ] U b.ts')
 
-  await press(t, i => i.pressEnter())
-  await press(t, i => void i.typeText('only a'))
-  await press(t, i => i.pressEnter())
+  await press(t, (i) => i.pressEnter())
+  await press(t, (i) => i.typeText('only a'))
+  await press(t, (i) => i.pressEnter())
 
   await until(t, () => subject(dir) === 'only a')
   const status = porcelain(dir)
   expect(status).toContain('?? b.ts')
   expect(status).not.toContain('a.ts')
-}, 20000)
+}, 20_000)
 
 test('the picker refuses an empty selection and A toggles everything', async () => {
   const dir = repo('one\n')
@@ -79,13 +83,13 @@ test('the picker refuses an empty selection and A toggles everything', async () 
 
   const t = await launch(dir)
   await runCommand(t, 'Commit')
-  await press(t, i => void i.typeText('a'))
+  await press(t, (i) => i.typeText('a'))
   expect(t.captureCharFrame()).toContain('0 of 1 files')
-  await press(t, i => i.pressEnter())
+  await press(t, (i) => i.pressEnter())
   expect(t.captureCharFrame()).not.toContain('Commit message')
-  await press(t, i => void i.typeText('a'))
+  await press(t, (i) => i.typeText('a'))
   expect(t.captureCharFrame()).toContain('1 of 1 files')
-}, 20000)
+}, 20_000)
 
 test('a hand-built index is the selection: no picker, and it commits just that', async () => {
   const dir = repo('one\n')
@@ -99,13 +103,13 @@ test('a hand-built index is the selection: no picker, and it commits just that',
   expect(shown).toContain('Commit message')
   expect(shown).not.toContain('of 2 files')
 
-  await press(t, i => void i.typeText('staged only'))
-  await press(t, i => i.pressEnter())
+  await press(t, (i) => i.typeText('staged only'))
+  await press(t, (i) => i.pressEnter())
 
   await until(t, () => subject(dir) === 'staged only')
   expect(porcelain(dir)).toContain('?? b.ts')
   expect(porcelain(dir)).not.toContain('a.ts')
-}, 20000)
+}, 20_000)
 
 test('undo last commit asks first, then leaves the changes staged', async () => {
   const dir = repo('one\n')
@@ -115,29 +119,35 @@ test('undo last commit asks first, then leaves the changes staged', async () => 
   const t = await launch(dir)
   await runCommand(t, 'Undo last commit')
   expect(t.captureCharFrame()).toContain('second')
-  await press(t, i => i.pressEnter())
+  await press(t, (i) => i.pressEnter())
 
   await until(t, () => subject(dir) === 'init')
   expect(porcelain(dir)).toContain('M  a.ts')
-}, 20000)
+}, 20_000)
 
 test('stash reverts the working tree and pop brings it back', async () => {
   const dir = repo('one\ntwo\n')
   writeFileSync(join(dir, 'a.ts'), 'CHANGED\ntwo\n')
 
   const t = await launch(dir)
-  await press(t, i => i.pressArrow('down'))
-  await press(t, i => i.pressEnter())
+  await press(t, (i) => i.pressArrow('down'))
+  await press(t, (i) => i.pressEnter())
   expect(t.captureCharFrame()).toContain('CHANGED')
 
   await runCommand(t, 'Stash changes')
-  await until(t, () => readFileSync(join(dir, 'a.ts'), 'utf8') === 'one\ntwo\n')
+  await until(
+    t,
+    () => readFileSync(join(dir, 'a.ts'), 'utf-8') === 'one\ntwo\n'
+  )
   await until(t, () => !t.captureCharFrame().includes('CHANGED'))
 
   await runCommand(t, 'Stash pop')
-  await until(t, () => readFileSync(join(dir, 'a.ts'), 'utf8') === 'CHANGED\ntwo\n')
+  await until(
+    t,
+    () => readFileSync(join(dir, 'a.ts'), 'utf-8') === 'CHANGED\ntwo\n'
+  )
   await until(t, () => t.captureCharFrame().includes('CHANGED'))
-}, 20000)
+}, 20_000)
 
 test('push sets an upstream on a local bare remote, and fetch succeeds after', async () => {
   const dir = repo('one\n')
@@ -147,10 +157,16 @@ test('push sets an upstream on a local bare remote, and fetch succeeds after', a
 
   const t = await launch(dir)
   await runCommand(t, 'Push')
-  const head = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: dir }).toString().trim()
+  const head = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: dir })
+    .toString()
+    .trim()
   await until(t, () => {
     try {
-      return execFileSync('git', ['rev-parse', 'main'], { cwd: bare }).toString().trim() === head
+      return (
+        execFileSync('git', ['rev-parse', 'main'], { cwd: bare })
+          .toString()
+          .trim() === head
+      )
     } catch {
       return false
     }
@@ -158,15 +174,15 @@ test('push sets an upstream on a local bare remote, and fetch succeeds after', a
   await until(t, () =>
     execFileSync('git', ['rev-parse', '--abbrev-ref', '@{u}'], { cwd: dir })
       .toString()
-      .includes('origin/main'),
+      .includes('origin/main')
   )
 
   await runCommand(t, 'Fetch')
   await until(t, () => t.captureCharFrame().includes('Fetched'))
-}, 20000)
+}, 20_000)
 
 test('outside a repository the commands refuse with a warning', async () => {
   const t = await launch(fixture({ 'a.ts': 'x\n' }))
   await runCommand(t, 'Commit')
   await until(t, () => t.captureCharFrame().includes('Not a git repository'))
-}, 20000)
+}, 20_000)

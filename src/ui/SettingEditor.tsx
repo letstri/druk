@@ -26,13 +26,17 @@ export function SettingEditor(props: {
   paneWidth: number
   onDone: (values: string[] | null) => void
 }) {
-  const [values, setValues] = createSignal(props.edit.fields.map(field => field.initial))
+  const [values, setValues] = createSignal(
+    props.edit.fields.map((field) => field.initial)
+  )
   const [focus, setFocus] = createSignal(0)
   const width = () => modalWidth(props.paneWidth, 0.7, 30, 60)
   const count = () => props.edit.fields.length
 
   useKeys((key: KeyEvent) => {
-    if (key.defaultPrevented) return
+    if (key.defaultPrevented) {
+      return
+    }
     const k = key.name
     if (k === 'return' || k === 'enter') {
       key.preventDefault()
@@ -43,12 +47,12 @@ export function SettingEditor(props: {
     } else if (count() > 1 && (k === 'tab' || k === 'up' || k === 'down')) {
       key.preventDefault()
       const dir = k === 'up' || (k === 'tab' && key.shift) ? -1 : 1
-      setFocus(at => (at + dir + count()) % count())
+      setFocus((at) => (at + dir + count()) % count())
     }
   })
 
   const setField = (at: number, value: string) =>
-    setValues(previous => previous.map((old, i) => (i === at ? value : old)))
+    setValues((previous) => previous.map((old, i) => (i === at ? value : old)))
 
   return (
     <ModalPanel zIndex={150} width={width()} title={` ${props.edit.title} `}>
@@ -70,14 +74,17 @@ export function SettingEditor(props: {
                   wrapMode="none"
                   fg={values()[at()] ? ui.dim : ui.faint}
                   bg={ui.panelBg}
-                  content={cut(values()[at()] || field.placeholder || '', width() - PAD * 2)}
+                  content={cut(
+                    values()[at()] || field.placeholder || '',
+                    width() - PAD * 2
+                  )}
                 />
               }
             >
               <TextInput
                 value={values()[at()]!}
                 placeholder={field.placeholder}
-                onInput={value => setField(at(), value)}
+                onInput={(value) => setField(at(), value)}
               />
             </Show>
           </>
@@ -85,13 +92,15 @@ export function SettingEditor(props: {
       </For>
       <text fg={ui.panelBg} bg={ui.panelBg} content="" />
       <For each={props.edit.hint ?? []}>
-        {line => <text fg={ui.faint} bg={ui.panelBg} content={line} />}
+        {(line) => <text fg={ui.faint} bg={ui.panelBg} content={line} />}
       </For>
       <text
         fg={ui.dim}
         bg={ui.panelBg}
         content={
-          count() > 1 ? 'Tab next field · Enter apply · Esc cancel' : 'Enter apply · Esc cancel'
+          count() > 1
+            ? 'Tab next field · Enter apply · Esc cancel'
+            : 'Enter apply · Esc cancel'
         }
       />
     </ModalPanel>

@@ -152,28 +152,34 @@ export interface CommandContext {
 
 const check = (on: boolean) => (on ? '* ' : '  ')
 
-export function buildCommands(actions: CommandActions, ctx: CommandContext): Command[] {
+export function buildCommands(
+  actions: CommandActions,
+  ctx: CommandContext
+): Command[] {
   return [
-    { id: 'open', label: 'Open file…', hint: 'Ctrl+P', run: actions.openFile },
-    { id: 'save', label: 'Save file', hint: 'Ctrl+S', run: actions.save },
-    { id: 'goto', label: 'Go to line…', hint: 'Ctrl+G', run: actions.gotoLine },
-    { id: 'undo', label: 'Undo', hint: 'Ctrl+Z', run: actions.undo },
-    { id: 'redo', label: 'Redo', hint: 'Ctrl+Y', run: actions.redo },
+    { hint: 'Ctrl+P', id: 'open', label: 'Open file…', run: actions.openFile },
+    { hint: 'Ctrl+S', id: 'save', label: 'Save file', run: actions.save },
+    { hint: 'Ctrl+G', id: 'goto', label: 'Go to line…', run: actions.gotoLine },
+    { hint: 'Ctrl+Z', id: 'undo', label: 'Undo', run: actions.undo },
+    { hint: 'Ctrl+Y', id: 'redo', label: 'Redo', run: actions.redo },
     {
-      id: 'find',
-      label: 'Find',
       children: [
-        { id: 'find.file', label: 'In current file', hint: 'Ctrl+F', run: actions.findInFile },
         {
+          hint: 'Ctrl+F',
+          id: 'find.file',
+          label: 'In current file',
+          run: actions.findInFile,
+        },
+        {
+          hint: `Ctrl+${ALT}+F`,
           id: 'find.project',
           label: 'In project',
-          hint: `Ctrl+${ALT}+F`,
           run: actions.findInProject,
         },
         {
+          hint: 'Ctrl+F then Tab',
           id: 'find.replace',
           label: 'Replace in current file',
-          hint: 'Ctrl+F then Tab',
           run: actions.replaceInFile,
         },
         {
@@ -182,10 +188,10 @@ export function buildCommands(actions: CommandActions, ctx: CommandContext): Com
           run: actions.replaceInProject,
         },
       ],
+      id: 'find',
+      label: 'Find',
     },
     {
-      id: 'file',
-      label: 'File',
       children: [
         { id: 'file.saveAll', label: 'Save all', run: actions.saveAll },
         {
@@ -193,16 +199,41 @@ export function buildCommands(actions: CommandActions, ctx: CommandContext): Com
           label: 'Save without formatting',
           run: actions.saveWithoutFormatting,
         },
-        { id: 'file.new', label: 'New file', hint: 'Ctrl+N', run: actions.newFile },
-        { id: 'file.newDir', label: 'New folder', hint: `Ctrl+${ALT}+N`, run: actions.newFolder },
-        { id: 'file.rename', label: 'Rename…', hint: 'r', run: actions.rename },
-        { id: 'file.cut', label: 'Cut for moving', hint: 'x', run: actions.cutForMove },
-        { id: 'file.copy', label: 'Copy', hint: 'c', run: actions.copyForPaste },
-        { id: 'file.paste', label: 'Paste here', hint: 'p', run: actions.paste },
         {
+          hint: 'Ctrl+N',
+          id: 'file.new',
+          label: 'New file',
+          run: actions.newFile,
+        },
+        {
+          hint: `Ctrl+${ALT}+N`,
+          id: 'file.newDir',
+          label: 'New folder',
+          run: actions.newFolder,
+        },
+        { hint: 'r', id: 'file.rename', label: 'Rename…', run: actions.rename },
+        {
+          hint: 'x',
+          id: 'file.cut',
+          label: 'Cut for moving',
+          run: actions.cutForMove,
+        },
+        {
+          hint: 'c',
+          id: 'file.copy',
+          label: 'Copy',
+          run: actions.copyForPaste,
+        },
+        {
+          hint: 'p',
+          id: 'file.paste',
+          label: 'Paste here',
+          run: actions.paste,
+        },
+        {
+          hint: `Ctrl+${ALT}+C`,
           id: 'file.copyPath',
           label: 'Copy path',
-          hint: `Ctrl+${ALT}+C`,
           run: actions.copyPath,
         },
         {
@@ -210,42 +241,46 @@ export function buildCommands(actions: CommandActions, ctx: CommandContext): Com
           label: 'Copy relative path',
           run: actions.copyRelativePath,
         },
-        { id: 'file.delete', label: 'Delete…', hint: 'd', run: actions.remove },
+        { hint: 'd', id: 'file.delete', label: 'Delete…', run: actions.remove },
       ],
+      id: 'file',
+      label: 'File',
     },
     {
-      id: 'git',
-      label: 'Git',
       children: [
-        { id: 'git.diffFile', label: 'Diff current file', run: actions.gitDiffFile },
         {
+          id: 'git.diffFile',
+          label: 'Diff current file',
+          run: actions.gitDiffFile,
+        },
+        {
+          hint: 'a in source control',
           id: 'git.diffAll',
           label: 'Show all changes',
-          hint: 'a in source control',
           run: actions.gitDiffAll,
         },
         {
+          hint: 'S in source control',
           id: 'git.diffLayout',
           label: 'Toggle diff layout (inline / side-by-side)',
-          hint: 'S in source control',
           run: actions.toggleDiffLayout,
         },
         {
+          hint: 'Space in source control',
           id: 'git.stage',
           label: 'Stage / unstage selection',
-          hint: 'Space in source control',
           run: actions.gitToggleStage,
         },
         {
+          hint: 'd in source control',
           id: 'git.discard',
           label: 'Discard changes',
-          hint: 'd in source control',
           run: actions.gitDiscard,
         },
         {
+          hint: `Ctrl+${ALT}+U`,
           id: 'git.conflictResolve',
           label: 'Resolve conflict at cursor…',
-          hint: `Ctrl+${ALT}+U`,
           run: actions.conflictResolve,
         },
         {
@@ -264,99 +299,159 @@ export function buildCommands(actions: CommandActions, ctx: CommandContext): Com
           run: () => actions.conflictAccept('both'),
         },
         {
+          hint: `Ctrl+${ALT}+J`,
           id: 'git.conflictNext',
           label: 'Next conflict',
-          hint: `Ctrl+${ALT}+J`,
           run: actions.conflictNext,
         },
-        { id: 'git.conflictPrev', label: 'Previous conflict', run: actions.conflictPrev },
-        { id: 'git.diffBase', label: 'Compare against branch…', run: actions.gitDiffBase },
+        {
+          id: 'git.conflictPrev',
+          label: 'Previous conflict',
+          run: actions.conflictPrev,
+        },
+        {
+          id: 'git.diffBase',
+          label: 'Compare against branch…',
+          run: actions.gitDiffBase,
+        },
         {
           id: 'git.diffBaseReset',
           label: 'Compare against HEAD',
           run: actions.gitDiffBaseReset,
         },
         {
+          hint: 'B in source control',
           id: 'git.compare',
           label: 'Compare branches',
-          hint: 'B in source control',
           run: actions.gitCompareBranches,
         },
         { id: 'git.commit', label: 'Commit…', run: actions.gitCommit },
-        { id: 'git.undo', label: 'Undo last commit', run: actions.gitUndoCommit },
+        {
+          id: 'git.undo',
+          label: 'Undo last commit',
+          run: actions.gitUndoCommit,
+        },
         // The palette filters by first substring match in this order: plain verbs above the compounds.
         { id: 'git.push', label: 'Push', run: actions.gitPush },
         { id: 'git.fetch', label: 'Fetch', run: actions.gitFetch },
-        { id: 'git.pull', label: 'Pull (fast-forward only)', run: actions.gitPull },
-        { id: 'git.sync', label: 'Sync (pull & push)', run: actions.gitSync },
-        { id: 'git.commitPush', label: 'Commit & push…', run: actions.gitCommitAndPush },
-        { id: 'git.commitSync', label: 'Commit & sync…', run: actions.gitCommitAndSync },
-        { id: 'git.commitAmend', label: 'Commit (amend)…', run: actions.gitCommitAmend },
         {
+          id: 'git.pull',
+          label: 'Pull (fast-forward only)',
+          run: actions.gitPull,
+        },
+        { id: 'git.sync', label: 'Sync (pull & push)', run: actions.gitSync },
+        {
+          id: 'git.commitPush',
+          label: 'Commit & push…',
+          run: actions.gitCommitAndPush,
+        },
+        {
+          id: 'git.commitSync',
+          label: 'Commit & sync…',
+          run: actions.gitCommitAndSync,
+        },
+        {
+          id: 'git.commitAmend',
+          label: 'Commit (amend)…',
+          run: actions.gitCommitAmend,
+        },
+        {
+          hint: 'g in source control',
           id: 'git.graph',
           label: 'Commit graph',
-          hint: 'g in source control',
           run: actions.gitCommitGraph,
         },
         {
+          hint: 'o in the commit graph',
           id: 'git.openCommitWeb',
           label: 'Open commit on remote',
-          hint: 'o in the commit graph',
           run: actions.openCommitOnWeb,
         },
         { id: 'git.stash', label: 'Stash changes', run: actions.gitStash },
         { id: 'git.stashPop', label: 'Stash pop', run: actions.gitStashPop },
         { id: 'git.stashList', label: 'Stashes…', run: actions.gitStashList },
-        { id: 'git.fileHistory', label: 'File history…', run: actions.gitFileHistory },
-        { id: 'git.tagNew', label: 'Create tag…', run: actions.gitNewTag },
-        { id: 'git.tagDelete', label: 'Delete tag…', run: actions.gitDeleteTag },
-        { id: 'git.remoteAdd', label: 'Add remote…', run: actions.gitAddRemote },
-        { id: 'git.remoteRemove', label: 'Remove remote…', run: actions.gitRemoveRemote },
         {
-          id: 'git.branch',
-          label: 'Branch',
+          id: 'git.fileHistory',
+          label: 'File history…',
+          run: actions.gitFileHistory,
+        },
+        { id: 'git.tagNew', label: 'Create tag…', run: actions.gitNewTag },
+        {
+          id: 'git.tagDelete',
+          label: 'Delete tag…',
+          run: actions.gitDeleteTag,
+        },
+        {
+          id: 'git.remoteAdd',
+          label: 'Add remote…',
+          run: actions.gitAddRemote,
+        },
+        {
+          id: 'git.remoteRemove',
+          label: 'Remove remote…',
+          run: actions.gitRemoveRemote,
+        },
+        {
           children: [
             {
+              hint: 'b in source control',
               id: 'git.branch.switch',
               label: 'Switch branch…',
-              hint: 'b in source control',
               run: actions.gitSwitchBranch,
             },
-            { id: 'git.branch.new', label: 'New branch…', run: actions.gitNewBranch },
-            { id: 'git.branch.newFrom', label: 'New branch from…', run: actions.gitNewBranchFrom },
+            {
+              id: 'git.branch.new',
+              label: 'New branch…',
+              run: actions.gitNewBranch,
+            },
+            {
+              id: 'git.branch.newFrom',
+              label: 'New branch from…',
+              run: actions.gitNewBranchFrom,
+            },
             {
               id: 'git.branch.merge',
               label: 'Merge branch into current…',
               run: actions.gitMergeBranch,
             },
-            { id: 'git.branch.rename', label: 'Rename branch…', run: actions.gitRenameBranch },
-            { id: 'git.branch.delete', label: 'Delete branch…', run: actions.gitDeleteBranch },
+            {
+              id: 'git.branch.rename',
+              label: 'Rename branch…',
+              run: actions.gitRenameBranch,
+            },
+            {
+              id: 'git.branch.delete',
+              label: 'Delete branch…',
+              run: actions.gitDeleteBranch,
+            },
             {
               id: 'git.branch.deleteForce',
               label: 'Delete branch (force)…',
               run: actions.gitDeleteBranchForce,
             },
           ],
+          id: 'git.branch',
+          label: 'Branch',
         },
       ],
+      id: 'git',
+      label: 'Git',
     },
     {
-      id: 'review',
-      label: 'Review',
       children: [
         {
+          hint: `Ctrl+${ALT}+R`,
           id: 'review.panel',
           label: 'Review panel',
-          hint: `Ctrl+${ALT}+R`,
           run: actions.openReview,
         },
         {
+          hint: `Ctrl+${ALT}+A`,
           id: 'review.note',
           label: 'Note this line…',
-          hint: `Ctrl+${ALT}+A`,
           run: actions.reviewNote,
         },
-        ...NOTE_KINDS.map(kind => ({
+        ...NOTE_KINDS.map((kind) => ({
           id: `review.note.${kind}`,
           label: `Note this line as ${NOTE_LABELS[kind].toLowerCase()}…`,
           run: () => actions.reviewNoteOf(kind),
@@ -366,25 +461,38 @@ export function buildCommands(actions: CommandActions, ctx: CommandContext): Com
           label: 'Reply to the remark under the cursor…',
           run: actions.reviewReply,
         },
-        { id: 'review.clear', label: 'Clear review notes', run: actions.reviewClear },
+        {
+          id: 'review.clear',
+          label: 'Clear review notes',
+          run: actions.reviewClear,
+        },
       ],
+      id: 'review',
+      label: 'Review',
     },
     {
-      id: 'problems',
-      label: 'Problems',
       children: [
-        { id: 'problems.list', label: 'List problems', run: actions.problemsList },
         {
+          id: 'problems.list',
+          label: 'List problems',
+          run: actions.problemsList,
+        },
+        {
+          hint: `Ctrl+${ALT}+I`,
           id: 'problems.detail',
           label: 'Show problem at cursor',
-          hint: `Ctrl+${ALT}+I`,
           run: actions.problemsAtCursor,
         },
-        { id: 'problems.next', label: 'Next problem', hint: 'F8', run: actions.problemsNext },
         {
+          hint: 'F8',
+          id: 'problems.next',
+          label: 'Next problem',
+          run: actions.problemsNext,
+        },
+        {
+          hint: `${ALT}+F8`,
           id: 'problems.prev',
           label: 'Previous problem',
-          hint: `${ALT}+F8`,
           run: actions.problemsPrev,
         },
         {
@@ -398,64 +506,93 @@ export function buildCommands(actions: CommandActions, ctx: CommandContext): Com
           run: actions.lspStatus,
         },
       ],
+      id: 'problems',
+      label: 'Problems',
     },
     {
-      id: 'tabs',
-      label: 'Tabs',
       children: [
-        { id: 'tabs.switch', label: 'Switch to…', hint: 'Ctrl+T', run: actions.switchTab },
-        { id: 'tabs.close', label: 'Close tab', hint: 'Ctrl+W', run: actions.closeTab },
         {
+          hint: 'Ctrl+T',
+          id: 'tabs.switch',
+          label: 'Switch to…',
+          run: actions.switchTab,
+        },
+        {
+          hint: 'Ctrl+W',
+          id: 'tabs.close',
+          label: 'Close tab',
+          run: actions.closeTab,
+        },
+        {
+          hint: `Ctrl+${ALT}+T`,
           id: 'tabs.reopen',
           label: 'Reopen closed tab',
-          hint: `Ctrl+${ALT}+T`,
           run: actions.reopenTab,
         },
-        { id: 'tabs.closeOthers', label: 'Close other tabs', run: actions.closeOthers },
-        { id: 'tabs.closeAll', label: 'Close all tabs', run: actions.closeAll },
-        { id: 'tabs.next', label: 'Next tab', hint: `Ctrl+${ALT}+→`, run: actions.nextTab },
-        { id: 'tabs.prev', label: 'Previous tab', hint: `Ctrl+${ALT}+←`, run: actions.prevTab },
-        { id: 'nav.back', label: 'Go back', hint: `Ctrl+${ALT}+Z`, run: actions.navBack },
         {
+          id: 'tabs.closeOthers',
+          label: 'Close other tabs',
+          run: actions.closeOthers,
+        },
+        { id: 'tabs.closeAll', label: 'Close all tabs', run: actions.closeAll },
+        {
+          hint: `Ctrl+${ALT}+→`,
+          id: 'tabs.next',
+          label: 'Next tab',
+          run: actions.nextTab,
+        },
+        {
+          hint: `Ctrl+${ALT}+←`,
+          id: 'tabs.prev',
+          label: 'Previous tab',
+          run: actions.prevTab,
+        },
+        {
+          hint: `Ctrl+${ALT}+Z`,
+          id: 'nav.back',
+          label: 'Go back',
+          run: actions.navBack,
+        },
+        {
+          hint: `Ctrl+${ALT}+Y`,
           id: 'nav.forward',
           label: 'Go forward',
-          hint: `Ctrl+${ALT}+Y`,
           run: actions.navForward,
         },
       ],
+      id: 'tabs',
+      label: 'Tabs',
     },
     {
-      id: 'view',
-      label: 'View',
       children: [
         {
+          hint: 'Ctrl+B',
           id: 'view.sidebar',
           label: 'Toggle sidebar',
-          hint: 'Ctrl+B',
           run: actions.toggleSidebar,
         },
         {
+          hint: `Ctrl+${ALT}+G`,
           id: 'view.git',
           label: 'Source control (commit / push)',
-          hint: `Ctrl+${ALT}+G`,
           run: actions.toggleGitView,
         },
         {
+          hint: '▴ in its header',
           id: 'view.collapse',
           label: 'Collapse folders in sidebar',
-          hint: '▴ in its header',
           run: actions.collapseSidebar,
         },
         {
+          hint: 'Space in tree',
           id: 'view.preview',
           label: 'Preview file (no tab)',
-          hint: 'Space in tree',
           run: actions.togglePreview,
         },
         {
+          hint: `Ctrl+${ALT}+M`,
           id: 'view.markdown',
           label: 'Markdown: rendered / source',
-          hint: `Ctrl+${ALT}+M`,
           run: actions.toggleMarkdown,
         },
         {
@@ -469,29 +606,29 @@ export function buildCommands(actions: CommandActions, ctx: CommandContext): Com
           run: actions.toggleSidebarPosition,
         },
         {
+          hint: 'Tab in · Esc out',
           id: 'view.focus',
           label: 'Focus tree / editor',
-          hint: 'Tab in · Esc out',
           run: actions.toggleFocus,
         },
       ],
+      id: 'view',
+      label: 'View',
     },
     {
-      id: 'themes',
-      label: 'Themes',
       // `themeNames()`, not a constant: an extension's themes are registered at startup.
-      children: themeNames().map(name => ({
+      children: themeNames().map((name) => ({
         id: `themes.${name}`,
         label: `${check(ctx.activeTheme === name)}${themeLabel(name)}`,
         preview: () => actions.previewTheme(name),
         restore: () => actions.restoreTheme(),
         run: () => actions.setTheme(name),
       })),
+      id: 'themes',
+      label: 'Themes',
     },
     {
-      id: 'icons',
-      label: 'File icons',
-      children: iconThemeNames().map(id => ({
+      children: iconThemeNames().map((id) => ({
         id: `icons.${id}`,
         label: `${check(ctx.activeIconTheme === id)}${iconThemeLabel(id)}${
           iconThemeNeedsFont(id) ? ' — needs a patched font' : ''
@@ -500,64 +637,64 @@ export function buildCommands(actions: CommandActions, ctx: CommandContext): Com
         restore: () => actions.restoreIcons(),
         run: () => actions.setIconTheme(id),
       })),
+      id: 'icons',
+      label: 'File icons',
     },
     {
-      id: 'editor',
-      label: 'Editor',
       children: [
         {
+          hint: 'F12',
           id: 'goto.definition',
           label: 'Go to definition',
-          hint: 'F12',
           run: actions.gotoDefinition,
         },
         {
+          hint: `Ctrl+${ALT}+O`,
           id: 'goto.file',
           label: 'Open file under cursor',
-          hint: `Ctrl+${ALT}+O`,
           run: actions.openFileUnderCursor,
         },
         // Commands as well as chords: some layouts have no byte for Ctrl+/ at all.
         {
+          hint: 'Ctrl+/ · Ctrl+L',
           id: 'editor.comment',
           label: 'Toggle comment',
-          hint: 'Ctrl+/ · Ctrl+L',
           run: () => actions.lineOp('comment'),
         },
         {
+          hint: `${ALT}+↑`,
           id: 'editor.lineUp',
           label: 'Move line up',
-          hint: `${ALT}+↑`,
           run: () => actions.lineOp('up'),
         },
         {
+          hint: `${ALT}+↓`,
           id: 'editor.lineDown',
           label: 'Move line down',
-          hint: `${ALT}+↓`,
           run: () => actions.lineOp('down'),
         },
         {
+          hint: `${ALT}+Shift+↓`,
           id: 'editor.duplicate',
           label: 'Duplicate line',
-          hint: `${ALT}+Shift+↓`,
           run: () => actions.lineOp('duplicate'),
         },
         {
+          hint: `Ctrl+${ALT}+B`,
           id: 'editor.lineStart',
           label: 'Go to beginning of line',
-          hint: `Ctrl+${ALT}+B`,
           run: actions.lineHome,
         },
         {
+          hint: `Ctrl+${ALT}+D`,
           id: 'editor.deleteLine',
           label: 'Delete line',
-          hint: `Ctrl+${ALT}+D`,
           run: () => actions.lineOp('delete'),
         },
         {
+          hint: `Ctrl+${ALT}+L`,
           id: 'editor.format',
           label: 'Format document',
-          hint: `Ctrl+${ALT}+L`,
           run: actions.formatDocument,
         },
         {
@@ -566,21 +703,21 @@ export function buildCommands(actions: CommandActions, ctx: CommandContext): Com
           run: actions.formatOpenFiles,
         },
         {
+          hint: 'Ctrl+Space',
           id: 'editor.complete',
           label: 'Trigger autocomplete',
-          hint: 'Ctrl+Space',
           run: actions.triggerCompletion,
         },
         {
+          hint: `Ctrl+${ALT}+S`,
           id: 'editor.fold',
           label: 'Fold block at cursor',
-          hint: `Ctrl+${ALT}+S`,
           run: () => actions.foldOp('fold'),
         },
         {
+          hint: `Ctrl+${ALT}+E`,
           id: 'editor.unfold',
           label: 'Unfold block at cursor',
-          hint: `Ctrl+${ALT}+E`,
           run: () => actions.foldOp('unfold'),
         },
         {
@@ -594,15 +731,15 @@ export function buildCommands(actions: CommandActions, ctx: CommandContext): Com
           run: () => actions.foldOp('unfoldAll'),
         },
       ],
+      id: 'editor',
+      label: 'Editor',
     },
     {
-      id: 'extensions',
-      label: 'Extensions',
       children: [
         {
+          hint: `Ctrl+${ALT}+X`,
           id: 'extensions.panel',
           label: 'Extensions panel',
-          hint: `Ctrl+${ALT}+X`,
           run: actions.openExtensions,
         },
         {
@@ -610,30 +747,52 @@ export function buildCommands(actions: CommandActions, ctx: CommandContext): Com
           label: 'Check for extension updates',
           run: actions.checkExtensionUpdates,
         },
-        { id: 'extensions.update', label: 'Update extensions', run: actions.updateExtensions },
-        { id: 'extensions.reload', label: 'Reload extensions', run: actions.reloadExtensions },
+        {
+          id: 'extensions.update',
+          label: 'Update extensions',
+          run: actions.updateExtensions,
+        },
+        {
+          id: 'extensions.reload',
+          label: 'Reload extensions',
+          run: actions.reloadExtensions,
+        },
       ],
+      id: 'extensions',
+      label: 'Extensions',
     },
     {
-      id: 'workspace',
-      label: 'Workspace',
       children: [
         {
+          hint: `Ctrl+${ALT}+W`,
           id: 'workspace.switch',
           label: 'Switch workspace…',
-          hint: `Ctrl+${ALT}+W`,
           run: actions.switchWorkspace,
         },
-        { id: 'workspace.open', label: 'Open folder…', run: actions.openWorkspace },
         {
+          id: 'workspace.open',
+          label: 'Open folder…',
+          run: actions.openWorkspace,
+        },
+        {
+          hint: 'w in source control',
           id: 'workspace.worktreeSwitch',
           label: 'Switch worktree…',
-          hint: 'w in source control',
           run: actions.switchWorktree,
         },
-        { id: 'workspace.worktreeNew', label: 'New worktree…', run: actions.newWorktree },
-        { id: 'workspace.worktreeRemove', label: 'Remove worktree…', run: actions.removeWorktree },
+        {
+          id: 'workspace.worktreeNew',
+          label: 'New worktree…',
+          run: actions.newWorktree,
+        },
+        {
+          id: 'workspace.worktreeRemove',
+          label: 'Remove worktree…',
+          run: actions.removeWorktree,
+        },
       ],
+      id: 'workspace',
+      label: 'Workspace',
     },
     { id: 'settings', label: 'Settings', run: actions.openSettings },
     {
@@ -642,17 +801,22 @@ export function buildCommands(actions: CommandActions, ctx: CommandContext): Com
       run: actions.openProjectSettings,
     },
     { id: 'help', label: 'Keyboard shortcuts', run: actions.showHelp },
-    { id: 'quit', label: 'Quit', hint: 'Ctrl+Q', run: actions.quit },
+    { hint: 'Ctrl+Q', id: 'quit', label: 'Quit', run: actions.quit },
   ]
 }
 
 // The tip goes out before `run`: an operation with something of its own to say wins the slot.
-export function withKeymap(commands: Command[], ran: (id: string) => void): Command[] {
-  return commands.map(command => {
-    if (command.children) return { ...command, children: withKeymap(command.children, ran) }
+export function withKeymap(
+  commands: Command[],
+  ran: (id: string) => void
+): Command[] {
+  return commands.map((command) => {
+    if (command.children) {
+      return { ...command, children: withKeymap(command.children, ran) }
+    }
     const key = rebound(command.id)
     const hint = key === null ? command.hint : key || undefined
-    const run = command.run
+    const { run } = command
     return {
       ...command,
       hint,

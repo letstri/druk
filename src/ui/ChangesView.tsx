@@ -1,6 +1,14 @@
 import type { KeyEvent, ScrollBoxRenderable } from '@opentui/core'
 import { useTerminalDimensions } from '@opentui/solid'
-import { createEffect, createMemo, createSignal, For, on, onCleanup, Show } from 'solid-js'
+import {
+  createEffect,
+  createMemo,
+  createSignal,
+  For,
+  on,
+  onCleanup,
+  Show,
+} from 'solid-js'
 import type { Accessor } from 'solid-js'
 
 import type { ChangeArea } from '../core/git'
@@ -16,7 +24,13 @@ import {
 } from './DiffView'
 import type { DiffFile, DiffFileStatus, DiffMode } from './DiffView'
 import { useHoverKey } from './hover'
-import { followScroll } from './list'
+import {
+  followScroll,
+  LAYOUT_FRAME,
+  retryFrames,
+  scrollbarOptions,
+} from './list'
+import { Page } from './PanelHeader'
 import { cut } from './text'
 import { useKeys } from './useKeys'
 
@@ -39,7 +53,11 @@ export interface ChangesMeta {
   dels: number
 }
 
-export function changesSummary(title: string, shown: number, meta: ChangesMeta): string {
+export function changesSummary(
+  title: string,
+  shown: number,
+  meta: ChangesMeta
+): string {
   const counts = `+${meta.adds} −${meta.dels}`
   if (meta.total > shown) {
     return `${title} · showing ${shown} of ${meta.total} files · ${counts}`
@@ -47,7 +65,7 @@ export function changesSummary(title: string, shown: number, meta: ChangesMeta):
   return `${title} · ${meta.total} files · ${counts}`
 }
 
-export interface ChangesViewProps {
+interface ChangesViewProps {
   sections: ChangeSection[]
   meta: ChangesMeta
   focusKey: string | null
@@ -85,52 +103,77 @@ const REVEAL_TRIES = 30
 // Frames a re-anchor keeps re-applying: the scrollbox clamps against the height it still has.
 const HOLD_FRAMES = 6
 
-// One frame: renderable positions are written by the layout pass, later than the macrotask.
-const LAYOUT_FRAME = 16
-
 // `ys`: content-space y of each header's first row, in section order. Null when nothing pins.
-export function stickyHeader(scrollTop: number, ys: number[]): StickyHeader | null {
-  if (ys.length === 0 || ys.some(y => !Number.isFinite(y))) return null
-  let index = -1
-  for (let i = 0; i < ys.length; i++) {
-    if (ys[i]! <= scrollTop) index = i
-    else break
+export function stickyHeader(
+  scrollTop: number,
+  ys: number[]
+): StickyHeader | null {
+  if (ys.length === 0 || ys.some((y) => !Number.isFinite(y))) {
+    return null
   }
-  if (index < 0) return null
+  let index = -1
+  for (let i = 0; i < ys.length; i += 1) {
+    if (ys[i]! <= scrollTop) {
+      index = i
+    } else {
+      break
+    }
+  }
+  if (index < 0) {
+    return null
+  }
   const y = ys[index]!
-  if (y >= scrollTop) return null
+  if (y >= scrollTop) {
+    return null
+  }
   let clipped = 0
   const next = ys[index + 1]
   if (next !== undefined) {
     const room = next - scrollTop
-    if (room <= 0) return null
-    if (room < SECTION_HEADER_ROWS) clipped = SECTION_HEADER_ROWS - room
+    if (room <= 0) {
+      return null
+    }
+    if (room < SECTION_HEADER_ROWS) {
+      clipped = SECTION_HEADER_ROWS - room
+    }
   }
-  return { index, clipped }
+  return { clipped, index }
 }
 
 const areaBadge = (area: ChangeArea) =>
   area === 'unstaged' ? undefined : area === 'merge' ? 'merge' : 'staged'
 
 function cutPath(rel: string, room: number): string {
-  if (room <= 0) return ''
-  if (rel.length <= room) return rel
+  if (room <= 0) {
+    return ''
+  }
+  if (rel.length <= room) {
+    return rel
+  }
   return `…${rel.slice(rel.length - room + 1)}`
 }
 
 function displayRel(section: ChangeSection): string {
   const oldPath = section.file?.oldPath
-  return oldPath && oldPath !== section.rel ? `${oldPath} → ${section.rel}` : section.rel
+  return oldPath && oldPath !== section.rel
+    ? `${oldPath} → ${section.rel}`
+    : section.rel
 }
 
 function headerMeta(section: ChangeSection): string {
-  if (!section.file) return '  binary'
+  if (!section.file) {
+    return '  binary'
+  }
   const bits = [`+${section.adds} −${section.dels}`]
   const badge = areaBadge(section.area)
-  if (badge) bits.push(badge)
-  if (section.truncated) bits.push(`first ${DIFF_MAX_LINES} lines`)
-  else if (
-    section.file.oldText.length + section.file.newText.length > DIFF_HIGHLIGHT_LIMIT ||
+  if (badge) {
+    bits.push(badge)
+  }
+  if (section.truncated) {
+    bits.push(`first ${DIFF_MAX_LINES} lines`)
+  } else if (
+    section.file.oldText.length + section.file.newText.length >
+      DIFF_HIGHLIGHT_LIMIT ||
     section.lines > DIFF_HIGHLIGHT_MAX_LINES
   ) {
     bits.push('plain (large file)')
@@ -154,7 +197,12 @@ interface FileHeaderProps {
 
 function FileHeader(props: FileHeaderProps) {
   const stageHover = useHoverKey<string>()
-  const bg = () => (props.selected ? ui.treeSelectedBg : props.hovered ? ui.hoverBg : ui.solidBarBg)
+  const bg = () =>
+    props.selected
+      ? ui.treeSelectedBg
+      : props.hovered
+        ? ui.hoverBg
+        : ui.solidBarBg
   const mark = () => (props.selected ? ui.accent : bg())
   const label = () => diffStatusLabel(props.section.status)
   const color = () => diffStatusColor(props.section.status)
@@ -166,7 +214,10 @@ function FileHeader(props: FileHeaderProps) {
     const prefix = ` ${chevron()} ${diffMark(props.section.status)} `
     // Held whether or not the button is drawn, or the path jumps as the selection walks past.
     const button = props.staging ? 2 : 0
-    const room = Math.max(8, textWidth() - prefix.length - right.length - button)
+    const room = Math.max(
+      8,
+      textWidth() - prefix.length - right.length - button
+    )
     return cutPath(displayRel(props.section), room)
   }
   const meta = () => cut(headerMeta(props.section), textWidth())
@@ -183,8 +234,20 @@ function FileHeader(props: FileHeaderProps) {
           onMouseOver={() => props.onEnter()}
           onMouseOut={() => props.onLeave()}
         >
-          <text wrapMode="none" fg={mark()} bg={mark()} flexShrink={0} content=" " />
-          <text wrapMode="none" fg={ui.dim} bg={bg()} flexShrink={0} content={` ${chevron()} `} />
+          <text
+            wrapMode="none"
+            fg={mark()}
+            bg={mark()}
+            flexShrink={0}
+            content=" "
+          />
+          <text
+            wrapMode="none"
+            fg={ui.dim}
+            bg={bg()}
+            flexShrink={0}
+            content={` ${chevron()} `}
+          />
           <text
             wrapMode="none"
             fg={color()}
@@ -192,11 +255,23 @@ function FileHeader(props: FileHeaderProps) {
             flexShrink={0}
             content={`${diffMark(props.section.status)} `}
           />
-          <text wrapMode="none" fg={ui.text} bg={bg()} flexShrink={0} content={path()} />
+          <text
+            wrapMode="none"
+            fg={ui.text}
+            bg={bg()}
+            flexShrink={0}
+            content={path()}
+          />
           <box flexGrow={1} backgroundColor={bg()} />
           <Show when={label()}>
             {(word: Accessor<string>) => (
-              <text wrapMode="none" fg={color()} bg={bg()} flexShrink={0} content={` ${word()} `} />
+              <text
+                wrapMode="none"
+                fg={color()}
+                bg={bg()}
+                flexShrink={0}
+                content={` ${word()} `}
+              />
             )}
           </Show>
           {/* stopPropagation: a press on `+` must not reach the row, which would fold the file. */}
@@ -204,7 +279,7 @@ function FileHeader(props: FileHeaderProps) {
             <box
               flexShrink={0}
               backgroundColor={stageHover.hovered('stage') ? ui.hoverBg : bg()}
-              onMouseDown={event => {
+              onMouseDown={(event) => {
                 event.stopPropagation()
                 props.onStage()
               }}
@@ -230,8 +305,20 @@ function FileHeader(props: FileHeaderProps) {
         onMouseOver={() => props.onEnter()}
         onMouseOut={() => props.onLeave()}
       >
-        <text wrapMode="none" fg={mark()} bg={mark()} flexShrink={0} content=" " />
-        <text wrapMode="none" fg={ui.dim} bg={bg()} flexShrink={0} content={meta()} />
+        <text
+          wrapMode="none"
+          fg={mark()}
+          bg={mark()}
+          flexShrink={0}
+          content=" "
+        />
+        <text
+          wrapMode="none"
+          fg={ui.dim}
+          bg={bg()}
+          flexShrink={0}
+          content={meta()}
+        />
         <box flexGrow={1} backgroundColor={bg()} />
       </box>
     </box>
@@ -254,17 +341,19 @@ export function ChangesView(props: ChangesViewProps) {
   const headers = new Map<string, LaidOut>()
   // Not a signal: never read while rendering.
   let drifted = false
-  let revealTimer: ReturnType<typeof setTimeout> | undefined
+  let cancelReveal: (() => void) | null = null
   let layoutTimer: ReturnType<typeof setTimeout> | undefined
-  let modeTimer: ReturnType<typeof setTimeout> | undefined
+  let cancelHold: (() => void) | null = null
   onCleanup(() => {
-    clearTimeout(revealTimer)
+    cancelReveal?.()
     clearTimeout(layoutTimer)
-    clearTimeout(modeTimer)
+    cancelHold?.()
   })
 
   const syncScroll = () => {
-    if (box) setScrollTop(box.scrollTop)
+    if (box) {
+      setScrollTop(box.scrollTop)
+    }
   }
 
   // Read off renderables, not signals: the reconciler flushes on a macrotask, so wait one out.
@@ -279,45 +368,62 @@ export function ChangesView(props: ChangesViewProps) {
   const inner = () => Math.max(1, props.width - 1)
   const isFolded = (key: string) => folded().has(key)
   const toggleFold = (key: string) => {
-    setFolded(cur => {
+    setFolded((cur) => {
       const next = new Set(cur)
-      if (next.has(key)) next.delete(key)
-      else next.add(key)
+      if (next.has(key)) {
+        next.delete(key)
+      } else {
+        next.add(key)
+      }
       return next
     })
     remeasure()
   }
   const setFold = (key: string, collapse: boolean) => {
     let changed = false
-    setFolded(cur => {
-      if (cur.has(key) === collapse) return cur
+    setFolded((cur) => {
+      if (cur.has(key) === collapse) {
+        return cur
+      }
       changed = true
       const next = new Set(cur)
-      if (collapse) next.add(key)
-      else next.delete(key)
+      if (collapse) {
+        next.add(key)
+      } else {
+        next.delete(key)
+      }
       return next
     })
-    if (changed) remeasure()
+    if (changed) {
+      remeasure()
+    }
   }
 
   const scroll = (delta: number) => {
-    clearTimeout(modeTimer)
+    cancelHold?.()
     drifted = true
-    if (box) box.scrollTop = Math.max(0, box.scrollTop + delta)
+    if (box) {
+      box.scrollTop = Math.max(0, box.scrollTop + delta)
+    }
     syncScroll()
   }
   const scrollTo = (row: number) => {
-    clearTimeout(modeTimer)
+    cancelHold?.()
     drifted = true
-    if (box) box.scrollTop = Math.max(0, row)
+    if (box) {
+      box.scrollTop = Math.max(0, row)
+    }
     syncScroll()
   }
 
   const reveal = (key: string, into = 0) => {
     const host = box
     const el = anchors.get(key)
-    if (!host || !el) return
-    host.scrollTop = el.y - host.y + host.scrollTop + Math.round(into * el.height)
+    if (!host || !el) {
+      return
+    }
+    host.scrollTop =
+      el.y - host.y + host.scrollTop + Math.round(into * el.height)
     drifted = into > 0
     syncScroll()
   }
@@ -326,7 +432,9 @@ export function ChangesView(props: ChangesViewProps) {
   const offsetIn = (key: string) => {
     const host = box
     const el = anchors.get(key)
-    if (!host || !el || el.height <= 0) return 0
+    if (!host || !el || el.height <= 0) {
+      return 0
+    }
     const y = el.y - host.y + host.scrollTop
     return Math.min(1, Math.max(0, (scrollTop() - y) / el.height))
   }
@@ -334,38 +442,56 @@ export function ChangesView(props: ChangesViewProps) {
   const headerYs = (): number[] => {
     layout()
     const host = box
-    if (!host) return []
-    return props.sections.map(section => {
+    if (!host) {
+      return []
+    }
+    return props.sections.map((section) => {
       const el = headers.get(section.key)
-      if (!el || el.height <= 0) return Number.NaN
+      if (!el || el.height <= 0) {
+        return Number.NaN
+      }
       return el.y - host.y + host.scrollTop
     })
   }
 
   const sticky = createMemo(() => {
     const pin = stickyHeader(scrollTop(), headerYs())
-    if (!pin) return null
+    if (!pin) {
+      return null
+    }
     const section = props.sections[pin.index]
-    if (!section) return null
-    return { section, clipped: pin.clipped }
+    if (!section) {
+      return null
+    }
+    return { clipped: pin.clipped, section }
   })
 
   const currentIndex = () => {
     const ys = headerYs()
     const pin = stickyHeader(scrollTop(), ys)
-    if (pin) return pin.index
-    for (let i = 0; i < ys.length; i++) {
-      if (Number.isFinite(ys[i]) && ys[i]! >= scrollTop()) return i
+    if (pin) {
+      return pin.index
     }
-    const at = props.sections.findIndex(section => section.key === props.focusKey)
-    return at >= 0 ? at : 0
+    for (let i = 0; i < ys.length; i += 1) {
+      if (Number.isFinite(ys[i]) && ys[i]! >= scrollTop()) {
+        return i
+      }
+    }
+    const at = props.sections.findIndex(
+      (section) => section.key === props.focusKey
+    )
+    return at === -1 ? 0 : at
   }
 
   const selectedKey = createMemo(() => {
-    if (!props.focused) return null
-    const keys = props.sections.map(section => section.key)
+    if (!props.focused) {
+      return null
+    }
+    const keys = props.sections.map((section) => section.key)
     const picked = pickedKey()
-    if (picked && keys.includes(picked)) return picked
+    if (picked && keys.includes(picked)) {
+      return picked
+    }
     return keys[currentIndex()] ?? null
   })
 
@@ -373,26 +499,30 @@ export function ChangesView(props: ChangesViewProps) {
 
   // Not `currentIndex()`: measured off renderables, a layout pass behind the offset it set.
   const anchorKey = () => {
-    const keys = props.sections.map(section => section.key)
+    const keys = props.sections.map((section) => section.key)
     if (!drifted) {
       const picked = pickedKey()
-      if (picked && keys.includes(picked)) return picked
-      if (props.focusKey && keys.includes(props.focusKey)) return props.focusKey
+      if (picked && keys.includes(picked)) {
+        return picked
+      }
+      if (props.focusKey && keys.includes(props.focusKey)) {
+        return props.focusKey
+      }
     }
     return keys[currentIndex()] ?? null
   }
 
   // Re-applied over the next frames: the first attempt is clamped to the old heights.
   const holdAt = (key: string, into = 0) => {
-    clearTimeout(modeTimer)
-    let tries = HOLD_FRAMES
-    const apply = () => {
-      reveal(key, into)
-      remeasure()
-      if (--tries <= 0) return
-      modeTimer = setTimeout(apply, tries === HOLD_FRAMES - 1 ? 0 : LAYOUT_FRAME / 2)
-    }
-    apply()
+    cancelHold?.()
+    cancelHold = retryFrames(
+      () => {
+        reveal(key, into)
+        remeasure()
+        return false
+      },
+      { delay: LAYOUT_FRAME / 2, tries: HOLD_FRAMES }
+    )
   }
 
   createEffect(
@@ -401,15 +531,19 @@ export function ChangesView(props: ChangesViewProps) {
       () => {
         const key = anchorKey()
         // Read before the flip lays out — the heights the reader's offset was measured against.
-        if (key) holdAt(key, offsetIn(key))
+        if (key) {
+          holdAt(key, offsetIn(key))
+        }
       },
-      { defer: true },
-    ),
+      { defer: true }
+    )
   )
 
   const moveSelection = (delta: number) => {
-    const keys = props.sections.map(section => section.key)
-    if (keys.length === 0) return
+    const keys = props.sections.map((section) => section.key)
+    if (keys.length === 0) {
+      return
+    }
     const at = Math.max(0, keys.indexOf(selectedKey() ?? keys[0]!))
     const next = keys[(at + delta + keys.length) % keys.length]!
     setPickedKey(next)
@@ -420,69 +554,97 @@ export function ChangesView(props: ChangesViewProps) {
   createEffect(
     on(
       // Membership, not identity: a refresh that reuses the same keys must not yank the scroll back.
-      () => `${props.focusKey ?? ''}\n${props.sections.map(s => s.key).join('\n')}`,
+      () =>
+        `${props.focusKey ?? ''}\n${props.sections.map((s) => s.key).join('\n')}`,
       () => {
         const key = props.focusKey
-        if (!key || !props.sections.some(s => s.key === key)) return
-        clearTimeout(revealTimer)
-        let tries = REVEAL_TRIES
-        const tryReveal = () => {
-          const el = anchors.get(key)
-          const first = props.sections[0]?.key === key
-          // y is 0 before layout and negative when scrolled off the top: neither is ready.
-          const ready = el && box && el.height > 0 && (first || el.y !== 0)
-          if (ready) {
-            reveal(key)
-            return
-          }
-          if (--tries <= 0) return
-          revealTimer = setTimeout(tryReveal, 16)
+        if (!key || !props.sections.some((s) => s.key === key)) {
+          return
         }
-        tryReveal()
-      },
-    ),
+        cancelReveal?.()
+        cancelReveal = retryFrames(
+          () => {
+            const el = anchors.get(key)
+            const first = props.sections[0]?.key === key
+            // y is 0 before layout and negative when scrolled off the top: neither is ready.
+            if (!el || !box || el.height <= 0 || (!first && el.y === 0)) {
+              return false
+            }
+            reveal(key)
+            return true
+          },
+          { tries: REVEAL_TRIES }
+        )
+      }
+    )
   )
 
   const page = () => Math.max(1, dimensions().height - 3)
 
   useKeys((key: KeyEvent, k: string) => {
-    if (props.blocked || !props.focused || key.defaultPrevented) return
-    if (k === 'up' || k === 'k') scroll(-1)
-    else if (k === 'down' || k === 'j') scroll(1)
-    else if (k === 'pageup' || (key.ctrl && k === 'u')) scroll(-page())
-    else if (k === 'pagedown' || (key.ctrl && k === 'd')) scroll(page())
-    else if (k === 'end' || (k === 'g' && key.shift)) scrollTo(Number.MAX_SAFE_INTEGER)
-    else if (k === 'home' || k === 'g') scrollTo(0)
-    else if (k === 'left' || k === 'h') {
+    if (props.blocked || !props.focused || key.defaultPrevented) {
+      return
+    }
+    if (k === 'up' || k === 'k') {
+      scroll(-1)
+    } else if (k === 'down' || k === 'j') {
+      scroll(1)
+    } else if (k === 'pageup' || (key.ctrl && k === 'u')) {
+      scroll(-page())
+    } else if (k === 'pagedown' || (key.ctrl && k === 'd')) {
+      scroll(page())
+    } else if (k === 'end' || (k === 'g' && key.shift)) {
+      scrollTo(Number.MAX_SAFE_INTEGER)
+    } else if (k === 'home' || k === 'g') {
+      scrollTo(0)
+    } else if (k === 'left' || k === 'h') {
       const sel = selectedKey()
-      if (sel) setFold(sel, true)
+      if (sel) {
+        setFold(sel, true)
+      }
     } else if (k === 'right' || k === 'l') {
       const sel = selectedKey()
-      if (sel) setFold(sel, false)
-    } else if (k === 'tab') moveSelection(key.shift ? -1 : 1)
-    else if (k === 's' || k === 'd') props.onToggleMode()
-    else if (k === 'space') {
+      if (sel) {
+        setFold(sel, false)
+      }
+    } else if (k === 'tab') {
+      moveSelection(key.shift ? -1 : 1)
+    } else if (k === 's' || k === 'd') {
+      props.onToggleMode()
+    } else if (k === 'space') {
       const sel = selectedKey()
-      if (sel) props.onToggleStage(sel)
+      if (sel) {
+        props.onToggleStage(sel)
+      }
     } else if (k === 'return' || k === 'enter') {
       const sel = selectedKey()
-      if (sel) props.onOpen(sel, sel === pickedKey() ? pickedLine() : null)
-    } else if (k === 'escape' || k === 'q') props.onClose()
-    else return
+      if (sel) {
+        props.onOpen(sel, sel === pickedKey() ? pickedLine() : null)
+      }
+    } else if (k === 'escape' || k === 'q') {
+      props.onClose()
+    } else {
+      return
+    }
     key.preventDefault()
   })
 
-  const summary = () => changesSummary(props.title, props.sections.length, props.meta)
+  const summary = () =>
+    changesSummary(props.title, props.sections.length, props.meta)
 
   const hints = () => {
-    const layout = props.mode === 'inline' ? 'inline' : 'side-by-side'
+    const mode = props.mode === 'inline' ? 'inline' : 'side-by-side'
     const key = props.focused ? 's' : 'S'
     const stage = props.staging ? ' · Space stage' : ''
     const esc = `Esc ${props.escLabel ?? 'close'}`
-    const full = ` ${layout} · ${key} layout${stage} · Tab file · Enter open · ← fold · ${esc} `
-    if (full.length + 28 <= props.width) return full
-    const short = ` ${layout} · ${key} · Tab · Enter open · ← fold · ${esc} `
-    if (short.length + 28 <= props.width) return short
+    const full = ` ${mode} · ${key} layout${stage} · Tab file · Enter open · ← fold · ${esc} `
+    if (full.length + 28 <= props.width) {
+      return full
+    }
+    const short = ` ${mode} · ${key} · Tab · Enter open · ← fold · ${esc} `
+    if (short.length + 28 <= props.width) {
+      return short
+    }
     return ` Tab · Enter open · ${esc} `
   }
 
@@ -493,18 +655,7 @@ export function ChangesView(props: ChangesViewProps) {
   }
 
   return (
-    <box
-      width="100%"
-      height="100%"
-      flexDirection="column"
-      backgroundColor={ui.solidBg}
-      onMouseDown={() => props.onFocus()}
-    >
-      <box flexDirection="row" flexShrink={0} backgroundColor={ui.solidBarBg}>
-        <text wrapMode="none" fg={ui.text} bg={ui.solidBarBg} flexShrink={0} content={header()} />
-        <box flexGrow={1} backgroundColor={ui.solidBarBg} />
-        <text wrapMode="none" fg={ui.dim} bg={ui.solidBarBg} flexShrink={0} content={hints()} />
-      </box>
+    <Page title={header()} hints={hints()} onFocus={props.onFocus}>
       <Show
         when={props.sections.length > 0}
         fallback={
@@ -517,8 +668,10 @@ export function ChangesView(props: ChangesViewProps) {
           <scrollbox
             ref={(el: ScrollBoxRenderable) => {
               box = el
-              followScroll(el, top => {
-                if (top === scrollTop()) return
+              followScroll(el, (top) => {
+                if (top === scrollTop()) {
+                  return
+                }
                 drifted = true
                 setScrollTop(top)
               })
@@ -526,12 +679,10 @@ export function ChangesView(props: ChangesViewProps) {
             flexGrow={1}
             backgroundColor={ui.solidBg}
             stickyScroll={false}
-            scrollbarOptions={{
-              trackOptions: { foregroundColor: ui.scrollbar, backgroundColor: ui.solidBg },
-            }}
+            scrollbarOptions={scrollbarOptions(ui.solidBg)}
           >
             <For each={props.sections}>
-              {section => {
+              {(section) => {
                 onCleanup(() => {
                   anchors.delete(section.key)
                   headers.delete(section.key)
@@ -539,7 +690,9 @@ export function ChangesView(props: ChangesViewProps) {
                 return (
                   <box
                     ref={(el: LaidOut) => {
-                      if (el) anchors.set(section.key, el)
+                      if (el) {
+                        anchors.set(section.key, el)
+                      }
                     }}
                     width="100%"
                     flexShrink={0}
@@ -547,7 +700,9 @@ export function ChangesView(props: ChangesViewProps) {
                   >
                     <box
                       ref={(el: LaidOut) => {
-                        if (el) headers.set(section.key, el)
+                        if (el) {
+                          headers.set(section.key, el)
+                        }
                       }}
                       flexShrink={0}
                     >
@@ -572,7 +727,9 @@ export function ChangesView(props: ChangesViewProps) {
                         onLeave={() => hover.leave(section.key)}
                       />
                     </box>
-                    <Show when={!isFolded(section.key) ? section.file : undefined}>
+                    <Show
+                      when={isFolded(section.key) ? undefined : section.file}
+                    >
                       {(file: Accessor<DiffFile>) => (
                         <DiffView
                           file={file()}
@@ -582,7 +739,7 @@ export function ChangesView(props: ChangesViewProps) {
                           focused={false}
                           blocked={true}
                           onFocus={props.onFocus}
-                          onPickLine={line => {
+                          onPickLine={(line) => {
                             setPickedKey(section.key)
                             setPickedLine(line)
                           }}
@@ -629,6 +786,6 @@ export function ChangesView(props: ChangesViewProps) {
           </Show>
         </box>
       </Show>
-    </box>
+    </Page>
   )
 }

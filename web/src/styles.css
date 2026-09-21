@@ -17,8 +17,8 @@
   --error: #f85149;
   --select: #1c3252;
   --mono:
-    ui-monospace, 'SF Mono', 'Cascadia Code', 'JetBrains Mono', Menlo, Consolas, 'DejaVu Sans Mono',
-    monospace;
+    ui-monospace, 'SF Mono', 'Cascadia Code', 'JetBrains Mono', Menlo, Consolas,
+    'DejaVu Sans Mono', monospace;
 }
 
 * {

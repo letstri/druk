@@ -18,7 +18,7 @@ export interface TabInfo {
   icon: { glyph: string; color?: string } | null
 }
 
-export interface TabsProps {
+interface TabsProps {
   tabs: TabInfo[]
   width: number
   activeId: string | null
@@ -50,7 +50,10 @@ const barBg = (hovered: boolean) => (hovered ? ui.hoverBg : ui.barBg)
 // One cell either way: a diagnostic replaces the icon, so a tab that starts erroring shifts nothing.
 const glyphOf = (tab: TabInfo): { glyph: string; color?: string } | null =>
   tab.severity
-    ? { glyph: SEVERITY_GLYPH[tab.severity], color: SEVERITY_COLOR[tab.severity]() }
+    ? {
+        color: SEVERITY_COLOR[tab.severity](),
+        glyph: SEVERITY_GLYPH[tab.severity],
+      }
     : tab.icon
 
 export function Tabs(props: TabsProps) {
@@ -69,28 +72,31 @@ export function Tabs(props: TabsProps) {
 
     const active = Math.max(
       0,
-      props.tabs.findIndex(tab => tab.id === props.activeId),
+      props.tabs.findIndex((tab) => tab.id === props.activeId)
     )
     let first = active
     let last = active
     let used = props.tabs[active] ? width(props.tabs[active]!) : 0
 
     while (first > 0 || last < props.tabs.length - 1) {
-      const before = first > 0 ? width(props.tabs[first - 1]!) : Infinity
-      const after = last < props.tabs.length - 1 ? width(props.tabs[last + 1]!) : Infinity
-      const next = Math.min(before, after)
-      if (used + next > budget) break
-      if (after <= before) {
-        last++
+      const prevWidth = first > 0 ? width(props.tabs[first - 1]!) : Infinity
+      const nextWidth =
+        last < props.tabs.length - 1 ? width(props.tabs[last + 1]!) : Infinity
+      const next = Math.min(prevWidth, nextWidth)
+      if (used + next > budget) {
+        break
+      }
+      if (nextWidth <= prevWidth) {
+        last += 1
       } else {
-        first--
+        first -= 1
       }
       used += next
     }
     return {
-      tabs: props.tabs.slice(first, last + 1),
-      before: first,
       after: props.tabs.length - 1 - last,
+      before: first,
+      tabs: props.tabs.slice(first, last + 1),
     }
   })
 
@@ -106,7 +112,11 @@ export function Tabs(props: TabsProps) {
           onMouseOver={back.enter}
           onMouseOut={back.leave}
         >
-          <text fg={props.canBack ? ui.dim : ui.faint} bg={barBg(back.lit())} content="←" />
+          <text
+            fg={props.canBack ? ui.dim : ui.faint}
+            bg={barBg(back.lit())}
+            content="←"
+          />
         </box>
         <box
           ref={forward.ref}
@@ -117,11 +127,17 @@ export function Tabs(props: TabsProps) {
           onMouseOver={forward.enter}
           onMouseOut={forward.leave}
         >
-          <text fg={props.canForward ? ui.dim : ui.faint} bg={barBg(forward.lit())} content="→" />
+          <text
+            fg={props.canForward ? ui.dim : ui.faint}
+            bg={barBg(forward.lit())}
+            content="→"
+          />
         </box>
         <Show
           when={props.tabs.length > 0}
-          fallback={<text fg={ui.faint} bg={ui.barBg} content="  no open files" />}
+          fallback={
+            <text fg={ui.faint} bg={ui.barBg} content="  no open files" />
+          }
         >
           <Show when={visible().before > 0}>
             <box
@@ -132,15 +148,20 @@ export function Tabs(props: TabsProps) {
               onMouseOver={before.enter}
               onMouseOut={before.leave}
             >
-              <text fg={ui.dim} bg={barBg(before.lit())} content={`‹${visible().before}`} />
+              <text
+                fg={ui.dim}
+                bg={barBg(before.lit())}
+                content={`‹${visible().before}`}
+              />
             </box>
           </Show>
           <For each={visible().tabs}>
-            {tab => {
+            {(tab) => {
               const active = () => tab.id === props.activeId
               const row = useHover()
               const close = useHover()
-              const bg = () => (active() ? ui.bg : row.hovered() ? ui.hoverBg : ui.barBg)
+              const bg = () =>
+                active() ? ui.bg : row.hovered() ? ui.hoverBg : ui.barBg
               return (
                 <box
                   flexDirection="row"
@@ -152,7 +173,12 @@ export function Tabs(props: TabsProps) {
                   onMouseOut={row.leave}
                 >
                   {/* A space, not a glyph hidden in the background: `transparent` leaves none. */}
-                  <text fg={ui.accent} bg={bg()} flexShrink={0} content={active() ? '▎' : ' '} />
+                  <text
+                    fg={ui.accent}
+                    bg={bg()}
+                    flexShrink={0}
+                    content={active() ? '▎' : ' '}
+                  />
                   <Show when={glyphOf(tab)}>
                     {(mark: () => { glyph: string; color?: string }) => (
                       <text
@@ -212,7 +238,11 @@ export function Tabs(props: TabsProps) {
               onMouseOver={after.enter}
               onMouseOut={after.leave}
             >
-              <text fg={ui.dim} bg={barBg(after.lit())} content={`${visible().after}›`} />
+              <text
+                fg={ui.dim}
+                bg={barBg(after.lit())}
+                content={`${visible().after}›`}
+              />
             </box>
           </Show>
         </Show>

@@ -39,7 +39,9 @@ export const languages = (): Language[] => {
   return [...registry.values()]
 }
 
-export function languageFor(filetype: string | undefined): Language | undefined {
+export function languageFor(
+  filetype: string | undefined
+): Language | undefined {
   generation()
   return filetype ? registry.get(filetype) : undefined
 }
@@ -48,25 +50,33 @@ export function languageLabel(filetype: string): string {
   return languageFor(filetype)?.label ?? filetype
 }
 
-export function commentPrefix(filetype: string | undefined): string | undefined {
+export function commentPrefix(
+  filetype: string | undefined
+): string | undefined {
   return languageFor(filetype)?.lineComment
 }
 
 export const vendoredLanguages = (): Language[] =>
-  languages().filter(language => language.wasm && language.query)
+  languages().filter((language) => language.wasm && language.query)
 
 // Ordered: a whole name beats a pattern beats an extension (`bun.lock`, `.env.local`).
 export function filetypeForName(name: string): string | undefined {
   generation()
   const lower = name.toLowerCase()
   for (const language of registry.values()) {
-    if (language.filenames?.some(entry => entry.toLowerCase() === lower)) return language.id
+    if (language.filenames?.some((entry) => entry.toLowerCase() === lower)) {
+      return language.id
+    }
   }
   for (const language of registry.values()) {
-    if (language.filenamePattern?.test(name)) return language.id
+    if (language.filenamePattern?.test(name)) {
+      return language.id
+    }
   }
   for (const language of registry.values()) {
-    if (language.extensions?.some(ext => lower.endsWith(ext.toLowerCase()))) return language.id
+    if (language.extensions?.some((ext) => lower.endsWith(ext.toLowerCase()))) {
+      return language.id
+    }
   }
   return undefined
 }

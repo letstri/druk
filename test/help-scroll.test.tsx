@@ -7,8 +7,8 @@ const PROJECT = { 'a.ts': 'const a = 1\n' }
 async function openHelp(height: number) {
   const t = await launch(fixture(PROJECT), {}, { height })
   await openPalette(t)
-  await press(t, i => void i.typeText('shortcuts'))
-  await press(t, i => i.pressEnter())
+  await press(t, (i) => i.typeText('shortcuts'))
+  await press(t, (i) => i.pressEnter())
   return t
 }
 
@@ -21,7 +21,7 @@ test('on a short terminal the table windows instead of clipping the footer', asy
   expect(frame).toContain('↑↓ scroll · Esc close')
   expect(frame).not.toContain('Editor → tree')
 
-  await pressTimes(t, 60, i => i.pressArrow('down'))
+  await pressTimes(t, 60, (i) => i.pressArrow('down'))
   expect(t.captureCharFrame()).toContain('Editor → tree')
 })
 

@@ -1,11 +1,13 @@
 import { TextAttributes } from '@opentui/core'
-import { createEffect, createMemo, For, on, Show } from 'solid-js'
+import { createEffect, createMemo, on, Show } from 'solid-js'
 
 import type { ReviewNote } from '../core/review'
+import { plural } from '../core/text'
 import { ui } from '../themes'
 import { useHover, useHoverKey } from './hover'
-import { createScrollList, rowBg, scrollbarOptions } from './list'
-import { PanelHeader } from './PanelHeader'
+import { createScrollList, rowBg } from './list'
+import { Panel, PanelHeader } from './PanelHeader'
+import { PanelList } from './PanelList'
 import { cut } from './text'
 
 export type ReviewRow =
@@ -21,7 +23,7 @@ type Remark = Extract<ReviewRow, { kind: 'note' | 'reply' }>
 const remarkRow = (row: ReviewRow): Remark | undefined =>
   row.kind === 'note' || row.kind === 'reply' ? row : undefined
 
-export interface ReviewPanelProps {
+interface ReviewPanelProps {
   rows: ReviewRow[]
   cursor: number
   count: number
@@ -34,31 +36,26 @@ export interface ReviewPanelProps {
 
 export function ReviewPanel(props: ReviewPanelProps) {
   // A memo so the reveal below fires on the cursor's *value* — see GitPanel.
-  const cursor = createMemo(() => Math.max(0, Math.min(props.cursor, props.rows.length - 1)))
+  const cursor = createMemo(() =>
+    Math.max(0, Math.min(props.cursor, props.rows.length - 1))
+  )
 
   const list = createScrollList(() => props.rows.length)
   const collapse = useHover()
   const rowHover = useHoverKey<number>()
-  const visible = createMemo(() => props.rows.slice(list.window().start, list.window().end))
 
-  createEffect(on(cursor, row => list.reveal(row)))
+  createEffect(on(cursor, (row) => list.reveal(row)))
 
   const labelOf = (row: ReviewRow) => remarkRow(row)?.label ?? ''
 
   const indentOf = (row: ReviewRow) => (row.kind === 'reply' ? 5 : 3)
 
   return (
-    <box
-      width={props.width}
-      flexDirection="column"
-      backgroundColor={ui.sidebarBg}
-      flexShrink={0}
-      flexGrow={1}
-      flexBasis={0}
-      onMouseDown={() => props.onFocus()}
-    >
+    <Panel width={props.width} onFocus={props.onFocus}>
       <PanelHeader title="Review" width={props.width} focused={props.focused}>
-        <Show when={props.rows.some(row => row.kind === 'file' && !row.collapsed)}>
+        <Show
+          when={props.rows.some((row) => row.kind === 'file' && !row.collapsed)}
+        >
           <text
             fg={collapse.hovered() ? ui.text : ui.dim}
             bg={collapse.hovered() ? ui.hoverBg : ui.sidebarBg}
@@ -76,114 +73,110 @@ export function ReviewPanel(props: ReviewPanelProps) {
           flexShrink={0}
           wrapMode="none"
           content={cut(
-            `${props.count} item${props.count === 1 ? '' : 's'}`,
-            Math.max(4, props.width - 12),
+            plural(props.count, 'item'),
+            Math.max(4, props.width - 12)
           )}
         />
       </PanelHeader>
 
-      <scrollbox
-        ref={list.ref}
-        flexGrow={1}
-        backgroundColor={ui.sidebarBg}
-        scrollbarOptions={scrollbarOptions()}
-      >
-        {/* Spacers keep the scrollable extent honest while only a window exists. */}
-        <box height={list.window().start} flexShrink={0} backgroundColor={ui.sidebarBg} />
-        <For each={visible()}>
-          {(row, at) => {
-            const index = () => list.window().start + at()
-            const bg = () => rowBg(index() === cursor(), props.focused, rowHover.hovered(index()))
-            // Cut as well as unwrapped: a reply's `@name` is the notes file's, and this cannot shrink.
-            const label = () => cut(labelOf(row), Math.max(0, props.width - indentOf(row) - 2))
-            // What the label leaves: the indent, 1 for the gap, 1 for the trailing pad.
-            const room = () => props.width - label().length - indentOf(row) - 2
-            return (
-              <box
-                height={1}
-                flexDirection="row"
-                backgroundColor={bg()}
-                onMouseDown={() => props.onActivate(index())}
-                onMouseOver={() => rowHover.enter(index())}
-                onMouseOut={() => rowHover.leave(index())}
-              >
-                <Show when={fileRow(row)}>
-                  {(file: () => ReviewRow & { kind: 'file' }) => (
-                    <>
+      <PanelList list={list} items={props.rows}>
+        {(row, index) => {
+          const bg = () =>
+            rowBg(
+              index() === cursor(),
+              props.focused,
+              rowHover.hovered(index())
+            )
+          // Cut as well as unwrapped: a reply's `@name` is the notes file's, and this cannot shrink.
+          const label = () =>
+            cut(labelOf(row), Math.max(0, props.width - indentOf(row) - 2))
+          // What the label leaves: the indent, 1 for the gap, 1 for the trailing pad.
+          const room = () => props.width - label().length - indentOf(row) - 2
+          return (
+            <box
+              height={1}
+              flexDirection="row"
+              backgroundColor={bg()}
+              onMouseDown={() => props.onActivate(index())}
+              onMouseOver={() => rowHover.enter(index())}
+              onMouseOut={() => rowHover.leave(index())}
+            >
+              <Show when={fileRow(row)}>
+                {(file: () => ReviewRow & { kind: 'file' }) => (
+                  <>
+                    <text
+                      fg={ui.dim}
+                      bg={bg()}
+                      flexShrink={0}
+                      wrapMode="none"
+                      content={` ${file().collapsed ? '▸' : '▾'} `}
+                    />
+                    <box flexGrow={1} backgroundColor={bg()}>
                       <text
-                        fg={ui.dim}
+                        fg={ui.folder}
                         bg={bg()}
-                        flexShrink={0}
                         wrapMode="none"
-                        content={` ${file().collapsed ? '▸' : '▾'} `}
+                        content={cut(file().rel, Math.max(3, props.width - 8))}
+                        attributes={TextAttributes.BOLD}
                       />
-                      <box flexGrow={1} backgroundColor={bg()}>
-                        <text
-                          fg={ui.folder}
-                          bg={bg()}
-                          wrapMode="none"
-                          content={cut(file().rel, Math.max(3, props.width - 8))}
-                          attributes={TextAttributes.BOLD}
-                        />
-                      </box>
-                      <text
-                        fg={ui.faint}
-                        bg={bg()}
-                        flexShrink={0}
-                        wrapMode="none"
-                        content={`${file().count} `}
-                      />
-                    </>
-                  )}
-                </Show>
-                <Show when={hintRow(row)}>
-                  {(hint: () => ReviewRow & { kind: 'hint' }) => (
+                    </box>
                     <text
                       fg={ui.faint}
                       bg={bg()}
+                      flexShrink={0}
                       wrapMode="none"
-                      content={` ${cut(hint().label, props.width - 2)}`}
+                      content={`${file().count} `}
                     />
-                  )}
-                </Show>
-                <Show when={remarkRow(row)}>
-                  {(remark: () => Remark) => (
-                    <>
-                      <text
-                        fg={remark().kind === 'note' ? ui.accent : ui.dim}
-                        bg={bg()}
-                        flexShrink={0}
-                        wrapMode="none"
-                        content={`${' '.repeat(indentOf(row))}${label()}`}
-                      />
-                      <text
-                        fg={ui.text}
-                        bg={bg()}
-                        flexShrink={1}
-                        wrapMode="none"
-                        content={room() > 3 ? ` ${cut(remark().text, room())}` : ''}
-                      />
-                    </>
-                  )}
-                </Show>
-              </box>
-            )
-          }}
-        </For>
-        <box
-          height={Math.max(0, props.rows.length - list.window().end)}
-          flexShrink={0}
-          backgroundColor={ui.sidebarBg}
-        />
-      </scrollbox>
+                  </>
+                )}
+              </Show>
+              <Show when={hintRow(row)}>
+                {(hint: () => ReviewRow & { kind: 'hint' }) => (
+                  <text
+                    fg={ui.faint}
+                    bg={bg()}
+                    wrapMode="none"
+                    content={` ${cut(hint().label, props.width - 2)}`}
+                  />
+                )}
+              </Show>
+              <Show when={remarkRow(row)}>
+                {(remark: () => Remark) => (
+                  <>
+                    <text
+                      fg={remark().kind === 'note' ? ui.accent : ui.dim}
+                      bg={bg()}
+                      flexShrink={0}
+                      wrapMode="none"
+                      content={`${' '.repeat(indentOf(row))}${label()}`}
+                    />
+                    <text
+                      fg={ui.text}
+                      bg={bg()}
+                      flexShrink={1}
+                      wrapMode="none"
+                      content={
+                        room() > 3 ? ` ${cut(remark().text, room())}` : ''
+                      }
+                    />
+                  </>
+                )}
+              </Show>
+            </box>
+          )
+        }}
+      </PanelList>
       <box height={1} backgroundColor={ui.sidebarBg} paddingLeft={1}>
         <text
           fg={ui.faint}
           bg={ui.sidebarBg}
           wrapMode="none"
-          content={cut('↑↓ · Enter · r reply · ⌫ · Esc', Math.max(0, props.width - 2))}
+          content={cut(
+            '↑↓ · Enter · r reply · ⌫ · Esc',
+            Math.max(0, props.width - 2)
+          )}
         />
       </box>
-    </box>
+    </Panel>
   )
 }

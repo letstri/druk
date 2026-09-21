@@ -3,6 +3,7 @@ import { once } from 'node:events'
 import { readdirSync } from 'node:fs'
 import type { Server } from 'node:http'
 import { createServer } from 'node:http'
+import { promisify } from 'node:util'
 
 const silent = createServer(() => {})
 const stalled = createServer((_req, res) => {
@@ -26,32 +27,40 @@ const failing = createServer((_req, res) => {
   res.end()
 })
 const servers = [silent, stalled, missing, recording, failing]
-for (const server of servers) server.listen(0, '127.0.0.1')
-await Promise.all(servers.map(server => once(server, 'listening')))
+for (const server of servers) {
+  server.listen(0, '127.0.0.1')
+}
+await Promise.all(servers.map((server) => once(server, 'listening')))
 
 function port(server: Server) {
   const address = server.address()
-  if (address && typeof address === 'object') return address.port
+  if (address && typeof address === 'object') {
+    return address.port
+  }
   throw new Error('server is not listening on a TCP port')
 }
 
-function closeServer(server: Server) {
+async function closeServer(server: Server) {
   server.closeAllConnections()
-  // Bun's http close reports ERR_SERVER_NOT_RUNNING after a clean listen/close pair (1.3.14).
-  return new Promise<void>((resolve, reject) => {
-    server.close(error => {
-      if (error && !('code' in error && error.code === 'ERR_SERVER_NOT_RUNNING')) reject(error)
-      else resolve()
-    })
-  })
+  try {
+    await promisify(server.close.bind(server))()
+  } catch (error) {
+    // Bun's http close reports ERR_SERVER_NOT_RUNNING after a clean listen/close pair (1.3.14).
+    if (
+      !(error && typeof error === 'object' && 'code' in error) ||
+      error.code !== 'ERR_SERVER_NOT_RUNNING'
+    ) {
+      throw error
+    }
+  }
 }
 
 afterAll(async () => {
-  await Promise.all(servers.map(server => closeServer(server)))
+  await Promise.all(servers.map((server) => closeServer(server)))
 })
 
 // binary.mjs bakes DRUK_DOWNLOAD_BASE in at evaluation: each base needs a cache-busted import.
-async function binaryAgainst(server: Server) {
+function binaryAgainst(server: Server) {
   process.env.DRUK_DOWNLOAD_BASE = `http://127.0.0.1:${port(server)}`
   return import(`../bin/binary.mjs?base=${port(server)}`)
 }
@@ -68,7 +77,7 @@ describe('fetchBinary timeout', () => {
     expect(await fetchBinary({ timeout: 250 })).toBeNull()
     const elapsed = Date.now() - started
     expect(elapsed).toBeGreaterThanOrEqual(200)
-    expect(elapsed).toBeLessThan(5_000)
+    expect(elapsed).toBeLessThan(5000)
   })
 
   test('gives up when the body stalls after headers', async () => {
@@ -77,7 +86,7 @@ describe('fetchBinary timeout', () => {
     expect(await fetchBinary({ timeout: 250 })).toBeNull()
     const elapsed = Date.now() - started
     expect(elapsed).toBeGreaterThanOrEqual(200)
-    expect(elapsed).toBeLessThan(5_000)
+    expect(elapsed).toBeLessThan(5000)
   })
 
   test('a transient 5xx is retried, a 404 is not', async () => {
@@ -97,22 +106,30 @@ describe('fetchBinary timeout', () => {
     const { fetchBinary } = await binaryAgainst(missing)
     const started = Date.now()
     expect(await fetchBinary({ timeout: 60_000 })).toBeNull()
-    expect(Date.now() - started).toBeLessThan(5_000)
+    expect(Date.now() - started).toBeLessThan(5000)
   })
 })
 
 describe('the baseline variant', () => {
   test('a cpuinfo without avx2 wants the baseline build', async () => {
     const { wantsBaseline } = await binaryAgainst(missing)
-    expect(wantsBaseline('flags\t\t: fpu vme sse sse2 avx aes lahf_lm')).toBe(true)
-    expect(wantsBaseline('flags\t\t: fpu sse sse2 avx avx2 bmi1 bmi2')).toBe(false)
+    expect(wantsBaseline('flags\t\t: fpu vme sse sse2 avx aes lahf_lm')).toBe(
+      true
+    )
+    expect(wantsBaseline('flags\t\t: fpu sse sse2 avx avx2 bmi1 bmi2')).toBe(
+      false
+    )
   })
 
   test('recognises the illegal-instruction crash on both platforms', async () => {
     const { illegalInstruction } = await binaryAgainst(missing)
     expect(illegalInstruction({ signal: 'SIGILL', status: null })).toBe(true)
-    expect(illegalInstruction({ signal: null, status: 3221225501 })).toBe(true)
-    expect(illegalInstruction({ signal: null, status: -1073741795 })).toBe(true)
+    expect(illegalInstruction({ signal: null, status: 3_221_225_501 })).toBe(
+      true
+    )
+    expect(illegalInstruction({ signal: null, status: -1_073_741_795 })).toBe(
+      true
+    )
     expect(illegalInstruction({ signal: null, status: 0 })).toBe(false)
     expect(illegalInstruction({ signal: 'SIGTERM', status: null })).toBe(false)
     expect(illegalInstruction({ signal: null, status: 1 })).toBe(false)
@@ -122,19 +139,23 @@ describe('the baseline variant', () => {
     const { fetchBinary } = await binaryAgainst(recording)
     process.env.DRUK_CPU_BASELINE = '1'
     try {
-      expect(await fetchBinary({ timeout: 5_000 })).toBeNull()
+      expect(await fetchBinary({ timeout: 5000 })).toBeNull()
     } finally {
       delete process.env.DRUK_CPU_BASELINE
     }
     expect(requested.length).toBeGreaterThan(0)
-    expect(requested.every(url => url.includes('-baseline.'))).toBe(true)
+    expect(requested.every((url) => url.includes('-baseline.'))).toBe(true)
   })
 })
 
 describe('the published package', () => {
   test('stages every module bin/ holds', async () => {
-    const release = await Bun.file(new URL('../scripts/release.ts', import.meta.url)).text()
-    const staged = [...release.matchAll(/cp\('\.\/bin\/([\w.-]+)'/g)].map(match => match[1])
+    const release = await Bun.file(
+      new URL('../scripts/release.ts', import.meta.url)
+    ).text()
+    const staged = [...release.matchAll(/cp\('\.\/bin\/([\w.-]+)'/gu)].map(
+      (match) => match[1]
+    )
     const modules = readdirSync(new URL('../bin/', import.meta.url))
     expect(staged.toSorted()).toEqual(modules.toSorted())
   })

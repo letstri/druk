@@ -13,10 +13,12 @@ test('yaml keys, values and comments get distinct styles', async () => {
   const styleOf = (needle: string) => {
     for (const [line, text] of lines.entries()) {
       const col = text.indexOf(needle)
-      if (col < 0) continue
-      return segs.find(s => s.line === line && s.start <= col && col < s.end)?.styleId
+      if (col === -1) {
+        continue
+      }
+      return segs.find((s) => s.line === line && s.start <= col && col < s.end)
+        ?.styleId
     }
-    return undefined
   }
 
   expect(styleOf('settings')).toBe(ss.getStyleId('property')!)
@@ -27,8 +29,8 @@ test('yaml keys, values and comments get distinct styles', async () => {
 
 test('a .yaml file opens and reports its filetype', async () => {
   const t = await launch(fixture({ 'config.yaml': YAML }))
-  await press(t, i => i.pressArrow('down'))
-  await press(t, i => i.pressEnter())
+  await press(t, (i) => i.pressArrow('down'))
+  await press(t, (i) => i.pressEnter())
   const frame = t.captureCharFrame()
   expect(frame).toContain('autoInstallPeers')
   expect(frame.split('\n').at(-2)).toContain('yaml')

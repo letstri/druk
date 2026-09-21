@@ -7,7 +7,7 @@ import { welcomeKeys } from './keys'
 
 const CHROME_ROWS = 8
 
-export interface WelcomeProps {
+interface WelcomeProps {
   rootName: string
   branch: string | null
   version: string
@@ -19,7 +19,9 @@ export function Welcome(props: WelcomeProps) {
     const all = welcomeKeys()
     const room = Math.max(0, dimensions().height - CHROME_ROWS)
     const width = Math.max(...all.map(([key]) => key.length))
-    return all.slice(0, room).map(([key, label]) => [key.padEnd(width), label] as const)
+    return all
+      .slice(0, room)
+      .map(([key, label]) => [key.padEnd(width), label] as const)
   })
 
   return (
@@ -31,7 +33,12 @@ export function Welcome(props: WelcomeProps) {
       justifyContent="center"
     >
       {/* One block centred as a whole, and capped: a long branch name would widen it past the pane. */}
-      <box flexDirection="column" backgroundColor={ui.bg} alignItems="flex-start" maxWidth="100%">
+      <box
+        flexDirection="column"
+        backgroundColor={ui.bg}
+        alignItems="flex-start"
+        maxWidth="100%"
+      >
         <text
           fg={ui.accent}
           bg={ui.bg}
@@ -42,7 +49,11 @@ export function Welcome(props: WelcomeProps) {
           wrapMode="none"
           fg={ui.dim}
           bg={ui.bg}
-          content={props.branch ? `${props.rootName} · ${props.branch}` : props.rootName}
+          content={
+            props.branch
+              ? `${props.rootName} · ${props.branch}`
+              : props.rootName
+          }
         />
         <Show when={rows().length > 0}>
           <text fg={ui.faint} bg={ui.bg} content="" />

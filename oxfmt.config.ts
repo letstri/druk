@@ -1,5 +1,11 @@
-import { config } from '@letstri/oxlint-config/oxfmt'
+import { defineConfig } from 'oxfmt'
+import ultracite from 'ultracite/oxfmt'
 
-export default config({
-  ignorePatterns: ['extensions/index.json'],
+import { ignorePatterns } from './oxc.ignore.ts'
+
+export default defineConfig({
+  ...ultracite,
+  ignorePatterns: [...(ultracite.ignorePatterns || []), ...ignorePatterns],
+  semi: false,
+  singleQuote: true,
 })

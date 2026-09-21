@@ -6,16 +6,16 @@ const past = ['newest', 'older', 'oldest']
 
 test('↑ walks back from the draft, ↓ walks out to it again', () => {
   const first = stepHistory(past, -1, 1, 'typing', '')
-  expect(first).toEqual({ at: 0, value: 'newest', draft: 'typing' })
+  expect(first).toEqual({ at: 0, draft: 'typing', value: 'newest' })
 
   const second = stepHistory(past, first!.at, 1, first!.value, first!.draft)
-  expect(second).toEqual({ at: 1, value: 'older', draft: 'typing' })
+  expect(second).toEqual({ at: 1, draft: 'typing', value: 'older' })
 
   const back = stepHistory(past, second!.at, -1, second!.value, second!.draft)
-  expect(back).toEqual({ at: 0, value: 'newest', draft: 'typing' })
+  expect(back).toEqual({ at: 0, draft: 'typing', value: 'newest' })
 
   const out = stepHistory(past, back!.at, -1, back!.value, back!.draft)
-  expect(out).toEqual({ at: -1, value: 'typing', draft: 'typing' })
+  expect(out).toEqual({ at: -1, draft: 'typing', value: 'typing' })
 })
 
 test('a key with nowhere to go leaves the field alone', () => {

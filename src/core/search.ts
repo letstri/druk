@@ -16,8 +16,13 @@ export interface SearchOptions {
   regex?: boolean
 }
 
-export function buildQuery(query: string, options: SearchOptions = {}): RegExp | null {
-  const escaped = options.regex ? query : query.replace(/[\\^$.*+?()[\]{}|]/g, '\\$&')
+export function buildQuery(
+  query: string,
+  options: SearchOptions = {}
+): RegExp | null {
+  const escaped = options.regex
+    ? query
+    : query.replaceAll(/[\\^$.*+?()[\]{}|]/gu, '\\$&')
   const wrapped = options.wholeWord ? `\\b(?:${escaped})\\b` : escaped
   try {
     // `m`: searchText counts per line while replaceAll runs over the whole file.
@@ -35,7 +40,7 @@ export interface Context {
 export function contextIn(text: string, line: number, radius: number): Context {
   const lines = text.split('\n')
   const start = Math.max(0, line - radius)
-  return { start, lines: lines.slice(start, line + radius + 1) }
+  return { lines: lines.slice(start, line + radius + 1), start }
 }
 
 const DEFAULT_LIMIT = 200
@@ -56,24 +61,38 @@ export function searchText(
   query: string,
   path: string,
   options: SearchOptions = {},
-  limit = DEFAULT_LIMIT,
+  limit = DEFAULT_LIMIT
 ): Match[] {
-  if (!query) return []
+  if (!query) {
+    return []
+  }
   const pattern = buildQuery(query, options)
-  if (!pattern) return []
+  if (!pattern) {
+    return []
+  }
   const matches: Match[] = []
 
   const lines = text.split('\n')
-  for (let line = 0; line < lines.length && matches.length < limit; line++) {
+  for (let line = 0; line < lines.length && matches.length < limit; line += 1) {
     const raw = lines[line]!
     pattern.lastIndex = 0
-    for (let hit = pattern.exec(raw); hit && matches.length < limit; hit = pattern.exec(raw)) {
+    for (
+      let hit = pattern.exec(raw);
+      hit && matches.length < limit;
+      hit = pattern.exec(raw)
+    ) {
       // `a*` matches the empty string at every column; stepping past is what keeps this finite.
       if (hit[0].length === 0) {
-        pattern.lastIndex++
+        pattern.lastIndex += 1
         continue
       }
-      matches.push({ path, line, col: hit.index, length: hit[0].length, text: raw })
+      matches.push({
+        col: hit.index,
+        length: hit[0].length,
+        line,
+        path,
+        text: raw,
+      })
     }
   }
   return matches
@@ -81,14 +100,23 @@ export function searchText(
 
 // Ignore rules are picked up per repository: ignoredPaths(root) is empty for a folder of checkouts.
 function* filesUnder(root: string): Generator<string> {
-  const queue: Array<[dir: string, ignored: Set<string>]> = [[root, ignoredPaths(root)]]
+  const queue: [dir: string, ignored: Set<string>][] = [
+    [root, ignoredPaths(root)],
+  ]
   while (queue.length > 0) {
     const [dir, ignored] = queue.shift()!
     for (const node of listDir(dir)) {
-      if (ignored.has(node.path)) continue
+      if (ignored.has(node.path)) {
+        continue
+      }
       if (node.isDir) {
-        if (SKIPPED_DIRS.has(node.name)) continue
-        queue.push([node.path, isRepoRoot(node.path) ? ignoredPaths(node.path) : ignored])
+        if (SKIPPED_DIRS.has(node.name)) {
+          continue
+        }
+        queue.push([
+          node.path,
+          isRepoRoot(node.path) ? ignoredPaths(node.path) : ignored,
+        ])
       } else {
         yield node.path
       }
@@ -101,25 +129,31 @@ export function searchProject(
   query: string,
   options: SearchOptions = {},
   limit = DEFAULT_LIMIT,
-  buffers?: ReadonlyMap<string, string>,
+  buffers?: ReadonlyMap<string, string>
 ): Match[] {
-  if (!query) return []
+  if (!query) {
+    return []
+  }
   const matches: Match[] = []
 
   for (const path of filesUnder(root)) {
-    if (matches.length >= limit) break
+    if (matches.length >= limit) {
+      break
+    }
     let content: string
     const open = buffers?.get(path)
-    if (open != null) {
-      content = open
-    } else {
+    if (open === null || open === undefined) {
       try {
         content = readFile(path)
       } catch {
         continue
       }
+    } else {
+      content = open
     }
-    matches.push(...searchText(content, query, path, options, limit - matches.length))
+    matches.push(
+      ...searchText(content, query, path, options, limit - matches.length)
+    )
   }
   return matches
 }
@@ -134,30 +168,34 @@ export function planProjectReplace(
   root: string,
   query: string,
   options: SearchOptions = {},
-  buffers?: ReadonlyMap<string, string>,
+  buffers?: ReadonlyMap<string, string>
 ): { targets: ReplaceTarget[]; matches: number } {
   const targets: ReplaceTarget[] = []
   let matches = 0
-  if (!query || !buildQuery(query, options)) return { targets, matches }
+  if (!query || !buildQuery(query, options)) {
+    return { matches, targets }
+  }
 
   for (const path of filesUnder(root)) {
     let content: string
     const open = buffers?.get(path)
-    if (open != null) {
-      content = open
-    } else {
+    if (open === null || open === undefined) {
       try {
         content = readFile(path)
       } catch {
         continue
       }
+    } else {
+      content = open
     }
     const count = searchText(content, query, path, options, Infinity).length
-    if (count === 0) continue
-    targets.push({ path, count })
+    if (count === 0) {
+      continue
+    }
+    targets.push({ count, path })
     matches += count
   }
-  return { targets, matches }
+  return { matches, targets }
 }
 
 interface ReplacedFile {
@@ -179,7 +217,7 @@ export function replaceProject(
   query: string,
   replacement: string,
   options: SearchOptions = {},
-  buffers?: ReadonlyMap<string, string>,
+  buffers?: ReadonlyMap<string, string>
 ): ReplaceProjectResult {
   const replaced: ReplacedFile[] = []
   const failed: string[] = []
@@ -187,10 +225,16 @@ export function replaceProject(
 
   for (const path of paths) {
     const open = buffers?.get(path)
-    if (open != null) {
+    if (open !== null && open !== undefined) {
       const count = searchText(open, query, path, options, Infinity).length
-      if (count === 0) continue
-      replaced.push({ path, count, content: replaceAll(open, query, replacement, options) })
+      if (count === 0) {
+        continue
+      }
+      replaced.push({
+        content: replaceAll(open, query, replacement, options),
+        count,
+        path,
+      })
       matches += count
       continue
     }
@@ -199,33 +243,46 @@ export function replaceProject(
     try {
       ;({ text, encoding } = readTextFile(path))
     } catch (error) {
-      failed.push(`${path} — ${error instanceof Error ? error.message : 'unreadable'}`)
+      failed.push(
+        `${path} — ${error instanceof Error ? error.message : 'unreadable'}`
+      )
       continue
     }
     const count = searchText(text, query, path, options, Infinity).length
-    if (count === 0) continue
+    if (count === 0) {
+      continue
+    }
     // The encoding read is written back: a CRLF or BOM file would otherwise diff on every line.
-    const error = writeFile(path, replaceAll(text, query, replacement, options), encoding)
+    const error = writeFile(
+      path,
+      replaceAll(text, query, replacement, options),
+      encoding
+    )
     if (error) {
       failed.push(`${path} — ${error}`)
       continue
     }
-    replaced.push({ path, count })
+    replaced.push({ count, path })
     matches += count
   }
-  return { replaced, matches, failed }
+  return { failed, matches, replaced }
 }
 
 export function fuzzyScore(text: string, query: string): number | null {
-  if (!query) return 0
+  if (!query) {
+    return 0
+  }
   const haystack = text.toLowerCase()
   const needle = query.toLowerCase()
   let score = 0
   let at = -1
   for (const char of needle) {
     const next = haystack.indexOf(char, at + 1)
-    if (next < 0) return null
-    score += next - at - 1 // sums the gaps, so a lower score is a closer match
+    if (next === -1) {
+      return null
+    }
+    // sums the gaps, so a lower score is a closer match
+    score += next - at - 1
     at = next
   }
   return score + text.length - at
@@ -234,7 +291,9 @@ export function fuzzyScore(text: string, query: string): number | null {
 export function listFiles(root: string, limit = 5000): string[] {
   const files: string[] = []
   for (const path of filesUnder(root)) {
-    if (files.length >= limit) break
+    if (files.length >= limit) {
+      break
+    }
     files.push(path)
   }
   return files
@@ -244,19 +303,32 @@ export function replaceAll(
   text: string,
   query: string,
   replacement: string,
-  options: SearchOptions = {},
+  options: SearchOptions = {}
 ): string {
-  if (!query) return text
+  if (!query) {
+    return text
+  }
   const pattern = buildQuery(query, options)
-  if (!pattern) return text
+  if (!pattern) {
+    return text
+  }
   // Function form, so `$&` and `$1` in the replacement are inserted literally.
-  return text.replace(pattern, hit => (hit.length === 0 ? hit : replacement))
+  return text.replace(pattern, (hit) => (hit.length === 0 ? hit : replacement))
 }
 
-export function replaceMatch(text: string, match: Match, replacement: string): string | null {
+export function replaceMatch(
+  text: string,
+  match: Match,
+  replacement: string
+): string | null {
   const lines = text.split('\n')
-  if (lines[match.line] !== match.text) return null
+  if (lines[match.line] !== match.text) {
+    return null
+  }
   const line = lines[match.line]!
-  lines[match.line] = line.slice(0, match.col) + replacement + line.slice(match.col + match.length)
+  lines[match.line] =
+    line.slice(0, match.col) +
+    replacement +
+    line.slice(match.col + match.length)
   return lines.join('\n')
 }

@@ -1,6 +1,5 @@
 import fs from 'node:fs'
 import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
 
 const REGISTRY = 'https://registry.npmjs.org/druk/latest'
 const TIMEOUT_MS = 2500
@@ -14,16 +13,26 @@ export interface UpdateInfo {
 declare const __DRUK_VERSION__: string
 
 export function currentVersion(): string {
-  if (typeof __DRUK_VERSION__ === 'string') return __DRUK_VERSION__
+  if (typeof __DRUK_VERSION__ === 'string') {
+    return __DRUK_VERSION__
+  }
 
-  let dir = dirname(fileURLToPath(import.meta.url))
-  for (let i = 0; i < 5; i++) {
+  let dir = import.meta.dirname
+  for (let i = 0; i < 5; i += 1) {
     try {
-      const pkg = JSON.parse(fs.readFileSync(join(dir, 'package.json'), 'utf8'))
-      if (pkg?.name === 'druk' && typeof pkg.version === 'string') return pkg.version
-    } catch {}
+      const pkg = JSON.parse(
+        fs.readFileSync(join(dir, 'package.json'), 'utf-8')
+      )
+      if (pkg?.name === 'druk' && typeof pkg.version === 'string') {
+        return pkg.version
+      }
+    } catch {
+      // No package.json here; the parent may have it.
+    }
     const parent = dirname(dir)
-    if (parent === dir) break
+    if (parent === dir) {
+      break
+    }
     dir = parent
   }
   return '0.0.0'
@@ -38,15 +47,21 @@ export function isNewer(latest: string, current: string): boolean {
   }
 }
 
-export async function checkForUpdate(current = currentVersion()): Promise<UpdateInfo | null> {
+export async function checkForUpdate(
+  current = currentVersion()
+): Promise<UpdateInfo | null> {
   try {
     const res = await fetch(REGISTRY, {
-      signal: AbortSignal.timeout(TIMEOUT_MS),
       headers: { accept: 'application/json' },
+      signal: AbortSignal.timeout(TIMEOUT_MS),
     })
-    if (!res.ok) return null
+    if (!res.ok) {
+      return null
+    }
     const latest = ((await res.json()) as { version?: unknown }).version
-    if (typeof latest !== 'string' || !isNewer(latest, current)) return null
+    if (typeof latest !== 'string' || !isNewer(latest, current)) {
+      return null
+    }
     return { current, latest }
   } catch {
     return null

@@ -1,6 +1,7 @@
 import { expect } from 'bun:test'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { setTimeout as sleep } from 'node:timers/promises'
 
 import type { RGBA } from '@opentui/core'
 import { testRender } from '@opentui/solid'
@@ -41,31 +42,31 @@ export async function launch(
     openCol?: number
     checkUpdates?: boolean
     kittyKeyboard?: boolean
-  } = {},
+  } = {}
 ) {
   const t = await testRender(
     () =>
       Root({
-        rootDir: dir,
-        openFile: options.openFile ?? null,
-        openLine: options.openLine ?? null,
-        openCol: options.openCol ?? null,
+        checkUpdates: options.checkUpdates ?? false,
         initialConfig: {
           ...DEFAULTS,
+          extensionUpdates: false,
           lsp: false,
           lspAutoInstall: false,
           themeSync: false,
-          extensionUpdates: false,
           ...config,
         },
-        checkUpdates: options.checkUpdates ?? false,
+        openCol: options.openCol ?? null,
+        openFile: options.openFile ?? null,
+        openLine: options.openLine ?? null,
+        rootDir: dir,
       }),
     {
-      width: size.width ?? 80,
+      exitOnCtrlC: false,
       height: size.height ?? 20,
       kittyKeyboard: options.kittyKeyboard ?? false,
-      exitOnCtrlC: false,
-    },
+      width: size.width ?? 80,
+    }
   )
   await settle(t)
   liveHarnesses.add(t)
@@ -73,12 +74,18 @@ export async function launch(
 }
 
 // The reconciler flushes on a macrotask: a frame captured straight after an event is stale.
-export async function settle(t: { flush: () => Promise<void> }, waitMs = 0): Promise<void> {
-  await new Promise(resolve => setTimeout(resolve, waitMs))
+export async function settle(
+  t: { flush: () => Promise<void> },
+  waitMs = 0
+): Promise<void> {
+  await sleep(waitMs)
   await t.flush()
 }
 
-export async function press(t: Harness, action: (input: Harness['mockInput']) => void) {
+export async function press(
+  t: Harness,
+  action: (input: Harness['mockInput']) => void
+) {
   action(t.mockInput)
   await settle(t)
 }
@@ -86,9 +93,11 @@ export async function press(t: Harness, action: (input: Harness['mockInput']) =>
 export async function pressTimes(
   t: Harness,
   times: number,
-  action: (input: Harness['mockInput']) => void,
+  action: (input: Harness['mockInput']) => void
 ) {
-  for (let n = 0; n < times; n++) action(t.mockInput)
+  for (let n = 0; n < times; n += 1) {
+    action(t.mockInput)
+  }
   await settle(t)
 }
 
@@ -104,25 +113,30 @@ const SLOW = Number(process.env.DRUK_TEST_SLOW) || 1
 
 export async function until(t: Harness, cond: () => boolean, timeoutMs = 4000) {
   const started = Date.now()
-  while (!cond() && Date.now() - started < timeoutMs * SLOW) await settle(t, 15)
+  while (!cond() && Date.now() - started < timeoutMs * SLOW) {
+    await settle(t, 15)
+  }
   expect(cond()).toBe(true)
 }
 
-export function spansOf(t: Harness, text: string): { text: string; fg: string; bg: string }[] {
+export function spansOf(
+  t: Harness,
+  text: string
+): { text: string; fg: string; bg: string }[] {
   const hex = (c: RGBA) =>
     [c.buffer[0], c.buffer[1], c.buffer[2]]
-      .map(v => (v ?? 0).toString(16).padStart(2, '0'))
+      .map((v) => (v ?? 0).toString(16).padStart(2, '0'))
       .join('')
-  const line = t.captureSpans().lines.find(row =>
+  const line = t.captureSpans().lines.find((row) =>
     row.spans
-      .map(span => span.text)
+      .map((span) => span.text)
       .join('')
-      .includes(text),
+      .includes(text)
   )
-  return (line?.spans ?? []).map(span => ({
-    text: span.text,
-    fg: hex(span.fg),
+  return (line?.spans ?? []).map((span) => ({
     bg: hex(span.bg),
+    fg: hex(span.fg),
+    text: span.text,
   }))
 }
 
@@ -137,7 +151,7 @@ export function untilGone(t: Harness, text: string, timeoutMs?: number) {
 // Esc is the prefix of every arrow/function-key sequence, so the parser holds it.
 export async function pressEscape(t: Harness) {
   t.mockInput.pressEscape()
-  await new Promise(resolve => setTimeout(resolve, 60))
+  await sleep(60)
   await settle(t)
 }
 
@@ -145,28 +159,28 @@ export async function pressEscape(t: Harness) {
 export const F1 = '\u001BOP'
 
 export async function openPalette(t: Harness) {
-  await press(t, input => void input.pressKeys([F1]))
+  await press(t, (input) => input.pressKeys([F1]))
 }
 
 export async function runCommand(t: Harness, label: string) {
   await openPalette(t)
-  await press(t, input => void input.typeText(label))
-  await press(t, input => input.pressEnter())
+  await press(t, (input) => input.typeText(label))
+  await press(t, (input) => input.pressEnter())
 }
 
 export async function openDiff(t: Harness, row = 0) {
   await runCommand(t, 'Source control')
   // Not Enter: on a folder row it folds instead; ↓ then ↑ lands on the first, undiffed row.
-  await press(t, input => input.pressArrow('down'))
-  await press(t, input => input.pressArrow('up'))
+  await press(t, (input) => input.pressArrow('down'))
+  await press(t, (input) => input.pressArrow('up'))
   let seen = header(t) ? 0 : -1
   let shown = header(t)
-  for (let step = 0; seen < row && step < 60; step++) {
-    await press(t, input => input.pressArrow('down'))
+  for (let step = 0; seen < row && step < 60; step += 1) {
+    await press(t, (input) => input.pressArrow('down'))
     const now = header(t)
     if (now && now !== shown) {
       shown = now
-      seen++
+      seen += 1
     }
   }
 }
@@ -176,27 +190,39 @@ function header(t: Harness): string {
     t
       .captureCharFrame()
       .split('\n')
-      .find(line => line.includes('−')) ?? ''
+      .find((line) => line.includes('−')) ?? ''
   )
 }
 
 export async function openComparison(t: Harness) {
   await runCommand(t, 'Source control')
-  await press(t, input => input.pressKey('b', { shift: true }))
+  await press(t, (input) => input.pressKey('b', { shift: true }))
   await untilFrame(t, 'compare')
 }
 
 export async function toggleSetting(t: Harness, label: string) {
   await runCommand(t, 'Settings')
   // A bound, not a row index: every setting added moves the rows under it.
-  for (let i = 0; i < 60; i++) {
+  for (let i = 0; i < 60; i += 1) {
     const row = t
       .captureCharFrame()
       .split('\n')
-      .find(line => line.includes(label))
-    if (row?.includes('▌')) break
-    await press(t, input => input.pressArrow('down'))
+      .find((line) => line.includes(label))
+    if (row?.includes('▌')) {
+      break
+    }
+    await press(t, (input) => input.pressArrow('down'))
   }
-  await press(t, input => input.pressEnter())
+  await press(t, (input) => input.pressEnter())
   await pressEscape(t)
 }
+
+/** LSP on, `command` serving TypeScript, and the linters that also claim `.ts` shut off. */
+export const servedBy = (...command: string[]) => ({
+  lsp: true as const,
+  lspServers: { eslint: [], oxlint: [], typescript: command },
+})
+
+/** Ctrl+Opt+<letter> as terminals spell it: an ESC prefix ahead of the Ctrl byte. */
+export const ctrlOpt = (letter: string) =>
+  `\u001B${String.fromCodePoint(letter.toUpperCase().codePointAt(0)! - 64)}`

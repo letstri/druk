@@ -13,23 +13,27 @@ export function createCommitGraph() {
   let generation = 0
 
   const open = (repo: string) => {
-    const run = ++generation
+    generation += 1
+    const run = generation
     setActive(true)
     setLoading(true)
     setRows([])
     setCursor(0)
     setScrollTop(0)
-    void commitGraph(repo).then(loaded => {
-      if (run !== generation) return
+    void (async () => {
+      const loaded = await commitGraph(repo)
+      if (run !== generation) {
+        return
+      }
       setRows(loaded)
       setLoading(false)
       setCursor(
         Math.max(
           0,
-          loaded.findIndex(row => row.commit !== null),
-        ),
+          loaded.findIndex((row) => row.commit !== null)
+        )
       )
-    })
+    })()
   }
 
   // Git's connector rows stand for no commit, so the cursor steps over them.
@@ -38,21 +42,27 @@ export function createCommitGraph() {
     const step = delta < 0 ? -1 : 1
     const target = Math.max(0, Math.min(list.length - 1, cursor() + delta))
     for (let at = target; at >= 0 && at < list.length; at += step) {
-      if (list[at]?.commit) return setCursor(at)
+      if (list[at]?.commit) {
+        return setCursor(at)
+      }
     }
     for (let at = target; at >= 0 && at < list.length; at -= step) {
-      if (list[at]?.commit) return setCursor(at)
+      if (list[at]?.commit) {
+        return setCursor(at)
+      }
     }
   }
 
   const moveTo = (row: number) => {
-    if (rows()[row]?.commit) setCursor(row)
+    if (rows()[row]?.commit) {
+      setCursor(row)
+    }
   }
 
   const selected = () => rows()[cursor()]?.commit ?? null
 
   const close = () => {
-    generation++
+    generation += 1
     setActive(false)
     setLoading(false)
     setRows([])
@@ -61,17 +71,17 @@ export function createCommitGraph() {
   }
 
   return {
-    rows,
-    cursor,
     active,
+    close,
+    cursor,
     loading,
-    scrollTop,
-    setScrollTop,
-    open,
     move,
     moveTo,
+    open,
+    rows,
+    scrollTop,
     selected,
-    close,
+    setScrollTop,
   }
 }
 

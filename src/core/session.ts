@@ -16,17 +16,17 @@ export interface Session {
 }
 
 const EMPTY_SESSION: Session = {
-  tabs: [],
   activePath: null,
   expanded: [],
   sidebar: true,
+  tabs: [],
 }
 
 type SessionFile = Record<string, Session & { touchedAt: number }>
 
 function readAll(): SessionFile {
   try {
-    const raw = JSON.parse(fs.readFileSync(SESSIONS_FILE, 'utf8'))
+    const raw = JSON.parse(fs.readFileSync(SESSIONS_FILE, 'utf-8'))
     return typeof raw === 'object' && raw !== null ? (raw as SessionFile) : {}
   } catch {
     return {}
@@ -34,19 +34,23 @@ function readAll(): SessionFile {
 }
 
 const strings = (value: unknown): string[] =>
-  Array.isArray(value) ? value.filter(item => typeof item === 'string') : []
+  Array.isArray(value) ? value.filter((item) => typeof item === 'string') : []
 
 export function loadSession(rootDir: string): Session {
   const entry = readAll()[rootDir]
-  if (!entry) return { ...EMPTY_SESSION }
+  if (!entry) {
+    return { ...EMPTY_SESSION }
+  }
 
-  const tabs = strings(entry.tabs).filter(path => exists(path))
-  const activePath = typeof entry.activePath === 'string' ? entry.activePath : null
+  const tabs = strings(entry.tabs).filter((path) => exists(path))
+  const activePath =
+    typeof entry.activePath === 'string' ? entry.activePath : null
   return {
-    tabs,
-    activePath: activePath && tabs.includes(activePath) ? activePath : (tabs[0] ?? null),
-    expanded: strings(entry.expanded).filter(path => exists(path)),
+    activePath:
+      activePath && tabs.includes(activePath) ? activePath : (tabs[0] ?? null),
+    expanded: strings(entry.expanded).filter((path) => exists(path)),
     sidebar: entry.sidebar !== false,
+    tabs,
   }
 }
 
@@ -57,7 +61,11 @@ export function recentProjects(): { path: string; touchedAt: number }[] {
     .toSorted((a, b) => b.touchedAt - a.touchedAt)
 }
 
-export function saveSession(rootDir: string, session: Session, now = Date.now()): void {
+export function saveSession(
+  rootDir: string,
+  session: Session,
+  now = Date.now()
+): void {
   try {
     const all = readAll()
     all[rootDir] = { ...session, touchedAt: now }
@@ -67,7 +75,10 @@ export function saveSession(rootDir: string, session: Session, now = Date.now())
       .slice(0, MAX_PROJECTS)
 
     fs.mkdirSync(dirname(SESSIONS_FILE), { recursive: true })
-    fs.writeFileSync(SESSIONS_FILE, `${JSON.stringify(Object.fromEntries(trimmed), null, 2)}\n`)
+    fs.writeFileSync(
+      SESSIONS_FILE,
+      `${JSON.stringify(Object.fromEntries(trimmed), null, 2)}\n`
+    )
   } catch {
     // best-effort
   }

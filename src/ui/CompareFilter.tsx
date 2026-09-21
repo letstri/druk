@@ -7,7 +7,7 @@ import { ModalPanel } from './Overlay'
 import { TextInput } from './TextInput'
 import { useKeys } from './useKeys'
 
-export interface CompareFilterProps {
+interface CompareFilterProps {
   value: string
   onInput: (value: string) => void
   onClose: (clear: boolean) => void

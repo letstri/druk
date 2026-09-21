@@ -16,7 +16,7 @@ export interface CommitFile {
   checked: boolean
 }
 
-export interface CommitModalProps {
+interface CommitModalProps {
   files: CommitFile[]
   onSubmit: (paths: string[]) => void
   onCancel: () => void
@@ -28,36 +28,49 @@ export function CommitModal(props: CommitModalProps) {
   const [top, setTop] = createSignal(0)
   // Read once on open: the modal is remounted per showing.
   const [excluded, setExcluded] = createSignal<Set<string>>(
-    new Set(props.files.filter(file => !file.checked).map(file => file.path)),
+    new Set(
+      props.files.filter((file) => !file.checked).map((file) => file.path)
+    )
   )
 
   const width = () => modalWidth(dimensions().width, 0.6, 70, 100)
   const rows = () => listRows(dimensions().height, 9, 16)
 
-  const picked = () => props.files.filter(file => !excluded().has(file.path))
+  const picked = () => props.files.filter((file) => !excluded().has(file.path))
 
   const move = (delta: number) => {
     const count = props.files.length
-    if (count === 0) return
+    if (count === 0) {
+      return
+    }
     const next = (cursor() + delta + count) % count
     setCursor(next)
-    if (next < top()) setTop(next)
-    else if (next >= top() + rows()) setTop(next - rows() + 1)
+    if (next < top()) {
+      setTop(next)
+    } else if (next >= top() + rows()) {
+      setTop(next - rows() + 1)
+    }
   }
 
   const toggle = () => {
     const file = props.files[cursor()]
-    if (!file) return
-    setExcluded(prev => {
+    if (!file) {
+      return
+    }
+    setExcluded((prev) => {
       const next = new Set(prev)
-      if (!next.delete(file.path)) next.add(file.path)
+      if (!next.delete(file.path)) {
+        next.add(file.path)
+      }
       return next
     })
   }
 
   const toggleAll = () =>
-    setExcluded(prev =>
-      prev.size > 0 ? new Set<string>() : new Set(props.files.map(file => file.path)),
+    setExcluded((prev) =>
+      prev.size > 0
+        ? new Set<string>()
+        : new Set(props.files.map((file) => file.path))
     )
 
   useKeys((key: KeyEvent, k: string) => {
@@ -75,8 +88,10 @@ export function CommitModal(props: CommitModalProps) {
       toggleAll()
     } else if (k === 'return' || k === 'enter') {
       key.preventDefault()
-      const paths = picked().map(file => file.path)
-      if (paths.length > 0) props.onSubmit(paths)
+      const paths = picked().map((file) => file.path)
+      if (paths.length > 0) {
+        props.onSubmit(paths)
+      }
     } else if (k === 'escape') {
       key.preventDefault()
       props.onCancel()
@@ -97,7 +112,12 @@ export function CommitModal(props: CommitModalProps) {
           const shown = () => file.rel.slice(0, width() - PAD * 2 - 10)
           return (
             <box flexDirection="row" backgroundColor={bg()}>
-              <text fg={ui.accent} bg={bg()} flexShrink={0} content={active() ? '▌ ' : '  '} />
+              <text
+                fg={ui.accent}
+                bg={bg()}
+                flexShrink={0}
+                content={active() ? '▌ ' : '  '}
+              />
               <text
                 fg={checked() ? ui.accent : ui.dim}
                 bg={bg()}
@@ -111,7 +131,11 @@ export function CommitModal(props: CommitModalProps) {
                 content={`${MARKS[file.status]} `}
               />
               <box flexGrow={1} backgroundColor={bg()}>
-                <text fg={checked() ? ui.text : ui.dim} bg={bg()} content={shown()} />
+                <text
+                  fg={checked() ? ui.text : ui.dim}
+                  bg={bg()}
+                  content={shown()}
+                />
               </box>
             </box>
           )

@@ -4,7 +4,15 @@ import { join } from 'node:path'
 
 import { invalidateSyntaxStyle } from '../src/languages/highlight'
 import { setTheme, setTransparency, THEMES } from '../src/themes'
-import { fixture, launch, openDiff, openFile, openPalette, settle, toggleSetting } from './helpers'
+import {
+  fixture,
+  launch,
+  openDiff,
+  openFile,
+  openPalette,
+  settle,
+  toggleSetting,
+} from './helpers'
 import type { Harness } from './helpers'
 import { initRepo } from './repo'
 
@@ -14,10 +22,14 @@ interface Span {
 }
 
 function bgAlpha(t: Harness, text: string): number {
-  const lines = (t.captureSpans() as unknown as { lines: { spans: Span[] }[] }).lines
+  const { lines } = t.captureSpans() as unknown as {
+    lines: { spans: Span[] }[]
+  }
   for (const line of lines) {
-    const span = line.spans.find(s => s.text.includes(text))
-    if (span) return span.bg?.buffer['3'] ?? -1
+    const span = line.spans.find((s) => s.text.includes(text))
+    if (span) {
+      return span.bg?.buffer['3'] ?? -1
+    }
   }
   throw new Error(`no span showing ${JSON.stringify(text)}`)
 }
@@ -42,7 +54,9 @@ test('transparency leaves the editor unpainted, and off paints it', async () => 
 })
 
 test('transparency never empties a floating panel', async () => {
-  const t = await launch(fixture({ 'a.ts': 'const a = 1\n' }), { transparent: true })
+  const t = await launch(fixture({ 'a.ts': 'const a = 1\n' }), {
+    transparent: true,
+  })
   await openFile(t, 'a.ts')
   await openPalette(t)
   expect(bgAlpha(t, 'Open file')).toBe(255)
@@ -65,7 +79,9 @@ test('the diff page stays painted — it is a layer over the editor', async () =
   const dir = fixture({ 'a.ts': 'alpha\n' })
   const git = (...args: string[]) => {
     const run = Bun.spawnSync(['git', ...args], { cwd: dir })
-    if (run.exitCode !== 0) throw new Error(run.stderr.toString())
+    if (run.exitCode !== 0) {
+      throw new Error(run.stderr.toString())
+    }
   }
   initRepo(dir)
   git('add', '.')
@@ -78,7 +94,9 @@ test('the diff page stays painted — it is a layer over the editor', async () =
 })
 
 test('a theme switch keeps transparency on', async () => {
-  const t = await launch(fixture({ 'a.ts': 'const a = 1\n' }), { transparent: true })
+  const t = await launch(fixture({ 'a.ts': 'const a = 1\n' }), {
+    transparent: true,
+  })
   await openFile(t, 'a.ts')
   setTheme('light')
   await settle(t)
@@ -87,16 +105,22 @@ test('a theme switch keeps transparency on', async () => {
 })
 
 test('a modal over a transparent editor leaves the editor unpainted', async () => {
-  const t = await launch(fixture({ 'a.ts': 'const a = 1\n' }), { transparent: true })
+  const t = await launch(fixture({ 'a.ts': 'const a = 1\n' }), {
+    transparent: true,
+  })
   await openFile(t, 'a.ts')
   await openPalette(t)
   expect(bgAlpha(t, 'EXPLORER')).toBe(0)
 
-  const painted = (t.captureSpans() as unknown as { lines: { spans: Span[] }[] }).lines
-    .flatMap(line => line.spans)
-    .filter(span => {
+  const painted = (
+    t.captureSpans() as unknown as { lines: { spans: Span[] }[] }
+  ).lines
+    .flatMap((line) => line.spans)
+    .filter((span) => {
       const bg = span.bg?.buffer
-      return bg?.['3'] === 255 && bg['0'] === 0 && bg['1'] === 0 && bg['2'] === 0
+      return (
+        bg?.['3'] === 255 && bg['0'] === 0 && bg['1'] === 0 && bg['2'] === 0
+      )
     })
   expect(painted).toEqual([])
 })

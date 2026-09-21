@@ -17,36 +17,38 @@ loadMarketExtensions()
 
 const PROJECT = { 'a.ts': 'const a = 1\n' }
 
-const saved = () => JSON.parse(readFileSync(CONFIG_FILE, 'utf8'))
+const saved = () => JSON.parse(readFileSync(CONFIG_FILE, 'utf-8'))
 
 const LATE_ROW = 15_000
 
 async function gotoRow(t: Harness, label: string) {
-  for (let step = 0; step < 40; step++) {
+  for (let step = 0; step < 40; step += 1) {
     const row = t
       .captureCharFrame()
       .split('\n')
-      .find(line => line.includes(label))
-    if (row?.includes('▌')) return
-    await press(t, i => i.pressArrow('down'))
+      .find((line) => line.includes(label))
+    if (row?.includes('▌')) {
+      return
+    }
+    await press(t, (i) => i.pressArrow('down'))
   }
   throw new Error(`row not reached: ${label}`)
 }
 
-const clear = (t: Harness) => pressTimes(t, 60, i => i.pressBackspace())
+const clear = (t: Harness) => pressTimes(t, 60, (i) => i.pressBackspace())
 
 test('a formatter is added from the page, no config.json involved', async () => {
   const t = await launch(fixture(PROJECT))
   await runCommand(t, 'Settings')
   await gotoRow(t, 'Formatters')
-  await press(t, i => i.pressEnter())
+  await press(t, (i) => i.pressEnter())
   expect(t.captureCharFrame()).toContain('+ Add formatter…')
-  await press(t, i => void i.typeText('add'))
-  await press(t, i => i.pressEnter())
-  await press(t, i => void i.typeText('ts,tsx'))
-  await press(t, i => i.pressTab())
-  await press(t, i => void i.typeText('prettier --write'))
-  await press(t, i => i.pressEnter())
+  await press(t, (i) => i.typeText('add'))
+  await press(t, (i) => i.pressEnter())
+  await press(t, (i) => i.typeText('ts,tsx'))
+  await press(t, (i) => i.pressTab())
+  await press(t, (i) => i.typeText('prettier --write'))
+  await press(t, (i) => i.pressEnter())
 
   expect(saved().formatters).toEqual({ 'ts,tsx': ['prettier', '--write'] })
   const frame = t.captureCharFrame()
@@ -58,23 +60,23 @@ test('the file types are stored without their dots, however they are typed', asy
   const t = await launch(fixture(PROJECT))
   await runCommand(t, 'Settings')
   await gotoRow(t, 'Formatters')
-  await press(t, i => i.pressEnter())
-  await press(t, i => i.pressEnter())
-  await press(t, i => void i.typeText('.JS, .jsx'))
-  await press(t, i => i.pressTab())
-  await press(t, i => void i.typeText('oxfmt'))
-  await press(t, i => i.pressEnter())
+  await press(t, (i) => i.pressEnter())
+  await press(t, (i) => i.pressEnter())
+  await press(t, (i) => i.typeText('.JS, .jsx'))
+  await press(t, (i) => i.pressTab())
+  await press(t, (i) => i.typeText('oxfmt'))
+  await press(t, (i) => i.pressEnter())
 
   expect(saved().formatters).toEqual({ 'js,jsx': ['oxfmt'] })
 })
 
 test('the formatter editor labels its fields and explains what a command must do', async () => {
   // Wide enough that the modal does not wrap the hint lines.
-  const t = await launch(fixture(PROJECT), {}, { width: 140, height: 30 })
+  const t = await launch(fixture(PROJECT), {}, { height: 30, width: 140 })
   await runCommand(t, 'Settings')
   await gotoRow(t, 'Formatters')
-  await press(t, i => i.pressEnter())
-  await press(t, i => i.pressEnter())
+  await press(t, (i) => i.pressEnter())
+  await press(t, (i) => i.pressEnter())
   const frame = t.captureCharFrame()
   expect(frame).toContain('File types')
   expect(frame).toContain('Command')
@@ -89,26 +91,28 @@ test('a formatter command can carry the {} token', async () => {
   const t = await launch(fixture(PROJECT))
   await runCommand(t, 'Settings')
   await gotoRow(t, 'Formatters')
-  await press(t, i => i.pressEnter())
-  await press(t, i => i.pressEnter())
-  await press(t, i => void i.typeText('css'))
-  await press(t, i => i.pressTab())
-  await press(t, i => void i.typeText('stylelint --fix {} --quiet'))
-  await press(t, i => i.pressEnter())
+  await press(t, (i) => i.pressEnter())
+  await press(t, (i) => i.pressEnter())
+  await press(t, (i) => i.typeText('css'))
+  await press(t, (i) => i.pressTab())
+  await press(t, (i) => i.typeText('stylelint --fix {} --quiet'))
+  await press(t, (i) => i.pressEnter())
 
-  expect(saved().formatters).toEqual({ css: ['stylelint', '--fix', '{}', '--quiet'] })
+  expect(saved().formatters).toEqual({
+    css: ['stylelint', '--fix', '{}', '--quiet'],
+  })
 })
 
 test('a command of nothing but the token is refused', async () => {
   const t = await launch(fixture(PROJECT))
   await runCommand(t, 'Settings')
   await gotoRow(t, 'Formatters')
-  await press(t, i => i.pressEnter())
-  await press(t, i => i.pressEnter())
-  await press(t, i => void i.typeText('ts'))
-  await press(t, i => i.pressTab())
-  await press(t, i => void i.typeText('{}'))
-  await press(t, i => i.pressEnter())
+  await press(t, (i) => i.pressEnter())
+  await press(t, (i) => i.pressEnter())
+  await press(t, (i) => i.typeText('ts'))
+  await press(t, (i) => i.pressTab())
+  await press(t, (i) => i.typeText('{}'))
+  await press(t, (i) => i.pressEnter())
 
   expect(saved().formatters ?? {}).not.toHaveProperty('ts')
   expect(t.captureCharFrame()).toContain('needs a program')
@@ -118,12 +122,12 @@ test('an existing entry opens prefilled and edits in place', async () => {
   const t = await launch(fixture(PROJECT), { formatters: { ts: ['oxfmt'] } })
   await runCommand(t, 'Settings')
   await gotoRow(t, 'Formatters')
-  await press(t, i => i.pressEnter())
+  await press(t, (i) => i.pressEnter())
   expect(t.captureCharFrame()).toContain('.ts → oxfmt')
-  await press(t, i => i.pressEnter())
-  await press(t, i => i.pressTab())
-  await press(t, i => void i.typeText(' --check'))
-  await press(t, i => i.pressEnter())
+  await press(t, (i) => i.pressEnter())
+  await press(t, (i) => i.pressTab())
+  await press(t, (i) => i.typeText(' --check'))
+  await press(t, (i) => i.pressEnter())
 
   expect(saved().formatters).toEqual({ ts: ['oxfmt', '--check'] })
 })
@@ -132,10 +136,10 @@ test('an emptied field removes the entry', async () => {
   const t = await launch(fixture(PROJECT), { formatters: { ts: ['oxfmt'] } })
   await runCommand(t, 'Settings')
   await gotoRow(t, 'Formatters')
-  await press(t, i => i.pressEnter())
-  await press(t, i => i.pressEnter())
+  await press(t, (i) => i.pressEnter())
+  await press(t, (i) => i.pressEnter())
   await clear(t)
-  await press(t, i => i.pressEnter())
+  await press(t, (i) => i.pressEnter())
 
   expect(saved().formatters).toEqual({})
   const frame = t.captureCharFrame()
@@ -147,7 +151,7 @@ test('the catch-all entry reads as what it covers, not as "*"', async () => {
   const t = await launch(fixture(PROJECT), { formatters: { '*': ['oxfmt'] } })
   await runCommand(t, 'Settings')
   await gotoRow(t, 'Formatters')
-  await press(t, i => i.pressEnter())
+  await press(t, (i) => i.pressEnter())
 
   expect(t.captureCharFrame()).toContain('Any file → oxfmt')
 })
@@ -156,10 +160,10 @@ test('a missing command warns and changes nothing', async () => {
   const t = await launch(fixture(PROJECT))
   await runCommand(t, 'Settings')
   await gotoRow(t, 'Formatters')
-  await press(t, i => i.pressEnter())
-  await press(t, i => i.pressEnter())
-  await press(t, i => void i.typeText('rb'))
-  await press(t, i => i.pressEnter())
+  await press(t, (i) => i.pressEnter())
+  await press(t, (i) => i.pressEnter())
+  await press(t, (i) => i.typeText('rb'))
+  await press(t, (i) => i.pressEnter())
 
   expect(saved().formatters ?? {}).toEqual({})
   expect(t.captureCharFrame()).toContain('A formatter needs a command')
@@ -169,11 +173,11 @@ test('missing file types warn and change nothing', async () => {
   const t = await launch(fixture(PROJECT))
   await runCommand(t, 'Settings')
   await gotoRow(t, 'Formatters')
-  await press(t, i => i.pressEnter())
-  await press(t, i => i.pressEnter())
-  await press(t, i => i.pressTab())
-  await press(t, i => void i.typeText('prettier --write'))
-  await press(t, i => i.pressEnter())
+  await press(t, (i) => i.pressEnter())
+  await press(t, (i) => i.pressEnter())
+  await press(t, (i) => i.pressTab())
+  await press(t, (i) => i.typeText('prettier --write'))
+  await press(t, (i) => i.pressEnter())
 
   expect(saved().formatters ?? {}).toEqual({})
   expect(t.captureCharFrame()).toContain('Formatter file types')
@@ -183,9 +187,9 @@ test('Esc leaves the editor without applying', async () => {
   const t = await launch(fixture(PROJECT), { formatters: { ts: ['oxfmt'] } })
   await runCommand(t, 'Settings')
   await gotoRow(t, 'Formatters')
-  await press(t, i => i.pressEnter())
-  await press(t, i => i.pressEnter())
-  await press(t, i => void i.typeText(' --junk'))
+  await press(t, (i) => i.pressEnter())
+  await press(t, (i) => i.pressEnter())
+  await press(t, (i) => i.typeText(' --junk'))
   await pressEscape(t)
 
   expect(JSON.stringify(saved().formatters ?? {})).not.toContain('--junk')
@@ -198,19 +202,19 @@ test(
     const t = await launch(fixture(PROJECT))
     await runCommand(t, 'Settings')
     await gotoRow(t, 'Sidebar width')
-    await press(t, i => i.pressEnter())
+    await press(t, (i) => i.pressEnter())
     await clear(t)
-    await press(t, i => void i.typeText('40'))
-    await press(t, i => i.pressEnter())
+    await press(t, (i) => i.typeText('40'))
+    await press(t, (i) => i.pressEnter())
     expect(saved().sidebarWidth).toBe(40)
 
-    await press(t, i => i.pressEnter())
+    await press(t, (i) => i.pressEnter())
     await clear(t)
-    await press(t, i => void i.typeText('auto'))
-    await press(t, i => i.pressEnter())
+    await press(t, (i) => i.typeText('auto'))
+    await press(t, (i) => i.pressEnter())
     expect(saved().sidebarWidth).toBe('auto')
   },
-  LATE_ROW,
+  LATE_ROW
 )
 
 test(
@@ -219,16 +223,16 @@ test(
     const t = await launch(fixture(PROJECT))
     await runCommand(t, 'Settings')
     await gotoRow(t, 'Sidebar position')
-    expect(t.captureCharFrame()).toMatch(/Sidebar position\s+left/)
+    expect(t.captureCharFrame()).toMatch(/Sidebar position\s+left/u)
 
-    await press(t, i => i.pressArrow('right'))
+    await press(t, (i) => i.pressArrow('right'))
     expect(saved().sidebarPosition).toBe('right')
-    expect(t.captureCharFrame()).toMatch(/Sidebar position\s+right/)
+    expect(t.captureCharFrame()).toMatch(/Sidebar position\s+right/u)
 
-    await press(t, i => i.pressArrow('right'))
+    await press(t, (i) => i.pressArrow('right'))
     expect(saved().sidebarPosition).toBe('left')
   },
-  LATE_ROW,
+  LATE_ROW
 )
 
 test(
@@ -237,22 +241,22 @@ test(
     const t = await launch(fixture(PROJECT))
     await runCommand(t, 'Settings')
     await gotoRow(t, 'Server commands')
-    await press(t, i => i.pressEnter())
-    await press(t, i => void i.typeText('typescript'))
-    await press(t, i => i.pressEnter())
+    await press(t, (i) => i.pressEnter())
+    await press(t, (i) => i.typeText('typescript'))
+    await press(t, (i) => i.pressEnter())
     await clear(t)
-    await press(t, i => void i.typeText('my-ls --stdio'))
-    await press(t, i => i.pressEnter())
+    await press(t, (i) => i.typeText('my-ls --stdio'))
+    await press(t, (i) => i.pressEnter())
     expect(saved().lspServers).toEqual({ typescript: ['my-ls', '--stdio'] })
     expect(t.captureCharFrame()).toContain('1 custom')
 
-    await press(t, i => i.pressEnter())
-    await press(t, i => void i.typeText('typescript'))
-    await press(t, i => i.pressEnter())
+    await press(t, (i) => i.pressEnter())
+    await press(t, (i) => i.typeText('typescript'))
+    await press(t, (i) => i.pressEnter())
     await clear(t)
-    await press(t, i => i.pressEnter())
+    await press(t, (i) => i.pressEnter())
     expect(saved().lspServers).toEqual({})
     expect(t.captureCharFrame()).toContain('back on its default command')
   },
-  LATE_ROW,
+  LATE_ROW
 )

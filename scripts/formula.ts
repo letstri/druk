@@ -6,7 +6,8 @@ const DIST = process.env.DRUK_DIST ?? './dist'
 const RELEASE_DIR = `${DIST}/release`
 const BOTTLE_STAGE = `${DIST}/bottle`
 
-const { version, description, homepage, license } = await Bun.file('./package.json').json()
+const { version, description, homepage, license } =
+  await Bun.file('./package.json').json()
 
 const ARCHIVES = {
   'darwin-arm64': 'druk-darwin-arm64.zip',
@@ -28,7 +29,9 @@ type Target = keyof typeof ARCHIVES
 async function sha256(path: string): Promise<string> {
   const file = Bun.file(path)
   if (!(await file.exists())) {
-    process.stderr.write(`missing archive: ${path} — run \`bun run release\` first\n`)
+    process.stderr.write(
+      `missing archive: ${path} — run \`bun run release\` first\n`
+    )
     process.exit(1)
   }
   return createHash('sha256')
@@ -42,12 +45,14 @@ const bottleName = (tag: string) => `druk-${version}.${tag}.bottle.tar.gz`
 async function bottle(target: Target, tag: string): Promise<string> {
   const binary = `${DIST}/${target}/druk`
   if (!(await Bun.file(binary).exists())) {
-    process.stderr.write(`missing binary: ${binary} — run \`bun run build ${target}\` first\n`)
+    process.stderr.write(
+      `missing binary: ${binary} — run \`bun run build ${target}\` first\n`
+    )
     process.exit(1)
   }
 
   const stage = `${BOTTLE_STAGE}/${tag}`
-  await rm(stage, { recursive: true, force: true })
+  await rm(stage, { force: true, recursive: true })
   await mkdir(`${stage}/druk/${version}/bin`, { recursive: true })
   await cp(binary, `${stage}/druk/${version}/bin/druk`)
   // The workflow downloads the binaries as artifacts, which do not carry a mode.
@@ -55,7 +60,10 @@ async function bottle(target: Target, tag: string): Promise<string> {
 
   const path = `${RELEASE_DIR}/${bottleName(tag)}`
   // Without COPYFILE_DISABLE macOS tar writes ._ AppleDouble members into the keg.
-  await Bun.$`tar -czf ${path} -C ${stage} druk`.env({ ...process.env, COPYFILE_DISABLE: '1' })
+  await Bun.$`tar -czf ${path} -C ${stage} druk`.env({
+    ...process.env,
+    COPYFILE_DISABLE: '1',
+  })
   return path
 }
 
@@ -63,33 +71,39 @@ const targets = Object.keys(ARCHIVES) as Target[]
 
 const sums = Object.fromEntries(
   await Promise.all(
-    targets.map(async target => [target, await sha256(`${RELEASE_DIR}/${ARCHIVES[target]}`)]),
-  ),
+    targets.map(async (target) => [
+      target,
+      await sha256(`${RELEASE_DIR}/${ARCHIVES[target]}`),
+    ])
+  )
 ) as Record<Target, string>
 
 const bottles = Object.fromEntries(
   await Promise.all(
-    targets.map(async target => [target, await sha256(await bottle(target, BOTTLE_TAGS[target]))]),
-  ),
+    targets.map(async (target) => [
+      target,
+      await sha256(await bottle(target, BOTTLE_TAGS[target])),
+    ])
+  )
 ) as Record<Target, string>
 
-await rm(BOTTLE_STAGE, { recursive: true, force: true })
+await rm(BOTTLE_STAGE, { force: true, recursive: true })
 
 const base = `${homepage}/releases/download/v${version}`
 
 // `brew audit --strict` fails a desc that opens with an article, and package.json's does.
 const desc = description
-  .replace(/"/g, "'")
+  .replaceAll('"', "'")
   .split('—')[0]!
   .trim()
-  .replace(/^(a|an|the) /i, '')
-  .replace(/^./, (c: string) => c.toUpperCase())
+  .replace(/^(a|an|the) /iu, '')
+  .replace(/^./u, (c: string) => c.toUpperCase())
 
 // `any_skip_relocation`: a cellar path naming this machine's prefix sends everyone else to source.
 const sha256s = targets
   .map(
-    target =>
-      `    sha256 cellar: :any_skip_relocation, ${BOTTLE_TAGS[target]}: "${bottles[target]}"`,
+    (target) =>
+      `    sha256 cellar: :any_skip_relocation, ${BOTTLE_TAGS[target]}: "${bottles[target]}"`
   )
   .join('\n')
 

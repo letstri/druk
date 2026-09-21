@@ -5,10 +5,8 @@ import { fixture, launch, press, settle } from './helpers'
 const realFetch = globalThis.fetch
 
 function mockRegistry(version: string) {
-  globalThis.fetch = (async () =>
-    new Response(JSON.stringify({ version }), {
-      headers: { 'content-type': 'application/json' },
-    })) as unknown as typeof fetch
+  globalThis.fetch = (() =>
+    Promise.resolve(Response.json({ version }))) as unknown as typeof fetch
 }
 
 afterEach(() => {
@@ -18,7 +16,12 @@ afterEach(() => {
 describe('update banner', () => {
   test('a newer published version shows the banner', async () => {
     mockRegistry('99.0.0')
-    const t = await launch(fixture({ 'a.ts': 'const a = 1\n' }), {}, {}, { checkUpdates: true })
+    const t = await launch(
+      fixture({ 'a.ts': 'const a = 1\n' }),
+      {},
+      {},
+      { checkUpdates: true }
+    )
     await settle(t, 20)
     const frame = t.captureCharFrame()
     expect(frame).toContain('Update available')
@@ -28,10 +31,15 @@ describe('update banner', () => {
 
   test('Enter dismisses the banner', async () => {
     mockRegistry('99.0.0')
-    const t = await launch(fixture({ 'a.ts': 'const a = 1\n' }), {}, {}, { checkUpdates: true })
+    const t = await launch(
+      fixture({ 'a.ts': 'const a = 1\n' }),
+      {},
+      {},
+      { checkUpdates: true }
+    )
     await settle(t, 20)
     expect(t.captureCharFrame()).toContain('Update available')
-    await press(t, i => i.pressEnter())
+    await press(t, (i) => i.pressEnter())
     expect(t.captureCharFrame()).not.toContain('Update available')
   })
 
@@ -41,7 +49,7 @@ describe('update banner', () => {
       fixture({ 'a.ts': 'const a = 1\n' }),
       { skipUpdate: '99.0.0' },
       {},
-      { checkUpdates: true },
+      { checkUpdates: true }
     )
     await settle(t, 20)
     expect(t.captureCharFrame()).not.toContain('Update available')
@@ -49,9 +57,9 @@ describe('update banner', () => {
 
   test('the harness default never fetches', async () => {
     let called = false
-    globalThis.fetch = (async () => {
+    globalThis.fetch = (() => {
       called = true
-      return new Response(JSON.stringify({ version: '99.0.0' }))
+      return Promise.resolve(Response.json({ version: '99.0.0' }))
     }) as unknown as typeof fetch
     const t = await launch(fixture({ 'a.ts': 'const a = 1\n' }))
     await settle(t, 20)

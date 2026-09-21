@@ -3,8 +3,21 @@ import { execFileSync } from 'node:child_process'
 import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-import { CONFLICT_GROUPS, getSyntaxStyle, styleIdForGroup } from '../src/languages/highlight'
-import { fixture, launch, openFile, press, pressTimes, runCommand, spansOf, until } from './helpers'
+import {
+  CONFLICT_GROUPS,
+  getSyntaxStyle,
+  styleIdForGroup,
+} from '../src/languages/highlight'
+import {
+  fixture,
+  launch,
+  openFile,
+  press,
+  pressTimes,
+  runCommand,
+  spansOf,
+  until,
+} from './helpers'
 import type { Harness } from './helpers'
 import { initRepo } from './repo'
 import { tempDir } from './temp'
@@ -25,7 +38,8 @@ const bar = (t: Harness) => frame(t).split('\n').at(-2) ?? ''
 
 const conflicted = () => fixture({ 'a.ts': CONFLICTED })
 
-const intoConflict = (t: Harness) => pressTimes(t, 2, i => i.pressArrow('down'))
+const intoConflict = (t: Harness) =>
+  pressTimes(t, 2, (i) => i.pressArrow('down'))
 
 test('every conflict group resolves to a style, so the block is actually tinted', async () => {
   const t = await launch(conflicted())
@@ -37,9 +51,10 @@ test('every conflict group resolves to a style, so the block is actually tinted'
 })
 
 test('a tinted side keeps the colours its code was painted in', async () => {
-  const t = await launch(conflicted(), {}, { width: 100, height: 24 })
+  const t = await launch(conflicted(), {}, { height: 24, width: 100 })
   await openFile(t, 'a.ts')
-  const keyword = (row: string) => spansOf(t, row).find(span => span.text.trim() === 'const')
+  const keyword = (row: string) =>
+    spansOf(t, row).find((span) => span.text.trim() === 'const')
   await until(t, () => keyword('const b = 2') !== undefined, 15_000)
   const outside = keyword('const a = 1')
   const inside = keyword('const b = 2')
@@ -48,15 +63,15 @@ test('a tinted side keeps the colours its code was painted in', async () => {
   expect(inside?.fg).toBe(outside?.fg)
   expect(inside?.bg).not.toBe(outside?.bg)
   // Past bun's 5s default: the wait above is for a cold grammar load.
-}, 60000)
+}, 60_000)
 
 test('the gutter marks the block and nothing either side of it', async () => {
   const t = await launch(conflicted())
   await openFile(t, 'a.ts')
   const marked = frame(t)
     .split('\n')
-    .filter(row => row.includes('┃'))
-    .map(row => row.trim())
+    .filter((row) => row.includes('┃'))
+    .map((row) => row.trim())
   expect(marked).toHaveLength(5)
   expect(marked.at(0)).toContain('<<<<<<< HEAD')
   expect(marked.at(-1)).toContain('>>>>>>> feature/x')
@@ -85,9 +100,14 @@ test('accepting the current change keeps ours and drops the markers', async () =
   expect(shown).not.toContain('const b = 3')
   expect(shown).not.toContain('=======')
 
-  await press(t, i => i.pressKey('s', { ctrl: true }))
-  await until(t, () => !readFileSync(join(dir, 'a.ts'), 'utf8').includes('<<<<<<<'))
-  expect(readFileSync(join(dir, 'a.ts'), 'utf8')).toBe('const a = 1\nconst b = 2\nconst c = 4\n')
+  await press(t, (i) => i.pressKey('s', { ctrl: true }))
+  await until(
+    t,
+    () => !readFileSync(join(dir, 'a.ts'), 'utf-8').includes('<<<<<<<')
+  )
+  expect(readFileSync(join(dir, 'a.ts'), 'utf-8')).toBe(
+    'const a = 1\nconst b = 2\nconst c = 4\n'
+  )
 })
 
 test('accepting the incoming change keeps theirs', async () => {
@@ -189,6 +209,9 @@ test('a real merge conflict resolves from the panel through to a commit', async 
   await runCommand(t, 'Accept incoming change')
   await until(t, () => !frame(t).includes('<<<<<<<'))
 
-  await press(t, i => i.pressKey('s', { ctrl: true }))
-  await until(t, () => readFileSync(join(dir, 'a.ts'), 'utf8') === 'const b = 3\n')
+  await press(t, (i) => i.pressKey('s', { ctrl: true }))
+  await until(
+    t,
+    () => readFileSync(join(dir, 'a.ts'), 'utf-8') === 'const b = 3\n'
+  )
 })

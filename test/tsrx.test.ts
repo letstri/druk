@@ -1,23 +1,10 @@
 import { describe, expect, test } from 'bun:test'
 
-import { filetypeForPath, getSyntaxStyle } from '../src/languages/highlight'
+import { filetypeForPath } from '../src/languages/highlight'
 import { loadMarketExtensions } from './helpers'
-import { allSegments } from './syntax'
+import { painted } from './syntax'
 
 loadMarketExtensions()
-
-async function painted(source: string) {
-  const segments = await allSegments(source, 'tsrx')
-  const lines = source.split('\n')
-  const style = getSyntaxStyle()
-  const byGroup = new Map<number, string[]>()
-  for (const segment of segments) {
-    const text = lines[segment.line]?.slice(segment.start, segment.end) ?? ''
-    if (!text.trim()) continue
-    byGroup.set(segment.styleId, [...(byGroup.get(segment.styleId) ?? []), text.trim()])
-  }
-  return (group: string) => byGroup.get(style.getStyleId(group)!) ?? []
-}
 
 describe('recognising tsrx files', () => {
   test('by extension, wherever the file sits', () => {
@@ -70,7 +57,7 @@ export function App(props: { rows: Row[]; step: string }) @{
 
   // A grammar that names a node it does not have matches nothing, silently.
   test('the body inside @{ … } highlights as ordinary tsx', async () => {
-    const group = await painted(SAMPLE)
+    const group = await painted(SAMPLE, 'tsrx')
 
     expect(group('keyword')).toContain('import')
     expect(group('keyword')).toContain('const')
@@ -93,24 +80,26 @@ export function App(props: { rows: Row[]; step: string }) @{
     '@catch',
   ]) {
     test(`${directive} reads as a keyword`, async () => {
-      const group = await painted(SAMPLE)
+      const group = await painted(SAMPLE, 'tsrx')
       expect(group('keyword')).toContain(directive)
     })
   }
 
   test('the @ of the body marker, and key, are keywords too', async () => {
-    const group = await painted(SAMPLE)
+    const group = await painted(SAMPLE, 'tsrx')
     expect(group('keyword')).toContain('@')
     expect(group('keyword')).toContain('key')
   })
 
   test('a directive named in a comment stays a comment', async () => {
-    const group = await painted(SAMPLE)
-    expect(group('comment')).toContain('// Prose naming @for and @try and @{ stays prose.')
+    const group = await painted(SAMPLE, 'tsrx')
+    expect(group('comment')).toContain(
+      '// Prose naming @for and @try and @{ stays prose.'
+    )
   })
 
   test('a directive named in a string stays a string', async () => {
-    const group = await painted(`const help = '@if needs a block';\n`)
+    const group = await painted(`const help = '@if needs a block';\n`, 'tsrx')
 
     expect(group('keyword')).not.toContain('@if')
     expect(group('string')).toContain(`'@if needs a block'`)
@@ -119,6 +108,7 @@ export function App(props: { rows: Row[]; step: string }) @{
   test('key is only the @for clause, not any identifier after a semicolon', async () => {
     const group = await painted(
       `export function A() @{\n\tlet x = 1;\n\n\tkey = 2;\n\t<p>x</p>\n}\n`,
+      'tsrx'
     )
 
     expect(group('keyword')).not.toContain('key')
@@ -127,8 +117,9 @@ export function App(props: { rows: Row[]; step: string }) @{
   test('key in an ordinary statement on one line stays plain', async () => {
     const group = await painted(
       `export function A() @{\n\trun(); key.press(); key = 2;\n\t@for (const r of rows; key r.id) {\n\t\t<li>{r.id}</li>\n\t}\n}\n`,
+      'tsrx'
     )
 
-    expect(group('keyword').filter(t => t === 'key')).toEqual(['key'])
+    expect(group('keyword').filter((t) => t === 'key')).toEqual(['key'])
   })
 })

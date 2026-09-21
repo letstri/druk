@@ -4,12 +4,12 @@ import * as opentui from '@opentui/core'
 
 let highlightCalls = 0
 const stuckClient = {
-  initialize: () => Promise.resolve(),
   addFiletypeParser: () => {},
   highlightOnce: () => {
-    highlightCalls++
-    return new Promise(() => {})
+    highlightCalls += 1
+    return Promise.withResolvers<never>().promise
   },
+  initialize: () => Promise.resolve(),
 }
 
 mock.module('@opentui/core', () => ({
@@ -25,8 +25,12 @@ test('a hung worker parse falls back instead of pending forever', async () => {
 
   const first = await computeHighlights('const one = 1\n', 'typescript')
   expect(first).not.toBe(STALE)
-  if (typeof first === 'symbol') throw new Error('unreachable')
-  expect(first.ordered.every(capture => capture.group === 'indent.guide')).toBe(true)
+  if (typeof first === 'symbol') {
+    throw new TypeError('unreachable')
+  }
+  expect(
+    first.ordered.every((capture) => capture.group === 'indent.guide')
+  ).toBe(true)
   expect(highlightCalls).toBe(1)
 
   await computeHighlights('const two = 2\n', 'typescript')
@@ -43,7 +47,11 @@ test('patterns-only languages never touch the worker', async () => {
   const calls = highlightCalls
   const parsed = await computeHighlights('services:\n  app:\n', 'yaml')
   expect(parsed).not.toBe(STALE)
-  if (typeof parsed === 'symbol') throw new Error('unreachable')
-  expect(parsed.ordered.some(capture => capture.group === 'property')).toBe(true)
+  if (typeof parsed === 'symbol') {
+    throw new TypeError('unreachable')
+  }
+  expect(parsed.ordered.some((capture) => capture.group === 'property')).toBe(
+    true
+  )
   expect(highlightCalls).toBe(calls)
 })

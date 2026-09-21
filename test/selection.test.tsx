@@ -10,7 +10,8 @@ interface SelectionHost {
 }
 
 const selected = (t: Harness) =>
-  (t as unknown as SelectionHost).renderer?.getSelection()?.getSelectedText() ?? null
+  (t as unknown as SelectionHost).renderer?.getSelection()?.getSelectedText() ??
+  null
 
 const CONTENT = 'const data = []\nconst beta = 2\n'
 
@@ -18,7 +19,7 @@ async function withOpenFile(content = 'const alpha = 1\nconst beta = 2\n') {
   const dir = fixture({ 'a.ts': content })
   const t = await launch(dir)
   await openFile(t, 'a.ts')
-  return { t, dir }
+  return { dir, t }
 }
 
 const EDITOR_ROW = 1
@@ -28,7 +29,8 @@ function colOf(t: Harness, word: string) {
   return row.indexOf(word)
 }
 
-const save = (t: Harness) => press(t, input => input.pressKey('s', { ctrl: true }))
+const save = (t: Harness) =>
+  press(t, (input) => input.pressKey('s', { ctrl: true }))
 
 describe('mouse selection', () => {
   test('dragging in the editor still selects, so Ctrl+C has something to copy', async () => {
@@ -49,7 +51,10 @@ describe('mouse selection', () => {
   })
 
   test('a drag across many rows copies all of them', async () => {
-    const lines = Array.from({ length: 400 }, (_, at) => `const line${at} = ${at}`).join('\n')
+    const lines = Array.from(
+      { length: 400 },
+      (_, at) => `const line${at} = ${at}`
+    ).join('\n')
     const { t } = await withOpenFile(`${lines}\n`)
     const from = colOf(t, 'const')
     await t.mockMouse.drag(from, EDITOR_ROW, from + 8, EDITOR_ROW + 10)
@@ -76,9 +81,11 @@ describe('mouse selection', () => {
     const at = colOf(t, 'data')
     await t.mockMouse.doubleClick(at, EDITOR_ROW)
     await settle(t)
-    await press(t, input => void input.typeText('X'))
+    await press(t, (input) => input.typeText('X'))
     await save(t)
-    expect(readFileSync(join(dir, 'a.ts'), 'utf8')).toBe('const X = []\nconst beta = 2\n')
+    expect(readFileSync(join(dir, 'a.ts'), 'utf-8')).toBe(
+      'const X = []\nconst beta = 2\n'
+    )
   })
 
   test('double-click copies the word it selected', async () => {
@@ -95,9 +102,9 @@ describe('mouse selection', () => {
     await t.mockMouse.click(at, EDITOR_ROW)
     await t.mockMouse.click(at, EDITOR_ROW)
     await settle(t)
-    await press(t, input => void input.typeText('X'))
+    await press(t, (input) => input.typeText('X'))
     await save(t)
-    expect(readFileSync(join(dir, 'a.ts'), 'utf8')).toBe('Xconst beta = 2\n')
+    expect(readFileSync(join(dir, 'a.ts'), 'utf-8')).toBe('Xconst beta = 2\n')
   })
 
   test('a single click does not select the word', async () => {
@@ -105,10 +112,10 @@ describe('mouse selection', () => {
     const at = colOf(t, 'data')
     await t.mockMouse.click(at, EDITOR_ROW)
     await settle(t)
-    await press(t, input => void input.typeText('X'))
+    await press(t, (input) => input.typeText('X'))
     await save(t)
-    expect(readFileSync(join(dir, 'a.ts'), 'utf8')).toContain('data')
-    expect(readFileSync(join(dir, 'a.ts'), 'utf8')).toContain('X')
+    expect(readFileSync(join(dir, 'a.ts'), 'utf-8')).toContain('data')
+    expect(readFileSync(join(dir, 'a.ts'), 'utf-8')).toContain('X')
   })
 
   test('double-click inside a string selects only that word', async () => {
@@ -116,9 +123,11 @@ describe('mouse selection', () => {
     const at = colOf(t, 'hello')
     await t.mockMouse.doubleClick(at, EDITOR_ROW)
     await settle(t)
-    await press(t, input => void input.typeText('X'))
+    await press(t, (input) => input.typeText('X'))
     await save(t)
-    expect(readFileSync(join(dir, 'a.ts'), 'utf8')).toBe('const s = "X world"\n')
+    expect(readFileSync(join(dir, 'a.ts'), 'utf-8')).toBe(
+      'const s = "X world"\n'
+    )
   })
 
   test('double-clicking past the end of a line keeps the line break', async () => {
@@ -126,40 +135,50 @@ describe('mouse selection', () => {
     const at = colOf(t, 'const alpha = 1') + 'const alpha = 1'.length + 3
     await t.mockMouse.doubleClick(at, EDITOR_ROW)
     await settle(t)
-    await press(t, input => void input.typeText('X'))
+    await press(t, (input) => input.typeText('X'))
     await save(t)
-    expect(readFileSync(join(dir, 'a.ts'), 'utf8')).toBe('const alpha = 1X\nconst beta = 2\n')
+    expect(readFileSync(join(dir, 'a.ts'), 'utf-8')).toBe(
+      'const alpha = 1X\nconst beta = 2\n'
+    )
   })
 
   test('double-clicking a blank line does not eat the blank lines around it', async () => {
-    const { t, dir } = await withOpenFile('const alpha = 1\n\n\n\nconst beta = 2\n')
+    const { t, dir } = await withOpenFile(
+      'const alpha = 1\n\n\n\nconst beta = 2\n'
+    )
     const at = colOf(t, 'const alpha = 1')
     await t.mockMouse.doubleClick(at, EDITOR_ROW + 1)
     await settle(t)
-    await press(t, input => void input.typeText('X'))
+    await press(t, (input) => input.typeText('X'))
     await save(t)
-    expect(readFileSync(join(dir, 'a.ts'), 'utf8')).toBe('const alpha = 1\nX\n\n\nconst beta = 2\n')
+    expect(readFileSync(join(dir, 'a.ts'), 'utf-8')).toBe(
+      'const alpha = 1\nX\n\n\nconst beta = 2\n'
+    )
   })
 
   test('a word selection does not outlive the arrow key that leaves it', async () => {
     const { t, dir } = await withOpenFile(CONTENT)
     await t.mockMouse.doubleClick(colOf(t, 'data'), EDITOR_ROW)
     await settle(t)
-    await press(t, input => input.pressArrow('down'))
-    await press(t, input => void input.typeText('X'))
+    await press(t, (input) => input.pressArrow('down'))
+    await press(t, (input) => input.typeText('X'))
     await save(t)
-    expect(readFileSync(join(dir, 'a.ts'), 'utf8')).toBe('const data = []\nconst Xbeta = 2\n')
+    expect(readFileSync(join(dir, 'a.ts'), 'utf-8')).toBe(
+      'const data = []\nconst Xbeta = 2\n'
+    )
   })
 
   test('and so the next left arrow steps, rather than jumping back to it', async () => {
     const { t, dir } = await withOpenFile(CONTENT)
     await t.mockMouse.doubleClick(colOf(t, 'data'), EDITOR_ROW)
     await settle(t)
-    await press(t, input => input.pressArrow('down'))
-    await press(t, input => input.pressArrow('right'))
-    await press(t, input => input.pressArrow('left'))
-    await press(t, input => void input.typeText('X'))
+    await press(t, (input) => input.pressArrow('down'))
+    await press(t, (input) => input.pressArrow('right'))
+    await press(t, (input) => input.pressArrow('left'))
+    await press(t, (input) => input.typeText('X'))
     await save(t)
-    expect(readFileSync(join(dir, 'a.ts'), 'utf8')).toBe('const data = []\nconst Xbeta = 2\n')
+    expect(readFileSync(join(dir, 'a.ts'), 'utf-8')).toBe(
+      'const data = []\nconst Xbeta = 2\n'
+    )
   })
 })

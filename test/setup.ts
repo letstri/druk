@@ -24,12 +24,16 @@ loadExtensions(process.env.XDG_CONFIG_HOME!)
 // `renderer.destroy()` is what runs Solid's `onCleanup`; without it watchers and timers pile up.
 afterEach(async () => {
   const { liveHarnesses } = await import('./helpers')
-  for (const t of liveHarnesses) t.renderer.destroy()
+  for (const t of liveHarnesses) {
+    t.renderer.destroy()
+  }
   liveHarnesses.clear()
 })
 
 // `afterAll`, not `afterEach`: a file may hand one fixture to several tests.
 afterAll(() => {
-  for (const dir of fixtures) rmSync(dir, { recursive: true, force: true })
+  for (const dir of fixtures) {
+    rmSync(dir, { force: true, recursive: true })
+  }
   fixtures.clear()
 })

@@ -5,13 +5,21 @@ import { tempDir } from './temp'
 
 describe('packageFileName', () => {
   test('deb keeps underscores and Debian arch names', () => {
-    expect(packageFileName('deb', 'linux-x64', '1.16.0')).toBe('druk_1.16.0_amd64.deb')
-    expect(packageFileName('deb', 'linux-arm64', '1.16.0')).toBe('druk_1.16.0_arm64.deb')
+    expect(packageFileName('deb', 'linux-x64', '1.16.0')).toBe(
+      'druk_1.16.0_amd64.deb'
+    )
+    expect(packageFileName('deb', 'linux-arm64', '1.16.0')).toBe(
+      'druk_1.16.0_arm64.deb'
+    )
   })
 
   test('rpm follows name-version-release.arch, its own shape', () => {
-    expect(packageFileName('rpm', 'linux-x64', '1.16.0')).toBe('druk-1.16.0-1.x86_64.rpm')
-    expect(packageFileName('rpm', 'linux-arm64', '1.16.0')).toBe('druk-1.16.0-1.aarch64.rpm')
+    expect(packageFileName('rpm', 'linux-x64', '1.16.0')).toBe(
+      'druk-1.16.0-1.x86_64.rpm'
+    )
+    expect(packageFileName('rpm', 'linux-arm64', '1.16.0')).toBe(
+      'druk-1.16.0-1.aarch64.rpm'
+    )
   })
 })
 
@@ -43,5 +51,7 @@ test('a missing binary is named before nfpm is ever needed', () => {
     env: { ...process.env, DRUK_DIST: empty },
   })
   expect(proc.exitCode).toBe(1)
-  expect(new TextDecoder().decode(proc.stderr)).toContain(`${empty}/linux-x64/druk`)
+  expect(new TextDecoder().decode(proc.stderr)).toContain(
+    `${empty}/linux-x64/druk`
+  )
 })

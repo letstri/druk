@@ -17,17 +17,21 @@ interface Span {
 }
 
 const hex = (bg: Span['bg']) =>
-  bg ? `#${Array.from(bg.buffer.slice(0, 3), v => v.toString(16).padStart(2, '0')).join('')}` : ''
+  bg
+    ? `#${Array.from(bg.buffer.slice(0, 3), (v) => v.toString(16).padStart(2, '0')).join('')}`
+    : ''
 
 function fillBehind(t: Harness, label: string): string {
   const spans = t.captureSpans() as unknown as { lines: { spans: Span[] }[] }
-  const span = spans.lines[TABS_ROW]?.spans.find(s => s.text.includes(label))
+  const span = spans.lines[TABS_ROW]?.spans.find((s) => s.text.includes(label))
   return hex(span?.bg)
 }
 
 const git = (dir: string, ...args: string[]) => {
   const run = Bun.spawnSync(['git', ...args], { cwd: dir })
-  if (run.exitCode !== 0) throw new Error(run.stderr.toString())
+  if (run.exitCode !== 0) {
+    throw new Error(run.stderr.toString())
+  }
 }
 
 function repo() {

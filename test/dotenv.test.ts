@@ -1,20 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 
-import { filetypeForPath, getSyntaxStyle } from '../src/languages/highlight'
-import { allSegments } from './syntax'
-
-async function painted(source: string) {
-  const segments = await allSegments(source, 'dotenv')
-  const lines = source.split('\n')
-  const style = getSyntaxStyle()
-  const byGroup = new Map<number, string[]>()
-  for (const segment of segments) {
-    const text = lines[segment.line]?.slice(segment.start, segment.end) ?? ''
-    if (!text.trim()) continue
-    byGroup.set(segment.styleId, [...(byGroup.get(segment.styleId) ?? []), text.trim()])
-  }
-  return (group: string) => byGroup.get(style.getStyleId(group)!) ?? []
-}
+import { filetypeForPath } from '../src/languages/highlight'
+import { painted } from './syntax'
 
 describe('recognising env files', () => {
   test('by name, wherever the name appears', () => {
@@ -54,7 +41,7 @@ EMPTY=
 `
 
   test('keys, values and comments each read differently', async () => {
-    const group = await painted(SAMPLE)
+    const group = await painted(SAMPLE, 'dotenv')
 
     expect(group('comment')).toContain('# a comment')
     expect(group('property')).toContain('API_URL')
@@ -66,19 +53,19 @@ EMPTY=
   })
 
   test('export stays a keyword rather than part of the key', async () => {
-    const group = await painted(SAMPLE)
+    const group = await painted(SAMPLE, 'dotenv')
     expect(group('keyword')).toContain('export')
   })
 
   test('interpolation is lit, in both spellings', async () => {
-    const group = await painted(SAMPLE)
+    const group = await painted(SAMPLE, 'dotenv')
     expect(group('variable')).toContain('$USER')
     // Split so the linter does not read a literal `${` as a botched template.
     expect(group('variable')).toContain(`$${'{HOME}'}`)
   })
 
   test('a # inside a value does not grey out the rest of the line', async () => {
-    const group = await painted('SECRET=abc#123\nPORT=8080\n')
+    const group = await painted('SECRET=abc#123\nPORT=8080\n', 'dotenv')
 
     expect(group('comment')).toEqual([])
     expect(group('number')).toContain('8080')

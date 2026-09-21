@@ -14,7 +14,7 @@ interface Choice {
   label: string
 }
 
-export interface ChoiceModalProps {
+interface ChoiceModalProps {
   title: string
   message: string
   choices: Choice[]
@@ -34,10 +34,10 @@ export function ChoiceModal(props: ChoiceModalProps) {
     const k = key.name
     if (k === 'up') {
       key.preventDefault()
-      setIndex(i => (i - 1 + props.choices.length) % props.choices.length)
+      setIndex((i) => (i - 1 + props.choices.length) % props.choices.length)
     } else if (k === 'down') {
       key.preventDefault()
-      setIndex(i => (i + 1) % props.choices.length)
+      setIndex((i) => (i + 1) % props.choices.length)
     } else if (k === 'return' || k === 'enter') {
       key.preventDefault()
       props.onPick(props.choices[index()]!.id)
@@ -48,14 +48,25 @@ export function ChoiceModal(props: ChoiceModalProps) {
   })
 
   return (
-    <ModalPanel zIndex={160} width={width()} title={` ${props.title} `} accent={ui.dirty}>
-      <For each={lines()}>{line => <text fg={ui.text} bg={ui.panelBg} content={line} />}</For>
+    <ModalPanel
+      zIndex={160}
+      width={width()}
+      title={` ${props.title} `}
+      accent={ui.dirty}
+    >
+      <For each={lines()}>
+        {(line) => <text fg={ui.text} bg={ui.panelBg} content={line} />}
+      </For>
       <text fg={ui.dim} bg={ui.panelBg} content="" />
       <For each={props.choices}>
         {(choice, i) => {
           const active = () => i() === index()
           const bg = () =>
-            active() ? ui.treeSelectedBg : hover.hovered(i()) ? ui.hoverBg : ui.panelBg
+            active()
+              ? ui.treeSelectedBg
+              : hover.hovered(i())
+                ? ui.hoverBg
+                : ui.panelBg
           return (
             <box
               flexDirection="row"
@@ -64,7 +75,12 @@ export function ChoiceModal(props: ChoiceModalProps) {
               onMouseOver={() => hover.enter(i())}
               onMouseOut={() => hover.leave(i())}
             >
-              <text fg={ui.dirty} bg={bg()} flexShrink={0} content={active() ? '▌ ' : '  '} />
+              <text
+                fg={ui.dirty}
+                bg={bg()}
+                flexShrink={0}
+                content={active() ? '▌ ' : '  '}
+              />
               <box flexGrow={1} backgroundColor={bg()}>
                 <text
                   wrapMode="none"
@@ -78,7 +94,11 @@ export function ChoiceModal(props: ChoiceModalProps) {
         }}
       </For>
       <text fg={ui.dim} bg={ui.panelBg} content="" />
-      <text fg={ui.dim} bg={ui.panelBg} content="↑↓ choose · Enter confirm · Esc cancel" />
+      <text
+        fg={ui.dim}
+        bg={ui.panelBg}
+        content="↑↓ choose · Enter confirm · Esc cancel"
+      />
     </ModalPanel>
   )
 }

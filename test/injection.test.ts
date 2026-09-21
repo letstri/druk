@@ -1,6 +1,10 @@
 import { describe, expect, test } from 'bun:test'
 
-import { filetypeForPath, segmentsIn, styleIdForGroup } from '../src/languages/highlight'
+import {
+  filetypeForPath,
+  segmentsIn,
+  styleIdForGroup,
+} from '../src/languages/highlight'
 import { loadMarketExtensions } from './helpers'
 import { parseHighlights, WHOLE } from './syntax'
 
@@ -10,11 +14,13 @@ function painter(source: string, filetype: string) {
   const lines = source.split('\n')
   return async (group: string): Promise<string[]> => {
     const styleId = styleIdForGroup(group)
-    if (styleId == null) throw new Error(`no style for ${group}`)
+    if (styleId === null || styleId === undefined) {
+      throw new Error(`no style for ${group}`)
+    }
     const parsed = await parseHighlights(source, filetype)
     return segmentsIn(parsed, 0, WHOLE)
-      .filter(segment => segment.styleId === styleId)
-      .map(segment => lines[segment.line]!.slice(segment.start, segment.end))
+      .filter((segment) => segment.styleId === styleId)
+      .map((segment) => lines[segment.line]!.slice(segment.start, segment.end))
   }
 }
 

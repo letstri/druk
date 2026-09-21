@@ -5,18 +5,27 @@ import { wrapText } from '../src/ui/text'
 import { fixture, launch, openPalette, press, settle } from './helpers'
 import type { Harness } from './helpers'
 
-const PROJECT = { 'src/alpha.ts': 'const capture = 1\n', 'src/beta.ts': '// capture\n' }
+const PROJECT = {
+  'src/alpha.ts': 'const capture = 1\n',
+  'src/beta.ts': '// capture\n',
+}
 
 const hex = (buf?: { buffer: Uint8Array }) =>
-  buf ? Array.from(buf.buffer.slice(0, 3), v => v.toString(16).padStart(2, '0')).join('') : ''
+  buf
+    ? Array.from(buf.buffer.slice(0, 3), (v) =>
+        v.toString(16).padStart(2, '0')
+      ).join('')
+    : ''
 
 function fgOf(t: Harness, needle: string): string {
   const cap = t.captureSpans() as unknown as {
     lines: { spans: { text: string; fg?: { buffer: Uint8Array } }[] }[]
   }
   for (const line of cap.lines) {
-    const span = line.spans.find(s => s.text.includes(needle))
-    if (span) return hex(span.fg)
+    const span = line.spans.find((s) => s.text.includes(needle))
+    if (span) {
+      return hex(span.fg)
+    }
   }
   return ''
 }
@@ -25,7 +34,12 @@ const bordered = (t: Harness) =>
   t
     .captureCharFrame()
     .split('\n')
-    .filter(row => row.includes('╭') || row.includes('╰') || (row.match(/│/g)?.length ?? 0) >= 2)
+    .filter(
+      (row) =>
+        row.includes('╭') ||
+        row.includes('╰') ||
+        (row.match(/│/gu)?.length ?? 0) >= 2
+    )
 
 describe('modalWidth', () => {
   test('follows the terminal between its bounds', () => {
@@ -53,7 +67,11 @@ describe('listRows', () => {
 
 describe('wrapText', () => {
   test('breaks on spaces within the width', () => {
-    expect(wrapText('one two three four', 9)).toEqual(['one two', 'three', 'four'])
+    expect(wrapText('one two three four', 9)).toEqual([
+      'one two',
+      'three',
+      'four',
+    ])
   })
 
   test('cuts a word with nowhere to break', () => {
@@ -67,7 +85,7 @@ describe('wrapText', () => {
 
 describe('an open modal', () => {
   test('dims what is behind it without hiding it', async () => {
-    const t = await launch(fixture(PROJECT), {}, { width: 100, height: 30 })
+    const t = await launch(fixture(PROJECT), {}, { height: 30, width: 100 })
     const before = fgOf(t, 'EXPLORER')
     expect(before).not.toBe('')
 
@@ -77,27 +95,31 @@ describe('an open modal', () => {
 
     expect(t.captureCharFrame()).toContain('EXPLORER')
     expect(behind).not.toBe(before)
-    expect(Number.parseInt(behind, 16)).toBeLessThan(Number.parseInt(before, 16))
+    expect(Number.parseInt(behind, 16)).toBeLessThan(
+      Number.parseInt(before, 16)
+    )
   })
 
   test('fits inside a narrow terminal, borders and all', async () => {
-    const t = await launch(fixture(PROJECT), {}, { width: 60, height: 18 })
-    await press(t, input => input.pressKey('r', { ctrl: true }))
-    await press(t, input => void input.typeText('capture'))
+    const t = await launch(fixture(PROJECT), {}, { height: 18, width: 60 })
+    await press(t, (input) => input.pressKey('r', { ctrl: true }))
+    await press(t, (input) => input.typeText('capture'))
     await settle(t, 300)
 
     const rows = bordered(t)
     expect(rows.length).toBeGreaterThan(3)
-    for (const row of rows) expect(row.trimEnd().length).toBeLessThanOrEqual(60)
-    expect(rows.every(row => /[│╭╰].*[│╮╯]/.test(row))).toBe(true)
+    for (const row of rows) {
+      expect(row.trimEnd().length).toBeLessThanOrEqual(60)
+    }
+    expect(rows.every((row) => /[│╭╰].*[│╮╯]/u.test(row))).toBe(true)
   })
 
   test('grows with the terminal', async () => {
-    const narrow = await launch(fixture(PROJECT), {}, { width: 80, height: 30 })
+    const narrow = await launch(fixture(PROJECT), {}, { height: 30, width: 80 })
     await openPalette(narrow)
     await settle(narrow)
 
-    const wide = await launch(fixture(PROJECT), {}, { width: 160, height: 30 })
+    const wide = await launch(fixture(PROJECT), {}, { height: 30, width: 160 })
     await openPalette(wide)
     await settle(wide)
 

@@ -8,7 +8,7 @@ import { ModalPanel } from './Overlay'
 import { wrapText } from './text'
 import { useKeys } from './useKeys'
 
-export interface ConfirmModalProps {
+interface ConfirmModalProps {
   message: string
   title: string
   verb: string
@@ -36,10 +36,21 @@ export function ConfirmModal(props: ConfirmModalProps) {
 
   return (
     // Above every panel: a confirm is raised over the search panel too.
-    <ModalPanel zIndex={200} width={width()} title={` ${props.title} `} accent={accent()}>
-      <For each={lines()}>{line => <text fg={ui.text} bg={ui.panelBg} content={line} />}</For>
+    <ModalPanel
+      zIndex={200}
+      width={width()}
+      title={` ${props.title} `}
+      accent={accent()}
+    >
+      <For each={lines()}>
+        {(line) => <text fg={ui.text} bg={ui.panelBg} content={line} />}
+      </For>
       <text fg={ui.panelBg} bg={ui.panelBg} content="" />
-      <text fg={ui.dim} bg={ui.panelBg} content={`Enter to ${props.verb} · Esc to cancel`} />
+      <text
+        fg={ui.dim}
+        bg={ui.panelBg}
+        content={`Enter to ${props.verb} · Esc to cancel`}
+      />
     </ModalPanel>
   )
 }

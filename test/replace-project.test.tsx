@@ -20,13 +20,13 @@ const PROJECT = {
   'c.ts': 'var OLD = 3\n',
 }
 
-const SIZE = { width: 100, height: 30 }
+const SIZE = { height: 30, width: 100 }
 
 async function openReplace(t: Harness, query: string, replacement: string) {
   await runCommand(t, 'Replace in project')
-  await press(t, i => void i.typeText(query))
-  await press(t, i => i.pressTab())
-  await press(t, i => void i.typeText(replacement))
+  await press(t, (i) => i.typeText(query))
+  await press(t, (i) => i.pressTab())
+  await press(t, (i) => i.typeText(replacement))
   await settle(t, 300)
 }
 
@@ -48,22 +48,22 @@ test('replace-all routes buffers and disk, and says which was which', async () =
   const dir = fixture(PROJECT)
   const t = await launch(dir, { autoSaveOnBlur: false }, SIZE)
   await openFile(t, 'b.ts')
-  await press(t, i => void i.typeText('x'))
+  await press(t, (i) => i.typeText('x'))
   await openFile(t, 'a.ts')
 
   await openReplace(t, 'OLD', 'NEW')
-  await press(t, i => i.pressKey('a', { ctrl: true }))
+  await press(t, (i) => i.pressKey('a', { ctrl: true }))
   await untilFrame(t, 'Replace 3 matches in 3 files')
-  await press(t, i => i.pressEnter())
+  await press(t, (i) => i.pressEnter())
   await untilFrame(t, 'Replaced 3 matches in 3 files')
 
   const frame = t.captureCharFrame()
   expect(frame).toContain('2 in open tabs, unsaved')
-  expect(readFileSync(join(dir, 'a.ts'), 'utf8')).toBe('const OLD = 1\n')
-  expect(readFileSync(join(dir, 'b.ts'), 'utf8')).toBe('let OLD = 2\n')
-  expect(readFileSync(join(dir, 'c.ts'), 'utf8')).toBe('var NEW = 3\n')
+  expect(readFileSync(join(dir, 'a.ts'), 'utf-8')).toBe('const OLD = 1\n')
+  expect(readFileSync(join(dir, 'b.ts'), 'utf-8')).toBe('let OLD = 2\n')
+  expect(readFileSync(join(dir, 'c.ts'), 'utf-8')).toBe('var NEW = 3\n')
   expect(frame).toContain('const NEW = 1')
-  await press(t, i => i.pressKey('z', { ctrl: true }))
+  await press(t, (i) => i.pressKey('z', { ctrl: true }))
   expect(t.captureCharFrame()).toContain('const OLD = 1')
 })
 
@@ -71,7 +71,7 @@ test('the confirm suspends the panel: one Enter, no stray apply', async () => {
   const dir = fixture(PROJECT)
   const t = await launch(dir, {}, SIZE)
   await openReplace(t, 'OLD', 'NEW')
-  await press(t, i => i.pressKey('a', { ctrl: true }))
+  await press(t, (i) => i.pressKey('a', { ctrl: true }))
   await untilFrame(t, 'Replace 3 matches')
 
   await pressEscape(t)
@@ -80,14 +80,14 @@ test('the confirm suspends the panel: one Enter, no stray apply', async () => {
   expect(frame).not.toContain('Replace 3 matches')
   expect(frame).toContain('Search in project')
   expect(frame).toContain('const OLDNEW = 1')
-  expect(readFileSync(join(dir, 'a.ts'), 'utf8')).toBe('const OLD = 1\n')
+  expect(readFileSync(join(dir, 'a.ts'), 'utf-8')).toBe('const OLD = 1\n')
 
-  await press(t, i => i.pressKey('a', { ctrl: true }))
+  await press(t, (i) => i.pressKey('a', { ctrl: true }))
   await untilFrame(t, 'Replace 3 matches')
-  await press(t, i => i.pressEnter())
+  await press(t, (i) => i.pressEnter())
   await untilFrame(t, 'Replaced 3 matches in 3 files')
   expect(t.captureCharFrame()).not.toContain('Search in project')
-  expect(readFileSync(join(dir, 'c.ts'), 'utf8')).toBe('var NEW = 3\n')
+  expect(readFileSync(join(dir, 'c.ts'), 'utf-8')).toBe('var NEW = 3\n')
 })
 
 test('Enter applies one match and the row leaves the list', async () => {
@@ -96,12 +96,12 @@ test('Enter applies one match and the row leaves the list', async () => {
   await openReplace(t, 'OLD', 'NEW')
   await untilFrame(t, '1 of 2 in 2 files')
 
-  await press(t, i => i.pressEnter())
+  await press(t, (i) => i.pressEnter())
   await settle(t, 300)
   await untilFrame(t, '1 of 1 in 1 file')
   const disks = [
-    readFileSync(join(dir, 'a.ts'), 'utf8'),
-    readFileSync(join(dir, 'b.ts'), 'utf8'),
+    readFileSync(join(dir, 'a.ts'), 'utf-8'),
+    readFileSync(join(dir, 'b.ts'), 'utf-8'),
   ].toSorted()
   expect(disks).toEqual(['NEW\n', 'OLD\n'])
 })
@@ -113,17 +113,19 @@ test('a match drifted on disk is refused, not applied askew', async () => {
   await untilFrame(t, '1 of 1')
 
   writeFileSync(join(dir, 'a.ts'), 'the line moved\nkeep OLD here\n')
-  await press(t, i => i.pressEnter())
+  await press(t, (i) => i.pressEnter())
   await untilFrame(t, 'That match is gone')
-  expect(readFileSync(join(dir, 'a.ts'), 'utf8')).toBe('the line moved\nkeep OLD here\n')
+  expect(readFileSync(join(dir, 'a.ts'), 'utf-8')).toBe(
+    'the line moved\nkeep OLD here\n'
+  )
 })
 
 test('an invalid regex refuses with its own message', async () => {
   const t = await launch(fixture(PROJECT), {}, SIZE)
   await runCommand(t, 'Replace in project')
-  await press(t, i => void i.typeText('(('))
-  await press(t, i => i.pressKey('r', { ctrl: true }))
-  await press(t, i => i.pressKey('a', { ctrl: true }))
+  await press(t, (i) => i.typeText('(('))
+  await press(t, (i) => i.pressKey('r', { ctrl: true }))
+  await press(t, (i) => i.pressKey('a', { ctrl: true }))
   await untilFrame(t, 'Invalid regex')
 })
 
@@ -132,11 +134,11 @@ test('the confirm counts past the panel display cap', async () => {
     Array.from({ length: 30 }, (_, i) => [
       `f${i}.ts`,
       Array.from({ length: 10 }, () => 'OLD\n').join(''),
-    ]),
+    ])
   )
   const t = await launch(fixture(many), {}, SIZE)
   await openReplace(t, 'OLD', 'NEW')
   await untilFrame(t, '200+')
-  await press(t, i => i.pressKey('a', { ctrl: true }))
+  await press(t, (i) => i.pressKey('a', { ctrl: true }))
   await untilFrame(t, 'Replace 300 matches in 30 files')
 })

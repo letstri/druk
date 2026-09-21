@@ -11,15 +11,18 @@ import { tempDir } from './temp'
 function pngFixture(width: number, height: number, rgba: number[]): string {
   const dir = tempDir('druk-img-')
   const path = join(dir, 'img.png')
-  writeFileSync(path, encode({ width, height, data: new Uint8Array(rgba), channels: 4 }))
+  writeFileSync(
+    path,
+    encode({ channels: 4, data: new Uint8Array(rgba), height, width })
+  )
   return path
 }
 
 const raw = (width: number, height: number, rgba: number[]): RawImage => ({
-  width,
+  bytes: rgba.length,
   height,
   pixels: new Uint8Array(rgba),
-  bytes: rgba.length,
+  width,
 })
 
 describe('isImagePath', () => {
@@ -51,6 +54,8 @@ describe('decodeImage', () => {
   })
 })
 
+const grey = (v: number) => [v, v, v, 255]
+
 describe('toCells', () => {
   test('maps two pixel rows onto one cell row', () => {
     const img = raw(1, 2, [255, 0, 0, 255, 0, 0, 255, 255])
@@ -71,7 +76,7 @@ describe('toCells', () => {
     const img = raw(
       2,
       2,
-      Array.from({ length: 16 }, () => 255),
+      Array.from({ length: 16 }, () => 255)
     )
     const cells = toCells(img, 100, 100)
     expect(cells.cols).toBe(2)
@@ -82,7 +87,7 @@ describe('toCells', () => {
     const img = raw(
       100,
       100,
-      Array.from({ length: 100 * 100 * 4 }, () => 128),
+      Array.from({ length: 100 * 100 * 4 }, () => 128)
     )
     const cells = toCells(img, 10, 100)
     expect(cells.cols).toBe(10)
@@ -90,7 +95,6 @@ describe('toCells', () => {
   })
 
   test('box-averages the source pixels a target pixel covers', () => {
-    const grey = (v: number) => [v, v, v, 255]
     const img = raw(2, 4, [
       ...grey(100),
       ...grey(200),
@@ -115,7 +119,7 @@ describe('cellFit', () => {
     const img = raw(
       4,
       4,
-      Array.from({ length: 64 }, () => 255),
+      Array.from({ length: 64 }, () => 255)
     )
     for (const [cols, rows] of [
       [80, 24],

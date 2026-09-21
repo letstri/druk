@@ -28,18 +28,22 @@ export function createStatus() {
   // One slot: a second background rewrite would clobber the first's counter.
   const whileFree = (run: () => void) => {
     const running = busy()
-    if (running) return say(`${running.label} already — let it finish`, 'warn')
+    if (running) {
+      return say(`${running.label} already — let it finish`, 'warn')
+    }
     run()
   }
 
   // The no-op release is the point: releasing a slot never taken idles the bar mid-op.
   const claimBusy = (next: Busy): (() => void) => {
-    if (busy()) return () => {}
+    if (busy()) {
+      return () => null
+    }
     setBusy(next)
     return () => setBusy(null)
   }
 
-  return { status, say, busy, setBusy, claimBusy, whileFree }
+  return { busy, claimBusy, say, setBusy, status, whileFree }
 }
 
 export type Status = ReturnType<typeof createStatus>

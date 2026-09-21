@@ -9,20 +9,23 @@ import type { Harness } from './helpers'
 
 function rowOf(label: string): number {
   const actions = new Proxy({} as CommandActions, { get: () => () => {} })
-  const tree = buildCommands(actions, { activeTheme: 'dark', activeIconTheme: 'none' })
-  return tree.findIndex(command => command.label === label)
+  const tree = buildCommands(actions, {
+    activeIconTheme: 'none',
+    activeTheme: 'dark',
+  })
+  return tree.findIndex((command) => command.label === label)
 }
 
 const PROJECT = {
-  'src/main.ts': 'const a = 1\nconst b = 2\n',
   'notes.md': '# hi\n',
+  'src/main.ts': 'const a = 1\nconst b = 2\n',
 }
 
 async function openMain(t: Harness) {
-  await press(t, i => i.pressArrow('down'))
-  await press(t, i => i.pressEnter())
-  await press(t, i => i.pressArrow('down'))
-  await press(t, i => i.pressEnter())
+  await press(t, (i) => i.pressArrow('down'))
+  await press(t, (i) => i.pressEnter())
+  await press(t, (i) => i.pressArrow('down'))
+  await press(t, (i) => i.pressEnter())
 }
 
 describe('editor', () => {
@@ -48,9 +51,11 @@ describe('editor', () => {
     const dir = fixture(PROJECT)
     const t = await launch(dir)
     await openMain(t)
-    await press(t, i => void i.typeText('X'))
-    await press(t, i => i.pressKey('s', { ctrl: true }))
-    expect(readFileSync(join(dir, 'src/main.ts'), 'utf8')).toBe('Xconst a = 1\nconst b = 2\n')
+    await press(t, (i) => i.typeText('X'))
+    await press(t, (i) => i.pressKey('s', { ctrl: true }))
+    expect(readFileSync(join(dir, 'src/main.ts'), 'utf-8')).toBe(
+      'Xconst a = 1\nconst b = 2\n'
+    )
   })
 })
 
@@ -61,8 +66,8 @@ describe('command palette', () => {
     await openPalette(t)
     expect(t.captureCharFrame()).toContain('Themes ›')
 
-    await pressTimes(t, rowOf('Themes'), input => input.pressArrow('down'))
-    await press(t, i => i.pressEnter())
+    await pressTimes(t, rowOf('Themes'), (input) => input.pressArrow('down'))
+    await press(t, (i) => i.pressEnter())
     const frame = t.captureCharFrame()
     expect(frame).toContain('GitHub Dark')
     expect(frame).toContain('GitHub Light')
@@ -71,7 +76,7 @@ describe('command palette', () => {
   test('typing filters across levels with breadcrumbs', async () => {
     const t = await launch(fixture(PROJECT))
     await openPalette(t)
-    await press(t, i => void i.typeText('light'))
+    await press(t, (i) => i.typeText('light'))
     expect(t.captureCharFrame()).toContain('Themes ›   GitHub Light')
   })
 })
@@ -81,30 +86,32 @@ describe('search', () => {
     const dir = fixture(PROJECT)
     const t = await launch(dir)
     await openMain(t)
-    await press(t, i => i.pressKey('f', { ctrl: true }))
-    await press(t, i => void i.typeText('const b'))
+    await press(t, (i) => i.pressKey('f', { ctrl: true }))
+    await press(t, (i) => i.typeText('const b'))
     expect(t.captureCharFrame()).toContain('1 of 1')
 
-    await press(t, i => i.pressEnter())
-    await press(t, i => void i.typeText('Z'))
-    await press(t, i => i.pressKey('s', { ctrl: true }))
-    expect(readFileSync(join(dir, 'src/main.ts'), 'utf8')).toBe('const a = 1\nZconst b = 2\n')
+    await press(t, (i) => i.pressEnter())
+    await press(t, (i) => i.typeText('Z'))
+    await press(t, (i) => i.pressKey('s', { ctrl: true }))
+    expect(readFileSync(join(dir, 'src/main.ts'), 'utf-8')).toBe(
+      'const a = 1\nZconst b = 2\n'
+    )
   })
 })
 
 test('the status bar tracks the cursor, on vertical-only moves too', async () => {
   const t = await launch(fixture({ 'a.ts': 'one\ntwo\nthree\nfour\n' }))
-  await press(t, i => i.pressArrow('down'))
-  await press(t, i => i.pressEnter())
+  await press(t, (i) => i.pressArrow('down'))
+  await press(t, (i) => i.pressEnter())
   expect(t.captureCharFrame()).toContain('Ln 1, Col 1')
 
-  await press(t, i => i.pressArrow('down'))
-  await press(t, i => i.pressArrow('down'))
+  await press(t, (i) => i.pressArrow('down'))
+  await press(t, (i) => i.pressArrow('down'))
   expect(t.captureCharFrame()).toContain('Ln 3, Col 1')
 
-  await press(t, i => i.pressArrow('up'))
+  await press(t, (i) => i.pressArrow('up'))
   expect(t.captureCharFrame()).toContain('Ln 2, Col 1')
 
-  await press(t, i => i.pressArrow('right'))
+  await press(t, (i) => i.pressArrow('right'))
   expect(t.captureCharFrame()).toContain('Ln 2, Col 2')
 })

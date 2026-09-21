@@ -5,19 +5,19 @@ import { fixture, launch, press } from './helpers'
 const PROJECT = { 'a.ts': 'const a = 1\n' }
 
 // Wide: at 80 columns the labels come back clipped.
-async function inTree() {
-  return launch(fixture(PROJECT), {}, { width: 120, height: 30 })
+function inTree() {
+  return launch(fixture(PROJECT), {}, { height: 30, width: 120 })
 }
 
 async function inEditor() {
   const t = await inTree()
-  await press(t, i => i.pressArrow('down'))
-  await press(t, i => i.pressEnter())
+  await press(t, (i) => i.pressArrow('down'))
+  await press(t, (i) => i.pressEnter())
   return t
 }
 
 const peek = (t: Awaited<ReturnType<typeof inTree>>) =>
-  press(t, i => i.pressKey('k', { ctrl: true }))
+  press(t, (i) => i.pressKey('k', { ctrl: true }))
 
 test('Ctrl+K in the tree shows the tree keys', async () => {
   const t = await inTree()
@@ -40,11 +40,11 @@ test('Ctrl+K in the editor shows the editor keys instead', async () => {
 
 test('the next key folds the peek and still does its job', async () => {
   const t = await inTree()
-  await press(t, i => i.pressArrow('down'))
+  await press(t, (i) => i.pressArrow('down'))
   await peek(t)
   expect(t.captureCharFrame()).toContain('Select a range')
 
-  await press(t, i => void i.typeText('r'))
+  await press(t, (i) => i.typeText('r'))
   const frame = t.captureCharFrame()
   expect(frame).not.toContain('Select a range')
   expect(frame).toContain('Rename to')
@@ -62,16 +62,22 @@ test('the keys are grouped under the help overlay’s headings', async () => {
   await peek(t)
 
   const frame = t.captureCharFrame()
-  for (const heading of ['General', 'Files & tabs', 'File tree', 'Source control', 'View']) {
+  for (const heading of [
+    'General',
+    'Files & tabs',
+    'File tree',
+    'Source control',
+    'View',
+  ]) {
     expect(frame).toContain(heading)
   }
   const lines = frame.split('\n')
-  const heading = lines.findIndex(line => line.includes('File tree'))
+  const heading = lines.findIndex((line) => line.includes('File tree'))
   expect(lines[heading + 1]).toContain('Enter')
 })
 
 test('a terminal too short for the whole table says so', async () => {
-  const t = await launch(fixture(PROJECT), {}, { width: 60, height: 14 })
+  const t = await launch(fixture(PROJECT), {}, { height: 14, width: 60 })
   await peek(t)
 
   const frame = t.captureCharFrame()
@@ -84,7 +90,7 @@ test('a terminal too short for the whole table says so', async () => {
 test('typing in the editor after a peek lands in the buffer', async () => {
   const t = await inEditor()
   await peek(t)
-  await press(t, i => void i.typeText('X'))
+  await press(t, (i) => i.typeText('X'))
 
   const frame = t.captureCharFrame()
   expect(frame).not.toContain('Toggle comment')

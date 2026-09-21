@@ -13,12 +13,14 @@ interface Frame {
 
 const hex = (color?: { buffer: Uint8Array }) =>
   color
-    ? `#${Array.from(color.buffer.slice(0, 3), v => v.toString(16).padStart(2, '0')).join('')}`
+    ? `#${Array.from(color.buffer.slice(0, 3), (v) => v.toString(16).padStart(2, '0')).join('')}`
     : ''
 
 const git = (dir: string, ...args: string[]) => {
   const run = Bun.spawnSync(['git', ...args], { cwd: dir })
-  if (run.exitCode !== 0) throw new Error(run.stderr.toString())
+  if (run.exitCode !== 0) {
+    throw new Error(run.stderr.toString())
+  }
 }
 
 function repo() {
@@ -32,14 +34,14 @@ function repo() {
 
 function at(t: Harness, text: string) {
   const lines = t.captureCharFrame().split('\n')
-  const y = lines.findLastIndex(line => line.includes(text))
+  const y = lines.findLastIndex((line) => line.includes(text))
   expect(y).toBeGreaterThan(0)
   return { x: lines[y]!.indexOf(text), y }
 }
 
 const bgsAt = (t: Harness, y: number) => {
   const frame = t.captureSpans() as unknown as Frame
-  return frame.lines[y]?.spans.map(span => hex(span.bg)) ?? []
+  return frame.lines[y]?.spans.map((span) => hex(span.bg)) ?? []
 }
 
 test('the F1 hint opens the command palette, and tints under the pointer', async () => {

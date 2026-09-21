@@ -13,7 +13,7 @@ export const rowSlotKey = (row: ChangeRow | undefined): string | null =>
 const sectionFor = (
   change: Change,
   file: DiffFile | null,
-  last: ChangeSection | undefined,
+  last: ChangeSection | undefined
 ): ChangeSection => {
   if (
     last &&
@@ -30,21 +30,26 @@ const sectionFor = (
   let patchDels = 0
   let truncated = false
   if (file) {
-    const patch = unifiedDiff(file.rel, file.oldText, file.newText, DIFF_MAX_LINES)
+    const patch = unifiedDiff(
+      file.rel,
+      file.oldText,
+      file.newText,
+      DIFF_MAX_LINES
+    )
     patchLines = patch.lines
     patchAdds = patch.adds
     patchDels = patch.dels
-    truncated = patch.truncated
+    ;({ truncated } = patch)
   }
   return {
-    key: slotKey(change.path, change.area),
-    rel: change.rel,
-    area: change.area,
-    status: change.status,
-    file,
-    lines: patchLines,
     adds: patchAdds,
+    area: change.area,
     dels: patchDels,
+    file,
+    key: slotKey(change.path, change.area),
+    lines: patchLines,
+    rel: change.rel,
+    status: change.status,
     truncated,
   }
 }
@@ -57,8 +62,13 @@ export function takeChangeSections(
   fileFor: (change: Change) => DiffFile | null,
   prev: Map<string, ChangeSection>,
   pin: string | null,
-  maxLines = DIFF_MAX_LINES,
-): { sections: ChangeSection[]; adds: number; dels: number; keep: Set<string> } {
+  maxLines = DIFF_MAX_LINES
+): {
+  sections: ChangeSection[]
+  adds: number
+  dels: number
+  keep: Set<string>
+} {
   const walk = (from: number) => {
     const sections: ChangeSection[] = []
     const keep = new Set<string>()
@@ -73,27 +83,40 @@ export function takeChangeSections(
       lines += sectionCost(section)
       adds += section.adds
       dels += section.dels
-      if (lines >= maxLines) full = true
+      if (lines >= maxLines) {
+        full = true
+      }
     }
 
     for (const change of ordered.slice(from)) {
       const key = slotKey(change.path, change.area)
-      if (full && key !== pin) continue
+      if (full && key !== pin) {
+        continue
+      }
       const section = sectionFor(change, fileFor(change), prev.get(key))
-      if (!full && lines + sectionCost(section) > maxLines && sections.length > 0 && key !== pin) {
+      if (
+        !full &&
+        lines + sectionCost(section) > maxLines &&
+        sections.length > 0 &&
+        key !== pin
+      ) {
         full = true
         continue
       }
       push(section)
     }
 
-    return { sections, adds, dels, keep }
+    return { adds, dels, keep, sections }
   }
 
   const first = walk(0)
-  if (!pin) return first
-  const at = ordered.findIndex(change => slotKey(change.path, change.area) === pin)
+  if (!pin) {
+    return first
+  }
+  const at = ordered.findIndex(
+    (change) => slotKey(change.path, change.area) === pin
+  )
   const cutAfterPin =
-    at > 0 && at < ordered.length - 1 && first.sections[first.sections.length - 1]?.key === pin
+    at > 0 && at < ordered.length - 1 && first.sections.at(-1)?.key === pin
   return cutAfterPin ? walk(at) : first
 }

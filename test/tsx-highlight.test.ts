@@ -1,6 +1,10 @@
 import { describe, expect, test } from 'bun:test'
 
-import { highlightClient, segmentsIn, styleIdForGroup } from '../src/languages/highlight'
+import {
+  highlightClient,
+  segmentsIn,
+  styleIdForGroup,
+} from '../src/languages/highlight'
 import { registerTheme, setTheme, themeFor } from '../src/themes'
 import { parseHighlights, WHOLE } from './syntax'
 
@@ -24,24 +28,34 @@ function total(rows: Row[]) {
 
 async function captured(source: string) {
   const client = await highlightClient()
-  if (!client) throw new Error('tree-sitter client unavailable')
+  if (!client) {
+    throw new Error('tree-sitter client unavailable')
+  }
   const result = await client.highlightOnce(source, 'typescriptreact')
   const byGroup = new Map<string, string[]>()
   for (const [start, end, group] of result.highlights ?? []) {
-    byGroup.set(group, [...(byGroup.get(group) ?? []), source.slice(start, end)])
+    byGroup.set(group, [
+      ...(byGroup.get(group) ?? []),
+      source.slice(start, end),
+    ])
   }
   return (group: string) => byGroup.get(group) ?? []
 }
 
-function paintedAs(source: string, parsed: Awaited<ReturnType<typeof parseHighlights>>) {
+function paintedAs(
+  source: string,
+  parsed: Awaited<ReturnType<typeof parseHighlights>>
+) {
   const lines = source.split('\n')
   return (text: string, group: string) => {
     const wanted = styleIdForGroup(group)
-    if (wanted == null) throw new Error(`no style for ${group}`)
+    if (wanted === null || wanted === undefined) {
+      throw new Error(`no style for ${group}`)
+    }
     return segmentsIn(parsed, 0, WHOLE).some(
-      segment =>
+      (segment) =>
         lines[segment.line]?.slice(segment.start, segment.end) === text &&
-        segment.styleId === wanted,
+        segment.styleId === wanted
     )
   }
 }
@@ -50,7 +64,11 @@ describe('tsx highlighting', () => {
   test('paints the tokens a component file is mostly made of', async () => {
     const group = await captured(SOURCE)
 
-    expect(group('string').some(text => text.includes('border-b transition-colors'))).toBe(true)
+    expect(
+      group('string').some((text) =>
+        text.includes('border-b transition-colors')
+      )
+    ).toBe(true)
     expect(group('variable')).toContain('props')
     expect(group('variable.member')).toContain('className')
     expect(group('namespace')).toContain('React')
@@ -101,8 +119,12 @@ describe('tsx highlighting', () => {
   test('a theme listing none of the newer root scopes still paints them', () => {
     registerTheme('spartan', {
       name: 'Spartan',
+      syntax: {
+        function: { fg: '#00ff00' },
+        property: { fg: '#ff0000' },
+        type: { fg: '#0000ff' },
+      },
       ui: themeFor('dark').ui,
-      syntax: { property: { fg: '#ff0000' }, function: { fg: '#00ff00' }, type: { fg: '#0000ff' } },
     })
     setTheme('spartan')
     try {

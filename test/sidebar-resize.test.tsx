@@ -5,7 +5,15 @@ import { join } from 'node:path'
 
 import { SIDEBAR_MIN } from '../src/core/config'
 import { ui } from '../src/themes'
-import { fixture, launch, openFile, press, pressEscape, runCommand, settle } from './helpers'
+import {
+  fixture,
+  launch,
+  openFile,
+  press,
+  pressEscape,
+  runCommand,
+  settle,
+} from './helpers'
 import type { Harness } from './helpers'
 import { initRepo } from './repo'
 import { tempDir } from './temp'
@@ -18,16 +26,22 @@ interface Span {
 }
 
 const hex = (bg: Span['bg']) =>
-  bg ? `#${Array.from(bg.buffer.slice(0, 3), v => v.toString(16).padStart(2, '0')).join('')}` : ''
+  bg
+    ? `#${Array.from(bg.buffer.slice(0, 3), (v) => v.toString(16).padStart(2, '0')).join('')}`
+    : ''
 
 function dividerAt(t: Harness): number {
   const frame = t.captureSpans() as unknown as { lines: { spans: Span[] }[] }
   const panel = ui.panelBg.toLowerCase()
   for (const line of frame.lines) {
-    if (hex(line.spans[0]?.bg) !== panel) continue
+    if (hex(line.spans[0]?.bg) !== panel) {
+      continue
+    }
     let column = 0
     for (const span of line.spans) {
-      if (hex(span.bg) !== panel) return column
+      if (hex(span.bg) !== panel) {
+        return column
+      }
       column += span.text.length
     }
   }
@@ -40,13 +54,13 @@ describe('resizing the sidebar', () => {
     const start = dividerAt(t)
     expect(start).toBeGreaterThan(0)
 
-    await press(t, input => void input.typeText(']'))
+    await press(t, (input) => input.typeText(']'))
     await settle(t)
     const wider = dividerAt(t)
     expect(wider).toBeGreaterThan(start)
 
-    await press(t, input => void input.typeText('['))
-    await press(t, input => void input.typeText('['))
+    await press(t, (input) => input.typeText('['))
+    await press(t, (input) => input.typeText('['))
     await settle(t)
     expect(dividerAt(t)).toBeLessThan(wider)
   })
@@ -86,23 +100,27 @@ describe('resizing the sidebar', () => {
     const column = t
       .captureCharFrame()
       .split('\n')
-      .filter(row => row.length > 0)
+      .filter((row) => row.length > 0)
       .slice(1, -1)
-      .map(row => row[at] ?? ' ')
+      .map((row) => row[at] ?? ' ')
 
-    const drawn = column.filter(glyph => glyph === '│').length
+    const drawn = column.filter((glyph) => glyph === '│').length
     expect(drawn).toBeGreaterThanOrEqual(3)
     expect(drawn).toBeLessThan(column.length)
     const first = column.indexOf('│')
-    expect(column.slice(first, first + drawn).every(glyph => glyph === '│')).toBe(true)
-    expect(Math.abs(first - (column.length - first - drawn))).toBeLessThanOrEqual(1)
+    expect(
+      column.slice(first, first + drawn).every((glyph) => glyph === '│')
+    ).toBe(true)
+    expect(
+      Math.abs(first - (column.length - first - drawn))
+    ).toBeLessThanOrEqual(1)
   })
 
   test('the grip itself drags too, not only the bare column', async () => {
     const t = await launch(fixture(PROJECT))
     const at = dividerAt(t)
     const rows = t.captureCharFrame().split('\n')
-    const grip = rows.findIndex(row => row[at] === '│')
+    const grip = rows.findIndex((row) => row[at] === '│')
     expect(grip).toBeGreaterThan(0)
 
     await t.mockMouse.drag(at, grip, 40, grip)
@@ -124,8 +142,8 @@ describe('resizing the sidebar', () => {
     await t.mockMouse.drag(dividerAt(t), 5, 20, 5)
     await settle(t)
 
-    await press(t, input => input.pressArrow('down'))
-    await press(t, input => input.pressEnter())
+    await press(t, (input) => input.pressArrow('down'))
+    await press(t, (input) => input.pressEnter())
     expect(t.captureCharFrame()).toContain('const a = 1')
   })
 })
@@ -138,20 +156,27 @@ function sidebarStart(t: Harness): number {
     let start = -1
     for (const span of line.spans) {
       if (hex(span.bg) === panel) {
-        if (start < 0) start = column
+        if (start < 0) {
+          start = column
+        }
       } else if (start >= 0) {
         start = -1
       }
       column += span.text.length
     }
-    if (start > 0) return start
+    if (start > 0) {
+      return start
+    }
   }
   return -1
 }
 
 describe('sidebar on the right', () => {
   test('the panel sits at the terminal edge, past the editor', async () => {
-    const t = await launch(fixture(PROJECT), { sidebarPosition: 'right', sidebarWidth: 30 })
+    const t = await launch(fixture(PROJECT), {
+      sidebarPosition: 'right',
+      sidebarWidth: 30,
+    })
     expect(sidebarStart(t)).toBe(50)
     expect(dividerAt(t)).toBe(-1)
   })
@@ -176,19 +201,19 @@ describe('sidebar on the right', () => {
 
     await runCommand(t, 'Settings')
     let onRow = false
-    for (let step = 0; step < 40; step++) {
+    for (let step = 0; step < 40; step += 1) {
       const row = t
         .captureCharFrame()
         .split('\n')
-        .find(line => line.includes('Sidebar position'))
+        .find((line) => line.includes('Sidebar position'))
       if (row?.includes('▌')) {
         onRow = true
         break
       }
-      await press(t, i => i.pressArrow('down'))
+      await press(t, (i) => i.pressArrow('down'))
     }
     expect(onRow).toBe(true)
-    await press(t, i => i.pressArrow('right'))
+    await press(t, (i) => i.pressArrow('right'))
     await pressEscape(t)
     await settle(t)
 
@@ -197,7 +222,10 @@ describe('sidebar on the right', () => {
   })
 
   test('dragging the divider sets the width from the right edge', async () => {
-    const t = await launch(fixture(PROJECT), { sidebarPosition: 'right', sidebarWidth: 30 })
+    const t = await launch(fixture(PROJECT), {
+      sidebarPosition: 'right',
+      sidebarWidth: 30,
+    })
     expect(sidebarStart(t)).toBe(50)
 
     await t.mockMouse.drag(sidebarStart(t) - 1, 5, 39, 5)
@@ -210,16 +238,19 @@ describe('sidebar on the right', () => {
   })
 
   test('] and [ still widen and narrow from the tree', async () => {
-    const t = await launch(fixture(PROJECT), { sidebarPosition: 'right', sidebarWidth: 30 })
+    const t = await launch(fixture(PROJECT), {
+      sidebarPosition: 'right',
+      sidebarWidth: 30,
+    })
     const start = sidebarStart(t)
 
-    await press(t, input => void input.typeText(']'))
+    await press(t, (input) => input.typeText(']'))
     await settle(t)
     const wider = sidebarStart(t)
     expect(wider).toBeLessThan(start)
 
-    await press(t, input => void input.typeText('['))
-    await press(t, input => void input.typeText('['))
+    await press(t, (input) => input.typeText('['))
+    await press(t, (input) => input.typeText('['))
     await settle(t)
     expect(sidebarStart(t)).toBeGreaterThan(wider)
   })
@@ -228,14 +259,17 @@ describe('sidebar on the right', () => {
 describe('what must not move when the sidebar does', () => {
   test('the tab bar stays inside the editor column, whatever the sidebar takes', async () => {
     const files: Record<string, string> = {}
-    for (let i = 0; i < 8; i++) files[`file-number-${i}.ts`] = `const a${i} = 1\n`
+    for (let i = 0; i < 8; i += 1) {
+      files[`file-number-${i}.ts`] = `const a${i} = 1\n`
+    }
     const t = await launch(fixture(files))
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < 5; i += 1) {
       await openFile(t, `file-number-${i}.ts`)
     }
     await settle(t)
 
-    const stripStart = (t: Harness) => t.captureCharFrame().split('\n')[0]!.indexOf('←')
+    const stripStart = (h: Harness) =>
+      h.captureCharFrame().split('\n')[0]!.indexOf('←')
 
     await t.mockMouse.drag(dividerAt(t), 5, 50, 5)
     await settle(t)
@@ -265,8 +299,8 @@ describe('what must not move when the sidebar does', () => {
       t
         .captureCharFrame()
         .split('\n')
-        .map(row => Math.max(row.indexOf(' U '), row.indexOf(' M ')))
-        .filter(at => at >= 0)
+        .map((row) => Math.max(row.indexOf(' U '), row.indexOf(' M ')))
+        .filter((at) => at >= 0)
 
     const before = markColumns()
     expect(before.length).toBe(2)
@@ -294,14 +328,14 @@ describe('rows hold their shape when names overflow', () => {
     t
       .captureCharFrame()
       .split('\n')
-      .map(row => row.slice(0, 16))
-      .filter(row => /^\s+[a-z]/.test(row))
-      .map(row => row.search(/\S/))
+      .map((row) => row.slice(0, 16))
+      .filter((row) => /^\s+[a-z]/u.test(row))
+      .map((row) => row.search(/\S/u))
 
   test('a name starts at one column whatever the names do', async () => {
     const t = await launch(fixture(NAMES), { sidebarWidth: 22 })
-    await press(t, input => input.pressArrow('down'))
-    await press(t, input => input.pressEnter())
+    await press(t, (input) => input.pressArrow('down'))
+    await press(t, (input) => input.pressEnter())
     await settle(t)
 
     expect(new Set(nameColumns(t)).size).toBe(1)
@@ -309,8 +343,8 @@ describe('rows hold their shape when names overflow', () => {
 
   test('and keeps that column across a resize', async () => {
     const t = await launch(fixture(NAMES), { sidebarWidth: 22 })
-    await press(t, input => input.pressArrow('down'))
-    await press(t, input => input.pressEnter())
+    await press(t, (input) => input.pressArrow('down'))
+    await press(t, (input) => input.pressEnter())
     await settle(t)
     const before = nameColumns(t)
 
@@ -344,12 +378,16 @@ describe('the automatic default width', () => {
   })
 
   test('an explicit width wins over it, and resizing pins one', async () => {
-    const t = await launch(fixture(PROJECT), { sidebarWidth: 22 }, { width: 200 })
+    const t = await launch(
+      fixture(PROJECT),
+      { sidebarWidth: 22 },
+      { width: 200 }
+    )
     expect(dividerAt(t)).toBe(22)
 
     const auto = await launch(fixture(PROJECT), {}, { width: 200 })
     const before = dividerAt(auto)
-    await press(auto, input => void input.typeText(']'))
+    await press(auto, (input) => input.typeText(']'))
     await settle(auto)
     expect(dividerAt(auto)).toBe(before + 2)
   })

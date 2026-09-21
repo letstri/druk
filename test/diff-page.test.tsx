@@ -1,7 +1,4 @@
 import { expect, test } from 'bun:test'
-import { execFileSync } from 'node:child_process'
-import { writeFileSync } from 'node:fs'
-import { join } from 'node:path'
 
 import {
   launch,
@@ -14,21 +11,9 @@ import {
   untilGone,
 } from './helpers'
 import type { Harness } from './helpers'
-import { initRepo } from './repo'
-import { tempDir } from './temp'
+import { changedRepo } from './repo'
 
-function repo() {
-  const dir = tempDir('druk-diffpage-')
-  const git = (...args: string[]) => execFileSync('git', args, { cwd: dir })
-  initRepo(dir)
-  writeFileSync(join(dir, 'a.ts'), 'alpha\n')
-  writeFileSync(join(dir, 'b.ts'), 'beta\n')
-  git('add', '.')
-  git('commit', '-q', '-m', 'init')
-  writeFileSync(join(dir, 'a.ts'), 'ALPHA\n')
-  writeFileSync(join(dir, 'b.ts'), 'BETA\n')
-  return dir
-}
+const repo = () => changedRepo('druk-diffpage-')
 
 const tabRow = (t: Harness) => t.captureCharFrame().split('\n')[0]!
 
@@ -48,9 +33,9 @@ test('opening a file from the tree shows it, and leaves the page on the strip', 
   await openDiff(t)
   await untilFrame(t, '+ ALPHA')
 
-  await pressTimes(t, 3, i => i.pressTab({ shift: true }))
-  await press(t, i => i.pressArrow('down'))
-  await press(t, i => i.pressEnter())
+  await pressTimes(t, 3, (i) => i.pressTab({ shift: true }))
+  await press(t, (i) => i.pressArrow('down'))
+  await press(t, (i) => i.pressEnter())
   await untilGone(t, '+ ALPHA')
   expect(t.captureCharFrame()).toContain('BETA')
   expect(tabRow(t)).toContain('Changes')
@@ -61,7 +46,7 @@ test('the page survives switching the sidebar back to the tree', async () => {
   await openDiff(t)
   await untilFrame(t, '+ ALPHA')
 
-  await pressTimes(t, 3, i => i.pressTab({ shift: true }))
+  await pressTimes(t, 3, (i) => i.pressTab({ shift: true }))
   const frame = t.captureCharFrame()
   expect(frame).toContain('EXPLORER')
   expect(frame).toContain('+ ALPHA')

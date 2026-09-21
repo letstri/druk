@@ -16,119 +16,149 @@ const WALL = `Argument of type '{ alpha: number; beta: string; gamma: boolean; d
 const publish = (uri: string, text: string) => {
   const diagnostics: Diagnostic[] = []
   const lines = text.split('\n')
-  for (let line = 0; line < lines.length; line++) {
+  for (let line = 0; line < lines.length; line += 1) {
     const long = lines[line]!.indexOf('huh')
-    if (long >= 0) {
+    if (long !== -1) {
       diagnostics.push({
-        range: { start: { line, character: long }, end: { line, character: long + 3 } },
-        severity: 1,
-        message: NOT_FOUND,
-        source: 'fake',
         code: 2307,
+        message: NOT_FOUND,
+        range: {
+          end: { character: long + 3, line },
+          start: { character: long, line },
+        },
+        severity: 1,
+        source: 'fake',
       })
     }
     const col = lines[line]!.indexOf('oops')
-    if (col >= 0) {
+    if (col !== -1) {
       diagnostics.push({
-        range: { start: { line, character: col }, end: { line, character: col + 4 } },
-        severity: 1,
-        message: 'found oops',
-        source: 'fake',
         code: 'no-oops',
+        message: 'found oops',
+        range: {
+          end: { character: col + 4, line },
+          start: { character: col, line },
+        },
+        severity: 1,
+        source: 'fake',
       })
     }
     const stale = lines[line]!.indexOf('stale')
-    if (stale >= 0) {
+    if (stale !== -1) {
       diagnostics.push({
-        range: { start: { line, character: stale }, end: { line, character: stale + 5 } },
-        severity: 4,
-        tags: [2],
         message: "'stale' is deprecated",
+        range: {
+          end: { character: stale + 5, line },
+          start: { character: stale, line },
+        },
+        severity: 4,
         source: 'fake',
+        tags: [2],
       })
     }
     const sprawl = lines[line]!.indexOf('sprawl')
-    if (sprawl >= 0 && line + 2 < lines.length) {
+    if (sprawl !== -1 && line + 2 < lines.length) {
       diagnostics.push({
-        range: { start: { line, character: sprawl }, end: { line: line + 2, character: 1 } },
-        severity: 4,
-        tags: [2],
         message: 'this whole block is deprecated',
+        range: {
+          end: { character: 1, line: line + 2 },
+          start: { character: sprawl, line },
+        },
+        severity: 4,
         source: 'fake',
+        tags: [2],
       })
     }
     const wall = lines[line]!.indexOf('wall')
-    if (wall >= 0) {
+    if (wall !== -1) {
       diagnostics.push({
-        range: { start: { line, character: wall }, end: { line, character: wall + 4 } },
-        severity: 1,
-        message: WALL,
-        source: 'fake',
         code: 2345,
+        message: WALL,
+        range: {
+          end: { character: wall + 4, line },
+          start: { character: wall, line },
+        },
+        severity: 1,
+        source: 'fake',
       })
     }
     const tip = lines[line]!.indexOf('tip')
-    if (tip >= 0) {
+    if (tip !== -1) {
       diagnostics.push({
-        range: { start: { line, character: tip }, end: { line, character: tip + 3 } },
-        severity: 1,
-        message: 'short gripe help: with advice the row drops',
-        source: 'fake',
         code: 'terse',
+        message: 'short gripe help: with advice the row drops',
+        range: {
+          end: { character: tip + 3, line },
+          start: { character: tip, line },
+        },
+        severity: 1,
+        source: 'fake',
       })
     }
     const nag = lines[line]!.indexOf('nag')
-    if (nag < 0) continue
+    if (nag === -1) {
+      continue
+    }
     diagnostics.push({
-      range: { start: { line, character: nag }, end: { line, character: nag + 3 } },
-      severity: 2,
-      message: NAG,
-      source: 'fake',
       code: 'wordy',
+      message: NAG,
+      range: {
+        end: { character: nag + 3, line },
+        start: { character: nag, line },
+      },
+      severity: 2,
+      source: 'fake',
     })
   }
-  send({ jsonrpc: '2.0', method: 'textDocument/publishDiagnostics', params: { uri, diagnostics } })
+  send({
+    jsonrpc: '2.0',
+    method: 'textDocument/publishDiagnostics',
+    params: { diagnostics, uri },
+  })
 }
 
 const COMPLETIONS: CompletionItem[] = [
   {
-    label: 'drukAlpha',
-    kind: 3,
     detail: '() => void',
     insertText: 'drukAlpha()',
-    labelDetails: { detail: '(alpha)', description: 'druk/alpha' },
+    kind: 3,
+    label: 'drukAlpha',
+    labelDetails: { description: 'druk/alpha', detail: '(alpha)' },
   },
-  { label: 'drukBeta', kind: 6, detail: 'number' },
+  { detail: 'number', kind: 6, label: 'drukBeta' },
   {
-    label: 'drukImported',
-    kind: 7,
-    detail: 'auto-import',
     additionalTextEdits: [
       {
-        range: { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } },
         newText: 'import { drukImported } from "druk"\n',
+        range: {
+          end: { character: 0, line: 0 },
+          start: { character: 0, line: 0 },
+        },
       },
     ],
+    detail: 'auto-import',
+    kind: 7,
+    label: 'drukImported',
   },
-  { label: 'drukLazy', kind: 7, detail: 'resolve-import' },
+  { detail: 'resolve-import', kind: 7, label: 'drukLazy' },
 ]
 
 const LONG: CompletionItem[] = [
   {
-    label: `long${'Name'.repeat(30)}`,
-    kind: 3,
     detail: `(${'argument: SomeVeryLongTypeName, '.repeat(8)}) => void`,
-    labelDetails: {
-      detail: `(${'argument: SomeVeryLongTypeName, '.repeat(8)})`,
-      description: `some/deeply/nested/module/path/${'segment/'.repeat(12)}index`,
-    },
     documentation: `A description with no break in it: ${'unbreakableword'.repeat(20)}`,
+    kind: 3,
+    label: `long${'Name'.repeat(30)}`,
+    labelDetails: {
+      description: `some/deeply/nested/module/path/${'segment/'.repeat(12)}index`,
+      detail: `(${'argument: SomeVeryLongTypeName, '.repeat(8)})`,
+    },
   },
 ]
 
 const MEMBERS: CompletionItem[] = [
-  { label: 'memTable', kind: 2, detail: '(n: string) => void', sortText: '11' },
-  { label: 'memOther', kind: 5, detail: 'number', sortText: '11' },
+  { detail: '(n: string) => void', kind: 2, label: 'memTable', sortText: '11' },
+  { detail: 'number', kind: 5, label: 'memOther', sortText: '11' },
 ]
 
 const documents = new Map<string, string>()
@@ -137,32 +167,38 @@ let rootUri = ''
 
 process.stdin.on(
   'data',
-  createDecoder(message => {
+  createDecoder((message) => {
     if (message.method === 'initialize') {
       rootUri = (message.params as { rootUri?: string }).rootUri ?? ''
       send({
-        jsonrpc: '2.0',
         id: message.id,
+        jsonrpc: '2.0',
         result: {
           capabilities: {
-            textDocumentSync: 1,
-            completionProvider: { triggerCharacters: ['.'], resolveProvider: true },
+            completionProvider: {
+              resolveProvider: true,
+              triggerCharacters: ['.'],
+            },
             definitionProvider: true,
+            textDocumentSync: 1,
           },
         },
       })
     } else if (message.method === 'textDocument/definition') {
       send({
-        jsonrpc: '2.0',
         id: message.id,
+        jsonrpc: '2.0',
         result: [
           {
-            targetUri: `${rootUri}/def.ts`,
-            targetRange: { start: { line: 0, character: 0 }, end: { line: 2, character: 0 } },
-            targetSelectionRange: {
-              start: { line: 1, character: 6 },
-              end: { line: 1, character: 12 },
+            targetRange: {
+              end: { character: 0, line: 2 },
+              start: { character: 0, line: 0 },
             },
+            targetSelectionRange: {
+              end: { character: 12, line: 1 },
+              start: { character: 6, line: 1 },
+            },
+            targetUri: `${rootUri}/def.ts`,
           },
         ],
       })
@@ -171,13 +207,24 @@ process.stdin.on(
         textDocument: { uri: string }
         position: { line: number; character: number }
       }
-      const line = (documents.get(textDocument.uri) ?? '').split('\n')[position.line] ?? ''
-      const wordAt = line.slice(0, position.character).search(/[A-Za-z0-9_$]*$/)
+      const line =
+        (documents.get(textDocument.uri) ?? '').split('\n')[position.line] ?? ''
+      const wordAt = line
+        .slice(0, position.character)
+        .search(/[A-Za-z0-9_$]*$/u)
       const reply = (items: CompletionItem[]) =>
-        send({ jsonrpc: '2.0', id: message.id, result: { isIncomplete: false, items } })
-      if (line[wordAt - 1] === '.') reply(MEMBERS)
-      else if (line.slice(wordAt, position.character).startsWith('long')) reply(LONG)
-      else setTimeout(() => reply(COMPLETIONS), 400)
+        send({
+          id: message.id,
+          jsonrpc: '2.0',
+          result: { isIncomplete: false, items },
+        })
+      if (line[wordAt - 1] === '.') {
+        reply(MEMBERS)
+      } else if (line.slice(wordAt, position.character).startsWith('long')) {
+        reply(LONG)
+      } else {
+        setTimeout(() => reply(COMPLETIONS), 400)
+      }
     } else if (message.method === 'completionItem/resolve') {
       const item = message.params as CompletionItem
       const result =
@@ -186,7 +233,8 @@ process.stdin.on(
               ...item,
               documentation: {
                 kind: 'markdown',
-                value: 'Alpha **greets** the caller.\n\n```ts\ndrukAlpha()\n```',
+                value:
+                  'Alpha **greets** the caller.\n\n```ts\ndrukAlpha()\n```',
               },
             }
           : item.label === 'drukLazy'
@@ -194,19 +242,24 @@ process.stdin.on(
                 ...item,
                 additionalTextEdits: [
                   {
-                    range: { start: { line: 0, character: 0 }, end: { line: 0, character: 0 } },
                     newText: 'import { drukLazy } from "druk"\n',
+                    range: {
+                      end: { character: 0, line: 0 },
+                      start: { character: 0, line: 0 },
+                    },
                   },
                 ],
               }
             : item
-      send({ jsonrpc: '2.0', id: message.id, result })
+      send({ id: message.id, jsonrpc: '2.0', result })
     } else if (message.method === 'shutdown') {
-      send({ jsonrpc: '2.0', id: message.id, result: null })
+      send({ id: message.id, jsonrpc: '2.0', result: null })
     } else if (message.method === 'exit') {
       process.exit(0)
     } else if (message.method === 'textDocument/didOpen') {
-      const params = message.params as { textDocument: { uri: string; text: string } }
+      const params = message.params as {
+        textDocument: { uri: string; text: string }
+      }
       documents.set(params.textDocument.uri, params.textDocument.text)
       publish(params.textDocument.uri, params.textDocument.text)
     } else if (message.method === 'textDocument/didChange') {
@@ -217,6 +270,6 @@ process.stdin.on(
       documents.set(params.textDocument.uri, params.contentChanges[0]!.text)
       publish(params.textDocument.uri, params.contentChanges[0]!.text)
     }
-  }),
+  })
 )
 process.stdin.on('end', () => process.exit(0))

@@ -14,6 +14,7 @@ import {
   writeExtension,
 } from '../core/market'
 import type { Fetched, Fetcher, MarketEntry } from '../core/market'
+import { plural, countList } from '../core/text'
 import { isNewer } from '../core/update'
 import { extensions, EXTENSIONS_DIR } from '../extensions'
 import type { Extension } from '../extensions/types'
@@ -27,15 +28,11 @@ import type { Status } from './status'
 const MAX_ACTIVATION_CHOICES = 8
 
 function summarize(entry: MarketEntry): string {
-  const counts = [
+  return countList([
     [entry.provides.themes.length, 'theme'],
     [entry.provides.icons.length, 'icon theme'],
     [entry.provides.filetypes.length, 'language'],
-  ] as const
-  const parts = counts
-    .filter(([count]) => count > 0)
-    .map(([count, noun]) => `${count} ${noun}${count === 1 ? '' : 's'}`)
-  return parts.join(', ') || 'nothing'
+  ])
 }
 
 export function createMarket(deps: {
@@ -48,7 +45,9 @@ export function createMarket(deps: {
 }) {
   const { rootDir, settings, status, prompts, onServersReload, fetcher } = deps
 
-  const [catalog, setCatalog] = createSignal<MarketEntry[]>(readCachedCatalog()?.extensions ?? [])
+  const [catalog, setCatalog] = createSignal<MarketEntry[]>(
+    readCachedCatalog()?.extensions ?? []
+  )
   const declined = new Set<string>()
   const asked = new Set<string>()
   const fetched = new Map<string, Fetched & { ok: true }>()
@@ -56,23 +55,29 @@ export function createMarket(deps: {
   const registry = () => settings.config.extensionRegistry
 
   const entry = (id: string): MarketEntry | undefined =>
-    catalog().find(extension => extension.id === id)
+    catalog().find((extension) => extension.id === id)
 
   const installedVersions = () =>
     extensions()
-      .filter(extension => !extension.builtin)
-      .map(extension => ({ id: extension.id, version: extension.version }))
+      .filter((extension) => !extension.builtin)
+      .map((extension) => ({ id: extension.id, version: extension.version }))
 
-  const updates = createMemo(() => updatesFor(installedVersions(), catalog(), isNewer))
+  const updates = createMemo(() =>
+    updatesFor(installedVersions(), catalog(), isNewer)
+  )
 
   const refresh = async (force = false): Promise<MarketEntry[]> => {
     const cached = readCachedCatalog()
     if (!force && !isStale(cached, Date.now())) {
-      if (cached) setCatalog(cached.extensions)
+      if (cached) {
+        setCatalog(cached.extensions)
+      }
       return catalog()
     }
     const fresh = await fetchCatalog(registry(), fetcher)
-    if (!fresh) return catalog()
+    if (!fresh) {
+      return catalog()
+    }
     writeCachedCatalog(fresh, Date.now())
     setCatalog(fresh)
     return fresh
@@ -83,110 +88,170 @@ export function createMarket(deps: {
 
   let opened = false
   const openPanel = (): Promise<MarketEntry[]> => {
-    if (opened) return ready()
+    if (opened) {
+      return ready()
+    }
     opened = true
     return (loading = refresh(true))
   }
 
-  const offer = async (id: string, why: string, quiet = false): Promise<void> => {
+  const offer = async (
+    id: string,
+    why: string,
+    quiet = false
+  ): Promise<void> => {
     const found = entry(id)
-    if (!found) return void (quiet || status.say(`No extension "${id}" in the market`, 'warn'))
-    const result = await fetchExtension(id, { registry: registry(), fetcher })
-    if (!result.ok) return void (quiet || status.say(`Extension ${id}: ${result.error}`, 'error'))
-    if (quiet && prompts.prompt()) return
+    if (!found) {
+      if (!quiet) {
+        status.say(`No extension "${id}" in the market`, 'warn')
+      }
+      return
+    }
+    const result = await fetchExtension(id, { fetcher, registry: registry() })
+    if (!result.ok) {
+      if (!quiet) {
+        status.say(`Extension ${id}: ${result.error}`, 'error')
+      }
+      return
+    }
+    if (quiet && prompts.prompt()) {
+      return
+    }
     fetched.set(id, result)
     prompts.setPrompt({
-      kind: 'installExtension',
       id,
+      kind: 'installExtension',
       name: found.name,
+      runs: result.extension.servers.map((server) => server.command.join(' ')),
       summary: summarize(found),
       why,
-      runs: result.extension.servers.map(server => server.command.join(' ')),
     })
   }
 
   const applyUpdates = async (
     pending: { entry: MarketEntry; current: string }[],
-    quiet = false,
+    quiet = false
   ): Promise<void> => {
     const updated: MarketEntry[] = []
     let servers = false
     for (const { entry: found } of pending) {
-      const result = await fetchExtension(found.id, { registry: registry(), fetcher })
+      const result = await fetchExtension(found.id, {
+        fetcher,
+        registry: registry(),
+      })
       if (!result.ok) {
-        if (!quiet) status.say(`Extension ${found.id}: ${result.error}`, 'error')
+        if (!quiet) {
+          status.say(`Extension ${found.id}: ${result.error}`, 'error')
+        }
         continue
       }
       const error = await writeExtension(found.id, result, EXTENSIONS_DIR, {
-        registry: registry(),
         fetcher,
+        registry: registry(),
       })
       if (error) {
-        if (!quiet) status.say(`Could not update ${found.id}: ${error}`, 'error')
+        if (!quiet) {
+          status.say(`Could not update ${found.id}: ${error}`, 'error')
+        }
         continue
       }
       servers ||= result.extension.servers.length > 0
       updated.push(found)
     }
-    if (updated.length === 0) return
+    if (updated.length === 0) {
+      return
+    }
     settings.reloadExtensions()
     status.say(
       updated.length === 1
         ? `Updated ${updated[0]!.name} to ${updated[0]!.version}`
-        : `Updated ${updated.length} extensions`,
+        : `Updated ${updated.length} extensions`
     )
     // After the status line: the restart re-syncs open documents and would overwrite it.
-    if (servers) onServersReload?.()
+    if (servers) {
+      onServersReload?.()
+    }
   }
 
   const appearancesOf = (installed: Extension) => [
     ...installed.themes
       .filter(({ id }) => id !== settings.config.theme)
-      .map(({ id }) => ({ id: `theme:${id}`, label: `${themeLabel(id)} theme` })),
+      .map(({ id }) => ({
+        id: `theme:${id}`,
+        label: `${themeLabel(id)} theme`,
+      })),
     ...installed.icons
-      .filter(icons => icons.id !== settings.config.iconTheme)
-      .map(icons => ({ id: `icons:${icons.id}`, label: `${iconThemeLabel(icons.id)} file icons` })),
+      .filter((icons) => icons.id !== settings.config.iconTheme)
+      .map((icons) => ({
+        id: `icons:${icons.id}`,
+        label: `${iconThemeLabel(icons.id)} file icons`,
+      })),
   ]
 
   const offerActivation = (installed: Extension): void => {
-    if (installed.disabled) return
+    if (installed.disabled) {
+      return
+    }
     const choices = appearancesOf(installed)
-    if (choices.length === 0) return
+    if (choices.length === 0) {
+      return
+    }
     // The write was asynchronous: a save conflict may have opened a prompt meanwhile.
-    if (prompts.prompt()) return
+    if (prompts.prompt()) {
+      return
+    }
     prompts.setPrompt({
-      kind: 'activateExtension',
-      name: installed.name,
       choices: choices.slice(0, MAX_ACTIVATION_CHOICES),
+      kind: 'activateExtension',
       more: Math.max(0, choices.length - MAX_ACTIVATION_CHOICES),
+      name: installed.name,
     })
   }
 
   const activate = (choice: string): void => {
     const [kind, ...rest] = choice.split(':')
     const id = rest.join(':')
-    if (kind === 'icons') return settings.applyIconTheme(id)
-    if (kind === 'theme' && isThemeName(id)) settings.applyTheme(id)
+    if (kind === 'icons') {
+      return settings.applyIconTheme(id)
+    }
+    if (kind === 'theme' && isThemeName(id)) {
+      settings.applyTheme(id)
+    }
   }
 
   const accept = (id: string): void => {
     const result = fetched.get(id)
     fetched.delete(id)
-    if (!result) return
-    const release = status.claimBusy({ label: `Installing ${result.extension.name}` })
+    if (!result) {
+      return
+    }
+    const release = status.claimBusy({
+      label: `Installing ${result.extension.name}`,
+    })
     void (async () => {
       try {
         const error = await writeExtension(id, result, EXTENSIONS_DIR, {
-          registry: registry(),
           fetcher,
+          registry: registry(),
         })
-        if (error) return void status.say(`Could not install ${id}: ${error}`, 'error')
+        if (error) {
+          status.say(`Could not install ${id}: ${error}`, 'error')
+          return
+        }
         const load = settings.reloadExtensions()
-        const installed = load.extensions.find(extension => extension.id === id)
-        status.say(`Installed ${installed?.name ?? id} ${installed?.version ?? ''}`.trim())
+        const installed = load.extensions.find(
+          (extension) => extension.id === id
+        )
+        status.say(
+          `Installed ${installed?.name ?? id} ${installed?.version ?? ''}`.trim()
+        )
         // After the status line: the restart re-syncs open documents and would overwrite it.
-        if (result.extension.servers.length > 0) onServersReload?.()
-        if (installed) offerActivation(installed)
+        if (result.extension.servers.length > 0) {
+          onServersReload?.()
+        }
+        if (installed) {
+          offerActivation(installed)
+        }
       } finally {
         release()
       }
@@ -204,12 +269,16 @@ export function createMarket(deps: {
   }
 
   const remove = (id: string): void => {
-    const installed = extensions().find(extension => extension.id === id)
+    const installed = extensions().find((extension) => extension.id === id)
     if (installed?.builtin) {
-      return void status.say(`"${id}" ships with druk — disable it instead`, 'warn')
+      status.say(`"${id}" ships with druk — disable it instead`, 'warn')
+      return
     }
     const error = removeFromDisk(id, EXTENSIONS_DIR)
-    if (error) return void status.say(`Could not remove ${id}: ${error}`, 'error')
+    if (error) {
+      status.say(`Could not remove ${id}: ${error}`, 'error')
+      return
+    }
     settings.reloadExtensions()
     status.say(`Removed extension "${id}"`)
   }
@@ -218,47 +287,77 @@ export function createMarket(deps: {
     const before = catalog().length
     const fresh = await refresh(true)
     if (fresh.length === 0) {
-      return void status.say('Could not reach the extension market', 'warn')
+      status.say('Could not reach the extension market', 'warn')
+      return
     }
     const pending = updates()
-    if (pending.length > 0) return applyUpdates(pending)
+    if (pending.length > 0) {
+      return applyUpdates(pending)
+    }
     status.say(
       before === 0
-        ? `Extension market: ${fresh.length} extension${fresh.length === 1 ? '' : 's'}`
-        : 'Every extension is up to date',
+        ? `Extension market: ${plural(fresh.length, 'extension')}`
+        : 'Every extension is up to date'
     )
   }
 
   const updateAll = async (): Promise<void> => {
     await refresh(true)
     const pending = updates()
-    if (pending.length === 0) return void status.say('Every extension is up to date')
+    if (pending.length === 0) {
+      status.say('Every extension is up to date')
+      return
+    }
     await applyUpdates(pending)
   }
 
-  const suggestForFiletype = (path: string, filetype: string | undefined): void => {
-    if (!settings.config.extensionUpdates || !settings.config.lsp) return
+  const suggestForFiletype = (
+    path: string,
+    filetype: string | undefined
+  ): void => {
+    if (!settings.config.extensionUpdates || !settings.config.lsp) {
+      return
+    }
     const name = basename(path).toLowerCase()
     const key = filetype ?? (extname(name) || name)
     // Marked before the await: `clientsFor` asks on every sync of every open document.
-    if (asked.has(key)) return
+    if (asked.has(key)) {
+      return
+    }
     asked.add(key)
     void (async () => {
       await ready()
-      if (catalog().length === 0) return void asked.delete(key)
+      if (catalog().length === 0) {
+        asked.delete(key)
+        return
+      }
       const claims = (extension: MarketEntry) =>
-        extension.provides.extensions.find(ext => name.endsWith(ext.toLowerCase()))
-      const serving = catalog().filter(extension =>
-        filetype ? extension.provides.filetypes.includes(filetype) : claims(extension),
+        extension.provides.extensions.find((ext) =>
+          name.endsWith(ext.toLowerCase())
+        )
+      const serving = catalog().filter((extension) =>
+        filetype
+          ? extension.provides.filetypes.includes(filetype)
+          : claims(extension)
       )
       // A linter claims the filetype too: prefer a language extension to the alphabetical first.
       const found =
-        serving.find(extension => extension.categories.includes('language')) ?? serving[0]
-      if (!found || declined.has(found.id)) return
-      if (extensions().some(extension => extension.id === found.id)) return
+        serving.find((extension) =>
+          extension.categories.includes('language')
+        ) ?? serving[0]
+      if (!found || declined.has(found.id)) {
+        return
+      }
+      if (extensions().some((extension) => extension.id === found.id)) {
+        return
+      }
       declined.add(found.id)
       const label = filetype ?? claims(found)
-      await offer(found.id, `No language server for ${label}. Install ${found.name}?`, true)
+      await offer(
+        found.id,
+        `No language server for ${label}. Install ${found.name}?`,
+        true
+      )
     })()
   }
 
@@ -266,39 +365,50 @@ export function createMarket(deps: {
     const { themes, icons } = unregisteredNames(rootDir)
     for (const name of [...themes, ...icons]) {
       const found = catalog().find(
-        extension =>
-          extension.provides.themes.includes(name) || extension.provides.icons.includes(name),
+        (extension) =>
+          extension.provides.themes.includes(name) ||
+          extension.provides.icons.includes(name)
       )
-      if (!found || declined.has(found.id)) continue
+      if (!found || declined.has(found.id)) {
+        continue
+      }
       declined.add(found.id)
-      void offer(found.id, `Your settings ask for "${name}". Install ${found.name}?`, true)
+      void offer(
+        found.id,
+        `Your settings ask for "${name}". Install ${found.name}?`,
+        true
+      )
       return
     }
   }
 
   const check = async (): Promise<void> => {
-    if (!settings.config.extensionUpdates) return
+    if (!settings.config.extensionUpdates) {
+      return
+    }
     await ready()
     const pending = updates()
-    if (pending.length > 0) await applyUpdates(pending, true)
+    if (pending.length > 0) {
+      await applyUpdates(pending, true)
+    }
     suggestMissingNames()
   }
 
   return {
+    accept,
+    activate,
     catalog,
-    openPanel,
-    updates,
-    refresh,
-    ready,
     check,
     checkNow,
-    install,
-    accept,
     decline,
+    install,
+    openPanel,
+    ready,
+    refresh,
     remove,
-    updateAll,
-    activate,
     suggestForFiletype,
+    updateAll,
+    updates,
   }
 }
 

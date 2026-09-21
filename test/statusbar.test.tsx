@@ -3,7 +3,14 @@ import { execFileSync } from 'node:child_process'
 import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-import { fixture, launch, openFile, press, pressEscape, settle } from './helpers'
+import {
+  fixture,
+  launch,
+  openFile,
+  press,
+  pressEscape,
+  settle,
+} from './helpers'
 import type { Harness } from './helpers'
 import { initRepo } from './repo'
 import { tempDir } from './temp'
@@ -47,13 +54,13 @@ describe('the status bar', () => {
   test('the git group keeps its counts together', async () => {
     const t = await launch(repo())
     await openFirst(t, 'a.ts')
-    expect(bar(t)).toMatch(/⎇ main( ↑\d+)?( ↓\d+)? ~\d+/)
+    expect(bar(t)).toMatch(/⎇ main( ↑\d+)?( ↓\d+)? ~\d+/u)
   })
 
   test('the unsaved marker belongs to the right-hand group', async () => {
     const t = await launch(repo())
     await openFirst(t, 'a.ts')
-    await press(t, input => void input.typeText('X'))
+    await press(t, (input) => input.typeText('X'))
     await settle(t)
 
     const row = bar(t)
@@ -100,15 +107,20 @@ describe('the footer hints', () => {
 })
 
 describe('the hints are what gives way when space runs out', () => {
-  const countHints = (row: string) => (row.match(/Ctrl\+|Enter |↑↓|F1 /g) ?? []).length
+  const countHints = (row: string) =>
+    (row.match(/Ctrl\+|Enter |↑↓|F1 /gu) ?? []).length
 
   test('a message takes precedence over them', async () => {
-    const t = await launch(fixture({ 'a.ts': 'const a = 1\n' }), {}, { width: 56 })
+    const t = await launch(
+      fixture({ 'a.ts': 'const a = 1\n' }),
+      {},
+      { width: 56 }
+    )
     await openFirst(t, 'a.ts')
     const idle = countHints(bar(t))
 
-    await press(t, input => void input.typeText('X'))
-    await press(t, input => input.pressKey('s', { ctrl: true }))
+    await press(t, (input) => input.typeText('X'))
+    await press(t, (input) => input.pressKey('s', { ctrl: true }))
     await settle(t)
 
     const row = bar(t)
@@ -119,14 +131,20 @@ describe('the hints are what gives way when space runs out', () => {
 
   test('a narrower terminal shows fewer of them', async () => {
     const wide = bar(await launch(fixture({ 'a.ts': 'x\n' })))
-    const narrow = bar(await launch(fixture({ 'a.ts': 'x\n' }), {}, { width: 24 }))
+    const narrow = bar(
+      await launch(fixture({ 'a.ts': 'x\n' }), {}, { width: 24 })
+    )
 
     expect(countHints(narrow)).toBeLessThan(countHints(wide))
     expect(narrow.length).toBeLessThanOrEqual(24)
   })
 
   test('a very narrow one drops them all and keeps the file facts', async () => {
-    const t = await launch(fixture({ 'a.ts': 'const a = 1\n' }), {}, { width: 32 })
+    const t = await launch(
+      fixture({ 'a.ts': 'const a = 1\n' }),
+      {},
+      { width: 32 }
+    )
     await openFirst(t, 'a.ts')
     const row = bar(t)
 
@@ -146,9 +164,9 @@ describe('a message far too long for the bar', () => {
     await pressEscape(t)
     await settle(t, 80)
 
-    await press(t, input => void input.typeText('r'))
-    await press(t, input => void input.typeText(TAKEN))
-    await press(t, input => input.pressEnter())
+    await press(t, (input) => input.typeText('r'))
+    await press(t, (input) => input.typeText(TAKEN))
+    await press(t, (input) => input.pressEnter())
     await settle(t)
     return t
   }

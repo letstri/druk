@@ -14,28 +14,25 @@ interface MockRow {
 // Sidebar width in columns; every sidebar row is padded to it or the gutter drifts.
 const SB = 24
 
-const width = (spans: Span[]) => spans.reduce((n, [, t]) => n + [...t].length, 0)
+const width = (spans: Span[]) =>
+  spans.reduce((n, [, t]) => n + [...t].length, 0)
 
 function side(text: string, mark?: Span): Span[] {
-  if (!mark) return [['', text.padEnd(SB)]]
+  if (!mark) {
+    return [['', text.padEnd(SB)]]
+  }
   return [['', text.padEnd(SB - 2)], mark, ['', ' ']]
 }
 
 const ROWS: MockRow[] = [
   {
+    code: [['d', ' src/app/workspace.ts']],
     side: [
       ['sb-active', ' Files '],
       ['d', ' Git  Review  Ext'],
     ],
-    code: [['d', ' src/app/workspace.ts']],
   },
   {
-    side: [
-      ['', ' druk        '],
-      ['d', '▴ explorer '],
-    ],
-    num: ' 14',
-    fold: '▾',
     code: [
       ['k', 'export function '],
       ['f', 'createWorkspace'],
@@ -43,10 +40,14 @@ const ROWS: MockRow[] = [
       ['t', 'Deps'],
       ['', ') {'],
     ],
+    fold: '▾',
+    num: ' 14',
+    side: [
+      ['', ' druk        '],
+      ['d', '▴ explorer '],
+    ],
   },
   {
-    side: side(' ▾ src'),
-    num: ' 15',
     code: [
       ['k', '  const'],
       ['', ' [tabs, setTabs] = '],
@@ -55,10 +56,10 @@ const ROWS: MockRow[] = [
       ['t', 'Tab'],
       ['', '[]>([])'],
     ],
+    num: ' 15',
+    side: side(' ▾ src'),
   },
   {
-    side: side('   ▾ app'),
-    num: ' 16',
     code: [
       ['k', '  const'],
       ['', ' dirty = '],
@@ -69,13 +70,11 @@ const ROWS: MockRow[] = [
       ['f', 'filter'],
       ['', '(t => t.unsaved))'],
     ],
+    num: ' 16',
+    side: side('   ▾ app'),
   },
-  { side: side('     commands.ts'), num: ' 17', code: [] },
+  { code: [], num: ' 17', side: side('     commands.ts') },
   {
-    side: side('     git.ts'),
-    num: ' 18',
-    fold: '▸',
-    git: 'mod',
     code: [
       ['k', '  function'],
       ['f', ' openFile'],
@@ -85,25 +84,25 @@ const ROWS: MockRow[] = [
       ['d', '⋯ 24 lines'],
       ['wide d', '  Ctrl+Opt+E'],
     ],
-  },
-  { side: side('     workspace.ts', ['g-mod', 'M']), num: ' 43', code: [] },
-  {
-    side: side('   ▾ ui'),
-    num: ' 44',
-    git: 'add',
-    code: [['d', '  // a fold hands the buffer a different text; the']],
-  },
-  {
-    side: side('     EditorPane.tsx', ['g-add', 'U']),
-    num: ' 45',
-    git: 'add',
-    code: [['d', "  // gutter keeps the file's own numbering across the gap"]],
-  },
-  {
-    side: side('   ▸ core'),
-    num: ' 46',
+    fold: '▸',
     git: 'mod',
-    cursor: true,
+    num: ' 18',
+    side: side('     git.ts'),
+  },
+  { code: [], num: ' 43', side: side('     workspace.ts', ['g-mod', 'M']) },
+  {
+    code: [['d', '  // a fold hands the buffer a different text; the']],
+    git: 'add',
+    num: ' 44',
+    side: side('   ▾ ui'),
+  },
+  {
+    code: [['d', "  // gutter keeps the file's own numbering across the gap"]],
+    git: 'add',
+    num: ' 45',
+    side: side('     EditorPane.tsx', ['g-add', 'U']),
+  },
+  {
     caret: true,
     code: [
       ['k', '  const'],
@@ -115,29 +114,33 @@ const ROWS: MockRow[] = [
       ['f', 'folds'],
       ['', '())'],
     ],
+    cursor: true,
+    git: 'mod',
+    num: ' 46',
+    side: side('   ▸ core'),
   },
   {
-    side: side('   ▸ lsp'),
-    num: ' 47',
     code: [
       ['f', '  autosave'],
       ['', '(folded)  '],
       ['w', "▲ 'autosave' is deprecated"],
       ['wide w', '  Ctrl+Opt+I'],
     ],
+    num: ' 47',
+    side: side('   ▸ lsp'),
   },
   {
-    side: side(' ▸ extensions'),
-    num: ' 48',
     code: [
       ['k', '  return'],
       ['', ' { tabs, dirty, openFile }'],
     ],
+    num: ' 48',
+    side: side(' ▸ extensions'),
   },
   {
-    side: side('   review.json', ['d', '◆']),
-    num: ' 49',
     code: [['', '}']],
+    num: ' 49',
+    side: side('   review.json', ['d', '◆']),
   },
 ]
 
@@ -154,7 +157,8 @@ function Spans({ spans }: { spans: Span[] }) {
 }
 
 function Row({ row }: { row: MockRow }) {
-  const gutter = row.git === 'add' ? 'g-add' : row.git === 'mod' ? 'g-mod' : 'gh'
+  const gutter =
+    row.git === 'add' ? 'g-add' : row.git === 'mod' ? 'g-mod' : 'gh'
   return (
     <div className={row.cursor ? 'cursor-line' : undefined}>
       <span className="side d">
@@ -194,7 +198,9 @@ export function EditorMock() {
             {'  '}
             <span className="w">▲ 2</span>
             {'   '}
-            <span className="wide d">{'F1 commands  Ctrl+K keys  Space preview  Ctrl+P open'}</span>
+            <span className="wide d">
+              {'F1 commands  Ctrl+K keys  Space preview  Ctrl+P open'}
+            </span>
           </span>
           <span className="d">
             {'Ln 46, Col 41  '}

@@ -1,6 +1,6 @@
 import { deflateSync } from 'node:zlib'
 
-const ESC = '\x1B'
+const ESC = '\u001B'
 // The protocol's cap on one escape's base64 payload.
 const CHUNK = 4096
 
@@ -9,12 +9,18 @@ const ENV = 'DRUK_KITTY_IMAGES'
 export function supportsKittyImages(
   detected: boolean | undefined,
   env: NodeJS.ProcessEnv = process.env,
-  tty: boolean = Boolean(process.stdout.isTTY),
+  tty = Boolean(process.stdout.isTTY)
 ): boolean {
   const forced = env[ENV]
-  if (forced === '0' || forced === 'off') return false
-  if (!tty) return false
-  if (forced === '1' || forced === 'on') return true
+  if (forced === '0' || forced === 'off') {
+    return false
+  }
+  if (!tty) {
+    return false
+  }
+  if (forced === '1' || forced === 'on') {
+    return true
+  }
   return detected === true
 }
 
@@ -34,7 +40,7 @@ export function encodePlace(
   height: number,
   at: { col: number; row: number },
   box: CellBox,
-  id: number,
+  id: number
 ): string {
   const payload = deflateSync(rgba).toString('base64')
   // q=1 keeps the OK quiet and lets an error through: an unaccepted placement is otherwise
@@ -54,11 +60,15 @@ export function encodePlace(
 
 // `ESC _ G i=<id>;<message> ESC \` — the terminal's verdict on a placement.
 export function placementError(sequence: string, id: number): string | null {
-  if (!sequence.startsWith(`${ESC}_G`)) return null
+  if (!sequence.startsWith(`${ESC}_G`)) {
+    return null
+  }
   const end = sequence.indexOf(`${ESC}\\`)
-  const body = end < 0 ? sequence.slice(3) : sequence.slice(3, end)
+  const body = end === -1 ? sequence.slice(3) : sequence.slice(3, end)
   const [keys = '', message = ''] = body.split(';')
-  if (!keys.split(',').includes(`i=${id}`)) return null
+  if (!keys.split(',').includes(`i=${id}`)) {
+    return null
+  }
   return message === 'OK' || message === '' ? null : message
 }
 
@@ -74,7 +84,9 @@ let claimed = false
 
 // A killed druk leaves its placement on the screen: the terminal owns it, not the process.
 export function claimScreen(write: (text: string) => void): void {
-  if (claimed) return
+  if (claimed) {
+    return
+  }
   claimed = true
   write(encodeDeleteAll())
   process.on('exit', () => write(encodeDeleteAll()))

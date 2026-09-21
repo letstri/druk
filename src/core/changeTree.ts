@@ -57,10 +57,16 @@ export interface CommitSectionRow {
   count: number
 }
 
-export type ChangeRow = FileRow | DirRow | SectionRow | CommitRow | CommitSectionRow
+export type ChangeRow =
+  | FileRow
+  | DirRow
+  | SectionRow
+  | CommitRow
+  | CommitSectionRow
 
 // Area is part of the key: a half-staged path has a folder row under both headings.
-export const foldKey = (area: ChangeArea | CommitGroup, rel: string) => `${area}:${rel}`
+export const foldKey = (area: ChangeArea | CommitGroup, rel: string) =>
+  `${area}:${rel}`
 
 export const rowArea = (row: ChangeRow): ChangeArea | CommitGroup =>
   row.kind === 'file'
@@ -89,25 +95,33 @@ export function changeRows(
   changes: readonly Change[],
   mode: 'list' | 'tree',
   collapsed: ReadonlySet<string> = new Set(),
-  sections = true,
+  sections = true
 ): ChangeRow[] {
-  if (!sections) return rowsFor(changes, mode, collapsed)
+  if (!sections) {
+    return rowsFor(changes, mode, collapsed)
+  }
 
   const rows: ChangeRow[] = []
   for (const area of AREAS) {
-    const mine = changes.filter(change => change.area === area)
-    if (mine.length === 0) continue
+    const mine = changes.filter((change) => change.area === area)
+    if (mine.length === 0) {
+      continue
+    }
     const shut = collapsed.has(foldKey(area, ''))
     rows.push({
-      kind: 'section',
-      depth: 0,
-      label: SECTION_LABEL[area],
       area,
       collapsed: shut,
+      depth: 0,
       files: mine.length,
+      kind: 'section',
+      label: SECTION_LABEL[area],
     })
-    if (shut) continue
-    for (const row of rowsFor(mine, mode, collapsed)) rows.push({ ...row, depth: row.depth + 1 })
+    if (shut) {
+      continue
+    }
+    for (const row of rowsFor(mine, mode, collapsed)) {
+      rows.push({ ...row, depth: row.depth + 1 })
+    }
   }
   return rows
 }
@@ -115,10 +129,15 @@ export function changeRows(
 function rowsFor(
   changes: readonly Change[],
   mode: 'list' | 'tree',
-  collapsed: ReadonlySet<string>,
+  collapsed: ReadonlySet<string>
 ): (FileRow | DirRow)[] {
   if (mode === 'list') {
-    return changes.map(change => ({ kind: 'file', depth: 0, label: change.rel, change }))
+    return changes.map((change) => ({
+      change,
+      depth: 0,
+      kind: 'file',
+      label: change.rel,
+    }))
   }
 
   const rows: (FileRow | DirRow)[] = []
@@ -130,33 +149,41 @@ function rowsFor(
     let hidden = false
     let depth = 0
     for (const dir of dirs) {
-      if (hidden) break
+      if (hidden) {
+        break
+      }
       const seen = emitted.get(dir)
       if (seen) {
         depth = seen.depth + 1
       } else {
         const folded = foldable(changes, dir)
         rows.push({
-          kind: 'dir',
-          depth,
-          label: folded.slice(dir.lastIndexOf('/') + 1),
-          rel: dir,
           area: change.area,
           collapsed: collapsed.has(foldKey(change.area, dir)),
-          files: changes.filter(c => c.rel.startsWith(`${dir}/`)).length,
+          depth,
+          files: changes.filter((c) => c.rel.startsWith(`${dir}/`)).length,
+          kind: 'dir',
+          label: folded.slice(dir.lastIndexOf('/') + 1),
+          rel: dir,
         })
         emitted.set(dir, { depth })
-        for (const joined of ancestorsUnder(dir, folded)) emitted.set(joined, { depth })
+        for (const joined of ancestorsUnder(dir, folded)) {
+          emitted.set(joined, { depth })
+        }
         depth += 1
       }
-      if (collapsed.has(foldKey(change.area, dir))) hidden = true
+      if (collapsed.has(foldKey(change.area, dir))) {
+        hidden = true
+      }
     }
-    if (hidden) continue
+    if (hidden) {
+      continue
+    }
     rows.push({
-      kind: 'file',
-      depth,
-      label: change.rel.slice(change.rel.lastIndexOf('/') + 1),
       change,
+      depth,
+      kind: 'file',
+      label: change.rel.slice(change.rel.lastIndexOf('/') + 1),
     })
   }
   return rows
@@ -165,36 +192,56 @@ function rowsFor(
 function foldable(changes: readonly Change[], dir: string): string {
   let at = dir
   for (;;) {
-    const under = changes.filter(change => change.rel.startsWith(`${at}/`))
-    const next = new Set(under.map(change => change.rel.slice(at.length + 1).split('/')[0]!))
-    if (next.size !== 1) return at
+    const base = at
+    const under = changes.filter((change) => change.rel.startsWith(`${base}/`))
+    const next = new Set(
+      under.map((change) => change.rel.slice(base.length + 1).split('/')[0]!)
+    )
+    if (next.size !== 1) {
+      return base
+    }
     const only = [...next][0]!
-    if (under.some(change => change.rel === `${at}/${only}`)) return at
-    at = `${at}/${only}`
+    if (under.some((change) => change.rel === `${base}/${only}`)) {
+      return base
+    }
+    at = `${base}/${only}`
   }
 }
 
 function ancestorsUnder(dir: string, folded: string): string[] {
-  if (folded === dir) return []
-  return ancestorDirs(`${folded}/x`).filter(rel => rel.length > dir.length)
+  if (folded === dir) {
+    return []
+  }
+  return ancestorDirs(`${folded}/x`).filter((rel) => rel.length > dir.length)
 }
 
 export function parentRow(rows: readonly ChangeRow[], at: number): number {
   const depth = rows[at]?.depth ?? 0
-  for (let up = at - 1; up >= 0; up--) {
+  for (let up = at - 1; up >= 0; up -= 1) {
     const row = rows[up]!
-    if (row.kind !== 'file' && row.depth < depth) return up
+    if (row.kind !== 'file' && row.depth < depth) {
+      return up
+    }
   }
   return at
 }
 
 // Folded or not — hence the change list and not the rows, which omit a folded folder's files.
-export function changesFor(changes: readonly Change[], row: ChangeRow): Change[] {
-  if (row.kind === 'file') return [row.change]
-  if (row.kind === 'commit' || row.kind === 'commitSection') return []
+export function changesFor(
+  changes: readonly Change[],
+  row: ChangeRow
+): Change[] {
+  if (row.kind === 'file') {
+    return [row.change]
+  }
+  if (row.kind === 'commit' || row.kind === 'commitSection') {
+    return []
+  }
   const area = rowArea(row)
-  const mine = changes.filter(change => change.area === area)
-  return row.kind === 'section' ? mine : mine.filter(c => c.rel.startsWith(`${row.rel}/`))
+  const mine = changes.filter((change) => change.area === area)
+  return row.kind === 'section'
+    ? mine
+    : mine.filter((c) => c.rel.startsWith(`${row.rel}/`))
 }
 
 const COMMIT_SECTION_LABEL: Record<CommitGroup, string> = {
@@ -205,7 +252,7 @@ const COMMIT_SECTION_LABEL: Record<CommitGroup, string> = {
 export function commitRows(
   incoming: readonly UpstreamCommit[],
   outgoing: readonly UpstreamCommit[],
-  collapsed: ReadonlySet<string> = new Set(),
+  collapsed: ReadonlySet<string> = new Set()
 ): ChangeRow[] {
   const rows: ChangeRow[] = []
   const groups: [CommitGroup, readonly UpstreamCommit[]][] = [
@@ -213,19 +260,29 @@ export function commitRows(
     ['outgoing', outgoing],
   ]
   for (const [group, commits] of groups) {
-    if (commits.length === 0) continue
+    if (commits.length === 0) {
+      continue
+    }
     const shut = collapsed.has(foldKey(group, ''))
     rows.push({
-      kind: 'commitSection',
-      depth: 0,
-      label: COMMIT_SECTION_LABEL[group],
-      group,
       collapsed: shut,
       count: commits.length,
+      depth: 0,
+      group,
+      kind: 'commitSection',
+      label: COMMIT_SECTION_LABEL[group],
     })
-    if (shut) continue
+    if (shut) {
+      continue
+    }
     for (const commit of commits) {
-      rows.push({ kind: 'commit', depth: 1, label: commit.subject, oid: commit.oid, group })
+      rows.push({
+        depth: 1,
+        group,
+        kind: 'commit',
+        label: commit.subject,
+        oid: commit.oid,
+      })
     }
   }
   return rows

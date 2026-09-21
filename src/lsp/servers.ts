@@ -17,7 +17,10 @@ export interface ServerSpec {
 let fromExtensions: ServerSpec[] = []
 
 export function registerServer(spec: ServerSpec): void {
-  fromExtensions = [...fromExtensions.filter(server => server.id !== spec.id), spec]
+  fromExtensions = [
+    ...fromExtensions.filter((server) => server.id !== spec.id),
+    spec,
+  ]
 }
 
 export function clearExtensionServers(): void {
@@ -30,8 +33,12 @@ export function servers(): ServerSpec[] {
 }
 
 export function installHint(install: ServerInstall): string {
-  if (install.kind === 'npm') return `npm i -g ${install.packages.join(' ')}`
-  if (install.kind === 'download') return `Download it from ${install.url}`
+  if (install.kind === 'npm') {
+    return `npm i -g ${install.packages.join(' ')}`
+  }
+  if (install.kind === 'download') {
+    return `Download it from ${install.url}`
+  }
   return install.command
 }
 
@@ -45,14 +52,16 @@ export interface ResolvedServer {
 
 const resolveOne = (
   spec: ServerSpec,
-  overrides: Record<string, string[]>,
+  overrides: Record<string, string[]>
 ): ResolvedServer | null => {
   const override = overrides[spec.id]
   const command = override ?? spec.command
-  if (command.length === 0) return null
+  if (command.length === 0) {
+    return null
+  }
   return {
-    id: spec.id,
     command,
+    id: spec.id,
     install: override ? undefined : spec.install,
     settings: spec.settings,
   }
@@ -60,18 +69,20 @@ const resolveOne = (
 
 export function resolveServers(
   filetype: string | undefined,
-  overrides: Record<string, string[]>,
+  overrides: Record<string, string[]>
 ): ResolvedServer[] {
-  if (!filetype) return []
+  if (!filetype) {
+    return []
+  }
   return servers()
-    .filter(server => server.filetypes.includes(filetype))
-    .map(spec => resolveOne(spec, overrides))
-    .filter(resolved => resolved !== null)
+    .filter((server) => server.filetypes.includes(filetype))
+    .map((spec) => resolveOne(spec, overrides))
+    .filter((resolved) => resolved !== null)
 }
 
 export function resolveServer(
   filetype: string | undefined,
-  overrides: Record<string, string[]>,
+  overrides: Record<string, string[]>
 ): ResolvedServer | null {
   return resolveServers(filetype, overrides)[0] ?? null
 }

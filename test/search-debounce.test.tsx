@@ -9,12 +9,15 @@ import { tempDir } from './temp'
 
 function corpus(count: number) {
   const dir = tempDir('druk-corpus-')
-  for (let i = 0; i < count; i++) {
+  for (let i = 0; i < count; i += 1) {
     const sub = join(dir, `pkg${i % 40}`)
     mkdirSync(sub, { recursive: true })
     writeFileSync(
       join(sub, `f${i}.ts`),
-      Array.from({ length: 40 }, (_, l) => `export const value${l} = ${l}`).join('\n'),
+      Array.from(
+        { length: 40 },
+        (_, l) => `export const value${l} = ${l}`
+      ).join('\n')
     )
   }
   return dir
@@ -24,19 +27,25 @@ const summaryRow = (t: Harness) =>
   t
     .captureCharFrame()
     .split('\n')
-    .find(row => row.includes('Searching') || / of \d/.test(row) || row.includes('No matches')) ??
-  ''
+    .find(
+      (row) =>
+        row.includes('Searching') ||
+        / of \d/u.test(row) ||
+        row.includes('No matches')
+    ) ?? ''
 
 describe('project search waits for the typing to settle', () => {
   test('says so while the scan is pending, then shows the count', async () => {
-    const t = await launch(fixture({ 'a.ts': 'hello world\n', 'b.ts': 'hello again\n' }))
+    const t = await launch(
+      fixture({ 'a.ts': 'hello world\n', 'b.ts': 'hello again\n' })
+    )
     await runCommand(t, 'In project')
 
-    await press(t, input => void input.typeText('hello'))
+    await press(t, (input) => input.typeText('hello'))
     expect(summaryRow(t)).toContain('Searching')
 
     await settle(t, 300)
-    expect(summaryRow(t)).toMatch(/1 of \d/)
+    expect(summaryRow(t)).toMatch(/1 of \d/u)
     expect(t.captureCharFrame()).toContain('a.ts')
   })
 
@@ -51,22 +60,22 @@ describe('project search waits for the typing to settle', () => {
     await runCommand(t, 'In project')
 
     const typing = performance.now()
-    await press(t, input => void input.typeText('value7'))
+    await press(t, (input) => input.typeText('value7'))
     const elapsed = performance.now() - typing
 
     expect(elapsed).toBeLessThan(oneScan * 3)
 
     await settle(t, 400)
-    expect(summaryRow(t)).toMatch(/of \d/)
-  }, 120000)
+    expect(summaryRow(t)).toMatch(/of \d/u)
+  }, 120_000)
 
   test('in-file search stays immediate — it only touches the open buffer', async () => {
     const t = await launch(fixture({ 'a.ts': 'alpha\nbeta alpha\n' }))
     await openFile(t, 'a.ts')
 
-    await press(t, input => input.pressKey('f', { ctrl: true }))
-    await press(t, input => void input.typeText('alpha'))
+    await press(t, (input) => input.pressKey('f', { ctrl: true }))
+    await press(t, (input) => input.typeText('alpha'))
 
-    expect(summaryRow(t)).toMatch(/1 of 2/)
+    expect(summaryRow(t)).toMatch(/1 of 2/u)
   })
 })

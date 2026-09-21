@@ -5,7 +5,7 @@ import { ui } from '../themes'
 import { Overlay } from './Overlay'
 import { useKeys } from './useKeys'
 
-export interface UpdateBannerProps {
+interface UpdateBannerProps {
   update: UpdateInfo
   onClose: () => void
   onSkip: () => void

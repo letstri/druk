@@ -1,7 +1,21 @@
 import { TextAttributes } from '@opentui/core'
-import { createEffect, createMemo, createSignal, For, Index, on, onCleanup, Show } from 'solid-js'
+import {
+  createEffect,
+  createMemo,
+  createSignal,
+  For,
+  Index,
+  on,
+  onCleanup,
+  Show,
+} from 'solid-js'
 
-import { computeHighlights, segmentsIn, STALE, styleForId } from '../languages/highlight'
+import {
+  computeHighlights,
+  segmentsIn,
+  STALE,
+  styleForId,
+} from '../languages/highlight'
 import type { Highlighted } from '../languages/highlight'
 import { isDeprecated, kindInfo, kindName, matchRuns } from '../lsp/completion'
 import type { KindGroup, Match } from '../lsp/completion'
@@ -11,7 +25,7 @@ import type { MenuLayout, SignatureLine } from './completionLayout'
 import { windowAround } from './list'
 import { cut } from './text'
 
-export interface CompletionMenuProps {
+interface CompletionMenuProps {
   matches: Match[]
   selected: number
   layout: MenuLayout
@@ -30,15 +44,17 @@ interface Span {
 // Read at paint time: `ui` is a store, a module-scope table would freeze a theme.
 const GROUP_COLORS: Record<KindGroup, () => string> = {
   fn: () => ui.accent,
-  var: () => ui.gitModified,
-  type: () => ui.folder,
-  module: () => ui.gitAdded,
   keyword: () => ui.dim,
+  module: () => ui.gitAdded,
   text: () => ui.dim,
+  type: () => ui.folder,
+  var: () => ui.gitModified,
 }
 
 export function CompletionMenu(props: CompletionMenuProps) {
-  const windowed = createMemo(() => windowAround(props.matches, props.selected, props.layout.rows))
+  const windowed = createMemo(() =>
+    windowAround(props.matches, props.selected, props.layout.rows)
+  )
   const inner = () => props.layout.width - 2
   const filler = () =>
     props.layout.panelRows -
@@ -50,16 +66,20 @@ export function CompletionMenu(props: CompletionMenuProps) {
   createEffect(
     on([() => props.detail, () => props.filetype], ([detail, filetype]) => {
       setParsed(null)
-      if (!detail || !filetype) return
+      if (!detail || !filetype) {
+        return
+      }
       let dropped = false
       onCleanup(() => {
         dropped = true
       })
       void (async () => {
         const doc = await computeHighlights(detail, filetype, 2, () => dropped)
-        if (!dropped && doc !== STALE) setParsed(doc)
+        if (!dropped && doc !== STALE) {
+          setParsed(doc)
+        }
       })()
-    }),
+    })
   )
   const captures = createMemo(() => {
     const doc = parsed()
@@ -76,34 +96,54 @@ export function CompletionMenu(props: CompletionMenuProps) {
     for (const segment of captures()) {
       const start = Math.max(segment.start - line.start, col)
       const end = Math.min(segment.end - line.start, line.text.length)
-      if (end <= start) continue
+      if (end <= start) {
+        continue
+      }
       const style = styleForId(segment.styleId)
       const fg = typeof style?.fg === 'string' ? style.fg : undefined
-      if (!style || !fg) continue
-      if (start > col) out.push({ text: line.text.slice(col, start), fg: plain, attributes: 0 })
+      if (!style || !fg) {
+        continue
+      }
+      if (start > col) {
+        out.push({
+          attributes: 0,
+          fg: plain,
+          text: line.text.slice(col, start),
+        })
+      }
       out.push({
-        text: line.text.slice(start, end),
-        fg,
         attributes:
-          (style.bold ? TextAttributes.BOLD : 0) | (style.italic ? TextAttributes.ITALIC : 0),
+          (style.bold ? TextAttributes.BOLD : 0) +
+          (style.italic ? TextAttributes.ITALIC : 0),
+        fg,
+        text: line.text.slice(start, end),
       })
       col = end
     }
-    if (col < line.text.length) out.push({ text: line.text.slice(col), fg: plain, attributes: 0 })
+    if (col < line.text.length) {
+      out.push({ attributes: 0, fg: plain, text: line.text.slice(col) })
+    }
     return out
   }
 
   const kind = () =>
-    cut(kindName(props.matches[props.selected]?.item.kind), Math.max(0, inner() - 12))
+    cut(
+      kindName(props.matches[props.selected]?.item.kind),
+      Math.max(0, inner() - 12)
+    )
   const counter = () => `${props.selected + 1}/${props.matches.length} `
   const ACCEPT = ' · Tab accepts'
   const acceptHint = () =>
-    inner() - kind().length - counter().length - ACCEPT.length >= 2 ? ACCEPT : ''
+    inner() - kind().length - counter().length - ACCEPT.length >= 2
+      ? ACCEPT
+      : ''
 
   const track = (at: number): string => {
     const total = props.matches.length
     const shown = props.layout.rows
-    if (total <= shown) return ' '
+    if (total <= shown) {
+      return ' '
+    }
     const thumb = Math.max(1, Math.round((shown / total) * shown))
     const span = shown - thumb
     const top = Math.round((windowed().start / (total - shown)) * span)
@@ -125,36 +165,60 @@ export function CompletionMenu(props: CompletionMenuProps) {
     >
       <Show
         when={props.matches.length > 0}
-        fallback={<text fg={ui.dim} bg={ui.panelBg} content=" No suggestions" />}
+        fallback={
+          <text fg={ui.dim} bg={ui.panelBg} content=" No suggestions" />
+        }
       >
         <For each={windowed().rows}>
           {(match, i) => {
             const active = () => windowed().start + i() === props.selected
             const bg = () => (active() ? ui.treeSelectedBg : ui.panelBg)
-            const kind = kindInfo(match.item.kind)
+            const rowKind = kindInfo(match.item.kind)
             const dim = isDeprecated(match.item)
             const room = () => inner() - ROW_CHROME
-            const labelRoom = () => Math.max(1, Math.min(match.item.label.length, room()))
+            const labelRoom = () =>
+              Math.max(1, Math.min(match.item.label.length, room()))
             const signature = signatureOf(match.item)
             const sigRoom = () => Math.min(room() - labelRoom() - 1, SIG_MAX)
             const sigShown = () =>
-              signature && sigRoom() >= 6 ? Math.min(signature.length, sigRoom()) : 0
+              signature && sigRoom() >= 6
+                ? Math.min(signature.length, sigRoom())
+                : 0
             const description = match.item.labelDetails?.description ?? ''
-            const descRoom = () => Math.min(room() - labelRoom() - sigShown() - 2, DESC_MAX)
+            const descRoom = () =>
+              Math.min(room() - labelRoom() - sigShown() - 2, DESC_MAX)
             return (
               <box flexDirection="row" backgroundColor={bg()}>
-                <text fg={ui.accent} bg={bg()} flexShrink={0} content={active() ? '▌' : ' '} />
                 <text
-                  fg={GROUP_COLORS[kind.group]()}
+                  fg={ui.accent}
                   bg={bg()}
                   flexShrink={0}
-                  content={`${kind.glyph} `}
+                  content={active() ? '▌' : ' '}
+                />
+                <text
+                  fg={GROUP_COLORS[rowKind.group]()}
+                  bg={bg()}
+                  flexShrink={0}
+                  content={`${rowKind.glyph} `}
                 />
                 <box flexDirection="row" flexShrink={0}>
-                  <For each={matchRuns(cut(match.item.label, labelRoom()), match.positions)}>
-                    {run => (
+                  <For
+                    each={matchRuns(
+                      cut(match.item.label, labelRoom()),
+                      match.positions
+                    )}
+                  >
+                    {(run) => (
                       <text
-                        fg={run.hit ? ui.accent : dim ? ui.faint : active() ? ui.text : ui.dim}
+                        fg={
+                          run.hit
+                            ? ui.accent
+                            : dim
+                              ? ui.faint
+                              : active()
+                                ? ui.text
+                                : ui.dim
+                        }
                         bg={bg()}
                         content={run.text}
                       />
@@ -180,7 +244,12 @@ export function CompletionMenu(props: CompletionMenuProps) {
                     content={` ${cut(description, descRoom())} `}
                   />
                 </Show>
-                <text fg={ui.scrollbar} bg={bg()} flexShrink={0} content={track(i())} />
+                <text
+                  fg={ui.scrollbar}
+                  bg={bg()}
+                  flexShrink={0}
+                  content={track(i())}
+                />
               </box>
             )
           }}
@@ -202,7 +271,12 @@ export function CompletionMenu(props: CompletionMenuProps) {
             content={acceptHint()}
           />
           <box flexGrow={1} backgroundColor={ui.panelBg} />
-          <text fg={ui.faint} bg={ui.panelBg} flexShrink={0} content={counter()} />
+          <text
+            fg={ui.faint}
+            bg={ui.panelBg}
+            flexShrink={0}
+            content={counter()}
+          />
         </box>
         <Show when={props.layout.panelRows > 0}>
           <text
@@ -212,11 +286,11 @@ export function CompletionMenu(props: CompletionMenuProps) {
             content={'─'.repeat(Math.max(0, inner()))}
           />
           <Index each={props.layout.signature}>
-            {line => (
+            {(line) => (
               <box flexDirection="row" backgroundColor={ui.panelBg}>
                 <text fg={ui.text} bg={ui.panelBg} flexShrink={0} content=" " />
                 <For each={painted(line())}>
-                  {span => (
+                  {(span) => (
                     <text
                       fg={span.fg}
                       bg={ui.panelBg}
@@ -232,7 +306,14 @@ export function CompletionMenu(props: CompletionMenuProps) {
             )}
           </Index>
           <Index each={props.layout.documentation}>
-            {line => <text fg={ui.dim} bg={ui.panelBg} wrapMode="none" content={` ${line()}`} />}
+            {(line) => (
+              <text
+                fg={ui.dim}
+                bg={ui.panelBg}
+                wrapMode="none"
+                content={` ${line()}`}
+              />
+            )}
           </Index>
           <Show when={props.layout.origin}>
             <text

@@ -18,7 +18,9 @@ export interface WorkspaceEntry {
 }
 
 export function shortenHome(path: string, home = homedir()): string {
-  return home && path.startsWith(`${home}/`) ? `~${path.slice(home.length)}` : path
+  return home && path.startsWith(`${home}/`)
+    ? `~${path.slice(home.length)}`
+    : path
 }
 
 const trimSlash = (path: string): string =>
@@ -33,24 +35,43 @@ export function resolvedPath(path: string): string {
   }
 }
 
-export function workspaceEntries(rootDir: string, repos: readonly string[]): WorkspaceEntry[] {
+export function workspaceEntries(
+  rootDir: string,
+  repos: readonly string[]
+): WorkspaceEntry[] {
   const root = resolvedPath(rootDir)
   const entries: WorkspaceEntry[] = []
   const seen = new Set<string>()
 
-  const add = (path: string, branch: string | null, source: WorkspaceEntry['source']) => {
+  const add = (
+    path: string,
+    branch: string | null,
+    source: WorkspaceEntry['source']
+  ) => {
     const at = resolvedPath(path)
-    if (seen.has(at)) return
+    if (seen.has(at)) {
+      return
+    }
     seen.add(at)
-    entries.push({ path: at, name: basename(at) || at, branch, source, current: at === root })
+    entries.push({
+      branch,
+      current: at === root,
+      name: basename(at) || at,
+      path: at,
+      source,
+    })
   }
 
   for (const repo of repos.slice(0, MAX_WORKTREE_REPOS)) {
     for (const tree of worktrees(repo)) {
-      if (isDirectory(tree.path)) add(tree.path, tree.branch, 'worktree')
+      if (isDirectory(tree.path)) {
+        add(tree.path, tree.branch, 'worktree')
+      }
     }
   }
-  for (const project of recentProjects()) add(project.path, null, 'recent')
+  for (const project of recentProjects()) {
+    add(project.path, null, 'recent')
+  }
 
   // A folder with no repository, opened for the first time, is in neither list yet.
   add(root, null, 'recent')
@@ -60,5 +81,8 @@ export function workspaceEntries(rootDir: string, repos: readonly string[]): Wor
 
 // A sibling, not a child: inside the repo the checkout shows up in its own tree and status.
 export function worktreePath(repo: string, branch: string): string {
-  return join(dirname(repo), `${basename(repo)}-${branch.replace(/[/\\]+/g, '-')}`)
+  return join(
+    dirname(repo),
+    `${basename(repo)}-${branch.replaceAll(/[/\\]+/gu, '-')}`
+  )
 }

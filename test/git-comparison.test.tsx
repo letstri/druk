@@ -10,15 +10,16 @@ import {
   loadBranchComparison,
   resolveComparison,
 } from '../src/core/git'
+import { git as run, initRepo } from './repo'
 import { tempDir } from './temp'
 
 function repo(initial = 'trunk') {
   const dir = tempDir('druk-compare-')
+  initRepo(dir, initial)
   const git = (...args: string[]) =>
-    execFileSync('git', args, { cwd: dir, encoding: 'utf8' }).trim()
-  git('init', '-q', '-b', initial)
-  git('config', 'user.email', 'test@example.com')
-  git('config', 'user.name', 'Test')
+    run(dir, ...args)
+      .toString()
+      .trim()
   writeFileSync(join(dir, 'seed.txt'), 'seed\n')
   git('add', '.')
   git('commit', '-q', '-m', 'seed')
@@ -73,12 +74,14 @@ test('comparison resolves the merge base and both directions of divergence', asy
   const result = await resolveComparison(dir, 'trunk')
 
   expect(result.ok).toBe(true)
-  if (!result.ok) return
+  if (!result.ok) {
+    return
+  }
   expect(result.value.base.name).toBe('trunk')
   expect(result.value.compare.name).toBe('feature')
   expect(result.value.ahead).toBe(1)
   expect(result.value.behind).toBe(1)
-  expect(result.value.mergeBase).toMatch(/^[0-9a-f]{40,64}$/)
+  expect(result.value.mergeBase).toMatch(/^[0-9a-f]{40,64}$/u)
 })
 
 test('comparison loads the current feature branch against main', async () => {
@@ -91,10 +94,12 @@ test('comparison loads the current feature branch against main', async () => {
   const result = await loadBranchComparison(dir, 'main')
 
   expect(result.ok).toBe(true)
-  if (!result.ok) return
+  if (!result.ok) {
+    return
+  }
   expect(result.value.base.name).toBe('main')
   expect(result.value.compare.name).toBe('feature')
-  expect(result.value.files.map(file => file.path)).toEqual(['feature.txt'])
+  expect(result.value.files.map((file) => file.path)).toEqual(['feature.txt'])
 })
 
 test('comparison refuses detached HEAD without calling it an invalid branch', async () => {
@@ -162,37 +167,51 @@ test('comparison contains only feature work with complete file metadata', async 
   const result = await loadBranchComparison(dir, 'trunk', 'feature')
 
   expect(result.ok).toBe(true)
-  if (!result.ok) return
-  expect(result.value.files.map(file => [file.status, file.oldPath, file.path])).toEqual([
+  if (!result.ok) {
+    return
+  }
+  expect(
+    result.value.files.map((file) => [file.status, file.oldPath, file.path])
+  ).toEqual([
     ['added', null, 'added.txt'],
     ['modified', null, 'changed.txt'],
     ['deleted', null, 'deleted.txt'],
     ['added', null, 'image.bin'],
     ['renamed', 'old-name.txt', 'new-name.txt'],
   ])
-  expect(result.value.files.some(file => file.path === 'base-only.txt')).toBe(false)
-  expect(result.value.files.find(file => file.path === 'changed.txt')).toMatchObject({
-    binary: false,
+  expect(result.value.files.some((file) => file.path === 'base-only.txt')).toBe(
+    false
+  )
+  expect(
+    result.value.files.find((file) => file.path === 'changed.txt')
+  ).toMatchObject({
     additions: 1,
+    binary: false,
     deletions: 1,
   })
-  expect(result.value.files.find(file => file.path === 'image.bin')).toMatchObject({
-    binary: true,
+  expect(
+    result.value.files.find((file) => file.path === 'image.bin')
+  ).toMatchObject({
     additions: null,
+    binary: true,
     deletions: null,
   })
-  expect(result.value.files.find(file => file.path === 'new-name.txt')).toMatchObject({
-    similarity: 100,
+  expect(
+    result.value.files.find((file) => file.path === 'new-name.txt')
+  ).toMatchObject({
     additions: 0,
     deletions: 0,
+    similarity: 100,
   })
   expect(result.value.stats).toEqual({
-    files: 5,
     additions: 2,
-    deletions: 2,
     binaryFiles: 1,
+    deletions: 2,
+    files: 5,
   })
-  expect(result.value.commits.map(commit => commit.subject)).toEqual(['feature files'])
+  expect(result.value.commits.map((commit) => commit.subject)).toEqual([
+    'feature files',
+  ])
 })
 
 test('comparison with the same branch has no commits or changed files', async () => {
@@ -201,14 +220,16 @@ test('comparison with the same branch has no commits or changed files', async ()
   const result = await loadBranchComparison(dir, 'trunk', 'trunk')
 
   expect(result.ok).toBe(true)
-  if (!result.ok) return
+  if (!result.ok) {
+    return
+  }
   expect(result.value.files).toEqual([])
   expect(result.value.commits).toEqual([])
   expect(result.value.stats).toEqual({
-    files: 0,
     additions: 0,
-    deletions: 0,
     binaryFiles: 0,
+    deletions: 0,
+    files: 0,
   })
 })
 
@@ -228,25 +249,43 @@ test('comparison preserves merge commits and all of their parents', async () => 
   const result = await loadBranchComparison(dir, 'trunk', 'feature')
 
   expect(result.ok).toBe(true)
-  if (!result.ok) return
-  const merge = result.value.commits.find(commit => commit.subject === 'merge integration')
+  if (!result.ok) {
+    return
+  }
+  const merge = result.value.commits.find(
+    (commit) => commit.subject === 'merge integration'
+  )
   expect(merge?.parents).toHaveLength(2)
-  expect(result.value.files.map(file => file.path)).toEqual(['feature.txt', 'integration.txt'])
+  expect(result.value.files.map((file) => file.path)).toEqual([
+    'feature.txt',
+    'integration.txt',
+  ])
 })
 
 test('comparison preserves paths that porcelain output would quote', async () => {
   const { dir, git } = repo('trunk')
-  const paths = ['line\nbreak.txt', 'space name.txt', 'tab\tname.txt', 'ümlaut.txt']
+  const paths = [
+    'line\nbreak.txt',
+    'space name.txt',
+    'tab\tname.txt',
+    'ümlaut.txt',
+  ]
   git('switch', '-q', '-c', 'feature')
-  for (const path of paths) writeFileSync(join(dir, path), `${path}\n`)
+  for (const path of paths) {
+    writeFileSync(join(dir, path), `${path}\n`)
+  }
   git('add', '.')
   git('commit', '-q', '-m', 'unusual paths')
 
   const result = await loadBranchComparison(dir, 'trunk', 'feature')
 
   expect(result.ok).toBe(true)
-  if (!result.ok) return
-  expect(result.value.files.map(file => file.path).toSorted()).toEqual(paths.toSorted())
+  if (!result.ok) {
+    return
+  }
+  expect(result.value.files.map((file) => file.path).toSorted()).toEqual(
+    paths.toSorted()
+  )
 })
 
 test('comparison file content loads the exact object sides for every status', async () => {
@@ -267,20 +306,23 @@ test('comparison file content loads the exact object sides for every status', as
   git('commit', '-q', '-m', 'feature files')
   const comparison = await loadBranchComparison(dir, 'trunk', 'feature')
   expect(comparison.ok).toBe(true)
-  if (!comparison.ok) return
-  const file = (path: string) => comparison.value.files.find(item => item.path === path)!
+  if (!comparison.ok) {
+    return
+  }
+  const file = (path: string) =>
+    comparison.value.files.find((item) => item.path === path)!
 
   expect(await comparisonFileContent(dir, file('added.txt'))).toEqual({
     ok: true,
-    value: { binary: false, oldText: '', newText: 'added new\n' },
+    value: { binary: false, newText: 'added new\n', oldText: '' },
   })
   expect(await comparisonFileContent(dir, file('deleted.txt'))).toEqual({
     ok: true,
-    value: { binary: false, oldText: 'deleted old\n', newText: '' },
+    value: { binary: false, newText: '', oldText: 'deleted old\n' },
   })
   expect(await comparisonFileContent(dir, file('new-name.txt'))).toEqual({
     ok: true,
-    value: { binary: false, oldText: oldName, newText: newName },
+    value: { binary: false, newText: newName, oldText: oldName },
   })
   expect(await comparisonFileContent(dir, file('image.bin'))).toEqual({
     ok: true,
@@ -301,29 +343,38 @@ test('comparison metadata uses a fixed command set and defers blob reads', async
   try {
     const comparison = await loadBranchComparison(dir, 'trunk', 'feature')
     expect(comparison.ok).toBe(true)
-    if (!comparison.ok) return
+    if (!comparison.ok) {
+      return
+    }
 
-    const commandsBeforeDetail = readFileSync(trace, 'utf8')
+    const commandsBeforeDetail = readFileSync(trace, 'utf-8')
       .trim()
       .split('\n')
-      .map(line => JSON.parse(line) as { event?: string; argv?: string[] })
-      .filter(event => event.event === 'start')
-      .map(event => event.argv ?? [])
+      .map((line) => JSON.parse(line) as { event?: string; argv?: string[] })
+      .filter((event) => event.event === 'start')
+      .map((event) => event.argv ?? [])
     expect(commandsBeforeDetail.length).toBeLessThanOrEqual(10)
-    expect(commandsBeforeDetail.some(argv => argv.includes('cat-file'))).toBe(false)
+    expect(commandsBeforeDetail.some((argv) => argv.includes('cat-file'))).toBe(
+      false
+    )
 
     const detail = await comparisonFileContent(dir, comparison.value.files[0]!)
     expect(detail.ok).toBe(true)
-    const commandsAfterDetail = readFileSync(trace, 'utf8')
+    const commandsAfterDetail = readFileSync(trace, 'utf-8')
       .trim()
       .split('\n')
-      .map(line => JSON.parse(line) as { event?: string; argv?: string[] })
-      .filter(event => event.event === 'start')
-      .map(event => event.argv ?? [])
-    expect(commandsAfterDetail.some(argv => argv.includes('cat-file'))).toBe(true)
+      .map((line) => JSON.parse(line) as { event?: string; argv?: string[] })
+      .filter((event) => event.event === 'start')
+      .map((event) => event.argv ?? [])
+    expect(commandsAfterDetail.some((argv) => argv.includes('cat-file'))).toBe(
+      true
+    )
   } finally {
-    if (previousTrace === undefined) delete process.env.GIT_TRACE2_EVENT
-    else process.env.GIT_TRACE2_EVENT = previousTrace
+    if (previousTrace === undefined) {
+      delete process.env.GIT_TRACE2_EVENT
+    } else {
+      process.env.GIT_TRACE2_EVENT = previousTrace
+    }
   }
 })
 
@@ -338,19 +389,21 @@ test('commit detail contains metadata, files and line totals', async () => {
   const detail = await comparisonCommitDetail(dir, oid)
 
   expect(detail.ok).toBe(true)
-  if (!detail.ok) return
+  if (!detail.ok) {
+    return
+  }
   expect(detail.value.commit).toMatchObject({
+    authorEmail: 'test@example.com',
+    authorName: 'Test',
     oid,
     subject: 'feature work',
-    authorName: 'Test',
-    authorEmail: 'test@example.com',
   })
-  expect(detail.value.files.map(file => file.path)).toEqual(['feature.txt'])
+  expect(detail.value.files.map((file) => file.path)).toEqual(['feature.txt'])
   expect(detail.value.stats).toEqual({
-    files: 1,
     additions: 1,
-    deletions: 0,
     binaryFiles: 0,
+    deletions: 0,
+    files: 1,
   })
 })
 
@@ -361,9 +414,15 @@ test('root commit detail compares against the empty tree', async () => {
   const detail = await comparisonCommitDetail(dir, oid)
 
   expect(detail.ok).toBe(true)
-  if (!detail.ok) return
-  expect(detail.value.files.map(file => file.path)).toEqual(['seed.txt'])
-  expect(detail.value.files[0]).toMatchObject({ status: 'added', additions: 1, deletions: 0 })
+  if (!detail.ok) {
+    return
+  }
+  expect(detail.value.files.map((file) => file.path)).toEqual(['seed.txt'])
+  expect(detail.value.files[0]).toMatchObject({
+    additions: 1,
+    deletions: 0,
+    status: 'added',
+  })
 })
 
 test('merge commit detail uses its first parent', async () => {
@@ -383,7 +442,11 @@ test('merge commit detail uses its first parent', async () => {
   const detail = await comparisonCommitDetail(dir, oid)
 
   expect(detail.ok).toBe(true)
-  if (!detail.ok) return
+  if (!detail.ok) {
+    return
+  }
   expect(detail.value.commit.parents).toHaveLength(2)
-  expect(detail.value.files.map(file => file.path)).toEqual(['integration.txt'])
+  expect(detail.value.files.map((file) => file.path)).toEqual([
+    'integration.txt',
+  ])
 })

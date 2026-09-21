@@ -3,7 +3,8 @@ import { describe, expect, test } from 'bun:test'
 import type { LineChange } from '../src/core/git'
 import { changeRows } from '../src/editor/changes'
 
-const marks = (entries: Array<[number, LineChange]>) => new Map<number, LineChange>(entries)
+const marks = (entries: [number, LineChange][]) =>
+  new Map<number, LineChange>(entries)
 
 describe('git changes down the track', () => {
   test('a changed line marks the row that stands for it', () => {
@@ -28,7 +29,7 @@ describe('git changes down the track', () => {
         [2, 'modified'],
       ]),
       30,
-      10,
+      10
     )
 
     expect(rows[0]).toBe('deleted')

@@ -52,19 +52,20 @@ test('a hunk that grows marks rewrites and additions separately', async () => {
 test('is empty outside a repository', async () => {
   const dir = tempDir()
   writeFileSync(join(dir, 'a.ts'), 'x\n')
-  expect((await diffLines(join(dir, 'a.ts'))).size).toBe(0)
+  const diff = await diffLines(join(dir, 'a.ts'))
+  expect(diff.size).toBe(0)
   expect(currentBranch(dir)).toBeNull()
 })
 
 test('a branch with no upstream shows without ahead/behind arrows', async () => {
   const t = await launch(repo('one\n'))
-  await press(t, i => i.pressArrow('down'))
-  await press(t, i => i.pressEnter())
+  await press(t, (i) => i.pressArrow('down'))
+  await press(t, (i) => i.pressEnter())
 
   const footer = t.captureCharFrame().split('\n').at(-2)!
   expect(footer).toContain('⎇ main')
-  expect(footer).not.toMatch(/↑\d/)
-  expect(footer).not.toMatch(/↓\d/)
+  expect(footer).not.toMatch(/↑\d/u)
+  expect(footer).not.toMatch(/↓\d/u)
 })
 
 test('status marks reach the file tree', async () => {
@@ -77,7 +78,7 @@ test('status marks reach the file tree', async () => {
     t
       .captureCharFrame()
       .split('\n')
-      .find(line => line.includes(name)) ?? ''
+      .find((line) => line.includes(name)) ?? ''
 
   await until(t, () => row('a.ts').includes('M'))
   expect(row('fresh.ts')).toContain('U')
@@ -93,7 +94,7 @@ test('a folder inherits the status of its contents', async () => {
     t
       .captureCharFrame()
       .split('\n')
-      .find(line => line.includes('sub')) ?? ''
+      .find((line) => line.includes('sub')) ?? ''
   await until(t, () => row().includes('U'))
 })
 
@@ -128,12 +129,12 @@ test('every file inside a brand-new directory is marked, not just the directory'
   expect(statuses.get(join(dir, 'newdir', 'sub', 'b.ts'))).toBe('untracked')
 
   const t = await launch(dir)
-  await press(t, i => i.pressArrow('down'))
-  await press(t, i => i.pressEnter())
+  await press(t, (i) => i.pressArrow('down'))
+  await press(t, (i) => i.pressEnter())
   const frame = t.captureCharFrame()
   expect(frame).toContain('newdir')
   expect(frame).toContain('a.ts')
-  expect(frame.split('\n').find(row => row.includes('a.ts'))).toContain('U')
+  expect(frame.split('\n').find((row) => row.includes('a.ts'))).toContain('U')
 })
 
 test('a failed git command reports its cause, not its advice', () => {
@@ -157,17 +158,21 @@ test('a failed git command reports its cause, not its advice', () => {
     "error: failed to push some refs to 'https://github.com/user/repo'",
     'hint: Updates were rejected because the tip of your current branch is behind',
   ].join('\n')
-  expect(failureLine(rejected)).toBe('! [rejected]        main -> main (non-fast-forward)')
+  expect(failureLine(rejected)).toBe(
+    '! [rejected]        main -> main (non-fast-forward)'
+  )
 
   expect(failureLine('hint: only advice here\n')).toBe('hint: only advice here')
   expect(failureLine('')).toBe('')
 
-  expect(failureLine("error: pathspec 'nope' did not match")).toBe("pathspec 'nope' did not match")
+  expect(failureLine("error: pathspec 'nope' did not match")).toBe(
+    "pathspec 'nope' did not match"
+  )
 })
 
 // Every string below is verbatim git output: a paraphrase passes while the real message does not.
 test('known git failures are named in terms of what to do next', () => {
-  const cases: Array<[string, string]> = [
+  const cases: [string, string][] = [
     [
       'fatal: Not possible to fast-forward, aborting.',
       'Branch and origin have both moved on — merge or rebase in a terminal',
@@ -192,13 +197,19 @@ test('known git failures are named in terms of what to do next', () => {
       'error: Pulling is not possible because you have unmerged files.\nfatal: Exiting because of an unresolved conflict.',
       'Resolve the merge conflicts in your working tree first',
     ],
-    ['On branch master\nnothing to commit, working tree clean', 'Nothing to commit'],
+    [
+      'On branch master\nnothing to commit, working tree clean',
+      'Nothing to commit',
+    ],
     [
       "fatal: ambiguous argument 'HEAD~1': unknown revision or path not in the working tree.",
       'Nothing to undo — this is the only commit',
     ],
     ['No stash entries found.', 'No stash to pop'],
-    ['fatal: No configured push destination.', "No remote — add an 'origin' in a terminal"],
+    [
+      'fatal: No configured push destination.',
+      "No remote — add an 'origin' in a terminal",
+    ],
     [
       "fatal: unable to access 'https://x.invalid/y.git/': Could not resolve host: x.invalid",
       "Can't reach the remote — check your network",
@@ -224,22 +235,28 @@ test('known git failures are named in terms of what to do next', () => {
       'Another git process is running in this repository — let it finish',
     ],
   ]
-  for (const [output, message] of cases)
+  for (const [output, message] of cases) {
     expect([output, explain(output)]).toEqual([output, message])
+  }
 
   expect(explain("error: pathspec 'nope' did not match any file(s)")).toBe(
-    "pathspec 'nope' did not match any file(s)",
+    "pathspec 'nope' did not match any file(s)"
   )
 })
 
 test('a message never outgrows the status bar', () => {
-  for (const [, message] of KNOWN) expect(message.length).toBeLessThanOrEqual(70)
+  for (const [, message] of KNOWN) {
+    expect(message.length).toBeLessThanOrEqual(70)
+  }
 })
 
 test('a failure split across both streams is still recognised', () => {
   const stderr = 'error: could not write index'
-  const stdout = 'f.txt: needs merge\nThe stash entry is kept in case you need it again.'
-  expect(explain(stderr, stdout)).toBe('Resolve the merge conflicts in your working tree first')
+  const stdout =
+    'f.txt: needs merge\nThe stash entry is kept in case you need it again.'
+  expect(explain(stderr, stdout)).toBe(
+    'Resolve the merge conflicts in your working tree first'
+  )
   expect(explain(stderr)).toBe('could not write index')
 })
 
@@ -284,7 +301,9 @@ test('one path beyond a symlink does not blank the whole answer', async () => {
   ])
   expect(ignored.has(join(dir, 'node_modules'))).toBe(true)
   expect(ignored.has(join(dir, 'node_modules', '@scope'))).toBe(true)
-  expect(ignored.has(join(dir, 'node_modules', '@scope', 'pkg', 'index.js'))).toBe(true)
+  expect(
+    ignored.has(join(dir, 'node_modules', '@scope', 'pkg', 'index.js'))
+  ).toBe(true)
   expect(ignored.has(join(dir, 'a.ts'))).toBe(false)
 })
 
@@ -292,23 +311,31 @@ test('ignoredAmong is empty outside a repository', async () => {
   // `check-ignore` exits 128 outside a repository, which has to read as "nothing is ignored".
   const dir = tempDir()
   writeFileSync(join(dir, 'a.ts'), 'x\n')
-  expect((await ignoredAmongAsync(dir, [join(dir, 'a.ts')])).size).toBe(0)
+  const ignored = await ignoredAmongAsync(dir, [join(dir, 'a.ts')])
+  expect(ignored.size).toBe(0)
 })
 
 test('a tracked file is never ignored, whatever .gitignore says about it', async () => {
   const dir = repo('one\n')
   writeFileSync(join(dir, '.gitignore'), '*.ts\n')
-  const ignored = await ignoredAmongAsync(dir, [join(dir, 'a.ts'), join(dir, '.gitignore')])
+  const ignored = await ignoredAmongAsync(dir, [
+    join(dir, 'a.ts'),
+    join(dir, '.gitignore'),
+  ])
   expect(ignored.has(join(dir, 'a.ts'))).toBe(false)
 })
 
 function nameColor(t: Harness, name: string) {
   const capture = t.captureSpans() as unknown as {
-    lines: { spans: { text: string; fg?: { buffer: Record<string, number> } }[] }[]
+    lines: {
+      spans: { text: string; fg?: { buffer: Record<string, number> } }[]
+    }[]
   }
   for (const line of capture.lines) {
     for (const span of line.spans) {
-      if (!span.fg || !span.text.endsWith(name)) continue
+      if (!span.fg || !span.text.endsWith(name)) {
+        continue
+      }
       return `${span.fg.buffer['0']},${span.fg.buffer['1']},${span.fg.buffer['2']}`
     }
   }
@@ -317,7 +344,7 @@ function nameColor(t: Harness, name: string) {
 
 const hexToRgb = (hex: string) => {
   const h = hex.replace('#', '')
-  return [0, 2, 4].map(i => Number.parseInt(h.slice(i, i + 2), 16)).join(',')
+  return [0, 2, 4].map((i) => Number.parseInt(h.slice(i, i + 2), 16)).join(',')
 }
 
 test('a gitignored entry is dimmed, and a tracked one beside it is not', async () => {
@@ -344,8 +371,10 @@ test('a status mark outranks dimming, and ignoring never invents one', async () 
   await settle(t)
   const frame = t.captureCharFrame()
   expect(frame).toContain('dist')
-  expect(frame.split('\n').find(row => /\bdist\b/.test(row))!).not.toMatch(/[UMAD]/)
-  expect(frame.split('\n').find(row => row.includes('a.ts'))).toContain('M')
+  expect(frame.split('\n').find((row) => /\bdist\b/u.test(row))!).not.toMatch(
+    /[UMAD]/u
+  )
+  expect(frame.split('\n').find((row) => row.includes('a.ts'))).toContain('M')
   expect(nameColor(t, 'a.ts')).toBe(hexToRgb(THEMES.dark.ui.gitModified))
 })
 

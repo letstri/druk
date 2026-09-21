@@ -1,5 +1,11 @@
 import { afterEach, expect, test } from 'bun:test'
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import { join } from 'node:path'
 
 import { MARKET_DIR } from '../scripts/extensions'
@@ -35,51 +41,55 @@ import {
 } from './helpers'
 
 const themeColors = (color: string) =>
-  Object.fromEntries(Object.keys(themeFor('dark').ui).map(key => [key, color]))
+  Object.fromEntries(
+    Object.keys(themeFor('dark').ui).map((key) => [key, color])
+  )
 
 const MANIFEST = {
+  icons: [
+    {
+      extensions: { ts: { color: '#3178c6', glyph: '▲' } },
+      file: '■',
+      folder: '□',
+      id: 'blocks',
+      name: 'Blocks',
+    },
+  ],
   id: 'pack',
   name: 'Test Pack',
-  version: '2.1.0',
   themes: [
     {
       id: 'neon',
       name: 'Neon',
+      syntax: { keyword: { bold: true, fg: '#ff00ff' } },
       ui: themeColors('#123456'),
-      syntax: { keyword: { fg: '#ff00ff', bold: true } },
     },
   ],
-  icons: [
-    {
-      id: 'blocks',
-      name: 'Blocks',
-      file: '■',
-      folder: '□',
-      extensions: { ts: { glyph: '▲', color: '#3178c6' } },
-    },
-  ],
+  version: '2.1.0',
 }
 
 const LANGUAGE = {
   id: 'nim',
-  name: 'Nim',
-  version: '1.0.0',
-  languages: [
-    {
-      id: 'nim',
-      lineComment: '#',
-      extensions: ['.nim'],
-      patterns: [{ group: 'keyword', re: '\\b(?:proc|let|var)\\b', flags: 'g' }],
-    },
-  ],
   languageServers: [
     {
-      id: 'nim',
       command: ['nimlangserver'],
       filetypes: ['nim'],
-      install: { kind: 'manual', command: 'nimble install nimlangserver' },
+      id: 'nim',
+      install: { command: 'nimble install nimlangserver', kind: 'manual' },
     },
   ],
+  languages: [
+    {
+      extensions: ['.nim'],
+      id: 'nim',
+      lineComment: '#',
+      patterns: [
+        { flags: 'g', group: 'keyword', re: '\\b(?:proc|let|var)\\b' },
+      ],
+    },
+  ],
+  name: 'Nim',
+  version: '1.0.0',
 }
 
 function install(manifest: unknown, id = 'pack') {
@@ -90,7 +100,7 @@ function install(manifest: unknown, id = 'pack') {
 }
 
 afterEach(() => {
-  rmSync(EXTENSIONS_DIR, { recursive: true, force: true })
+  rmSync(EXTENSIONS_DIR, { force: true, recursive: true })
   // The registries are module state; an extension left registered leaks into the next test.
   loadExtensions(process.env.XDG_CONFIG_HOME!)
 })
@@ -101,21 +111,25 @@ test('an appearance manifest contributes a theme and an icon theme', () => {
 
   expect(problems).toEqual([])
   expect(
-    extensions.filter(p => !p.builtin).map(extension => `${extension.name} ${extension.version}`),
+    extensions
+      .filter((p) => !p.builtin)
+      .map((extension) => `${extension.name} ${extension.version}`)
   ).toEqual(['Test Pack 2.1.0'])
 
   expect(isThemeName('neon')).toBe(true)
   expect(themeNames()).toContain('neon')
   expect(themeFor('neon').ui.bg).toBe('#123456')
-  expect(themeFor('neon').syntax.keyword).toEqual({ fg: '#ff00ff', bold: true })
+  expect(themeFor('neon').syntax.keyword).toEqual({ bold: true, fg: '#ff00ff' })
 
   expect(isIconThemeName('blocks')).toBe(true)
-  expect(iconFor('blocks', { name: 'a.ts', isDir: false })).toEqual({
-    glyph: '▲',
+  expect(iconFor('blocks', { isDir: false, name: 'a.ts' })).toEqual({
     color: '#3178c6',
+    glyph: '▲',
   })
-  expect(iconFor('blocks', { name: 'notes.txt', isDir: false })?.glyph).toBe('■')
-  expect(iconFor('blocks', { name: 'src', isDir: true })?.glyph).toBe('□')
+  expect(iconFor('blocks', { isDir: false, name: 'notes.txt' })?.glyph).toBe(
+    '■'
+  )
+  expect(iconFor('blocks', { isDir: true, name: 'src' })?.glyph).toBe('□')
 })
 
 test('a language manifest contributes the language and its server', () => {
@@ -131,23 +145,32 @@ test('a language manifest contributes the language and its server', () => {
 
   const server = resolveServer('nim', {})
   expect(server?.command).toEqual(['nimlangserver'])
-  expect(server?.install).toEqual({ kind: 'manual', command: 'nimble install nimlangserver' })
+  expect(server?.install).toEqual({
+    command: 'nimble install nimlangserver',
+    kind: 'manual',
+  })
 })
 
 test('what an extension is comes from what it contributes, never from a field', () => {
-  const appearance = parseManifest({ ...MANIFEST, categories: ['lsp'] }, '/p.json')
+  const appearance = parseManifest(
+    { ...MANIFEST, categories: ['lsp'] },
+    '/p.json'
+  )
   expect(appearance.extension?.categories).toEqual(['theme', 'icons'])
 
   const language = parseManifest(LANGUAGE, '/l.json')
   expect(language.extension?.categories).toEqual(['language', 'lsp'])
 
   const { extensions: loaded } = loadExtensions(fixture({}))
-  const markdown = loaded.find(extension => extension.id === 'markdown')
+  const markdown = loaded.find((extension) => extension.id === 'markdown')
   expect(markdown?.categories).toEqual(['language'])
 })
 
 test('a manifest that is both a theme pack and a language is refused', () => {
-  const { extension, problems } = parseManifest({ ...MANIFEST, ...LANGUAGE, id: 'both' }, '/p.json')
+  const { extension, problems } = parseManifest(
+    { ...MANIFEST, ...LANGUAGE, id: 'both' },
+    '/p.json'
+  )
   expect(extension).toBeNull()
   expect(problems[0]?.reason).toContain('one or the other')
 })
@@ -155,8 +178,10 @@ test('a manifest that is both a theme pack and a language is refused', () => {
 test('a built-in wins over an extension on disk of the same id', () => {
   install({
     id: 'typescript',
+    languageServers: [
+      { command: ['deno', 'lsp'], filetypes: ['typescript'], id: 'typescript' },
+    ],
     version: '9.0.0',
-    languageServers: [{ id: 'typescript', command: ['deno', 'lsp'], filetypes: ['typescript'] }],
   })
   const { extensions: found, problems } = loadExtensions(fixture({}))
   expect(problems[0]?.reason).toContain('ships with druk')
@@ -164,7 +189,7 @@ test('a built-in wins over an extension on disk of the same id', () => {
     'typescript-language-server',
     '--stdio',
   ])
-  const shipped = found.filter(extension => extension.id === 'typescript')
+  const shipped = found.filter((extension) => extension.id === 'typescript')
   expect(shipped).toHaveLength(1)
   expect(shipped[0]?.builtin).toBe(true)
 })
@@ -172,9 +197,14 @@ test('a built-in wins over an extension on disk of the same id', () => {
 test('a project carries its own extensions', () => {
   const dir = fixture({})
   mkdirSync(projectExtensionsDir(dir), { recursive: true })
-  writeFileSync(join(projectExtensionsDir(dir), 'local.json'), JSON.stringify(MANIFEST))
+  writeFileSync(
+    join(projectExtensionsDir(dir), 'local.json'),
+    JSON.stringify(MANIFEST)
+  )
 
-  expect(loadExtensions(dir).extensions.filter(extension => !extension.builtin)).toHaveLength(1)
+  expect(
+    loadExtensions(dir).extensions.filter((extension) => !extension.builtin)
+  ).toHaveLength(1)
   expect(isThemeName('neon')).toBe(true)
 })
 
@@ -182,7 +212,9 @@ test('a disabled extension is listed but registers nothing', () => {
   install(MANIFEST)
   install(LANGUAGE, 'nim')
   const { extensions: found } = loadExtensions(fixture({}), ['pack', 'nim'])
-  expect(found.filter(p => !p.builtin).every(extension => extension.disabled)).toBe(true)
+  expect(
+    found.filter((p) => !p.builtin).every((extension) => extension.disabled)
+  ).toBe(true)
   expect(isThemeName('neon')).toBe(false)
   expect(resolveServer('nim', {})).toBeNull()
   expect(languageFor('nim')).toBeUndefined()
@@ -201,7 +233,7 @@ test('reloading drops what an uninstalled extension contributed', () => {
   loadExtensions(project)
   expect(isThemeName('neon')).toBe(true)
 
-  rmSync(dir, { recursive: true, force: true })
+  rmSync(dir, { force: true, recursive: true })
   loadExtensions(project)
   expect(isThemeName('neon')).toBe(false)
   expect(themeNames()).not.toContain('neon')
@@ -209,80 +241,90 @@ test('reloading drops what an uninstalled extension contributed', () => {
 
 test('an extension may register over a shipped id, and dropping it puts that back', () => {
   install({
+    icons: [{ file: '#', id: 'unicode', name: 'Mine' }],
     id: 'over',
-    themes: [{ id: 'dark', name: 'My Dark', ui: themeColors('#010203'), syntax: {} }],
-    icons: [{ id: 'unicode', name: 'Mine', file: '#' }],
+    themes: [
+      { id: 'dark', name: 'My Dark', syntax: {}, ui: themeColors('#010203') },
+    ],
   })
   const project = fixture({})
   loadExtensions(project)
   expect(themeFor('dark').ui.bg).toBe('#010203')
-  expect(iconFor('unicode', { name: 'a.ts', isDir: false })?.glyph).toBe('#')
+  expect(iconFor('unicode', { isDir: false, name: 'a.ts' })?.glyph).toBe('#')
 
-  rmSync(EXTENSIONS_DIR, { recursive: true, force: true })
+  rmSync(EXTENSIONS_DIR, { force: true, recursive: true })
   loadExtensions(project)
   expect(themeFor('dark').name).toBe('GitHub Dark')
   expect(themeNames()).toContain('dark')
-  expect(iconFor('unicode', { name: 'a.ts', isDir: false })?.glyph).toBe('◆')
+  expect(iconFor('unicode', { isDir: false, name: 'a.ts' })?.glyph).toBe('◆')
 })
 
 test('an icon map points at definitions, and a folder gets its open form', () => {
   const { extension, problems } = parseManifest(
     {
-      id: 'defs',
       icons: [
         {
-          id: 'named',
           definitions: {
-            'typescript': { glyph: '◆', color: '#3178c6' },
-            'folder-src': { glyph: '◈', color: '#4caf50', open: '◇' },
+            'folder-src': { color: '#4caf50', glyph: '◈', open: '◇' },
+            typescript: { color: '#3178c6', glyph: '◆' },
           },
-          extensions: { 'ts': 'typescript', '.tsx': 'typescript' },
-          names: { '.gitignore': 'typescript' },
+          extensions: { '.tsx': 'typescript', ts: 'typescript' },
           folders: { src: 'folder-src' },
+          id: 'named',
+          names: { '.gitignore': 'typescript' },
         },
       ],
+      id: 'defs',
     },
-    '/extensions/defs/extension.json',
+    '/extensions/defs/extension.json'
   )
   expect(problems).toEqual([])
   const icons = extension!.icons[0]!
   expect(icons.extensions).toEqual({
-    ts: { glyph: '◆', color: '#3178c6' },
-    tsx: { glyph: '◆', color: '#3178c6' },
+    ts: { color: '#3178c6', glyph: '◆' },
+    tsx: { color: '#3178c6', glyph: '◆' },
   })
   expect(icons.names['.gitignore']?.glyph).toBe('◆')
   expect(icons.folders.src?.glyph).toBe('◈')
-  expect(icons.foldersOpen.src).toEqual({ glyph: '◇', color: '#4caf50' })
+  expect(icons.foldersOpen.src).toEqual({ color: '#4caf50', glyph: '◇' })
 })
 
 test('a named folder is found however the project spelled it', () => {
   install({
-    id: 'dirs',
     icons: [
       {
-        id: 'dirs',
+        definitions: { 'folder-github': { glyph: '◉', open: '◎' } },
         folder: '□',
         folderOpen: '▽',
-        definitions: { 'folder-github': { glyph: '◉', open: '◎' } },
         folders: { github: 'folder-github' },
+        id: 'dirs',
       },
     ],
+    id: 'dirs',
   })
   loadExtensions(fixture({}))
   for (const name of ['github', '.github', '_github', '__github__']) {
-    expect(`${name}:${iconFor('dirs', { name, isDir: true })?.glyph}`).toBe(`${name}:◉`)
+    expect(`${name}:${iconFor('dirs', { isDir: true, name })?.glyph}`).toBe(
+      `${name}:◉`
+    )
   }
-  expect(iconFor('dirs', { name: '.github', isDir: true, expanded: true })?.glyph).toBe('◎')
-  expect(iconFor('dirs', { name: 'whatever', isDir: true, expanded: true })?.glyph).toBe('▽')
+  expect(
+    iconFor('dirs', { expanded: true, isDir: true, name: '.github' })?.glyph
+  ).toBe('◎')
+  expect(
+    iconFor('dirs', { expanded: true, isDir: true, name: 'whatever' })?.glyph
+  ).toBe('▽')
 })
 
 test('a Nerd Font glyph above the BMP is one cell, and still not an emoji', () => {
   const { extension } = parseManifest(
     {
+      icons: [
+        { extensions: { ts: '\u{1F600}' }, file: '\u{F07D3}', id: 'nerd' },
+      ],
       id: 'nerd',
-      icons: [{ id: 'nerd', file: '\u{F07D3}', extensions: { ts: '\u{1F600}' } }],
     },
-    '/extensions/nerd/extension.json',
+    '/extensions/nerd/extension.json'
   )
   expect(extension?.icons[0]?.file.glyph).toBe('\u{F07D3}')
   expect(extension?.icons[0]?.extensions).toEqual({})
@@ -291,23 +333,24 @@ test('a Nerd Font glyph above the BMP is one cell, and still not an emoji', () =
 test('a bad contribution is reported and costs the extension only that entry', () => {
   const { extension, problems } = parseManifest(
     {
-      id: 'half',
-      themes: [{ id: 'broken', ui: { bg: 'red' }, syntax: {} }],
       icons: [
-        { id: 'wide', file: '👍' },
-        { id: 'ok', file: '#' },
+        { file: '👍', id: 'wide' },
+        { file: '#', id: 'ok' },
       ],
-      languageServers: [{ id: 'nocmd', filetypes: ['nim'] }],
+      id: 'half',
+      languageServers: [{ filetypes: ['nim'], id: 'nocmd' }],
+      themes: [{ id: 'broken', syntax: {}, ui: { bg: 'red' } }],
     },
-    '/extensions/half/extension.json',
+    '/extensions/half/extension.json'
   )
 
   expect(extension?.themes).toEqual([])
   expect(extension?.servers).toEqual([])
-  expect(extension?.icons.map(icons => icons.id)).toEqual(['wide', 'ok'])
+  expect(extension?.icons.map((icons) => icons.id)).toEqual(['wide', 'ok'])
   expect(extension?.icons[0]?.file.glyph).not.toBe('👍')
-  expect(problems.map(problem => problem.reason)).toEqual([
-    'theme "broken" needs a #rrggbb bg',
+  expect(problems.map((problem) => problem.reason)).toEqual([
+    // The first ui key the theme is missing, in the order `THEMES.dark.ui` lists them.
+    'theme "broken" needs a #rrggbb accent',
     'server "nocmd" needs a command, e.g. ["nimlangserver"]',
   ])
 })
@@ -318,29 +361,35 @@ test('a manifest that is not JSON is a reported problem, not a crash', () => {
   writeFileSync(join(dir, 'extension.json'), '{ not json')
 
   const { extensions: found, problems } = loadExtensions(fixture({}))
-  expect(found.filter(extension => !extension.builtin)).toEqual([])
+  expect(found.filter((extension) => !extension.builtin)).toEqual([])
   expect(problems).toHaveLength(1)
 })
 
 test('the config takes an extension theme, and drops one no extension registers', () => {
   install(MANIFEST)
   loadExtensions(fixture({}))
-  expect(parsePartial({ theme: 'neon', iconTheme: 'blocks' })).toEqual({
-    theme: 'neon',
+  expect(parsePartial({ iconTheme: 'blocks', theme: 'neon' })).toEqual({
     iconTheme: 'blocks',
+    theme: 'neon',
   })
 
-  rmSync(EXTENSIONS_DIR, { recursive: true, force: true })
+  rmSync(EXTENSIONS_DIR, { force: true, recursive: true })
   loadExtensions(fixture({}))
-  expect(parsePartial({ theme: 'neon', iconTheme: 'blocks' })).toEqual({})
+  expect(parsePartial({ iconTheme: 'blocks', theme: 'neon' })).toEqual({})
 })
 
 test('startup order: extensions load, then the config keeps their theme', () => {
   install(MANIFEST)
   const dir = fixture({})
   mkdirSync(join(dir, PROJECT_CONFIG_DIR), { recursive: true })
-  writeFileSync(projectConfigFile(dir), JSON.stringify({ disabledExtensions: [] }))
-  writeFileSync(CONFIG_FILE, JSON.stringify({ theme: 'neon', disabledExtensions: ['pack'] }))
+  writeFileSync(
+    projectConfigFile(dir),
+    JSON.stringify({ disabledExtensions: [] })
+  )
+  writeFileSync(
+    CONFIG_FILE,
+    JSON.stringify({ disabledExtensions: ['pack'], theme: 'neon' })
+  )
 
   expect(readDisabledExtensions(dir)).toEqual([])
   loadExtensions(dir, readDisabledExtensions(dir))
@@ -365,28 +414,38 @@ test('icons take the arrow column in the tree', async () => {
 test('an extension icon theme is a value of the setting', async () => {
   install(MANIFEST)
   loadExtensions(fixture({}))
-  const t = await launch(fixture({ 'a.ts': 'const a = 1\n' }), { iconTheme: 'blocks' })
+  const t = await launch(fixture({ 'a.ts': 'const a = 1\n' }), {
+    iconTheme: 'blocks',
+  })
   expect(t.captureCharFrame()).toContain('▲ a.ts')
 })
 
 test('the material set draws the tree it is installed for', async () => {
   install(
-    JSON.parse(readFileSync(join(MARKET_DIR, 'material-icons', 'extension.json'), 'utf8')),
-    'material-icons',
+    JSON.parse(
+      readFileSync(
+        join(MARKET_DIR, 'material-icons', 'extension.json'),
+        'utf-8'
+      )
+    ),
+    'material-icons'
   )
-  const dir = fixture({ 'a.ts': 'const a = 1\n', 'src/b.rs': 'fn main() {}\n' })
+  const dir = fixture({
+    'a.ts': 'const a = 1\n',
+    'src/b.rs': 'fn main() {}\n',
+  })
   loadExtensions(dir)
   const t = await launch(dir, { iconTheme: 'material' })
 
   const glyph = (name: string, isDir: boolean) =>
-    iconFor('material', { name, isDir, expanded: false })!.glyph
+    iconFor('material', { expanded: false, isDir, name })!.glyph
   const frame = t.captureCharFrame()
   expect(frame).toContain(`${glyph('a.ts', false)} a.ts`)
   expect(frame).toContain(`${glyph('src', true)} src`)
   const widths = frame
     .split('\n')
     .filter(Boolean)
-    .map(line => [...line].length)
+    .map((line) => [...line].length)
   expect(new Set(widths).size).toBe(1)
 })
 
@@ -397,7 +456,7 @@ test('an extension theme is in the palette and the settings page', async () => {
   const t = await launch(dir)
 
   await openPalette(t)
-  await press(t, input => void input.typeText('Neon'))
+  await press(t, (input) => input.typeText('Neon'))
   expect(t.captureCharFrame()).toContain('Neon')
 })
 
@@ -412,9 +471,9 @@ test('the sidebar panel lists what is installed and turns one off', async () => 
   expect(t.captureCharFrame()).toContain('Test Pack')
   expect(t.captureCharFrame()).toContain('✓ Test Pack')
 
-  await press(t, input => void input.typeText('/'))
-  await press(t, input => void input.typeText('Test Pack'))
-  await press(t, input => input.pressEnter())
+  await press(t, (input) => input.typeText('/'))
+  await press(t, (input) => input.typeText('Test Pack'))
+  await press(t, (input) => input.pressEnter())
   await settle(t)
   expect(t.captureCharFrame()).toContain('✗ Test Pack')
 })
@@ -427,14 +486,14 @@ test('Backspace asks before it deletes an extension, and deleting is what it doe
 
   await runCommand(t, 'Extensions panel')
   await settle(t)
-  await press(t, input => void input.typeText('/'))
-  await press(t, input => void input.typeText('Test Pack'))
+  await press(t, (input) => input.typeText('/'))
+  await press(t, (input) => input.typeText('Test Pack'))
   await pressEscape(t)
-  await press(t, input => input.pressBackspace())
+  await press(t, (input) => input.pressBackspace())
   expect(t.captureCharFrame()).toContain('Uninstall extension')
   expect(existsSync(folder)).toBe(true)
 
-  await press(t, input => input.pressEnter())
+  await press(t, (input) => input.pressEnter())
   await until(t, () => !existsSync(folder))
 })
 
@@ -444,10 +503,10 @@ test('a built-in has no folder to delete, so Backspace says so instead', async (
 
   await runCommand(t, 'Extensions panel')
   await settle(t)
-  await press(t, input => void input.typeText('/'))
-  await press(t, input => void input.typeText('TypeScript'))
+  await press(t, (input) => input.typeText('/'))
+  await press(t, (input) => input.typeText('TypeScript'))
   await pressEscape(t)
-  await press(t, input => input.pressBackspace())
+  await press(t, (input) => input.pressBackspace())
   const frame = t.captureCharFrame()
   expect(frame).not.toContain('Uninstall extension')
   expect(frame).toContain('ships with druk')
@@ -471,8 +530,15 @@ test("the panel is the sidebar's third view, beside files and git", async () => 
 
 test('every icon glyph druk ships is one cell wide', () => {
   for (const theme of ['unicode']) {
-    for (const name of ['a.ts', 'a.js', 'readme.md', 'package.json', 'photo.png', 'x.unknown']) {
-      const glyph = iconFor(theme, { name, isDir: false })?.glyph ?? ''
+    for (const name of [
+      'a.ts',
+      'a.js',
+      'readme.md',
+      'package.json',
+      'photo.png',
+      'x.unknown',
+    ]) {
+      const glyph = iconFor(theme, { isDir: false, name })?.glyph ?? ''
       expect(`${theme}/${name}:${[...glyph].length}`).toBe(`${theme}/${name}:1`)
     }
   }
@@ -480,7 +546,7 @@ test('every icon glyph druk ships is one cell wide', () => {
 
 test('the default config draws no icons at all', () => {
   expect(DEFAULTS.iconTheme).toBe('none')
-  expect(iconFor('none', { name: 'a.ts', isDir: false })).toBeNull()
+  expect(iconFor('none', { isDir: false, name: 'a.ts' })).toBeNull()
 })
 
 test('the palette picks an icon set, as it picks a theme', async () => {
@@ -490,7 +556,7 @@ test('the palette picks an icon set, as it picks a theme', async () => {
   const t = await launch(dir, {}, { height: 40 })
 
   await openPalette(t)
-  await press(t, input => void input.typeText('File icons'))
+  await press(t, (input) => input.typeText('File icons'))
   expect(t.captureCharFrame()).toContain('File icons')
   await pressEscape(t)
 

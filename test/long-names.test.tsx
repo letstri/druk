@@ -3,7 +3,14 @@ import { execFileSync } from 'node:child_process'
 import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-import { fixture, launch, openComparison, press, runCommand, untilFrame } from './helpers'
+import {
+  fixture,
+  launch,
+  openComparison,
+  press,
+  runCommand,
+  untilFrame,
+} from './helpers'
 import type { Harness } from './helpers'
 import { initRepo } from './repo'
 import { tempDir } from './temp'
@@ -13,12 +20,19 @@ const BRANCH =
 
 const SIDEBAR = 34
 
-const rowsWith = (t: Harness, needle: string, options: { within?: number } = {}) =>
+const rowsWith = (
+  t: Harness,
+  needle: string,
+  options: { within?: number } = {}
+) =>
   t
     .captureCharFrame()
     .split('\n')
-    .filter(row =>
-      (options.within === undefined ? row : row.slice(0, options.within)).includes(needle),
+    .filter((row) =>
+      (options.within === undefined
+        ? row
+        : row.slice(0, options.within)
+      ).includes(needle)
     ).length
 
 function repo() {
@@ -41,39 +55,46 @@ test('the branch picker gives a long branch and its upstream one row each', asyn
   execFileSync('git', ['init', '-q', '--bare', bare])
   execFileSync('git', ['remote', 'add', 'origin', bare], { cwd: dir })
   execFileSync('git', ['switch', '-q', '-c', BRANCH], { cwd: dir })
-  execFileSync('git', ['push', '-q', '--set-upstream', 'origin', BRANCH], { cwd: dir })
+  execFileSync('git', ['push', '-q', '--set-upstream', 'origin', BRANCH], {
+    cwd: dir,
+  })
   execFileSync('git', ['switch', '-q', 'main'], { cwd: dir })
 
-  const t = await launch(dir, {}, { width: 100, height: 40 })
+  const t = await launch(dir, {}, { height: 40, width: 100 })
   await runCommand(t, 'Switch branch')
   await untilFrame(t, 'Switch to branch')
 
   expect(rowsWith(t, '49-tanstack')).toBe(2)
-  expect(t.captureCharFrame()).toContain('↑↓ choose · Enter confirm · Esc cancel')
-}, 20000)
+  expect(t.captureCharFrame()).toContain(
+    '↑↓ choose · Enter confirm · Esc cancel'
+  )
+}, 20_000)
 
 test('the status bar keeps its hints beside a long branch', async () => {
   const dir = repo()
   execFileSync('git', ['switch', '-q', '-c', BRANCH], { cwd: dir })
 
-  const t = await launch(dir, {}, { width: 100, height: 30 })
+  const t = await launch(dir, {}, { height: 30, width: 100 })
   await untilFrame(t, '⎇ 49-tanstack')
 
   const bar = t
     .captureCharFrame()
     .split('\n')
-    .find(row => row.includes('⎇'))!
+    .find((row) => row.includes('⎇'))!
   expect(bar).toContain('F1 commands')
   expect(bar.length).toBeLessThanOrEqual(100)
   expect(rowsWith(t, 'tanstack-start')).toBe(2)
-}, 20000)
+}, 20_000)
 
 test('the settings page keeps a long value on its own row', async () => {
   const dir = fixture({ 'a.ts': 'const a = 1\n' })
   const t = await launch(
     dir,
-    { typescriptTsdk: '/a/very/long/path/that/goes/on/and/on/node_modules/typescript/lib' },
-    { width: 100, height: 47 },
+    {
+      typescriptTsdk:
+        '/a/very/long/path/that/goes/on/and/on/node_modules/typescript/lib',
+    },
+    { height: 47, width: 100 }
   )
   await runCommand(t, 'Settings')
   await untilFrame(t, 'TypeScript')
@@ -82,9 +103,9 @@ test('the settings page keeps a long value on its own row', async () => {
   const row = t
     .captureCharFrame()
     .split('\n')
-    .find(line => line.includes('/a/very/long'))!
+    .find((line) => line.includes('/a/very/long'))!
   expect(row).toContain('TypeScript')
-}, 20000)
+}, 20_000)
 
 test('the problems list gives a long diagnostic one row', async () => {
   const name = `${'component-with-a-really-long-name'.repeat(3)}.ts`
@@ -94,19 +115,22 @@ test('the problems list gives a long diagnostic one row', async () => {
     {
       lsp: true,
       lspServers: {
-        typescript: [process.execPath, join(import.meta.dir, 'fixtures', 'fake-lsp.ts')],
+        typescript: [
+          process.execPath,
+          join(import.meta.dir, 'fixtures', 'fake-lsp.ts'),
+        ],
       },
     },
-    { width: 100, height: 30 },
-    { openFile: join(dir, name) },
+    { height: 30, width: 100 },
+    { openFile: join(dir, name) }
   )
-  await press(t, input => void input.typeText('oops'))
+  await press(t, (input) => input.typeText('oops'))
   await untilFrame(t, '● 1', 15_000)
   await runCommand(t, 'List problems')
   await untilFrame(t, 'Enter jumps', 15_000)
 
   expect(rowsWith(t, 'really-long-name')).toBe(1)
-}, 40000)
+}, 40_000)
 
 test('the completion menu keeps a huge label, signature and doc inside its box', async () => {
   const dir = fixture({ 'a.ts': '' })
@@ -115,18 +139,21 @@ test('the completion menu keeps a huge label, signature and doc inside its box',
     {
       lsp: true,
       lspServers: {
-        typescript: [process.execPath, join(import.meta.dir, 'fixtures', 'fake-lsp.ts')],
+        typescript: [
+          process.execPath,
+          join(import.meta.dir, 'fixtures', 'fake-lsp.ts'),
+        ],
       },
     },
-    { width: 90, height: 30 },
-    { openFile: join(dir, 'a.ts') },
+    { height: 30, width: 90 },
+    { openFile: join(dir, 'a.ts') }
   )
-  await press(t, input => void input.typeText('long'))
+  await press(t, (input) => input.typeText('long'))
   await untilFrame(t, 'longName', 15_000)
 
   expect(rowsWith(t, 'longName')).toBe(1)
   const frame = t.captureCharFrame()
-  expect(frame.split('\n').every(row => row.length <= 90)).toBe(true)
+  expect(frame.split('\n').every((row) => row.length <= 90)).toBe(true)
   expect(frame).toContain('unbreakableword')
 }, 40_000)
 
@@ -135,84 +162,87 @@ test('the comparison header keeps its rows beside a long branch', async () => {
   execFileSync('git', ['switch', '-q', '-c', BRANCH], { cwd: dir })
   writeFileSync(join(dir, 'b.ts'), 'two\n')
   execFileSync('git', ['add', '.'], { cwd: dir })
-  execFileSync('git', ['commit', '-q', '-m', 'a fairly long commit subject about middleware'], {
-    cwd: dir,
-  })
+  execFileSync(
+    'git',
+    ['commit', '-q', '-m', 'a fairly long commit subject about middleware'],
+    {
+      cwd: dir,
+    }
+  )
 
-  const t = await launch(dir, {}, { width: 100, height: 30 })
+  const t = await launch(dir, {}, { height: 30, width: 100 })
   await openComparison(t)
   await untilFrame(t, '1 files')
 
   const frame = t.captureCharFrame()
   expect(frame).toContain('base  main')
   expect(frame).toContain('[Files]  Commits')
-}, 30000)
+}, 30_000)
 
 test('the review panel gives a long note and a deep path one row each', async () => {
   const dir = fixture({
-    'src/features/authentication/session/refresh-token-rotation.ts': 'const a = 1\n',
+    'src/features/authentication/session/refresh-token-rotation.ts':
+      'const a = 1\n',
   })
-  const t = await launch(dir, {}, { width: 100, height: 30 })
+  const t = await launch(dir, {}, { height: 30, width: 100 })
   await runCommand(t, 'Open file…')
-  await press(t, input => void input.typeText('refresh-token'))
-  await press(t, input => input.pressEnter())
+  await press(t, (input) => input.typeText('refresh-token'))
+  await press(t, (input) => input.pressEnter())
 
   await runCommand(t, 'Note this line as issue')
-  await press(
-    t,
-    input =>
-      void input.typeText(
-        'this rotation window is far too long a sentence to fit in a sidebar column and it ' +
-          'keeps going for a while yet',
-      ),
+  await press(t, (input) =>
+    input.typeText(
+      'this rotation window is far too long a sentence to fit in a sidebar column and it ' +
+        'keeps going for a while yet'
+    )
   )
-  await press(t, input => input.pressEnter())
+  await press(t, (input) => input.pressEnter())
   await runCommand(t, 'Review panel')
   await untilFrame(t, 'ISSUE 1')
 
   expect(rowsWith(t, 'ISSUE 1', { within: SIDEBAR })).toBe(1)
   expect(rowsWith(t, 'src/features', { within: SIDEBAR })).toBe(1)
 
-  await press(t, input => input.pressArrow('down'))
-  await press(t, input => void input.typeText('r'))
-  await press(
-    t,
-    input =>
-      void input.typeText(
-        'it is not, the refresh window is measured against the issuer clock and that is the ' +
-          'whole of it',
-      ),
+  await press(t, (input) => input.pressArrow('down'))
+  await press(t, (input) => input.typeText('r'))
+  await press(t, (input) =>
+    input.typeText(
+      'it is not, the refresh window is measured against the issuer clock and that is the ' +
+        'whole of it'
+    )
   )
-  await press(t, input => input.pressEnter())
+  await press(t, (input) => input.pressEnter())
   await untilFrame(t, '↳ you')
   expect(rowsWith(t, '↳ you', { within: SIDEBAR })).toBe(1)
   expect(rowsWith(t, 'ISSUE 1', { within: SIDEBAR })).toBe(1)
-}, 20000)
+}, 20_000)
 
 test('the all-changes page gives a long path one row', async () => {
   const dir = repo()
   const name = `${'quite-a-long-file-name-'.repeat(6)}.ts`
   writeFileSync(join(dir, name), 'two\n')
 
-  const t = await launch(dir, {}, { width: 100, height: 40 })
+  const t = await launch(dir, {}, { height: 40, width: 100 })
   await runCommand(t, 'Show all changes')
   await untilFrame(t, 'Uncommitted')
 
   expect(rowsWith(t, 'Uncommitted')).toBe(1)
   expect(t.captureCharFrame()).toContain('Esc sidebar')
   expect(rowsWith(t, name.slice(-24))).toBe(1)
-}, 20000)
+}, 20_000)
 
 test('the file tree ellipsises a long name instead of dropping its last word', async () => {
-  const dir = fixture({ 'cell-content-with-a-very-long-name.tsx': 'const a = 1\n' })
-  const t = await launch(dir, {}, { width: 100, height: 20 })
+  const dir = fixture({
+    'cell-content-with-a-very-long-name.tsx': 'const a = 1\n',
+  })
+  const t = await launch(dir, {}, { height: 20, width: 100 })
   await untilFrame(t, 'cell-content')
 
   const row = t
     .captureCharFrame()
     .split('\n')
-    .find(line => line.includes('cell-content'))!
+    .find((line) => line.includes('cell-content'))!
     .slice(0, SIDEBAR)
   expect(row).toContain('…')
   expect(row).toContain('cell-content-with-a-very')
-}, 20000)
+}, 20_000)

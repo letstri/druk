@@ -1,23 +1,10 @@
 import { describe, expect, test } from 'bun:test'
 
-import { filetypeForPath, getSyntaxStyle } from '../src/languages/highlight'
+import { filetypeForPath } from '../src/languages/highlight'
 import { loadMarketExtensions } from './helpers'
-import { allSegments } from './syntax'
+import { painted } from './syntax'
 
 loadMarketExtensions()
-
-async function painted(source: string) {
-  const segments = await allSegments(source, 'solidity')
-  const lines = source.split('\n')
-  const style = getSyntaxStyle()
-  const byGroup = new Map<number, string[]>()
-  for (const segment of segments) {
-    const text = lines[segment.line]?.slice(segment.start, segment.end) ?? ''
-    if (!text.trim()) continue
-    byGroup.set(segment.styleId, [...(byGroup.get(segment.styleId) ?? []), text.trim()])
-  }
-  return (group: string) => byGroup.get(style.getStyleId(group)!) ?? []
-}
 
 describe('recognising solidity files', () => {
   test('by extension — OpenTUI does not know .sol', () => {
@@ -47,7 +34,7 @@ contract Token {
 `
 
   test('keywords, types, names and strings light up', async () => {
-    const group = await painted(SAMPLE)
+    const group = await painted(SAMPLE, 'solidity')
 
     expect(group('keyword')).toEqual(
       expect.arrayContaining([
@@ -58,10 +45,10 @@ contract Token {
         'function',
         'returns',
         'return',
-      ]),
+      ])
     )
     expect(group('type')).toEqual(
-      expect.arrayContaining(['Token', 'uint256', 'address', 'Transfer']),
+      expect.arrayContaining(['Token', 'uint256', 'address', 'Transfer'])
     )
     expect(group('function')).toContain('transfer')
     expect(group('constructor')).toContain('constructor')

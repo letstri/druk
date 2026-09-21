@@ -16,9 +16,13 @@ Options:
   -v, --version   show the version
 `
 
-export function flagOutput(arg: string | undefined): string | null {
-  if (arg === '-h' || arg === '--help') return HELP
-  if (arg === '-v' || arg === '--version') return `${currentVersion()}\n`
+export function flagOutput(arg?: string): string | null {
+  if (arg === '-h' || arg === '--help') {
+    return HELP
+  }
+  if (arg === '-v' || arg === '--version') {
+    return `${currentVersion()}\n`
+  }
   return null
 }
 
@@ -29,23 +33,28 @@ export interface Target {
   col: number | null
 }
 
-export function resolveTarget(arg: string | undefined, cwd: string): Target | null {
+export function resolveTarget(
+  arg: string | undefined,
+  cwd: string
+): Target | null {
   const target = resolve(cwd, arg ?? '.')
   if (exists(target)) {
-    if (isDirectory(target)) return { rootDir: target, openFile: null, line: null, col: null }
-    return { rootDir: dirname(target), openFile: target, line: null, col: null }
+    if (isDirectory(target)) {
+      return { col: null, line: null, openFile: null, rootDir: target }
+    }
+    return { col: null, line: null, openFile: target, rootDir: dirname(target) }
   }
 
   // Lazy, so `file.ts:42:7` reads as line 42 column 7, not a file named `file.ts:42`.
-  const at = /^(.+?):(\d+)(?::(\d+))?$/.exec(arg ?? '')
+  const at = /^(.+?):(\d+)(?::(\d+))?$/u.exec(arg ?? '')
   if (at) {
     const file = resolve(cwd, at[1]!)
     if (exists(file) && !isDirectory(file)) {
       return {
-        rootDir: dirname(file),
-        openFile: file,
-        line: Math.max(0, Number(at[2]) - 1),
         col: at[3] ? Math.max(0, Number(at[3]) - 1) : null,
+        line: Math.max(0, Number(at[2]) - 1),
+        openFile: file,
+        rootDir: dirname(file),
       }
     }
   }

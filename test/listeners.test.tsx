@@ -1,7 +1,4 @@
 import { expect, test } from 'bun:test'
-import { execFileSync } from 'node:child_process'
-import { writeFileSync } from 'node:fs'
-import { join } from 'node:path'
 
 import {
   launch,
@@ -16,25 +13,13 @@ import {
   untilGone,
 } from './helpers'
 import type { Harness } from './helpers'
-import { initRepo } from './repo'
-import { tempDir } from './temp'
+import { changedRepo } from './repo'
 
-function repo() {
-  const dir = tempDir('druk-listeners-')
-  const git = (...args: string[]) => execFileSync('git', args, { cwd: dir })
-  initRepo(dir)
-  writeFileSync(join(dir, 'a.ts'), 'alpha\n')
-  writeFileSync(join(dir, 'b.ts'), 'beta\n')
-  git('add', '.')
-  git('commit', '-q', '-m', 'init')
-  writeFileSync(join(dir, 'a.ts'), 'ALPHA\n')
-  writeFileSync(join(dir, 'b.ts'), 'BETA\n')
-  return dir
-}
+const repo = () => changedRepo('druk-listeners-')
 
 const counts = (t: Harness) => ({
-  resize: t.renderer.listenerCount('resize'),
   keypress: t.renderer.keyInput.listenerCount('keypress'),
+  resize: t.renderer.listenerCount('resize'),
 })
 
 const same = (a: ReturnType<typeof counts>, b: ReturnType<typeof counts>) =>
@@ -60,7 +45,7 @@ test('closing a panel releases the resize and keypress listeners it took', async
   await pressEscape(t)
   await until(t, () => same(counts(t), base))
 
-  await press(t, i => i.pressKey('f', { ctrl: true }))
+  await press(t, (i) => i.pressKey('f', { ctrl: true }))
   await pressEscape(t)
   await until(t, () => same(counts(t), base))
 

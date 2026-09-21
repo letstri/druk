@@ -9,7 +9,7 @@ import { tempDir } from './temp'
 function heavyDir(count: number) {
   const base = tempDir('druk-bulk-')
   const dir = join(base, 'node_modules')
-  for (let index = 0; index < count; index++) {
+  for (let index = 0; index < count; index += 1) {
     mkdirSync(join(dir, `pkg-${index}`), { recursive: true })
     writeFileSync(join(dir, `pkg-${index}`, 'index.js'), 'module.exports = 1\n')
   }
@@ -21,7 +21,9 @@ describe('deleting in the background', () => {
     const { dir } = heavyDir(12)
     const seen: BulkProgress[] = []
 
-    const { failed } = await removeAll([dir], progress => seen.push({ ...progress }))
+    const { failed } = await removeAll([dir], (progress) =>
+      seen.push({ ...progress })
+    )
 
     expect(failed).toEqual([])
     expect(existsSync(dir)).toBe(false)
@@ -34,9 +36,11 @@ describe('deleting in the background', () => {
     const b = heavyDir(4)
     const seen: BulkProgress[] = []
 
-    await removeAll([a.dir, b.dir], progress => seen.push({ ...progress }))
+    await removeAll([a.dir, b.dir], (progress) => seen.push({ ...progress }))
 
-    for (const progress of seen) expect(progress.done).toBeLessThanOrEqual(progress.total)
+    for (const progress of seen) {
+      expect(progress.done).toBeLessThanOrEqual(progress.total)
+    }
     expect(seen.at(-1)).toMatchObject({ done: 7, total: 7 })
   })
 
@@ -44,15 +48,17 @@ describe('deleting in the background', () => {
     const { dir } = heavyDir(5)
     const seen: BulkProgress[] = []
 
-    await removeAll([dir], progress => seen.push({ ...progress }))
+    await removeAll([dir], (progress) => seen.push({ ...progress }))
 
-    expect(seen.map(p => p.done)).toEqual([1, 2, 3, 4, 5])
+    expect(seen.map((p) => p.done)).toEqual([1, 2, 3, 4, 5])
   })
 
   test('hands the loop back between entries', async () => {
     const { dir } = heavyDir(8)
     let ticks = 0
-    const timer = setInterval(() => ticks++, 1)
+    const timer = setInterval(() => {
+      ticks += 1
+    }, 1)
 
     await removeAll([dir], () => {})
     clearInterval(timer)
@@ -66,7 +72,7 @@ describe('deleting in the background', () => {
     writeFileSync(file, 'x\n')
     const seen: BulkProgress[] = []
 
-    await removeAll([file], progress => seen.push({ ...progress }))
+    await removeAll([file], (progress) => seen.push({ ...progress }))
 
     expect(existsSync(file)).toBe(false)
     expect(seen).toHaveLength(1)
@@ -74,7 +80,10 @@ describe('deleting in the background', () => {
 
   test('keeps going past something it cannot delete', async () => {
     const { base } = heavyDir(1)
-    const { failed, done } = await removeAll([join(base, 'nothing-here')], () => {})
+    const { failed, done } = await removeAll(
+      [join(base, 'nothing-here')],
+      () => {}
+    )
 
     expect(failed).toEqual([])
     expect(done).toBe(1)
@@ -91,11 +100,11 @@ describe('copying and moving in the background', () => {
       [join(dir, 'pkg-0'), join(dir, 'pkg-1')],
       into,
       (target, name) => join(target, name),
-      progress => seen.push({ ...progress }),
+      (progress) => seen.push({ ...progress })
     )
 
     expect(done).toBe(2)
-    expect(seen.map(p => p.done)).toEqual([1, 2])
+    expect(seen.map((p) => p.done)).toEqual([1, 2])
     expect(existsSync(join(into, 'pkg-0', 'index.js'))).toBe(true)
     expect(existsSync(join(into, 'pkg-1', 'index.js'))).toBe(true)
   })
@@ -108,7 +117,7 @@ describe('copying and moving in the background', () => {
       [join(dir, 'pkg-0')],
       into,
       (target, name) => join(target, name),
-      () => {},
+      () => {}
     )
 
     expect({ done, failed }).toEqual({ done: 1, failed: [] })
@@ -124,7 +133,7 @@ describe('copying and moving in the background', () => {
       [join(dir, 'missing'), join(dir, 'pkg-1')],
       into,
       (target, name) => join(target, name),
-      () => {},
+      () => {}
     )
 
     expect(done).toBe(1)

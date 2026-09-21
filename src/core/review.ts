@@ -13,9 +13,9 @@ export type NoteKind = (typeof NOTE_KINDS)[number]
 
 export const NOTE_LABELS: Record<NoteKind, string> = {
   issue: 'ISSUE',
-  suggestion: 'SUGGESTION',
-  question: 'QUESTION',
   note: 'NOTE',
+  question: 'QUESTION',
+  suggestion: 'SUGGESTION',
 }
 
 export interface ReviewNote {
@@ -31,27 +31,40 @@ export interface ReviewNote {
   author?: string
 }
 
-const isKind = (raw: unknown): raw is NoteKind => NOTE_KINDS.includes(raw as NoteKind)
+const isKind = (raw: unknown): raw is NoteKind =>
+  NOTE_KINDS.includes(raw as NoteKind)
 
 function parseNote(raw: unknown): ReviewNote | null {
-  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return null
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+    return null
+  }
   const note = raw as Record<string, unknown>
-  if (typeof note.id !== 'string' || typeof note.path !== 'string') return null
-  if (typeof note.line !== 'number' || typeof note.body !== 'string') return null
-  if (!isKind(note.kind)) return null
+  if (typeof note.id !== 'string' || typeof note.path !== 'string') {
+    return null
+  }
+  if (typeof note.line !== 'number' || typeof note.body !== 'string') {
+    return null
+  }
+  if (!isKind(note.kind)) {
+    return null
+  }
   const line = Math.max(0, Math.floor(note.line))
-  const endLine = typeof note.endLine === 'number' ? Math.max(line, Math.floor(note.endLine)) : line
-  const text = (raw: unknown) => (typeof raw === 'string' && raw ? raw : undefined)
+  const endLine =
+    typeof note.endLine === 'number'
+      ? Math.max(line, Math.floor(note.endLine))
+      : line
+  const text = (value: unknown) =>
+    typeof value === 'string' && value ? value : undefined
   return {
-    id: note.id,
-    path: note.path,
-    line,
-    endLine,
-    kind: note.kind,
-    body: note.body,
     at: typeof note.at === 'number' ? note.at : 0,
-    parent: text(note.parent),
     author: text(note.author),
+    body: note.body,
+    endLine,
+    id: note.id,
+    kind: note.kind,
+    line,
+    parent: text(note.parent),
+    path: note.path,
   }
 }
 
@@ -61,13 +74,15 @@ type NotesFile = Record<string, { notes: unknown; touchedAt?: number }>
 function readAll(file: string): NotesFile | null {
   let raw: string
   try {
-    raw = fs.readFileSync(file, 'utf8')
+    raw = fs.readFileSync(file, 'utf-8')
   } catch {
     return {}
   }
   try {
     const parsed: unknown = JSON.parse(raw)
-    return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)
+    return typeof parsed === 'object' &&
+      parsed !== null &&
+      !Array.isArray(parsed)
       ? (parsed as NotesFile)
       : null
   } catch {
@@ -77,10 +92,15 @@ function readAll(file: string): NotesFile | null {
 
 const notesOf = (entry: NotesFile[string] | undefined): ReviewNote[] =>
   entry && Array.isArray(entry.notes)
-    ? entry.notes.map(parseNote).filter((note): note is ReviewNote => note !== null)
+    ? entry.notes
+        .map(parseNote)
+        .filter((note): note is ReviewNote => note !== null)
     : []
 
-export function readNotes(rootDir: string, file = NOTES_FILE): ReviewNote[] | null {
+export function readNotes(
+  rootDir: string,
+  file = NOTES_FILE
+): ReviewNote[] | null {
   const all = readAll(file)
   return all === null ? null : notesOf(all[rootDir])
 }
@@ -97,7 +117,11 @@ export interface SaveOptions {
   file?: string
 }
 
-export function saveNotes(rootDir: string, notes: ReviewNote[], options: SaveOptions = {}): void {
+export function saveNotes(
+  rootDir: string,
+  notes: ReviewNote[],
+  options: SaveOptions = {}
+): void {
   const { seen, now = Date.now(), file = NOTES_FILE } = options
   try {
     let all = readAll(file)
@@ -111,17 +135,20 @@ export function saveNotes(rootDir: string, notes: ReviewNote[], options: SaveOpt
     }
 
     const held = notesOf(all[rootDir])
-    const byId = new Map(held.map(note => [note.id, note]))
+    const byId = new Map(held.map((note) => [note.id, note]))
     // The file's copy wins an id both sides hold: druk never changes a note after creating it.
     const merged = seen
       ? [
-          ...notes.map(note => byId.get(note.id) ?? note),
-          ...held.filter(note => !seen.has(note.id)),
+          ...notes.map((note) => byId.get(note.id) ?? note),
+          ...held.filter((note) => !seen.has(note.id)),
         ]
       : notes
     // `merged`, not `notes`: druk's own list going empty may be a clear racing an external add.
-    if (merged.length === 0) delete all[rootDir]
-    else all[rootDir] = { notes: merged, touchedAt: now }
+    if (merged.length === 0) {
+      Reflect.deleteProperty(all, rootDir)
+    } else {
+      all[rootDir] = { notes: merged, touchedAt: now }
+    }
 
     // A writer that omits touchedAt gets this save's clock: epoch zero would be trimmed first.
     const trimmed = Object.entries(all)
@@ -131,7 +158,10 @@ export function saveNotes(rootDir: string, notes: ReviewNote[], options: SaveOpt
     fs.mkdirSync(dirname(file), { recursive: true })
     // Renamed into place: a reader in another process never catches half a file.
     const tmp = `${file}.${process.pid}.tmp`
-    fs.writeFileSync(tmp, `${JSON.stringify(Object.fromEntries(trimmed), null, 2)}\n`)
+    fs.writeFileSync(
+      tmp,
+      `${JSON.stringify(Object.fromEntries(trimmed), null, 2)}\n`
+    )
     try {
       fs.renameSync(tmp, file)
     } catch (error) {
@@ -148,7 +178,10 @@ export function saveNotes(rootDir: string, notes: ReviewNote[], options: SaveOpt
 }
 
 // The directory, not the file: a rename-based save strands a watcher bound to the old inode.
-export function watchNotes(onChange: () => void, file = NOTES_FILE): () => void {
+export function watchNotes(
+  onChange: () => void,
+  file = NOTES_FILE
+): () => void {
   let timer: ReturnType<typeof setTimeout> | null = null
   const name = basename(file)
   try {
@@ -157,12 +190,19 @@ export function watchNotes(onChange: () => void, file = NOTES_FILE): () => void 
     // best-effort
   }
   const watcher = watchPath(dirname(file), {}, (_event, filename) => {
-    if (filename && filename.toString() !== name) return
-    if (timer) clearTimeout(timer)
-    timer = setTimeout(onChange, 80) // coalesce bursts
+    if (filename && filename.toString() !== name) {
+      return
+    }
+    if (timer) {
+      clearTimeout(timer)
+    }
+    // coalesce bursts
+    timer = setTimeout(onChange, 80)
   })
   return () => {
-    if (timer) clearTimeout(timer)
+    if (timer) {
+      clearTimeout(timer)
+    }
     watcher?.close()
   }
 }

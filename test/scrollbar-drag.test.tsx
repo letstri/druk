@@ -10,19 +10,19 @@ const track = (t: Harness) =>
     .captureCharFrame()
     .split('\n')
     .slice(1, 19)
-    .map(row => row.at(-1))
+    .map((row) => row.at(-1))
     .join('')
 
 // First line number in the gutter: where the viewport sits.
 function topLine(t: Harness): number {
   const row = t.captureCharFrame().split('\n')[1]!
-  return Number(row.trim().split(/\s+/)[0])
+  return Number(row.trim().split(/\s+/u)[0])
 }
 
 async function openAlone(name: string, content: string) {
   const t = await launch(fixture({ [name]: content }))
   await openFile(t, name)
-  await press(t, input => input.pressKey('b', { ctrl: true }))
+  await press(t, (input) => input.pressKey('b', { ctrl: true }))
   await settle(t)
   return t
 }
