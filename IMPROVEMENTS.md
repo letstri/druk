@@ -17,6 +17,11 @@ ships them (see AGENTS.md § "Keep this file current").
 | Project search walks synchronously | `searchProject` / `planProjectReplace` traverse and read every file inside a memo. Bounded by `DEFAULT_LIMIT` and a 140 ms debounce, so it has not bitten — a background walk with progressive results is the fix when it does |
 | Windows is shipped but unexercised | No Windows job in CI beyond the release build, and path separators are easy to get wrong (`sep`, not `/`) |
 | Keymap has three sources | `keys.ts` + `keyboard.ts` + `commands.ts` must agree by hand; a binding added to one and not the others simply does nothing |
+| One LSP client per server id | The command is resolved from the *first* file opened for that id (`spawnFor`), so a monorepo mixing TypeScript 5 and 7 keeps whichever server that file wanted. The fix is a client per workspace package — a lifecycle change, not a guard |
+| An abandoned LSP request is dropped, not cancelled | `request` carries a 30s deadline, so nothing hangs, but closing the completion menu sends no `$/cancelRequest` and the server keeps working on it |
+| `workspace/configuration` ignores `section` | Every item is answered with the same settings object. Right for eslint, wrong for a server asking about two sections at once — and a naive walk would break eslint, since a manifest stores server settings unwrapped |
+| `review.json` is read-modify-written | `saveNotes` re-reads and keeps ids it did not know about, so an agent's note survives; nothing locks the file between that read and the `writeAtomic`, so two saves in the same instant leave the later one's view |
+| Diffs lose "no newline at end of file" | `splitText` drops the final newline, so only a change that is *only* that newline carries git's marker (`newlineOnlyDiff`); every other such file diffs without it |
 
 ## 2. Missing features, roughly in order of how often they are wanted
 

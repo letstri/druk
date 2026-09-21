@@ -15,6 +15,7 @@ import type { ServerLogLine } from './status'
 import { createDecoder, encodeMessage } from './transport'
 
 const INITIALIZE_TIMEOUT_MS = 30_000
+const REQUEST_TIMEOUT_MS = 30_000
 
 // One shared exit hook: a hook per client trips Node's ten-listener warning on `process`.
 const liveChildren = new Set<ChildProcess>()
@@ -108,13 +109,24 @@ export function spawnLspClient(options: LspClientOptions) {
     }
   }
 
-  const request = (method: string, params?: unknown) => {
+  const request = async (method: string, params?: unknown) => {
     const { promise, reject, resolve } = Promise.withResolvers<unknown>()
     const id = nextId
     nextId += 1
     pending.set(id, { reject, resolve })
+    // Without a deadline a server that never answers leaves the feature waiting for ever.
+    const timer = setTimeout(() => {
+      if (pending.delete(id)) {
+        reject(new Error(`${method} timed out`))
+      }
+    }, REQUEST_TIMEOUT_MS)
+    timer.unref?.()
     send({ id, jsonrpc: '2.0', method, params })
-    return promise
+    try {
+      return await promise
+    } finally {
+      clearTimeout(timer)
+    }
   }
 
   const notify = (method: string, params: unknown) => {
@@ -227,6 +239,13 @@ export function spawnLspClient(options: LspClientOptions) {
       }
     } else if (message.method === 'textDocument/publishDiagnostics') {
       const params = message.params as PublishDiagnosticsParams
+      // A report for text already edited past would put back the marks of a version nobody is reading.
+      if (
+        params.version !== undefined &&
+        params.version < (versions.get(params.uri) ?? 0)
+      ) {
+        return
+      }
       options.onDiagnostics(params.uri, params.diagnostics ?? [])
     } else if (message.method === 'tsserver/request') {
       void answerTsserverRequests(message.params)
@@ -242,11 +261,13 @@ export function spawnLspClient(options: LspClientOptions) {
         `${MESSAGE_LEVEL[params?.type ?? 4] ?? 'log'}: ${params?.message ?? ''}`
       )
     } else if (message.id !== null && message.id !== undefined) {
-      const waiter = pending.get(message.id as number)
+      // A server may echo the id as a string; the waiter is keyed by the number that was sent.
+      const id = Number(message.id)
+      const waiter = pending.get(id)
       if (!waiter) {
         return
       }
-      pending.delete(message.id as number)
+      pending.delete(id)
       if (message.error) {
         waiter.reject(new Error(message.error.message))
       } else {

@@ -45,6 +45,7 @@ export function isDeprecated(diagnostic: Diagnostic): boolean {
 export interface PublishDiagnosticsParams {
   uri: string
   diagnostics: Diagnostic[]
+  version?: number
 }
 
 export interface DiagnosticReport {

@@ -179,6 +179,15 @@ export function createLsp(deps: {
       merge(path)
     }
 
+  // A dead server's marks are about text nobody can re-check: they would sit there until the tab closed.
+  const forgetMarksFrom = (serverId: string) => {
+    for (const [path, senders] of bySource) {
+      if (senders.delete(serverId)) {
+        merge(path)
+      }
+    }
+  }
+
   const clearProblems = (path: string) => {
     bySource.delete(path)
     if (problems[path]?.length) {
@@ -312,6 +321,7 @@ export function createLsp(deps: {
       onDiagnostics: onDiagnosticsFrom(resolved.id),
       onFail: (reason, missing) => {
         clients.set(resolved.id, null)
+        forgetMarksFrom(resolved.id)
         setServers(resolved.id, { error: reason, state: 'failed' })
         if (missing) {
           return reportMissing(resolved)
