@@ -5,6 +5,8 @@ const COPY: [string, string[]][] = [
   ['wl-copy', []],
   ['xclip', ['-selection', 'clipboard']],
   ['xsel', ['--clipboard', '--input']],
+  // Not `clip`, which reads its stdin as the console code page and mangles anything non-ASCII.
+  ['powershell', ['-NoProfile', '-Command', '$input | Set-Clipboard']],
 ]
 
 const PASTE: [string, string[]][] = [
@@ -12,6 +14,8 @@ const PASTE: [string, string[]][] = [
   ['wl-paste', ['--no-newline']],
   ['xclip', ['-selection', 'clipboard', '-o']],
   ['xsel', ['--clipboard', '--output']],
+  // Windows: `clip` is write-only and `Get-Clipboard` without -Raw appends a newline per line.
+  ['powershell', ['-NoProfile', '-Command', 'Get-Clipboard -Raw']],
 ]
 
 export function copyToClipboard(text: string): boolean {
