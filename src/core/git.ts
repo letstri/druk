@@ -18,6 +18,8 @@ export interface StatusEntry {
   staged: FileStatus | null
   unstaged: FileStatus | null
   conflicted?: boolean
+  // Where a rename came from, repository-relative: the blob to diff against lives under that name.
+  source?: string
 }
 
 export function combinedStatus(entry: StatusEntry): FileStatus {
@@ -883,7 +885,11 @@ function parsePorcelain(
       ? 'untracked'
       : (STATUS_BY_CODE[entry.xy[1]!] ?? null)
     if (staged || unstaged) {
-      statuses.set(join(base, entry.path), { staged, unstaged })
+      statuses.set(join(base, entry.path), {
+        staged,
+        unstaged,
+        ...(entry.source ? { source: entry.source } : {}),
+      })
     }
   }
   return statuses

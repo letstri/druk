@@ -1,4 +1,4 @@
-import { basename, dirname, relative } from 'node:path'
+import { basename, dirname, join, relative } from 'node:path'
 
 import { createMemo, createSignal } from 'solid-js'
 
@@ -147,15 +147,16 @@ export function createCommands(ctx: AppContext) {
         continue
       }
       const rel = relative(repo, change.path)
-      const staged =
-        git.statusEntries().get(change.path)?.staged !== null &&
-        git.statusEntries().get(change.path)?.staged !== undefined
+      const entry = git.statusEntries().get(change.path)
+      const staged = entry?.staged !== null && entry?.staged !== undefined
+      // A rename's committed side is under its old name; `HEAD:./<new>` is simply missing.
+      const committedRel = entry?.source ?? rel
       const specs = wanted.get(repo) ?? new Set<string>()
       if (staged) {
         specs.add(`:./${rel}`)
       }
       if (change.area === 'staged' || !staged) {
-        specs.add(`${ref}:./${rel}`)
+        specs.add(`${ref}:./${committedRel}`)
       }
       wanted.set(repo, specs)
     }
@@ -197,15 +198,16 @@ export function createCommands(ctx: AppContext) {
     const repo = git.repoFor(path)
     const rel = relative(rootDir, path)
     const repoRel = repo === null ? null : relative(repo, path)
+    const entry = git.statusEntries().get(path)
     const staged =
-      repo === null ||
-      repoRel === null ||
-      !git.statusEntries().get(path)?.staged
+      repo === null || repoRel === null || !entry?.staged
         ? null
         : blobText(repo, `:./${repoRel}`)
-    // As `git diff` measures it: the index when something is staged, else HEAD.
+    // As `git diff` measures it: the index when something is staged, else HEAD — and for a
+    // rename, HEAD holds the file under its old name, so `HEAD:./<new>` reads as a new file.
+    const committedRel = entry?.source ?? repoRel
     const committed = () =>
-      blobText(repo!, `${base ?? 'HEAD'}:./${repoRel!}`) ?? ''
+      blobText(repo!, `${base ?? 'HEAD'}:./${committedRel!}`) ?? ''
     const oldText =
       fileStatus === 'untracked' || repo === null || repoRel === null
         ? ''
@@ -226,7 +228,18 @@ export function createCommands(ctx: AppContext) {
         newText = buffer
       }
     }
-    const file: DiffFile = { newText, oldText, path, rel, status: fileStatus }
+    const file: DiffFile = {
+      newText,
+      // The header says `old → new` from this: `source` is repository-relative, `rel` is not.
+      oldPath:
+        entry?.source && repo !== null
+          ? relative(rootDir, join(repo, entry.source))
+          : null,
+      oldText,
+      path,
+      rel,
+      status: fileStatus,
+    }
     diffFileCache.delete(key)
     diffFileCache.set(key, {
       area,
