@@ -3,6 +3,7 @@ import type { ChildProcess } from 'node:child_process'
 import { relative } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
+import type { LocationMethod } from './locations'
 import type {
   CompletionItem,
   Diagnostic,
@@ -310,14 +311,19 @@ export function spawnLspClient(options: LspClientOptions) {
               dynamicRegistration: false,
               relatedDocumentSupport: false,
             },
+            documentSymbol: { hierarchicalDocumentSymbolSupport: true },
+            implementation: { linkSupport: true },
             publishDiagnostics: {},
+            references: {},
             synchronization: { didSave: true },
+            typeDefinition: { linkSupport: true },
           },
           // Without `configuration` a server never asks, and eslint then lints nothing.
           workspace: {
             configuration: true,
             diagnostics: { refreshSupport: true },
             didChangeConfiguration: { dynamicRegistration: true },
+            symbol: {},
             workspaceFolders: true,
           },
         },
@@ -410,19 +416,6 @@ export function spawnLspClient(options: LspClientOptions) {
     // Not `!ready()`: a starting client is un-ready too, and its sync is about to be honoured.
     dead: () => state === 'dead',
 
-    definition(
-      path: string,
-      position: { line: number; character: number }
-    ): Promise<unknown> {
-      if (state !== 'ready') {
-        return Promise.resolve(null)
-      }
-      return request('textDocument/definition', {
-        position,
-        textDocument: { uri: pathToFileURL(path).href },
-      }).catch(() => null)
-    },
-
     // Never blocks: App teardown and tests must not wait on a server.
     dispose() {
       if (disposed) {
@@ -447,6 +440,15 @@ export function spawnLspClient(options: LspClientOptions) {
       }
     },
 
+    documentSymbols(path: string): Promise<unknown> {
+      if (state !== 'ready') {
+        return Promise.resolve(null)
+      }
+      return request('textDocument/documentSymbol', {
+        textDocument: { uri: pathToFileURL(path).href },
+      }).catch(() => null)
+    },
+
     documents(): string[] {
       return [...versions.keys()].map((uri) =>
         relative(options.rootDir, fileURLToPath(uri))
@@ -464,6 +466,22 @@ export function spawnLspClient(options: LspClientOptions) {
     },
 
     id: options.id,
+
+    locate(
+      method: LocationMethod,
+      path: string,
+      position: { line: number; character: number }
+    ): Promise<unknown> {
+      if (state !== 'ready') {
+        return Promise.resolve(null)
+      }
+      return request(`textDocument/${method}`, {
+        context:
+          method === 'references' ? { includeDeclaration: false } : undefined,
+        position,
+        textDocument: { uri: pathToFileURL(path).href },
+      }).catch(() => null)
+    },
 
     openDocument(path: string, languageId: string, text: string) {
       const uri = pathToFileURL(path).href
@@ -496,6 +514,13 @@ export function spawnLspClient(options: LspClientOptions) {
 
     supportsCommand(command: string): boolean {
       return commands.has(command)
+    },
+
+    workspaceSymbols(query: string): Promise<unknown> {
+      if (state !== 'ready') {
+        return Promise.resolve(null)
+      }
+      return request('workspace/symbol', { query }).catch(() => null)
     },
   }
 }

@@ -180,7 +180,12 @@ process.stdin.on(
               triggerCharacters: ['.'],
             },
             definitionProvider: true,
+            documentSymbolProvider: true,
+            implementationProvider: true,
+            referencesProvider: true,
             textDocumentSync: 1,
+            typeDefinitionProvider: true,
+            workspaceSymbolProvider: true,
           },
         },
       })
@@ -199,6 +204,87 @@ process.stdin.on(
               start: { character: 6, line: 1 },
             },
             targetUri: `${rootUri}/def.ts`,
+          },
+        ],
+      })
+    } else if (
+      message.method === 'textDocument/implementation' ||
+      message.method === 'textDocument/typeDefinition'
+    ) {
+      send({
+        id: message.id,
+        jsonrpc: '2.0',
+        result: {
+          range: {
+            end: { character: 12, line: 1 },
+            start: { character: 6, line: 1 },
+          },
+          uri: `${rootUri}/def.ts`,
+        },
+      })
+    } else if (message.method === 'textDocument/references') {
+      const at = (line: number, uri: string) => ({
+        range: {
+          end: { character: 4, line },
+          start: { character: 0, line },
+        },
+        uri,
+      })
+      send({
+        id: message.id,
+        jsonrpc: '2.0',
+        result: [at(0, `${rootUri}/a.ts`), at(1, `${rootUri}/use.ts`)],
+      })
+    } else if (message.method === 'textDocument/documentSymbol') {
+      send({
+        id: message.id,
+        jsonrpc: '2.0',
+        result: [
+          {
+            children: [
+              {
+                kind: 6,
+                name: 'ring',
+                range: {
+                  end: { character: 3, line: 1 },
+                  start: { character: 2, line: 1 },
+                },
+                selectionRange: {
+                  end: { character: 6, line: 1 },
+                  start: { character: 2, line: 1 },
+                },
+              },
+            ],
+            kind: 5,
+            name: 'Bell',
+            range: {
+              end: { character: 1, line: 2 },
+              start: { character: 0, line: 0 },
+            },
+            selectionRange: {
+              end: { character: 10, line: 0 },
+              start: { character: 6, line: 0 },
+            },
+          },
+        ],
+      })
+    } else if (message.method === 'workspace/symbol') {
+      const { query } = message.params as { query: string }
+      send({
+        id: message.id,
+        jsonrpc: '2.0',
+        result: [
+          {
+            containerName: 'def',
+            kind: 12,
+            location: {
+              range: {
+                end: { character: 12, line: 1 },
+                start: { character: 6, line: 1 },
+              },
+              uri: `${rootUri}/def.ts`,
+            },
+            name: query,
           },
         ],
       })

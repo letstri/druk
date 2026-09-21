@@ -518,7 +518,21 @@ floor) — an item's docs change on every keystroke and a box that shrank and gr
 around them would jump under the cursor, while one that only grows settles after a
 few steps and leaves a list of paths a row or two rather than nine blank ones —
 and a pane too short for both drops the panel and keeps the list), go to definition (F12, the server's answer in whichever of the
-protocol's three shapes it comes) and open the file under the cursor
+protocol's three shapes it comes) and the rest of the protocol's navigation beside
+it — find references, go to implementation, go to type definition, go to symbol in
+the file and in the project (palette → Editor, bindable and unbound by default).
+One answer opens where it points; several put up the `ListPicker` every list of
+named things uses, a reference row reading as the line's own text with its
+`path:line` in the note column, since a list of paths is not a thing a reader can
+pick from. Nothing is gated on what the server's `initialize` advertised: a server
+that does not answer one of them returns nothing, which is the same "No references
+found" a real miss is, and one capability map per feature is a map that goes stale.
+`locate` (`src/lsp/client.ts`) is the one request for all four methods and
+`normalizeLocations` (`src/lsp/locations.ts`) the one reader of the reply; symbols
+come back in two unrelated shapes — hierarchical `DocumentSymbol`s with `children`,
+flat `SymbolInformation`s carrying their own uri — and `symbolHits`
+(`src/lsp/symbols.ts`) flattens both into the same rows,
+and open the file under the cursor
 (`Ctrl+Opt+O` — the path or import specifier the cursor is in, resolved on disk
 relative to the file and to the project root, then through the aliases
 `tsconfig.json`/`jsconfig.json` declares, and only then handed to the language

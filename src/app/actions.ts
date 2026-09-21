@@ -34,6 +34,8 @@ import type { ChangeArea, FileStatus } from '../core/git'
 import { pathTokenAt, resolveImportPath } from '../core/imports'
 import { NOTE_LABELS } from '../core/review'
 import type { NoteKind } from '../core/review'
+import type { LocationHit, LocationMethod, Target } from '../lsp/locations'
+import { symbolHits } from '../lsp/symbols'
 import type { ChangeSection, ChangesMeta } from '../ui/ChangesView'
 import { firstChangedLine } from '../ui/DiffView'
 import type { DiffFile } from '../ui/DiffView'
@@ -501,21 +503,72 @@ export function createCommands(ctx: AppContext) {
     }
   }
 
-  // A file that would not open leaves the goto unsent, or it would aim at the file on screen.
-  const openAt = (path: string, line: number, col: number) => {
-    // A jump inside the open file changes no tab, so nothing else records where it started.
-    if (path === workspace.activeView()) {
-      ctx.navigation.mark()
+  const openAt = ctx.navigation.open
+
+  // `what` is the command's own label, so the two messages read the same for all of them.
+  const withServed = (what: string, run: (path: string) => void) => {
+    const path = workspace.activePath()
+    if (!path) {
+      return say('No file open', 'warn')
     }
-    if (path !== workspace.activePath()) {
-      workspace.openFile(path)
+    if (!config.lsp) {
+      return say(`LSP is off — "${what}" needs a language server`, 'warn')
     }
-    if (workspace.activePath() !== path) {
-      return
-    }
-    editor.requestGoto(line, col)
-    panes.setFocus('editor')
+    run(path)
   }
+
+  const read = (path: string) => {
+    try {
+      return readFile(path)
+    } catch {
+      return ''
+    }
+  }
+
+  // The line's own text is what a reference list is read by; its place is the note.
+  const locationHits = (targets: Target[]): LocationHit[] => {
+    const texts = new Map<string, string[]>()
+    return targets.map((target) => {
+      let lines = texts.get(target.path)
+      if (!lines) {
+        // A location the server indexed may name a file that has since gone.
+        lines = (
+          workspace.buffers[target.path]?.content ?? read(target.path)
+        ).split('\n')
+        texts.set(target.path, lines)
+      }
+      const where = `${relative(rootDir, target.path)}:${target.line + 1}`
+      return {
+        ...target,
+        label: lines[target.line]?.trim() || where,
+        note: where,
+      }
+    })
+  }
+
+  const lspNav = (method: LocationMethod, what: string, found: string) => () =>
+    withServed(what, (path) => {
+      const at = editor.cursor()
+      void (async () => {
+        const targets = await ctx.lsp.locations(path, at.line, at.col, method)
+        if (targets.length === 0) {
+          return say(`No ${found.toLowerCase()} found`)
+        }
+        const first = targets[0]!
+        if (targets.length === 1) {
+          return openAt(first.path, first.line, first.col)
+        }
+        // The request may outlive the keyboard: whatever the user opened meanwhile wins.
+        if (ctx.prompts.prompt()) {
+          return
+        }
+        ctx.prompts.setPrompt({
+          hits: locationHits(targets),
+          kind: 'lspLocations',
+          title: found,
+        })
+      })()
+    })
 
   // The changes page names a section (`${area}:${path}`), not a row: a folded folder has no row.
   const openChangeKey = (key: string, line: number | null) => {
@@ -943,27 +996,44 @@ export function createCommands(ctx: AppContext) {
       }
       ctx.prompts.setPrompt({ kind: 'undoCommit', subject })
     },
-    gotoDefinition: () => {
-      const path = workspace.activePath()
-      if (!path) {
-        return say('No file open', 'warn')
-      }
-      if (!config.lsp) {
-        return say(
-          'LSP is off — go to definition needs a language server',
-          'warn'
-        )
-      }
-      const at = editor.cursor()
-      void (async () => {
-        const target = await ctx.lsp.definition(path, at.line, at.col)
-        if (!target) {
-          return say('No definition found')
-        }
-        openAt(target.path, target.line, target.col)
-      })()
-    },
+    gotoDefinition: lspNav('definition', 'Go to definition', 'Definitions'),
+    gotoImplementation: lspNav(
+      'implementation',
+      'Go to implementation',
+      'Implementations'
+    ),
     gotoLine: () => ctx.prompts.setPrompt({ kind: 'gotoLine' }),
+    gotoReferences: lspNav('references', 'Find references', 'References'),
+    gotoSymbol: () =>
+      withServed('Go to symbol in file', (path) => {
+        void (async () => {
+          const hits = symbolHits(
+            await ctx.lsp.symbols(path, null),
+            path,
+            rootDir
+          )
+          if (hits.length === 0) {
+            return say('No symbols found')
+          }
+          if (ctx.prompts.prompt()) {
+            return
+          }
+          ctx.prompts.setPrompt({
+            hits,
+            kind: 'lspLocations',
+            title: 'Symbols',
+          })
+        })()
+      }),
+    gotoTypeDefinition: lspNav(
+      'typeDefinition',
+      'Go to type definition',
+      'Type definitions'
+    ),
+    gotoWorkspaceSymbol: () =>
+      withServed('Go to symbol in project', (path) =>
+        ctx.prompts.setPrompt({ kind: 'workspaceSymbol', path })
+      ),
     lineHome: editor.requestLineHome,
     lineOp: editor.requestLineOp,
     lspStatus: () => {

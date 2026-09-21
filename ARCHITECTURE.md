@@ -98,8 +98,10 @@ scripts/
     client.ts        one language server: spawn, handshake, document sync, dispose
     completion.ts    the pure half of autocomplete: normalize, fuzzy filter, snippet
                      strip, edit application
-    definition.ts    the pure half of go-to-definition: any of the reply's three
-                     shapes as one file position
+    locations.ts     the pure half of the navigation requests: any of a reply's
+                     three shapes as file positions
+    symbols.ts       document and workspace symbols — hierarchy or flat list — as
+                     the same picker rows
     servers.ts       filetype → server command, all of it registered by extensions
     status.ts        the shapes the LSP status page renders (state, log, docs)
   extensions/
@@ -864,17 +866,23 @@ is just a diff against the empty tree.
   list. `ui/CompletionMenu.tsx` only paints what it computed. The global Esc
   handler consults `editor.completionOpen()` so dismissing the menu does not also
   move focus to the tree.
-- **Navigation is two commands, and only one of them needs a server.** Go to
-  definition is the language server's answer and nothing else. Open the file under
+- **Navigation is the server's answer plus one command that can do without it.**
+  Go to definition, find references, go to implementation, go to type definition
+  and the two symbol lists are the language server's answer and nothing else —
+  one `locate` request in `lsp/client.ts` for the four position-based ones, one
+  `normalizeLocations` for every reply, and a jump when the answer names one
+  place, the shared `ListPicker` when it names several. Open the file under
   the cursor tries the filesystem first — the token's own folder, then the project
   root, then the aliases `core/imports.ts` reads out of `tsconfig.json` /
   `jsconfig.json` — and asks the server only when none of that places the
   specifier. That order is what keeps a relative import working with LSP off,
   while `@/thing`, a bare package and an alias declared somewhere druk does not
   read still land: the server resolves those the way the project's own toolchain
-  does. Both jump through `openAt` in `app/actions.ts`, which drops any page over
-  the editor slot and skips the goto when the file refused to open — a goto sent
-  anyway would aim at whatever is still on screen.
+  does. All of them jump through `navigation.open`, which drops any page over the
+  editor slot and skips the goto when the file refused to open — a goto sent
+  anyway would aim at whatever is still on screen; it lives on the controller that
+  owns the visit history because the picker's own chooser, over in `prompts.ts`,
+  has to jump too.
 - **Inline problem text measures the buffer, not the string.** The message after a
   line's end (`lspInline`) is an absolutely-positioned overlay in `EditorPane`,
   placed with `lineInfo` — the line's *last* visual row and that row's used display

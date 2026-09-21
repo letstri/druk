@@ -11,8 +11,6 @@ import { spawnLspClient } from '../lsp/client'
 import type { LspClient } from '../lsp/client'
 import { normalizeCompletion } from '../lsp/completion'
 import type { CompletionReply } from '../lsp/completion'
-import { normalizeDefinition } from '../lsp/definition'
-import type { Target } from '../lsp/definition'
 import {
   availablePackageManagers,
   downloadServer,
@@ -22,6 +20,8 @@ import {
   SERVER_ROOT,
 } from '../lsp/install'
 import type { PackageManager } from '../lsp/install'
+import { normalizeLocations } from '../lsp/locations'
+import type { LocationMethod, Target } from '../lsp/locations'
 import {
   projectCommand,
   VUE_TYPESCRIPT_PLUGIN,
@@ -540,25 +540,57 @@ export function createLsp(deps: {
     }
   }
 
+  const locations = async (
+    path: string,
+    line: number,
+    col: number,
+    method: LocationMethod
+  ): Promise<Target[]> => {
+    if (!settings.config.lsp) {
+      return []
+    }
+    const ready = await readyClientsEventually(path, 10_000)
+    if (ready.length === 0) {
+      return []
+    }
+    flushEdits?.(path)
+    for (const client of ready) {
+      const targets = normalizeLocations(
+        await client.locate(method, path, { character: col, line })
+      )
+      if (targets.length > 0) {
+        return targets
+      }
+    }
+    return []
+  }
+
   const definition = async (
     path: string,
     line: number,
     col: number
   ): Promise<Target | null> => {
+    const found = await locations(path, line, col, 'definition')
+    return found[0] ?? null
+  }
+
+  // Path-less requests still go to the servers serving the open file.
+  const symbols = async (
+    path: string,
+    query: string | null
+  ): Promise<unknown> => {
     if (!settings.config.lsp) {
       return null
     }
     const ready = await readyClientsEventually(path, 10_000)
-    if (ready.length === 0) {
-      return null
-    }
     flushEdits?.(path)
     for (const client of ready) {
-      const target = normalizeDefinition(
-        await client.definition(path, { character: col, line })
-      )
-      if (target) {
-        return target
+      const result =
+        query === null
+          ? await client.documentSymbols(path)
+          : await client.workspaceSymbols(query)
+      if (Array.isArray(result) && result.length > 0) {
+        return result
       }
     }
     return null
@@ -592,6 +624,7 @@ export function createLsp(deps: {
     dispose,
     generation,
     install,
+    locations,
     onDiagnosticsRefresh,
     onFlushNeeded,
     onMissingServer,
@@ -601,6 +634,7 @@ export function createLsp(deps: {
     restart,
     restarts,
     servers,
+    symbols,
     uninstall,
   }
 }

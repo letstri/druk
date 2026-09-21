@@ -35,6 +35,15 @@ export const BINDABLE: Bindable[] = [
   },
   { defaults: ['Ctrl+G'], id: 'goto', label: 'Go to line…' },
   { defaults: ['F12'], id: 'goto.definition', label: 'Go to definition' },
+  { defaults: [], id: 'goto.references', label: 'Find references' },
+  { defaults: [], id: 'goto.implementation', label: 'Go to implementation' },
+  { defaults: [], id: 'goto.typeDefinition', label: 'Go to type definition' },
+  { defaults: [], id: 'goto.symbol', label: 'Go to symbol in file' },
+  {
+    defaults: [],
+    id: 'goto.workspaceSymbol',
+    label: 'Go to symbol in project',
+  },
   {
     defaults: [`Ctrl+${ALT}+O`],
     id: 'goto.file',

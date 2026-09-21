@@ -20,6 +20,7 @@ import {
 import { NOTE_KINDS, NOTE_LABELS } from '../core/review'
 import { SERVER_ROOT } from '../lsp/install'
 import { installHint } from '../lsp/servers'
+import { symbolHits } from '../lsp/symbols'
 import type { Branches } from './branches'
 import type { CommitView } from './commitView'
 import type { EditorBridge } from './editor'
@@ -28,6 +29,7 @@ import { noRepository, runCommit } from './git'
 import type { Git, GitOp } from './git'
 import type { Lsp } from './lsp'
 import type { Market } from './market'
+import type { Navigation } from './navigation'
 import type { Panes } from './panes'
 import type { Review } from './review'
 import type { Status } from './status'
@@ -53,6 +55,7 @@ const PROMPT_TITLES: Partial<Record<PromptKind, string>> = {
   reviewNote: 'Review note',
   reviewReply: 'Reply',
   workspaceOpen: 'Open folder',
+  workspaceSymbol: 'Workspace symbol',
 }
 
 export function createPromptState() {
@@ -63,6 +66,7 @@ export function createPromptState() {
 export type PromptState = ReturnType<typeof createPromptState>
 
 export function createPromptHandlers(deps: {
+  rootDir: string
   renderer: { destroy: () => void }
   state: PromptState
   status: Status
@@ -70,6 +74,7 @@ export function createPromptHandlers(deps: {
   panes: Panes
   editor: EditorBridge
   workspace: Workspace
+  navigation: Navigation
   fileOps: FileOps
   git: Git
   gitOp: GitOp
@@ -80,7 +85,8 @@ export function createPromptHandlers(deps: {
   review: Review
   workspaces: Workspaces
 }) {
-  const { renderer, state, status, tree, panes, editor, workspace } = deps
+  const { renderer, rootDir, state, status, tree, panes, editor, workspace } =
+    deps
   const {
     fileOps,
     git,
@@ -89,6 +95,7 @@ export function createPromptHandlers(deps: {
     branches,
     lsp,
     market,
+    navigation,
     review,
     workspaces,
   } = deps
@@ -184,6 +191,22 @@ export function createPromptHandlers(deps: {
         done: () => `Added remote ${p.name}`,
         repo: p.repo,
       })
+    } else if (p.kind === 'workspaceSymbol') {
+      void (async () => {
+        const hits = symbolHits(
+          await lsp.symbols(p.path, name),
+          p.path,
+          rootDir
+        )
+        if (hits.length === 0) {
+          return say(`No symbol matches "${name}"`)
+        }
+        // The request may outlive the keyboard: whatever the user opened meanwhile wins.
+        if (prompt()) {
+          return
+        }
+        setPrompt({ hits, kind: 'lspLocations', title: `Symbols · ${name}` })
+      })()
     } else if (p.kind === 'workspaceOpen') {
       workspaces.switchTo(name)
     } else if (p.kind === 'newWorktree') {
@@ -283,6 +306,13 @@ export function createPromptHandlers(deps: {
       repo: p.repo,
       url: remote.url,
     })
+  })
+
+  const chooseLocation = choosing('lspLocations', (p, index) => {
+    const hit = p.hits[Number(index)]
+    if (hit) {
+      navigation.open(hit.path, hit.line, hit.col)
+    }
   })
 
   const chooseHistoryCommit = choosing('fileHistory', (p, oid) => {
@@ -708,6 +738,7 @@ export function createPromptHandlers(deps: {
     chooseConflictSide,
     chooseHistoryCommit,
     chooseInstallServer,
+    chooseLocation,
     chooseRemoteRemove,
     chooseReviewKind,
     chooseStash,

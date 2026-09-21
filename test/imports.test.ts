@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test'
 import { join } from 'node:path'
 
 import { hasPathAt, pathTokenAt, resolveImportPath } from '../src/core/imports'
-import { normalizeDefinition } from '../src/lsp/definition'
+import { normalizeLocations } from '../src/lsp/locations'
 import { fixture } from './helpers'
 
 describe('the token under the cursor', () => {
@@ -112,6 +112,9 @@ describe('where a specifier resolves', () => {
   })
 })
 
+const normalizeDefinition = (result: unknown) =>
+  normalizeLocations(result)[0] ?? null
+
 describe('a definition reply', () => {
   const uri = 'file:///tmp/druk/def.ts'
   const range = {
@@ -153,5 +156,22 @@ describe('a definition reply', () => {
       normalizeDefinition({ range, uri: 'jdt://contents/rt.jar' })
     ).toBeNull()
     expect(normalizeDefinition({ range })).toBeNull()
+  })
+
+  test('a references reply keeps every location, in order', () => {
+    const other = {
+      end: { character: 4, line: 8 },
+      start: { character: 2, line: 8 },
+    }
+    expect(
+      normalizeLocations([
+        { range, uri },
+        { range: other, uri: 'file:///tmp/druk/use.ts' },
+        { range: other, uri: 'jdt://contents/rt.jar' },
+      ])
+    ).toEqual([
+      { col: 5, line: 3, path: '/tmp/druk/def.ts' },
+      { col: 2, line: 8, path: '/tmp/druk/use.ts' },
+    ])
   })
 })

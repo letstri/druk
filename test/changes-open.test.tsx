@@ -38,6 +38,28 @@ test('Enter on the changes page opens the file at its first change', async () =>
   expect(t.captureCharFrame()).toContain('Ln 8')
 })
 
+test('Enter drops the page even when its file is the tab underneath', async () => {
+  const dir = repo({ 'a.ts': lines(20, 'line') })
+  writeFileSync(
+    join(dir, 'a.ts'),
+    lines(20, 'line').replace('line7', 'CHANGED')
+  )
+  const t = await launch(
+    dir,
+    {},
+    { height: 30, width: 100 },
+    { openFile: join(dir, 'a.ts') }
+  )
+  await openDiff(t)
+  await untilFrame(t, 'CHANGED')
+
+  await press(t, (i) => i.pressTab())
+  await press(t, (i) => i.pressEnter())
+  await untilFrame(t, 'Ln 8')
+  // The diff's own rows are gone: the editor is what the page was covering.
+  expect(t.captureCharFrame()).not.toContain('- line7')
+})
+
 test('a click in the diff picks the line Enter opens at', async () => {
   const dir = repo({ 'a.ts': lines(20, 'line') })
   writeFileSync(

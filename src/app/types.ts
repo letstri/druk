@@ -4,6 +4,7 @@ import type { NoteKind } from '../core/review'
 import type { SearchOptions } from '../core/search'
 import type { WorkspaceEntry } from '../core/workspaces'
 import type { PackageManager } from '../lsp/install'
+import type { LocationHit } from '../lsp/locations'
 import type { FetchableInstall } from '../lsp/servers'
 import type { CommitVariant } from './git'
 
@@ -80,6 +81,8 @@ export type Prompt =
       files: number
       flags: string
     }
+  | { kind: 'lspLocations'; title: string; hits: LocationHit[] }
+  | { kind: 'workspaceSymbol'; path: string }
   | { kind: 'reviewKind'; path: string; line: number; endLine: number }
   | { kind: 'mergeConflict'; line: number; ours: string; theirs: string }
   | {

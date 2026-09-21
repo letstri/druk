@@ -71,6 +71,7 @@ type StashActionPrompt = Extract<Prompt, { kind: 'stashAction' }>
 type TagDeletePrompt = Extract<Prompt, { kind: 'tagDelete' }>
 type RemoteRemovePrompt = Extract<Prompt, { kind: 'remoteRemove' }>
 type FileHistoryPrompt = Extract<Prompt, { kind: 'fileHistory' }>
+type LocationsPrompt = Extract<Prompt, { kind: 'lspLocations' }>
 type WorkspacePickPrompt = Extract<Prompt, { kind: 'workspacePick' }>
 type WorktreePickPrompt = Extract<Prompt, { kind: 'worktreePick' }>
 type ConflictSidePrompt = Extract<Prompt, { kind: 'mergeConflict' }>
@@ -273,6 +274,7 @@ export function OverlayStack(props: {
   const tagDelete = promptOf('tagDelete')
   const remoteRemove = promptOf('remoteRemove')
   const fileHistory = promptOf('fileHistory')
+  const locations = promptOf('lspLocations')
   const workspacePick = promptOf('workspacePick')
   const worktreePick = promptOf('worktreePick')
   const conflictSide = promptOf('mergeConflict')
@@ -452,6 +454,21 @@ export function OverlayStack(props: {
               label: `${commit.oid.slice(0, 7)}  ${commit.subject}`,
             }))}
             onPick={prompts.chooseHistoryCommit}
+            onClose={prompts.cancelPrompt}
+          />
+        )}
+      </Show>
+      <Show when={locations()}>
+        {(ask: () => LocationsPrompt) => (
+          <ListPicker
+            title={ask().title}
+            placeholder="Type part of a line…"
+            items={ask().hits.map((hit, index) => ({
+              id: String(index),
+              label: hit.label,
+              note: hit.note,
+            }))}
+            onPick={prompts.chooseLocation}
             onClose={prompts.cancelPrompt}
           />
         )}

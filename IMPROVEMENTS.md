@@ -231,6 +231,10 @@ Effort: **S** &lt;1 day · **M** few days · **L** week+ · **XL** multi-week.
 | P1.4 | Completions | XL |
 | P1.5 | Document symbols (tree-sitter first) | M |
 
+~~P1.2 Go to definition / references~~ — **done** — F12, plus references,
+implementation, type definition and symbols in the palette  
+~~P1.5 Document symbols~~ — **done** — from the language server rather than tree-sitter
+
 **Phase 0** before full LSP: configured formatters + `problems` from `tsc` / `ruff` /
 `eslint`. Then JSON-RPC client, never on the key path.
 

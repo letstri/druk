@@ -89,12 +89,28 @@ export function createNavigation(deps: {
     panes.setFocus('editor')
   }
 
+  // A file that would not open leaves the goto unsent, or it would aim at the file on screen.
+  const open = (path: string, line: number, col: number) => {
+    // A jump inside the open file changes no tab, so nothing else records where it started.
+    if (path === workspace.activeView()) {
+      mark()
+    } else {
+      workspace.openFile(path)
+    }
+    if (workspace.activeView() !== path) {
+      return
+    }
+    editor.requestGoto(line, col)
+    panes.setFocus('editor')
+  }
+
   return {
     back: () => go(-1),
     canBack: () => at() > 0,
     canForward: () => at() < stops().length - 1,
     forward: () => go(1),
     mark,
+    open,
   }
 }
 

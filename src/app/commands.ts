@@ -23,6 +23,11 @@ export interface CommandActions {
   closeAll: () => void
   gotoLine: () => void
   gotoDefinition: () => void
+  gotoImplementation: () => void
+  gotoReferences: () => void
+  gotoSymbol: () => void
+  gotoTypeDefinition: () => void
+  gotoWorkspaceSymbol: () => void
   openFileUnderCursor: () => void
   undo: () => void
   redo: () => void
@@ -647,6 +652,31 @@ export function buildCommands(
           id: 'goto.definition',
           label: 'Go to definition',
           run: actions.gotoDefinition,
+        },
+        {
+          id: 'goto.references',
+          label: 'Find references',
+          run: actions.gotoReferences,
+        },
+        {
+          id: 'goto.implementation',
+          label: 'Go to implementation',
+          run: actions.gotoImplementation,
+        },
+        {
+          id: 'goto.typeDefinition',
+          label: 'Go to type definition',
+          run: actions.gotoTypeDefinition,
+        },
+        {
+          id: 'goto.symbol',
+          label: 'Go to symbol in file',
+          run: actions.gotoSymbol,
+        },
+        {
+          id: 'goto.workspaceSymbol',
+          label: 'Go to symbol in project',
+          run: actions.gotoWorkspaceSymbol,
         },
         {
           hint: `Ctrl+${ALT}+O`,

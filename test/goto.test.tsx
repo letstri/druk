@@ -243,3 +243,74 @@ test('a jump tints its landing row for a moment', async () => {
   expect(bg('const line29 = 29')).not.toBe(other)
   await until(t, () => bg('const line29 = 29') === other, 3000)
 }, 15_000)
+
+test('find references lists every hit and opens the chosen one', async () => {
+  const dir = fixture({
+    'a.ts': 'const a = beta\n',
+    'use.ts': '// first\nconst again = beta\n',
+  })
+  const t = await launch(
+    dir,
+    servedBy(process.execPath, FAKE),
+    {},
+    { openFile: join(dir, 'a.ts') }
+  )
+
+  await runCommand(t, 'Find references')
+  await untilFrame(t, 'const again = beta', LSP_WAIT)
+  expect(t.captureCharFrame()).toContain('use.ts:2')
+
+  await pressTimes(t, 1, (input) => input.pressArrow('down'))
+  await press(t, (input) => input.pressEnter())
+  await untilFrame(t, 'Ln 2, Col 1', LSP_WAIT)
+}, 30_000)
+
+test('implementation and type definition jump straight there', async () => {
+  const dir = fixture({
+    'a.ts': 'const a = beta\n',
+    'def.ts': '// the declaration\nconst beta = 1\n',
+  })
+  const t = await launch(
+    dir,
+    servedBy(process.execPath, FAKE),
+    {},
+    { openFile: join(dir, 'a.ts') }
+  )
+
+  await runCommand(t, 'Go to implementation')
+  await untilFrame(t, 'const beta = 1', LSP_WAIT)
+  await untilFrame(t, 'Ln 2, Col 7', LSP_WAIT)
+
+  await runCommand(t, 'Go back')
+  await untilFrame(t, 'Ln 1, Col 1', LSP_WAIT)
+  await runCommand(t, 'Go to type definition')
+  await untilFrame(t, 'const beta = 1', LSP_WAIT)
+  await untilFrame(t, 'Ln 2, Col 7', LSP_WAIT)
+}, 30_000)
+
+test('symbols in the file and in the project reach their line', async () => {
+  const dir = fixture({
+    'a.ts': 'class Bell {\n  ring() {}\n}\n',
+    'def.ts': '// the declaration\nconst beta = 1\n',
+  })
+  const t = await launch(
+    dir,
+    servedBy(process.execPath, FAKE),
+    {},
+    { openFile: join(dir, 'a.ts') }
+  )
+
+  await runCommand(t, 'Go to symbol in file')
+  await untilFrame(t, 'Bell.ring', LSP_WAIT)
+  expect(t.captureCharFrame()).toContain('method')
+  await press(t, (input) => input.pressEnter())
+  await untilFrame(t, 'Ln 1, Col 7', LSP_WAIT)
+
+  await runCommand(t, 'Go to symbol in project')
+  await untilFrame(t, 'Workspace symbol', LSP_WAIT)
+  await press(t, (input) => input.typeText('beta'))
+  await press(t, (input) => input.pressEnter())
+  await untilFrame(t, 'def.beta', LSP_WAIT)
+  await press(t, (input) => input.pressEnter())
+  await untilFrame(t, 'const beta = 1', LSP_WAIT)
+}, 40_000)
