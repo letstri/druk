@@ -2063,10 +2063,12 @@ export function EditorPane(props: EditorPaneProps) {
     }
     const view = folded()
     const next = view ? foldView(content, view.folds) : null
-    setFolded(next)
-    rememberFolds(next?.folds ?? [])
-    applyFoldText(next ? next.text : content)
-    editor.setCursor(next ? shownLine(row) : row, col)
+    keepingView(() => {
+      setFolded(next)
+      rememberFolds(next?.folds ?? [])
+      applyFoldText(next ? next.text : content)
+      editor!.setCursor(next ? shownLine(row) : row, col)
+    })
     props.onChange(content)
     rehighlight(content)
     scheduleCursorSync()
@@ -2207,13 +2209,15 @@ export function EditorPane(props: EditorPaneProps) {
     if (!at) {
       return
     }
-    // The step replaces the file wholesale: the folds index text that no longer exists.
-    if (folded()) {
-      setFolded(null)
-      rememberFolds([])
-    }
-    editor.setText(at.content)
-    editor.cursorOffset = Math.min(at.cursor, at.content.length)
+    keepingView(() => {
+      // The step replaces the file wholesale: the folds index text that no longer exists.
+      if (folded()) {
+        setFolded(null)
+        rememberFolds([])
+      }
+      editor!.setText(at.content)
+      editor!.cursorOffset = Math.min(at.cursor, at.content.length)
+    })
     props.onChange(at.content)
     rehighlight(at.content)
     scheduleCursorSync()
