@@ -217,6 +217,37 @@ describe('normal-mode edits', () => {
     expect(await save(t, file)).toBe('one\nX\nthree\n')
   })
 
+  test('dw fills the register, so p puts the word back', async () => {
+    const { t, file } = await vimEditor('alpha beta\n')
+    await type(t, 'dw')
+    await type(t, '$p')
+    expect(await save(t, file)).toBe('betaalpha \n')
+  })
+
+  test('x and D fill it too', async () => {
+    const { t, file } = await vimEditor('abc\n')
+    await type(t, 'x$p')
+    expect(await save(t, file)).toBe('bca\n')
+  })
+
+  test('yw yanks a word without deleting it', async () => {
+    const { t, file } = await vimEditor('alpha beta\n')
+    await type(t, 'yw$p')
+    expect(await save(t, file)).toBe('alpha betaalpha \n')
+  })
+
+  test('dj takes both lines', async () => {
+    const { t, file } = await vimEditor()
+    await type(t, 'dj')
+    expect(await save(t, file)).toBe('three\n')
+  })
+
+  test('dG deletes to the end of the file', async () => {
+    const { t, file } = await vimEditor()
+    await type(t, 'jdG')
+    expect(await save(t, file)).toBe('one\n')
+  })
+
   test('yy then p puts the copy below', async () => {
     const { t, file } = await vimEditor()
     await type(t, 'yyp')

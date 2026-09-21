@@ -230,22 +230,99 @@ function deleteLine(editor: Editor, state: VimState, count: number): void {
   }
 }
 
-const OPERATOR_TARGETS: Record<
-  string,
-  (editor: Editor, count: number) => void
-> = {
-  $: (e) => e.deleteToLineEnd(),
-  0: (e) => e.deleteToLineStart(),
-  b: (e, n) => {
-    for (let i = 0; i < n; i += 1) {
-      e.deleteWordBackward()
+// `j`/`k`/`G` take whole lines, as vim's linewise motions do; the rest take what they crossed.
+const LINEWISE_MOTIONS = new Set(['j', 'down', 'k', 'up', 'G'])
+
+// For the deletes that have already yanked linewise: taking the range again would overwrite
+// the register with the same text charwise.
+function deleteRange(editor: Editor, from: number, to: number): void {
+  if (to <= from) {
+    return
+  }
+  editor.setSelection(from, to)
+  editor.deleteSelection()
+}
+
+// Every operator goes through here, so `dw` fills the register the way `dd` does: before this
+// `y` had no motions at all and `dw`/`x`/`D` left nothing for `p` to put back.
+function cutRange(
+  editor: Editor,
+  state: VimState,
+  op: 'd' | 'c' | 'y',
+  from: number,
+  to: number
+): void {
+  if (to <= from) {
+    return
+  }
+  editor.setSelection(from, to)
+  yankSelection(editor, state)
+  if (op === 'y') {
+    editor.clearSelection()
+    editor.cursorOffset = from
+    return
+  }
+  editor.deleteSelection()
+}
+
+function applyOperator(
+  editor: Editor,
+  state: VimState,
+  op: 'd' | 'c' | 'y',
+  k: string,
+  count: number,
+  counted: boolean
+): boolean {
+  const text = editor.plainText
+  const start = editor.cursorOffset
+
+  if (k === '$' || k === '0') {
+    const [from, to] =
+      k === '$'
+        ? [start, lineEnd(text, start) + 1]
+        : [lineStart(text, start), start]
+    cutRange(editor, state, op, from, to)
+    return true
+  }
+
+  if (LINEWISE_MOTIONS.has(k)) {
+    const fromRow = editor.logicalCursor.row
+    if (!motion(editor, k, state, count, counted)) {
+      return false
     }
-  },
-  w: (e, n) => {
-    for (let i = 0; i < n; i += 1) {
-      e.deleteWordForward()
+    const all = editor.plainText.split('\n')
+    // The empty string after the file's final newline is no line: `dG` must not eat that newline.
+    const last = all.at(-1) === '' ? all.length - 2 : all.length - 1
+    const toRow = Math.min(editor.logicalCursor.row, Math.max(0, last))
+    const top = Math.min(fromRow, toRow)
+    const rows = Math.abs(toRow - top) + 1
+    editor.setCursor(top, 0)
+    if (op === 'y') {
+      yankLines(editor, state, rows)
+      editor.setCursor(top, 0)
+      return true
     }
-  },
+    if (op === 'c') {
+      // As `cc` does: the emptied line stays, so insert starts where the block was.
+      yankLines(editor, state, rows)
+      const body = editor.plainText
+        .split('\n')
+        .slice(top, top + rows)
+        .join('\n')
+      const from = editor.cursorOffset
+      deleteRange(editor, from, from + body.length)
+      return true
+    }
+    deleteLine(editor, state, rows)
+    return true
+  }
+
+  if (!motion(editor, k, state, count, counted)) {
+    return false
+  }
+  const end = editor.cursorOffset
+  cutRange(editor, state, op, Math.min(start, end), Math.max(start, end))
+  return true
 }
 
 function lineStart(text: string, offset: number): number {
@@ -318,7 +395,7 @@ function runFind(
   if (end < start) {
     return
   }
-  editor.setSelectionInclusive(start, end)
+  selectInclusive(editor, start, end)
   yankSelection(editor, state)
   if (op === 'y') {
     editor.clearSelection()
@@ -640,20 +717,20 @@ function dispatch(
       } else if (op === 'y') {
         yankLines(editor, state, count)
       } else if (op === 'c') {
+        yankLines(editor, state, count)
         editor.gotoLineStart()
-        editor.deleteToLineEnd()
+        const from = editor.cursorOffset
+        deleteRange(editor, from, lineEnd(editor.plainText, from) + 1)
         state.mode = 'insert'
       }
       return true
     }
-    if (op === 'd' || op === 'c') {
-      const cut = OPERATOR_TARGETS[k]
-      if (cut) {
-        cut(editor, count)
-        if (op === 'c') {
-          state.mode = 'insert'
-        }
-      }
+    if (
+      (op === 'd' || op === 'c' || op === 'y') &&
+      applyOperator(editor, state, op, k, count, digits !== '') &&
+      op === 'c'
+    ) {
+      state.mode = 'insert'
     }
     return true
   }
@@ -668,7 +745,7 @@ function dispatch(
       if (saved) {
         const start = Math.min(state.anchor, editor.cursorOffset)
         const end = Math.max(state.anchor, editor.cursorOffset)
-        editor.setSelectionInclusive(start, end)
+        selectInclusive(editor, start, end)
         if (saved === 'd') {
           yankSelection(editor, state)
           editor.deleteSelection()
@@ -685,7 +762,8 @@ function dispatch(
       } else if (state.mode === 'visual') {
         editor.clearSelection()
         const cursor = editor.cursorOffset
-        editor.setSelectionInclusive(
+        selectInclusive(
+          editor,
           Math.min(state.anchor, cursor),
           Math.max(state.anchor, cursor)
         )
@@ -742,11 +820,24 @@ function dispatch(
           break
         }
         case 'd':
-        case 'x':
-        case 'c': {
+        case 'x': {
           editor.gotoLine(rowStart)
           deleteLine(editor, state, rowCount)
-          state.mode = k === 'c' ? 'insert' : 'normal'
+          state.mode = 'normal'
+          break
+        }
+        case 'c': {
+          // `cc`'s rule: the emptied line stays, so insert starts where the block was.
+          state.register = `${lines.slice(rowStart, rowStart + rowCount).join('\n')}\n`
+          state.registerLinewise = true
+          editor.gotoLine(rowStart)
+          const from = editor.cursorOffset
+          deleteRange(
+            editor,
+            from,
+            from + lines.slice(rowStart, rowStart + rowCount).join('\n').length
+          )
+          state.mode = 'insert'
           break
         }
         case 'y': {
@@ -844,25 +935,25 @@ function dispatch(
       break
     }
     case 'x': {
-      for (let i = 0; i < count; i += 1) {
-        // `deleteChar` deletes forward: at the end of a line it would eat the newline.
-        if (atLineEnd(editor)) {
-          if (editor.logicalCursor.col === 0) {
-            break
-          }
-          editor.moveCursorLeft()
-        }
-        editor.deleteChar()
+      const text = editor.plainText
+      const start = editor.cursorOffset
+      // `deleteChar` deletes forward: at the end of a line it would eat the newline, so the
+      // char before the caret goes instead — where there is one.
+      const end = Math.min(start + count, lineEnd(text, start) + 1)
+      if (end > start) {
+        cutRange(editor, state, 'd', start, end)
+      } else if (start > lineStart(text, start)) {
+        cutRange(editor, state, 'd', start - 1, start)
       }
       break
     }
-    case 'D': {
-      editor.deleteToLineEnd()
-      break
-    }
+    case 'D':
     case 'C': {
-      editor.deleteToLineEnd()
-      state.mode = 'insert'
+      const start = editor.cursorOffset
+      cutRange(editor, state, 'd', start, lineEnd(editor.plainText, start) + 1)
+      if (k === 'C') {
+        state.mode = 'insert'
+      }
       break
     }
     case 'u': {

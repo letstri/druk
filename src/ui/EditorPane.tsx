@@ -2531,7 +2531,11 @@ export function EditorPane(props: EditorPaneProps) {
       return
     }
 
-    if (key.ctrl && key.name === 'v') {
+    // Both edit the buffer, so with vim on they are insert-mode keys: normal-mode Ctrl+V is
+    // visual-block, and a chord that rewrites the file from normal mode is not a vim chord at all.
+    const editingChord = !props.vim || vimState.mode === 'insert'
+
+    if (key.ctrl && key.name === 'v' && editingChord) {
       key.preventDefault()
       const text = readClipboard()
       if (text === null) {
@@ -2545,7 +2549,8 @@ export function EditorPane(props: EditorPaneProps) {
     // Ctrl+/ arrives as Ctrl+_, as '/' under kitty, and in Terminal.app not at all — hence Ctrl+L.
     if (
       key.ctrl &&
-      (key.name === '_' || key.name === '/' || key.name === 'l')
+      (key.name === '_' || key.name === '/' || key.name === 'l') &&
+      editingChord
     ) {
       key.preventDefault()
       toggleCommentLines()
