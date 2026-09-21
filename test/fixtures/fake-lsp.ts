@@ -207,11 +207,25 @@ process.stdin.on(
             },
             definitionProvider: true,
             documentSymbolProvider: true,
+            hoverProvider: true,
             implementationProvider: true,
             referencesProvider: true,
             textDocumentSync: 1,
             typeDefinitionProvider: true,
             workspaceSymbolProvider: true,
+          },
+        },
+      })
+    } else if (message.method === 'textDocument/hover') {
+      send({
+        id: message.id,
+        jsonrpc: '2.0',
+        result: {
+          contents: {
+            kind: 'markdown',
+            value:
+              '```typescript\nfunction beta(): number\n```\n\n' +
+              'Counts the betas.\n\n*@deprecated* — use `gamma` instead',
           },
         },
       })

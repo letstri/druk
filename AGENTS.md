@@ -567,7 +567,21 @@ The item goes back to the server
 that prepared it, `data` and all — `answeredHierarchy` in `src/app/lsp.ts`, the
 `completionItem/resolve` rule. The code beside the list is `createHighlighted` /
 `paintLine` (`src/ui/codeSpans.ts`), which the search panel's own preview uses
-too — one parse-and-paint, not a second copy,
+too — one parse-and-paint, not a second copy.
+What the server says about the symbol under the caret shares that slot
+(`Ctrl+Opt+K`, palette → Editor → Show documentation at cursor): the signature, the
+doc comment and the reason behind a `@deprecated` — none of which a diagnostic
+carries, its message being `'useStore' is deprecated.` and nothing more. It is
+`textDocument/hover`, normalized by `hoverText` (`src/lsp/hover.ts`) out of the
+three shapes the protocol offers into the plain text `plainMarkup` already makes
+of a completion's documentation, and it is the *only* widget in the peek slot
+while it is up — opening one shuts the other, and `problemCard` stands down for
+either, two boxes over the caret's line being two boxes overprinting. It is a
+peek rather than a card because a card's height is a message; this is a page of
+prose, and the box is sized to the wrapped text (`hoverLines` in
+`src/ui/HoverPeek.tsx`, which App measures the slot with and the widget draws
+from) up to the peek's own fourteen rows, past which it says how many are left.
+Any key shuts it, as the completion menu and the call peek are shut,
 and open the file under the cursor
 (`Ctrl+Opt+O` — the path or import specifier the cursor is in, resolved on disk
 relative to the file and to the project root, then through the aliases

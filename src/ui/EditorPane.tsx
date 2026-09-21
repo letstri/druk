@@ -876,8 +876,15 @@ export function EditorPane(props: EditorPaneProps) {
     void props.content
     const el = editorEl()
     // The review card owns the rows under its own line.
-    // The completion menu floats over the same rows; two boxes there overprint each other.
-    if (!props.problemText || !el || !host || cardGap() || menuOpen()) {
+    // The completion menu and the peek float over the same rows; two boxes there overprint.
+    if (
+      !props.problemText ||
+      !el ||
+      !host ||
+      cardGap() ||
+      menuOpen() ||
+      props.peekRows > 0
+    ) {
       return null
     }
     const problem = displayProblems().get(cursorRow())

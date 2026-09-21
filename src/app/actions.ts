@@ -568,6 +568,7 @@ export function createCommands(ctx: AppContext) {
         if (!root) {
           return say('No calls here')
         }
+        ctx.hoverPeek.close()
         ctx.callHierarchy.start(root, path, at.line)
       })()
     })
@@ -1049,8 +1050,8 @@ export function createCommands(ctx: AppContext) {
       ctx.prompts.setPrompt({ kind: 'undoCommit', subject })
     },
     gotoCalls: peekCalls,
-    gotoHover: showHover,
     gotoDefinition: lspNav('definition', 'Go to definition', 'Definitions'),
+    gotoHover: showHover,
     gotoImplementation: lspNav(
       'implementation',
       'Go to implementation',

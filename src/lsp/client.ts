@@ -551,6 +551,19 @@ export function spawnLspClient(options: LspClientOptions) {
       })
     },
 
+    prepareCallHierarchy(
+      path: string,
+      position: { line: number; character: number }
+    ): Promise<unknown> {
+      if (state !== 'ready') {
+        return Promise.resolve(null)
+      }
+      return request('textDocument/prepareCallHierarchy', {
+        position,
+        textDocument: { uri: pathToFileURL(path).href },
+      }).catch(() => null)
+    },
+
     pullDiagnostics,
 
     ready: () => state === 'ready',

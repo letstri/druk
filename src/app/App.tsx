@@ -227,7 +227,6 @@ export function App(props: {
     fileOps,
     git,
     gitOp,
-    hoverPeek,
     lsp,
     market,
     navigation,
@@ -276,6 +275,7 @@ export function App(props: {
     fileOps,
     git,
     gitOp,
+    hoverPeek,
     lsp,
     market,
     navigation,
@@ -469,6 +469,72 @@ export function App(props: {
       { key: 'Enter', label: 'details', rank: 4 },
       { id: 'git.openCommitWeb', key: 'o', label: 'remote', rank: 5 },
       { key: 'Esc', label: panes.sidebar() ? 'sidebar' : 'close', rank: 6 },
+    ]
+  }
+
+  // VS Code's peek is about this tall; a short terminal gets whatever EditorPane can spare.
+  const PEEK_ROWS = 14
+
+  const docLines = createMemo(() =>
+    hoverPeek.open() ? hoverLines(hoverPeek.text(), slotWidth() - 4) : []
+  )
+
+  const peekRows = () => {
+    const room = Math.min(PEEK_ROWS, dimensions().height - 6)
+    if (hoverPeek.open()) {
+      return Math.min(room, docLines().length + 2)
+    }
+    return callHierarchy.open() ? room : 0
+  }
+
+  // Claimed here rather than in a handler of its own: `useKeys` runs in mount order, and the
+  // peek is a child of the pane whose handler would otherwise see the key first.
+  const peekKey = (key: KeyEvent): boolean => {
+    if (hoverPeek.open()) {
+      hoverPeek.close()
+      // Esc is spent shutting it; anything else is editing again.
+      return key.name === 'escape'
+    }
+    if (!callHierarchy.open()) {
+      return false
+    }
+    switch (key.name) {
+      case 'up': {
+        callHierarchy.move(-1)
+        return true
+      }
+      case 'down': {
+        callHierarchy.move(1)
+        return true
+      }
+      case 'return':
+      case 'enter': {
+        actions.callsOpen()
+        return true
+      }
+      case 'escape': {
+        callHierarchy.close()
+        return true
+      }
+      default: {
+        // Anything else is editing again, as it is under the completion menu.
+        callHierarchy.close()
+        return false
+      }
+    }
+  }
+
+  const peekHints = (): Hint[] => {
+    if (hoverPeek.open()) {
+      return [{ key: 'Esc', label: 'close', rank: 6 }]
+    }
+    if (!callHierarchy.open()) {
+      return []
+    }
+    return [
+      { key: '↑↓', label: 'walk', rank: 4 },
+      { key: 'Enter', label: 'open', rank: 5 },
+      { key: 'Esc', label: 'close', rank: 6 },
     ]
   }
 
@@ -870,18 +936,29 @@ export function App(props: {
               peekRows={peekRows()}
               onPeekKey={peekKey}
               peek={
-                <CallPeek
-                  rows={callHierarchy.rows()}
-                  cursor={callHierarchy.cursor()}
-                  title={callHierarchy.title()}
-                  loading={callHierarchy.loading()}
-                  rootDir={rootDir}
-                  width={slotWidth()}
-                  height={peekRows()}
-                  bufferOf={(path) => workspace.buffers[path]?.content}
-                  onMoveTo={actions.callsMoveTo}
-                  onOpen={actions.callsOpen}
-                />
+                <Show
+                  when={hoverPeek.open()}
+                  fallback={
+                    <CallPeek
+                      rows={callHierarchy.rows()}
+                      cursor={callHierarchy.cursor()}
+                      title={callHierarchy.title()}
+                      loading={callHierarchy.loading()}
+                      rootDir={rootDir}
+                      width={slotWidth()}
+                      height={peekRows()}
+                      bufferOf={(path) => workspace.buffers[path]?.content}
+                      onMoveTo={actions.callsMoveTo}
+                      onOpen={actions.callsOpen}
+                    />
+                  }
+                >
+                  <HoverPeek
+                    lines={docLines()}
+                    width={slotWidth()}
+                    height={peekRows()}
+                  />
+                </Show>
               }
               path={workspace.activePath()}
               content={workspace.activeBuffer()?.content ?? ''}
@@ -963,8 +1040,6 @@ export function App(props: {
                 >
                   <ImageView
                     path={path()}
-                    width={slotWidth()}
-                    height={slotHeight()}
                     blocked={overlays.overlay()}
                     onFocus={() => panes.setFocus('editor')}
                   />
@@ -1207,7 +1282,7 @@ export function App(props: {
         focus={panes.keyPane()}
         pathUnderCursor={panes.keyPane() === 'editor' && pathUnderCursor()}
         definitionServed={panes.keyPane() === 'editor' && definitionServed()}
-        extraHints={[...changesHints(), ...graphHints()]}
+        extraHints={[...changesHints(), ...graphHints(), ...peekHints()]}
         busy={status.busy()}
         onBranch={actions.gitSwitchBranch}
         onSync={actions.gitSync}

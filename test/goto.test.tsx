@@ -412,3 +412,26 @@ test('escape shuts the peek with the sidebar open', async () => {
   await press(t, (input) => input.typeText('x'))
   await untilFrame(t, 'xfunction beta() {}')
 }, 30_000)
+
+test('the docs peek says what the diagnostic does not', async () => {
+  const dir = fixture({ 'a.ts': 'const stale = beta()\n' })
+  const t = await launch(
+    dir,
+    servedBy(process.execPath, FAKE),
+    { height: 28, width: 100 },
+    { kittyKeyboard: true, openFile: join(dir, 'a.ts') }
+  )
+
+  await press(t, (input) => input.pressKey('k', { ctrl: true, meta: true }))
+  await untilFrame(t, 'function beta(): number', LSP_WAIT)
+  const frame = t.captureCharFrame()
+  // The reason the diagnostic only hints at, and the fence around the signature is gone.
+  expect(frame).toContain('use gamma instead')
+  expect(frame).not.toContain('```')
+  // The caret never moved, and the peek replaced the problem card rather than overprinting it.
+  expect(frame).toContain('Ln 1, Col 1')
+  expect(frame).not.toContain('○ hint')
+
+  await pressEscape(t)
+  await untilGone(t, 'function beta(): number')
+}, 30_000)

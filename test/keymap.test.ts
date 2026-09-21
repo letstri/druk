@@ -79,7 +79,7 @@ describe('chord spellings', () => {
 describe('what may be bound', () => {
   test('a chord without Ctrl is refused unless it is a function key', () => {
     expect(bindingProblem(chord('f5'))).toBeNull()
-    expect(bindingProblem(chord('ctrl+opt+k'))).toBeNull()
+    expect(bindingProblem(chord('ctrl+opt+q'))).toBeNull()
     expect(bindingProblem(chord('k'))).toContain('needs Ctrl')
     expect(bindingProblem(chord('opt+k'))).toContain('needs Ctrl')
   })
@@ -207,8 +207,8 @@ describe('custom bindings', () => {
   })
 
   test('a command with no default can be given one', () => {
-    const keymap = resolveKeymap({ 'git.commit': 'Ctrl+Opt+K' })
-    expect(matchKeymap(keymap, event('k', { ctrl: true, option: true }))).toBe(
+    const keymap = resolveKeymap({ 'git.commit': 'Ctrl+Opt+Q' })
+    expect(matchKeymap(keymap, event('q', { ctrl: true, option: true }))).toBe(
       'git.commit'
     )
     expect(keymap.conflicts).toEqual([])
@@ -246,15 +246,15 @@ describe('clashes', () => {
 
   test('between two custom bindings the earlier command keeps the chord', () => {
     const keymap = resolveKeymap({
-      'git.commit': 'Ctrl+Opt+K',
-      'git.push': 'Ctrl+Opt+K',
+      'git.commit': 'Ctrl+Opt+Q',
+      'git.push': 'Ctrl+Opt+Q',
     })
-    expect(matchKeymap(keymap, event('k', { ctrl: true, option: true }))).toBe(
+    expect(matchKeymap(keymap, event('q', { ctrl: true, option: true }))).toBe(
       'git.commit'
     )
     const clash = keymap.conflicts.find((entry) => entry.rejected)
     expect(clash).toEqual({
-      key: `Ctrl+${ALT}+K`,
+      key: `Ctrl+${ALT}+Q`,
       loser: 'Push',
       rejected: true,
       winner: 'Commit…',
@@ -263,11 +263,11 @@ describe('clashes', () => {
   })
 
   test('a chord another custom binding holds is refusable by name', () => {
-    const keymap = resolveKeymap({ 'git.commit': 'Ctrl+Opt+K' })
-    expect(customHolder(keymap, chord('ctrl+opt+k'), 'git.push')?.id).toBe(
+    const keymap = resolveKeymap({ 'git.commit': 'Ctrl+Opt+Q' })
+    expect(customHolder(keymap, chord('ctrl+opt+q'), 'git.push')?.id).toBe(
       'git.commit'
     )
-    expect(customHolder(keymap, chord('ctrl+opt+k'), 'git.commit')).toBeNull()
+    expect(customHolder(keymap, chord('ctrl+opt+q'), 'git.commit')).toBeNull()
     expect(customHolder(keymap, chord('ctrl+b'), 'git.push')).toBeNull()
   })
 })

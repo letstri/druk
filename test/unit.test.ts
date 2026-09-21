@@ -8,6 +8,7 @@ import { readFile, watchPath, watchTree, writeAtomic } from '../src/core/fs'
 import type { Changed } from '../src/core/fs'
 import { searchProject, searchText } from '../src/core/search'
 import { isNewer } from '../src/core/update'
+import { hoverText } from '../src/lsp/hover'
 import { THEMES } from '../src/themes'
 import { flattenCommands } from '../src/ui/CommandPalette'
 import { tempDir } from './temp'
@@ -187,4 +188,21 @@ test('an atomic write leaves no partial file and no temp behind', () => {
 
   expect(readFile(file)).toBe('{"a":2}')
   expect(readdirSync(join(dir, 'nested'))).toEqual(['config.json'])
+})
+
+test('a hover reads in all three shapes the protocol offers', () => {
+  expect(hoverText({ contents: { kind: 'markdown', value: '# beta' } })).toBe(
+    'beta'
+  )
+  expect(hoverText({ contents: 'plain **words**' })).toBe('plain words')
+  expect(
+    hoverText({
+      contents: [
+        { language: 'typescript', value: 'const beta: number' },
+        'Counts them.',
+      ],
+    })
+  ).toBe('const beta: number\n\nCounts them.')
+  expect(hoverText(null)).toBe('')
+  expect(hoverText({ contents: { kind: 'markdown', value: '' } })).toBe('')
 })

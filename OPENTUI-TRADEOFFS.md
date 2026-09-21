@@ -15,6 +15,16 @@ rediscovered.
 
 ## A. A native path exists — replacing degrades a feature
 
+### A0. Selection occupancy — a default, not a custom implementation
+Not a trade-off, but it lives here because it is the same kind of trap. 0.5.11 added
+`SelectionOccupancy`, and its default `cell` makes a selection *replace* the grapheme
+under its far end — one character more than the same selection paints and than
+`getSelectedText` returns (both versions paint five cells and copy five characters for a
+five-cell drag; only the replace changed). The editor's textarea is therefore built
+`selectionOccupancy="boundary"`. Vim wants the other one: `setSelectionInclusive` is
+inclusive only under `cell`, so `selectInclusive` (`src/editor/vim.ts`) sets it on every
+one of vim's own selections and the editor's mouse-down puts `boundary` back.
+
 ### A1. Editor scroll past the end, and the scroll margin
 - **Custom**: `ownScrolling` (`src/ui/EditorPane.tsx:190`), ~50 lines rewriting the
   textarea's protected `handleScroll` and `onResize`, plus one

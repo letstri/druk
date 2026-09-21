@@ -12,8 +12,8 @@ import type { LspClient } from '../lsp/client'
 import { normalizeCompletion } from '../lsp/completion'
 import type { CompletionReply } from '../lsp/completion'
 import { callNodes, hierarchyItems, nodeOf } from '../lsp/hierarchy'
-import { hoverText } from '../lsp/hover'
 import type { CallDirection, CallNode } from '../lsp/hierarchy'
+import { hoverText } from '../lsp/hover'
 import {
   availablePackageManagers,
   downloadServer,
@@ -614,9 +614,7 @@ export function createLsp(deps: {
     const ready = await readyClientsEventually(path, 10_000)
     flushEdits?.(path)
     for (const client of ready) {
-      const text = hoverText(
-        await client.hover(path, { character: col, line })
-      )
+      const text = hoverText(await client.hover(path, { character: col, line }))
       if (text.length > 0) {
         return text
       }
@@ -732,6 +730,7 @@ export function createLsp(deps: {
     onDiagnosticsRefresh,
     onFlushNeeded,
     onMissingServer,
+    prepareCallHierarchy,
     problems,
     removable,
     resolveCompletion,
