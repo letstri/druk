@@ -3,6 +3,7 @@ import { mkdirSync, symlinkSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { flattenVisible, listDir } from '../src/core/fs'
+import { listFiles, searchProject } from '../src/core/search'
 import { launch, openFile, press } from './helpers'
 import { tempDir } from './temp'
 
@@ -69,6 +70,17 @@ describe('listing symlinks', () => {
 
     const rows = flattenVisible(project, new Set([loop, join(loop, 'loop')]))
     expect(rows.length).toBeGreaterThan(0)
+  })
+
+  test('the project scan walks a loop once, not forever', () => {
+    const { project } = linked()
+    symlinkSync(project, join(project, 'loop'))
+
+    // Synchronous: a scan that re-entered the loop would hang the UI here, not fail.
+    expect(searchProject(project, 'const real').length).toBe(1)
+    expect(
+      listFiles(project).filter((p) => p.endsWith('linked.ts'))
+    ).toHaveLength(1)
   })
 })
 

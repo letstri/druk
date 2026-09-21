@@ -1,4 +1,4 @@
-import { listDir, readFile, readTextFile, writeFile } from './fs'
+import { listDir, readFile, readTextFile, realPath, writeFile } from './fs'
 import { ignoredPaths } from './git'
 import { isRepoRoot } from './repos'
 
@@ -23,10 +23,25 @@ export function buildQuery(
   const escaped = options.regex
     ? query
     : query.replaceAll(/[\\^$.*+?()[\]{}|]/gu, '\\$&')
-  const wrapped = options.wholeWord ? `\\b(?:${escaped})\\b` : escaped
+  // `m`: searchText counts per line while replaceAll runs over the whole file.
+  const flags = options.caseSensitive ? 'gm' : 'gim'
+  if (options.wholeWord) {
+    try {
+      // JS `\b` is ASCII: a Cyrillic or CJK word inside its own run would never match. The `u`
+      // flag those classes need rejects escapes a user's regex may legally carry, hence the fallback.
+      return new RegExp(
+        `(?<![\\p{L}\\p{N}_])(?:${escaped})(?![\\p{L}\\p{N}_])`,
+        `${flags}u`
+      )
+    } catch {
+      // an escape the `u` flag refuses
+    }
+  }
   try {
-    // `m`: searchText counts per line while replaceAll runs over the whole file.
-    return new RegExp(wrapped, options.caseSensitive ? 'gm' : 'gim')
+    return new RegExp(
+      options.wholeWord ? `\\b(?:${escaped})\\b` : escaped,
+      flags
+    )
   } catch {
     return null
   }
@@ -103,6 +118,8 @@ function* filesUnder(root: string): Generator<string> {
   const queue: [dir: string, ignored: Set<string>][] = [
     [root, ignoredPaths(root)],
   ]
+  // Real paths of the directories already queued: a symlink loop would otherwise walk forever.
+  const seen = new Set<string>([realPath(root)])
   while (queue.length > 0) {
     const [dir, ignored] = queue.shift()!
     for (const node of listDir(dir)) {
@@ -113,6 +130,11 @@ function* filesUnder(root: string): Generator<string> {
         if (SKIPPED_DIRS.has(node.name)) {
           continue
         }
+        const real = realPath(node.path)
+        if (seen.has(real)) {
+          continue
+        }
+        seen.add(real)
         queue.push([
           node.path,
           isRepoRoot(node.path) ? ignoredPaths(node.path) : ignored,
@@ -312,8 +334,14 @@ export function replaceAll(
   if (!pattern) {
     return text
   }
+  // Line by line, as `searchText` counts them: a pattern with `\n` must not reach text no hit showed.
   // Function form, so `$&` and `$1` in the replacement are inserted literally.
-  return text.replace(pattern, (hit) => (hit.length === 0 ? hit : replacement))
+  return text
+    .split('\n')
+    .map((line) =>
+      line.replace(pattern, (hit) => (hit.length === 0 ? hit : replacement))
+    )
+    .join('\n')
 }
 
 export function replaceMatch(

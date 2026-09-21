@@ -193,7 +193,7 @@ export function listDir(dir: string, depth = 0): TreeNode[] {
     })
 }
 
-function realPath(path: string): string {
+export function realPath(path: string): string {
   try {
     return fs.realpathSync(path)
   } catch {
