@@ -1,5 +1,7 @@
 // Rows are 0-based and ranges inclusive, matching the editor's logical cursor.
 
+import { outdentWidth } from './typing'
+
 const indentOf = (line: string) => line.length - line.trimStart().length
 
 export function toggleComment(
@@ -82,4 +84,26 @@ export function trimTrailing(text: string): string {
     .map((line) => line.replace(/[ \t]+$/u, ''))
     .join('\n')
   return trimmed.endsWith('\n') ? trimmed : `${trimmed}\n`
+}
+
+export function indentLines(
+  text: string,
+  from: number,
+  to: number,
+  tabSize: number,
+  outdent: boolean
+): string {
+  const lines = text.split('\n')
+  for (let row = from; row <= to; row += 1) {
+    const line = lines[row]
+    if (line === undefined) {
+      continue
+    }
+    if (outdent) {
+      lines[row] = line.slice(outdentWidth(line, tabSize))
+    } else if (line.trim().length > 0) {
+      lines[row] = ' '.repeat(tabSize) + line
+    }
+  }
+  return lines.join('\n')
 }

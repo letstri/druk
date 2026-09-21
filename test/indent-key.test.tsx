@@ -46,9 +46,31 @@ describe('Tab in the editor', () => {
   })
 })
 
-// Terminals send CSI Z for a back-tab; `pressKey('tab', { shift: true })` types "tab".
 const BACK_TAB = `${String.fromCodePoint(27)}[Z`
 
+describe('Tab over a selection', () => {
+  test('indents every line the selection touches, keeping it', async () => {
+    const { t, saved } = await editor('one\ntwo\nthree\n')
+    // Into the second line: a selection stopping at column 0 does not take that line.
+    await press(t, (input) => input.pressArrow('down', { shift: true }))
+    await press(t, (input) => input.pressArrow('right', { shift: true }))
+    await press(t, (input) => input.pressTab())
+    expect(await saved()).toBe('  one\n  two\nthree\n')
+    // The selection survives, so a second Tab is a second level rather than two spaces.
+    await press(t, (input) => input.pressTab())
+    expect(await saved()).toBe('    one\n    two\nthree\n')
+  })
+
+  test('Shift+Tab takes one level off each of them', async () => {
+    const { t, saved } = await editor('    one\n    two\nthree\n')
+    await press(t, (input) => input.pressArrow('down', { shift: true }))
+    await press(t, (input) => input.pressArrow('right', { shift: true }))
+    await press(t, (input) => input.pressKeys([BACK_TAB]))
+    expect(await saved()).toBe('  one\n  two\nthree\n')
+  })
+})
+
+// Terminals send CSI Z for a back-tab; `pressKey('tab', { shift: true })` types "tab".
 describe('Shift+Tab in the editor', () => {
   test('takes one level off the front of the line', async () => {
     const { t, saved } = await editor('    hello\n')

@@ -16,6 +16,25 @@ const lineAt = (editor: TextareaRenderable, row: number) =>
 const indentOf = (line: string) =>
   line.slice(0, line.length - line.trimStart().length)
 
+// A tab is a stop, not a character: `col` counts characters and the stop is counted in cells.
+const cellColumn = (line: string, col: number, tabSize: number) => {
+  let cells = 0
+  for (const char of line.slice(0, col)) {
+    cells += char === '\t' ? tabSize - (cells % tabSize) : 1
+  }
+  return cells + Math.max(0, col - line.length)
+}
+
+// One indent stop off the front: a tab, else up to `tabSize` spaces. Counting characters
+// instead takes both tabs off a `\t\tfoo` line whenever `tabSize` is 2.
+export function outdentWidth(line: string, tabSize: number): number {
+  const lead = indentOf(line)
+  if (lead.startsWith('\t')) {
+    return 1
+  }
+  return Math.min(lead.length, tabSize)
+}
+
 // The textarea binds no Tab and has no indent action: without this the key does nothing.
 export function handleTyping(
   editor: TextareaRenderable,
@@ -28,8 +47,7 @@ export function handleTyping(
 
   if (key.name === 'tab') {
     if (key.shift) {
-      const lead = indentOf(line).length
-      const drop = Math.min(lead, tabSize)
+      const drop = outdentWidth(line, tabSize)
       if (drop === 0) {
         return true
       }
@@ -40,7 +58,9 @@ export function handleTyping(
       editor.setCursor(row, Math.max(0, col - drop))
       return true
     }
-    editor.insertText(' '.repeat(tabSize - (col % tabSize)))
+    editor.insertText(
+      ' '.repeat(tabSize - (cellColumn(line, col, tabSize) % tabSize))
+    )
     return true
   }
 

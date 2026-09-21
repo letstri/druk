@@ -41,6 +41,7 @@ import type { FoldOp, FoldRegion, FoldView } from '../editor/folds'
 import { History } from '../editor/history'
 import {
   duplicateLines,
+  indentLines,
   moveLines,
   removeLines,
   toggleComment,
@@ -2592,6 +2593,11 @@ export function EditorPane(props: EditorPaneProps) {
     }
 
     if (props.vim && vimState.mode !== 'insert') {
+      return
+    }
+    if (key.name === 'tab' && editor.hasSelection()) {
+      key.preventDefault()
+      indentSelection(key.shift === true)
       return
     }
     if (handleTyping(editor, key, props.tabSize)) {
