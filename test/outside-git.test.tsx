@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import { setTimeout as sleep } from 'node:timers/promises'
 
 import { watchTree } from '../src/core/fs'
+import { statusEntriesAsync } from '../src/core/git'
 import { launch, untilFrame, untilGone } from './helpers'
 import { initRepo } from './repo'
 import { tempDir } from './temp'
@@ -31,19 +32,21 @@ describe('git work done in another terminal', () => {
   })
 
   test('reading status never feeds the watcher its own tail', async () => {
-    const { dir, git } = repo()
-    let hits = 0
+    const { dir } = repo()
+    const hits = { count: 0 }
+    // The first read refreshes the index's stat cache; only a later one could rewrite it.
+    await statusEntriesAsync(dir)
     const stop = watchTree(dir, () => {
-      hits += 1
+      hits.count += 1
     })
     try {
       await sleep(200)
       for (let n = 0; n < 5; n += 1) {
-        git('status', '--porcelain')
+        await statusEntriesAsync(dir)
       }
       await sleep(400)
-      // `git status` rewrites .git/index: watched, the refresh rewrites it and never settles.
-      expect(hits).toBe(0)
+      // A plain `git status` rewrites .git/index, which is watched: the refresh would never settle.
+      expect(hits.count).toBe(0)
     } finally {
       stop()
     }

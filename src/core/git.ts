@@ -27,8 +27,12 @@ export function combinedStatus(entry: StatusEntry): FileStatus {
 // spawnSync truncates at 1 MB by default and reports ENOBUFS, which every caller reads as "no output".
 const MAX_OUTPUT = 128 * 1024 * 1024
 
+// `git status`/`git diff` rewrite the index to refresh its stat cache, which wakes the `.git`
+// watcher that asked for them; reads take no optional lock so that loop cannot start.
+const READ_ONLY = ['--no-optional-locks']
+
 function git(cwd: string, args: string[], timeout = 5000, input?: string) {
-  return spawnSync('git', args, {
+  return spawnSync('git', [...READ_ONLY, ...args], {
     cwd,
     encoding: 'utf-8',
     input,
@@ -43,7 +47,12 @@ function gitAsync(
   timeout = 10_000,
   input?: string
 ): Promise<ProcessResult> {
-  return runProcess('git', args, { cwd, input, maxOutput: MAX_OUTPUT, timeout })
+  return runProcess('git', [...READ_ONLY, ...args], {
+    cwd,
+    input,
+    maxOutput: MAX_OUTPUT,
+    timeout,
+  })
 }
 
 // Keyed by 0-based line number; git's hunk headers are 1-based.

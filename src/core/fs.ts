@@ -1,5 +1,5 @@
 import fs from 'node:fs'
-import { basename, dirname, join } from 'node:path'
+import { basename, dirname, join, resolve } from 'node:path'
 
 import { errorMessage } from './errors'
 
@@ -112,8 +112,35 @@ export function watchTree(
   }
 }
 
-// HEAD and refs only: macOS coalesces everything under `.git` to `index.lock`, which git status
-// rewrites, so a watch on the directory feeds itself.
+// A linked worktree or a submodule has `.git` as a file naming the real directory, and that
+// directory holds its own HEAD and index while refs stay in the repository's common one.
+export function gitDirs(repo: string): { dir: string; common: string } {
+  const dot = join(repo, '.git')
+  let dir = dot
+  try {
+    if (fs.statSync(dot).isFile()) {
+      const named = fs
+        .readFileSync(dot, 'utf-8')
+        .match(/^gitdir:\s*(.+)$/mu)?.[1]
+      if (named) {
+        dir = resolve(repo, named.trim())
+      }
+    }
+  } catch {
+    // no repository here
+  }
+  let common = dir
+  try {
+    common = resolve(
+      dir,
+      fs.readFileSync(join(dir, 'commondir'), 'utf-8').trim()
+    )
+  } catch {
+    // not a linked worktree
+  }
+  return { common, dir }
+}
+
 export function watchGitRefs(repo: string, onChange: () => void): () => void {
   const watchers: fs.FSWatcher[] = []
   const watch = (path: string, options: fs.WatchOptions) => {
@@ -122,9 +149,12 @@ export function watchGitRefs(repo: string, onChange: () => void): () => void {
       watchers.push(watcher)
     }
   }
-  const gitDir = join(repo, '.git')
-  watch(join(gitDir, 'HEAD'), {})
-  watch(join(gitDir, 'refs'), { recursive: true })
+  const { common, dir } = gitDirs(repo)
+  // HEAD and the index are written as a `.lock` renamed over the old file, so the directory is what
+  // sees them — and macOS coalesces that pair into one event named for either, so the lock cannot be
+  // filtered out. Druk's own reads take no optional lock, so none of this is its own tail.
+  watch(dir, {})
+  watch(join(common, 'refs'), { recursive: true })
   return () => {
     for (const watcher of watchers) {
       watcher.close()
