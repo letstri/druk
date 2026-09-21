@@ -213,6 +213,12 @@ function paneLines(patch: string, view: 'unified' | 'split') {
           left.push(...dels, ...adds)
         }
       } else {
+        // `\ No newline at end of file` is drawn like any other row: it must take a slot in both
+        // panes, or every ref after it is off by one.
+        if (view === 'split') {
+          right.push(null)
+        }
+        left.push(null)
         at += 1
       }
     }

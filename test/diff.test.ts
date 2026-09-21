@@ -28,6 +28,14 @@ describe('unifiedDiff', () => {
     )
   })
 
+  test('a change of only the final newline is still a change', () => {
+    const diff = unifiedDiff('a.ts', 'a\nb', 'a\nb\n')
+    expect(diff.adds).toBe(1)
+    expect(diff.dels).toBe(1)
+    expect(diff.patch).toContain('-b\n\\ No newline at end of file\n+b\n')
+    expect(unifiedDiff('a.ts', 'a\nb\n', 'a\nb\n').patch).toBe('')
+  })
+
   test('a new file diffs from /dev/null with a -0,0 hunk', () => {
     const diff = unifiedDiff('new.ts', '', 'a\nb\n')
     expect(diff.adds).toBe(2)
@@ -126,7 +134,10 @@ describe('scale', () => {
         (l) => /^[ +-]/u.test(l) && !l.startsWith('+++') && !l.startsWith('---')
       )
     expect(body).toHaveLength(100)
-    expect(diff.patch).toContain('@@ -1,100 +0,0 @@')
+    // The cap is spent across both sides: all-deletions would read as "new file empty".
+    expect(diff.patch).toContain('@@ -1,50 +1,50 @@')
+    expect(body.filter((l) => l.startsWith('-'))).toHaveLength(50)
+    expect(body.filter((l) => l.startsWith('+'))).toHaveLength(50)
   })
 
   test('a diff under maxLines is not truncated', () => {

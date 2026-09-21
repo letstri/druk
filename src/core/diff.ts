@@ -178,7 +178,11 @@ function rewritePatch(
   ) {
     body.push(` ${oldLines[i]!}`)
   }
-  for (let i = start; i < oldEnd && lines < maxLines; i += 1, lines += 1) {
+  // Half the budget each: deletions alone would fill it and the new side would never be drawn.
+  const share =
+    dels > 0 && adds > 0 ? Math.floor((maxLines - lines) / 2) : maxLines
+  const delCap = Math.min(maxLines, lines + share)
+  for (let i = start; i < oldEnd && lines < delCap; i += 1, lines += 1) {
     body.push(`-${oldLines[i]!}`)
     emittedDels += 1
   }
@@ -209,6 +213,44 @@ function rewritePatch(
   }
 }
 
+const NO_NEWLINE = '\\ No newline at end of file'
+
+// `splitText` drops the final newline, so `a` and `a\n` line up: without this the change vanishes.
+function newlineOnlyDiff(
+  rel: string,
+  oldText: string,
+  newText: string,
+  oldLines: string[],
+  newLines: string[]
+): UnifiedDiff {
+  const last = newLines.length
+  if (
+    oldText === newText ||
+    last === 0 ||
+    oldText.endsWith('\n') === newText.endsWith('\n')
+  ) {
+    return { adds: 0, dels: 0, lines: 0, patch: '', truncated: false }
+  }
+  const body = [
+    `-${oldLines[last - 1]!}`,
+    ...(oldText.endsWith('\n') ? [] : [NO_NEWLINE]),
+    `+${newLines[last - 1]!}`,
+    ...(newText.endsWith('\n') ? [] : [NO_NEWLINE]),
+  ]
+  return {
+    adds: 1,
+    dels: 1,
+    lines: 2,
+    patch: `${[
+      `--- a/${rel}`,
+      `+++ b/${rel}`,
+      `@@ -${last},1 +${last},1 @@`,
+      ...body,
+    ].join('\n')}\n`,
+    truncated: false,
+  }
+}
+
 export function unifiedDiff(
   rel: string,
   oldText: string,
@@ -236,7 +278,7 @@ export function unifiedDiff(
     }
   }
   if (hunks.length === 0) {
-    return { adds: 0, dels: 0, lines: 0, patch: '', truncated: false }
+    return newlineOnlyDiff(rel, oldText, newText, oldLines, newLines)
   }
 
   let adds = 0
