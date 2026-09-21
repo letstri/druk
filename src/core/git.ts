@@ -31,6 +31,9 @@ const MAX_OUTPUT = 128 * 1024 * 1024
 // watcher that asked for them; reads take no optional lock so that loop cannot start.
 const READ_ONLY = ['--no-optional-locks']
 
+// A path after `--` is a pathspec: `git clean -f -- '[id].tsx'` would also delete `i.tsx`.
+const literal = (path: string) => `:(literal)${path}`
+
 function git(cwd: string, args: string[], timeout = 5000, input?: string) {
   return spawnSync('git', [...READ_ONLY, ...args], {
     cwd,
@@ -63,7 +66,14 @@ export async function diffLines(
   const marks = new Map<number, LineChange>()
   const run = await gitAsync(
     dirname(path),
-    ['diff', '--no-color', '--unified=0', ...(ref ? [ref] : []), '--', path],
+    [
+      'diff',
+      '--no-color',
+      '--unified=0',
+      ...(ref ? [ref] : []),
+      '--',
+      literal(path),
+    ],
     3000
   )
   if (run.status !== 0 || !run.stdout) {
@@ -757,9 +767,6 @@ function pathInHead(repo: string, path: string): boolean {
   return git(repo, ['cat-file', '-e', `HEAD:./${path}`], 3000).status === 0
 }
 
-// A path after `--` is a pathspec: `git clean -f -- '[id].tsx'` would also delete `i.tsx`.
-const literal = (path: string) => `:(literal)${path}`
-
 function discardMode(repo: string, entry: PorcelainEntry): DiscardMode {
   if (entry.xy[0] === 'R') {
     return 'restore'
@@ -1097,7 +1104,7 @@ export function blobTexts(
     return out
   }
   // Buffers, not utf8: the batch header counts contents in bytes, so a non-ASCII blob slices wrong.
-  const run = spawnSync('git', ['cat-file', '--batch'], {
+  const run = spawnSync('git', [...READ_ONLY, 'cat-file', '--batch'], {
     cwd,
     input: `${specs.join('\n')}\n`,
     maxBuffer: MAX_OUTPUT,
@@ -1561,11 +1568,11 @@ export async function commitPaths(
   message: string,
   paths: string[]
 ): Promise<GitResult> {
-  const add = await mutate(cwd, ['add', '-A', '--', ...paths])
+  const add = await mutate(cwd, ['add', '-A', '--', ...paths.map(literal)])
   if (!add.ok) {
     return add
   }
-  return mutate(cwd, ['commit', '-m', message, '--', ...paths])
+  return mutate(cwd, ['commit', '-m', message, '--', ...paths.map(literal)])
 }
 
 export function commitAmend(cwd: string, message: string): Promise<GitResult> {
