@@ -488,7 +488,8 @@ function parsePie(header: string, lines: string[]): PieDiagram {
       continue
     }
     const slice = /^"?(.+?)"?\s*:\s*([\d.]+)$/u.exec(line)
-    if (slice) {
+    // `10.5.5` and `.` both match the digits-and-dots pattern and both parse to NaN.
+    if (slice && Number.isFinite(Number(slice[2]))) {
       slices.push({ label: unquote(slice[1]!), value: Number(slice[2]) })
     }
   }
