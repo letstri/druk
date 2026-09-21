@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs'
-import { dirname, join } from 'node:path'
+import { dirname, join, sep } from 'node:path'
 
 import { listDir } from './fs'
 
@@ -89,7 +89,7 @@ export function discoverRepos(
 export function repoOf(path: string, repos: readonly string[]): string | null {
   let best: string | null = null
   for (const repo of repos) {
-    if (path !== repo && !path.startsWith(`${repo}/`)) {
+    if (path !== repo && !path.startsWith(`${repo}${sep}`)) {
       continue
     }
     if (best === null || repo.length > best.length) {

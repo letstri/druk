@@ -30,7 +30,7 @@ export function createFileOps(deps: {
 
   // Paths *under* `from` move too: a buffer left on the old path saves the folder back.
   const adoptMove = (from: string, to: string) => {
-    const inside = `${from}/`
+    const inside = `${from}${sep}`
     const remap = (path: string) =>
       path === from
         ? to
@@ -53,7 +53,7 @@ export function createFileOps(deps: {
   }
 
   const within = (dir: string, path: string) =>
-    dir === path || dir.startsWith(`${path}/`)
+    dir === path || dir.startsWith(`${path}${sep}`)
 
   const whyNotMove = (path: string, dir: string): string | null => {
     if (dirname(path) === dir) {

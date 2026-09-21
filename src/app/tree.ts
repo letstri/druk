@@ -1,4 +1,4 @@
-import { dirname, join } from 'node:path'
+import { dirname, join, sep } from 'node:path'
 
 import { createMemo, createSignal } from 'solid-js'
 
@@ -93,7 +93,7 @@ export function createTree(
 
   const reveal = (path: string) => {
     const parts = path.startsWith(rootDir)
-      ? path.slice(rootDir.length + 1).split('/')
+      ? path.slice(rootDir.length + 1).split(sep)
       : []
     if (parts.length < 2) {
       return
@@ -119,11 +119,11 @@ export function createTree(
     setExpanded(new Set<string>())
     clearMarks()
     const path = selectedPath()
-    if (!path?.startsWith(`${rootDir}/`)) {
+    if (!path?.startsWith(`${rootDir}${sep}`)) {
       return
     }
     setSelectedPath(
-      join(rootDir, path.slice(rootDir.length + 1).split('/')[0]!)
+      join(rootDir, path.slice(rootDir.length + 1).split(sep)[0]!)
     )
   }
 
