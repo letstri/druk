@@ -363,7 +363,11 @@ through one layered graph engine; sequence diagrams and pie charts of their own;
 else — gantt, mindmap, timeline — falls back to the fenced source), themes that follow the OS light/dark appearance (`themeSync`, on by default, with
 `themeLight` / `themeDark` picked separately and defaulting to the GitHub pair —
 polled, since no OS offers a portable subscription; `DRUK_OS_APPEARANCE=dark|light`
-forces the answer on a desktop none of the probes can read), themes previewed live
+forces the answer on a desktop none of the probes can read; `iconThemeSync` is the
+same switch for file icons, with `iconThemeLight` / `iconThemeDark`, and is off by
+default since one icon set usually serves both appearances — picking a theme or an
+icon set by hand turns its own sync off, and the poll runs while either is on),
+themes previewed live
 while the selection sits on one — in the palette's Themes submenu and in the settings
 page's three theme lists — and put back when the list is left without confirming;
 icon sets pick and preview the same way (palette → File icons, which names the sets

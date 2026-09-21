@@ -227,6 +227,7 @@ export function App(props: {
     fileOps,
     git,
     gitOp,
+    hoverPeek,
     lsp,
     market,
     navigation,

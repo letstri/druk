@@ -15,6 +15,7 @@ import {
   runCommand,
   settle,
   toggleSetting,
+  until,
   untilFrame,
 } from './helpers'
 
@@ -100,4 +101,47 @@ test('the settings page turns the sync on and applies the matching slot', async 
   await untilFrame(t, 'Following OS appearance')
   await runCommand(t, 'Settings')
   await untilFrame(t, 'Solarized Light')
+})
+
+test('the icon slots default to one set for both, sync off', () => {
+  expect(DEFAULTS.iconThemeSync).toBe(false)
+  expect(DEFAULTS.iconThemeLight).toBe(DEFAULTS.iconTheme)
+  expect(DEFAULTS.iconThemeDark).toBe(DEFAULTS.iconTheme)
+})
+
+const savedIcons = () =>
+  JSON.parse(readFileSync(CONFIG_FILE, 'utf-8')).iconTheme
+
+test('icon sync takes the dark slot, then follows the OS to light', async () => {
+  process.env[APPEARANCE_ENV] = 'dark'
+  const t = await launch(fixture({ 'a.ts': 'const a = 1\n' }), {
+    iconTheme: 'none',
+    iconThemeDark: 'unicode',
+    iconThemeLight: 'none',
+    iconThemeSync: true,
+    themeSync: false,
+  })
+  await until(t, () => savedIcons() === 'unicode')
+
+  process.env[APPEARANCE_ENV] = 'light'
+  await until(t, () => savedIcons() === 'none')
+})
+
+test('picking an icon set by hand turns the icon sync off', async () => {
+  process.env[APPEARANCE_ENV] = 'dark'
+  const t = await launch(fixture({ 'a.ts': 'const a = 1\n' }), {
+    iconTheme: 'none',
+    iconThemeDark: 'unicode',
+    iconThemeSync: true,
+    themeSync: false,
+  })
+  await runCommand(t, 'Unicode shapes')
+  await untilFrame(t, 'no longer following the OS appearance')
+  expect(JSON.parse(readFileSync(CONFIG_FILE, 'utf-8')).iconThemeSync).toBe(
+    false
+  )
+
+  process.env[APPEARANCE_ENV] = 'light'
+  await settle(t, 300)
+  expect(savedIcons()).toBe('unicode')
 })

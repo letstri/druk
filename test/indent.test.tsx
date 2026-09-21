@@ -61,7 +61,7 @@ test('tab size is configurable and shown on the settings page', async () => {
       .find((line) => line.includes('Tab size'))!
   expect(row().trimEnd().endsWith('4')).toBe(true)
 
-  for (let i = 0; i < 16 && !row().includes('▌'); i += 1) {
+  for (let i = 0; i < 30 && !row().includes('▌'); i += 1) {
     await press(t, (input) => input.pressArrow('down'))
   }
   await press(t, (input) => input.pressArrow('right'))

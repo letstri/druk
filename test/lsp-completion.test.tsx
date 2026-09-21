@@ -214,7 +214,7 @@ test('the palette command triggers the menu, Escape dismisses it', async () => {
 test('the settings page carries the Autocomplete toggle', async () => {
   const dir = fixture({ 'a.ts': 'const a = 1\n' })
   // Tall: the page windows its rows and the server rows come last.
-  const t = await launch(dir, {}, { height: 46 })
+  const t = await launch(dir, {}, { height: 50 })
 
   await runCommand(t, 'Settings')
   await untilFrame(t, 'Autocomplete')

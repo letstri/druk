@@ -51,7 +51,7 @@ const cursorRow = (t: Harness) =>
 const savedStyle = () =>
   JSON.parse(readFileSync(CONFIG_FILE, 'utf-8')).cursorStyle
 
-const CURSOR_ROW = 10
+const CURSOR_ROW = 13
 
 test('the cursor row starts on the block druk has always drawn', async () => {
   const t = await launch(fixture(PROJECT))

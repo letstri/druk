@@ -55,6 +55,9 @@ export interface Config {
   themeDark: ThemeName
   transparent: boolean
   iconTheme: string
+  iconThemeSync: boolean
+  iconThemeLight: string
+  iconThemeDark: string
   tabIcons: boolean
   tooltips: boolean
   terminalTitle: boolean
@@ -101,6 +104,9 @@ export const DEFAULTS: Config = {
   gitPanelView: 'tree',
   gitScanDepth: DEFAULT_SCAN_DEPTH,
   iconTheme: NO_ICONS,
+  iconThemeDark: NO_ICONS,
+  iconThemeLight: NO_ICONS,
+  iconThemeSync: false,
   keybindings: {},
   lsp: true,
   lspAutoInstall: true,
@@ -134,6 +140,7 @@ type Validator<K extends keyof Config> = (raw: unknown) => Config[K] | undefined
 
 const bool = (raw: unknown) => (typeof raw === 'boolean' ? raw : undefined)
 const theme = (raw: unknown) => (isThemeName(raw) ? raw : undefined)
+const iconSet = (raw: unknown) => (isIconThemeName(raw) ? raw : undefined)
 const text = (raw: unknown) => (typeof raw === 'string' ? raw : undefined)
 
 const among =
@@ -190,7 +197,10 @@ const VALIDATORS: { [K in keyof Config]: Validator<K> } = {
     typeof raw === 'number' && raw >= 0 && raw <= 5
       ? Math.floor(raw)
       : undefined,
-  iconTheme: (raw) => (isIconThemeName(raw) ? raw : undefined),
+  iconTheme: iconSet,
+  iconThemeDark: iconSet,
+  iconThemeLight: iconSet,
+  iconThemeSync: bool,
   keybindings: strings,
   lsp: bool,
   lspAutoInstall: bool,
@@ -317,9 +327,15 @@ export function unregisteredNames(rootDir: string): {
         themes.add(value)
       }
     }
-    const icon = raw.iconTheme
-    if (typeof icon === 'string' && icon && !isIconThemeName(icon)) {
-      icons.add(icon)
+    for (const key of [
+      'iconTheme',
+      'iconThemeLight',
+      'iconThemeDark',
+    ] as const) {
+      const value = raw[key]
+      if (typeof value === 'string' && value && !isIconThemeName(value)) {
+        icons.add(value)
+      }
     }
   }
   return { icons: [...icons], themes: [...themes] }

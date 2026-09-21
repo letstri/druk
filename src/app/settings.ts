@@ -192,15 +192,24 @@ export function createSettings(deps: {
   }
 
   const applyAppearance = (appearance: Appearance) => {
-    // A project pinning `theme` outranks the OS; the poll would rewrite the user file every few seconds.
-    if (project.theme !== undefined) {
-      return
+    const patch: Partial<Config> = {}
+    // A project pinning one of these outranks the OS; the poll would rewrite the user file every few seconds.
+    if (config.themeSync && project.theme === undefined) {
+      const name = appearance === 'dark' ? config.themeDark : config.themeLight
+      if (name !== config.theme) {
+        patch.theme = name
+      }
     }
-    const name = appearance === 'dark' ? config.themeDark : config.themeLight
-    if (name === config.theme) {
-      return
+    if (config.iconThemeSync && project.iconTheme === undefined) {
+      const id =
+        appearance === 'dark' ? config.iconThemeDark : config.iconThemeLight
+      if (id !== config.iconTheme) {
+        patch.iconTheme = id
+      }
     }
-    patchUserConfig({ theme: name })
+    if (Object.keys(patch).length > 0) {
+      patchUserConfig(patch)
+    }
   }
 
   const applySideTheme = (
@@ -249,8 +258,46 @@ export function createSettings(deps: {
   const applyIconTheme = (id: string) => {
     // Before the write: the preview is what the tree reads.
     restoreIcons()
-    patchConfig({ iconTheme: id })
-    status.say(iconNotice(config.iconTheme))
+    const wasSyncing = view().iconThemeSync
+    patchConfig({ iconTheme: id, iconThemeSync: false })
+    status.say(
+      wasSyncing
+        ? `${iconNotice(config.iconTheme)} — no longer following the OS appearance`
+        : iconNotice(config.iconTheme)
+    )
+  }
+
+  const applySideIcons = (
+    side: 'iconThemeLight' | 'iconThemeDark',
+    id: string
+  ) => {
+    restoreIcons()
+    patchConfig(
+      side === 'iconThemeDark' ? { iconThemeDark: id } : { iconThemeLight: id }
+    )
+    status.say(
+      `${side === 'iconThemeDark' ? 'Dark' : 'Light'} file icons: ${iconThemeLabel(id)}`
+    )
+    if (config.iconThemeSync) {
+      applyAppearance(detectAppearance() ?? 'dark')
+    }
+  }
+
+  const toggleIconSync = () => {
+    patchConfig({ iconThemeSync: !view().iconThemeSync })
+    if (!config.iconThemeSync) {
+      status.say('File icons follow OS appearance off')
+      return
+    }
+    const appearance = detectAppearance()
+    if (!appearance) {
+      status.say(
+        `File icons follow OS appearance on — this system reports none, set ${APPEARANCE_ENV}`
+      )
+      return
+    }
+    applyAppearance(appearance)
+    status.say(`File icons following OS appearance (${appearance})`)
   }
 
   // `setTheme`, not `paintTheme`: a reload can leave the same id pointing at different colors.
@@ -633,6 +680,43 @@ export function createSettings(deps: {
         pick: (at) => applyIconTheme(iconList()[at]!),
       },
       value: iconThemeLabel(view().iconTheme),
+    },
+    {
+      cycle: toggleIconSync,
+      key: 'iconThemeSync',
+      label: 'File icons follow OS appearance',
+      section: 'Appearance',
+      value: onOff(view().iconThemeSync),
+    },
+    {
+      cycle: (dir) =>
+        applySideIcons(
+          'iconThemeLight',
+          step(iconList(), view().iconThemeLight, dir)
+        ),
+      key: 'iconThemeLight',
+      label: 'Light file icons',
+      section: 'Appearance',
+      select: {
+        options: iconList().map(iconThemeLabel),
+        pick: (at) => applySideIcons('iconThemeLight', iconList()[at]!),
+      },
+      value: iconThemeLabel(view().iconThemeLight),
+    },
+    {
+      cycle: (dir) =>
+        applySideIcons(
+          'iconThemeDark',
+          step(iconList(), view().iconThemeDark, dir)
+        ),
+      key: 'iconThemeDark',
+      label: 'Dark file icons',
+      section: 'Appearance',
+      select: {
+        options: iconList().map(iconThemeLabel),
+        pick: (at) => applySideIcons('iconThemeDark', iconList()[at]!),
+      },
+      value: iconThemeLabel(view().iconThemeDark),
     },
     boolRow('Appearance', 'tabIcons', 'File icons in tabs'),
     boolRow(

@@ -25,6 +25,20 @@ async function down(t: Harness, times: number) {
   }
 }
 
+// A bound, not a row index: every setting added moves the rows under it.
+async function to(t: Harness, label: string) {
+  for (let step = 0; step < 60; step += 1) {
+    const row = t
+      .captureCharFrame()
+      .split('\n')
+      .find((line) => line.includes(label))
+    if (row?.includes('▌')) {
+      return
+    }
+    await press(t, (i) => i.pressArrow('down'))
+  }
+}
+
 async function openA(t: Harness) {
   await press(t, (i) => i.pressArrow('down'))
   await press(t, (i) => i.pressEnter())
@@ -44,7 +58,7 @@ test('the palette opens the settings page over the editor slot', async () => {
 test('Enter flips a boolean, the row and the config file follow', async () => {
   const t = await launch(fixture(PROJECT))
   await runCommand(t, 'Settings')
-  await down(t, 9)
+  await to(t, 'Vim mode')
   await press(t, (i) => i.pressEnter())
   const row = t
     .captureCharFrame()
@@ -59,7 +73,7 @@ test('Enter flips a boolean, the row and the config file follow', async () => {
 test('arrows cycle a multi-value setting in both directions', async () => {
   const t = await launch(fixture(PROJECT))
   await runCommand(t, 'Settings')
-  await down(t, 14)
+  await to(t, 'Tab size')
   const size = () =>
     t
       .captureCharFrame()
@@ -158,7 +172,7 @@ test('Esc backs out of the list to the page without changing anything', async ()
 test('booleans still flip on Enter without a list', async () => {
   const t = await launch(fixture(PROJECT))
   await runCommand(t, 'Settings')
-  await down(t, 9)
+  await to(t, 'Vim mode')
   await press(t, (i) => i.pressEnter())
   expect(t.captureCharFrame()).not.toContain('Type to filter')
   expect(JSON.parse(readFileSync(CONFIG_FILE, 'utf-8')).vim).toBe(true)
