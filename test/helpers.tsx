@@ -12,6 +12,7 @@ import { DEFAULTS } from '../src/core/config'
 import type { Config } from '../src/core/config'
 import { loadExtensions } from '../src/extensions'
 import { tempDir } from './temp'
+import { SLOW } from './wait'
 
 export type Harness = Awaited<ReturnType<typeof launch>>
 
@@ -107,9 +108,6 @@ export async function openFile(t: Harness, name: string) {
   t.mockInput.pressEnter()
   await settle(t)
 }
-
-// scripts/test.ts raises this when files run concurrently.
-const SLOW = Number(process.env.DRUK_TEST_SLOW) || 1
 
 export async function until(t: Harness, cond: () => boolean, timeoutMs = 4000) {
   const started = Date.now()

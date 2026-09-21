@@ -848,6 +848,16 @@ pair by name rather than running it.
 request, and typechecks `web/` in a job of its own — the root `tsconfig.json` excludes it,
 and `src/routeTree.gen.ts` is generated, so that job builds before it runs `tsc`.
 
+**`DRUK_TEST_SLOW` cannot be raised far, and is the wrong lever for a starved machine.** It
+multiplies every `until()` deadline, but some 150 tests pass their own cap to `test()` as a
+third argument and *that* overrides bun's `--timeout` — so a stretched wait is killed by its own
+test rather than finishing. The tightest pair in the suite is a 15s `until` under a 60s cap, so
+anything above 3 turns a flake into a certain failure. Starvation is fixed by running fewer
+files at once (`DRUK_TEST_JOBS`, which CI sets to 1) rather than by waiting longer.
+`DRUK_TEST_FILE_CAP` is the runner's own per-file kill, and it has to clear the slowest file.
+A `sleep(n)` scales with none of this, which is why a wait polls (`waitFor` in `test/wait.ts`
+for a unit test, `until()` where there is a harness) rather than sleeping.
+
 ## Shipping
 
 `bun run build` produces one executable; `bun run release` turns the executables in

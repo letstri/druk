@@ -2,7 +2,9 @@
 // busy-spins forever on macOS ARM (bun#27766). Separate processes are not that bug.
 import { spawn } from 'bun'
 
-const FILE_CAP_MS = 120 * 1000
+// A file that outruns this is killed, so it has to clear the slowest file's total — which
+// DRUK_TEST_SLOW stretches, and a small CI runner stretches again.
+const FILE_CAP_MS = Number(process.env.DRUK_TEST_FILE_CAP) || 120 * 1000
 // Each file peaks at ~1.6 CPUs (renderer threads), and the 5s per-test default is what a
 // loaded machine blows through first — hence the raised timeout below.
 const JOBS =
@@ -10,9 +12,13 @@ const JOBS =
   Math.max(2, Math.ceil(navigator.hardwareConcurrency / 2))
 const TEST_TIMEOUT_MS = Number(process.env.DRUK_TEST_TIMEOUT) || 60_000
 // Concurrent files starve each other's renderer and tree-sitter threads, so every wall-clock
-// wait in the harness is stretched by this much. Bun.spawn snapshots the env at startup, so
-// this has to be handed to each child rather than set on process.env.
-const env = { ...process.env, DRUK_TEST_SLOW: String(JOBS > 1 ? 3 : 1) }
+// wait in the harness is stretched by this much — overridable, since a two-core CI runner
+// starves harder than any developer machine. Bun.spawn snapshots the env at startup, so this
+// has to be handed to each child rather than set on process.env.
+const env = {
+  ...process.env,
+  DRUK_TEST_SLOW: process.env.DRUK_TEST_SLOW ?? String(JOBS > 1 ? 3 : 1),
+}
 
 const files = [...new Bun.Glob('test/*.test.{ts,tsx}').scanSync()].toSorted()
 

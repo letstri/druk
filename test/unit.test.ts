@@ -1,7 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 import { mkdirSync, readdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { setTimeout as sleep } from 'node:timers/promises'
 
 import { buildCommands } from '../src/app/commands'
 import type { CommandActions } from '../src/app/commands'
@@ -12,6 +11,7 @@ import { isNewer } from '../src/core/update'
 import { THEMES } from '../src/themes'
 import { flattenCommands } from '../src/ui/CommandPalette'
 import { tempDir } from './temp'
+import { waitFor } from './wait'
 
 describe('search', () => {
   const text = 'const alpha = 1\nlet beta = 2\n// alpha again\n'
@@ -56,17 +56,25 @@ describe('files', () => {
     const seen: Changed[] = []
     const stop = watchTree(dir, (changed) => seen.push(changed))
     try {
+      const settled = (want: Changed) =>
+        waitFor(() => {
+          const last = seen.at(-1)
+          return (
+            last?.tree === want.tree &&
+            last.deps === want.deps &&
+            last.git === want.git
+          )
+        })
+
       writeFileSync(join(dir, 'a.ts'), 'const a = 1\n')
-      await sleep(300)
-      expect(seen.at(-1)).toEqual({ deps: false, git: false, tree: true })
+      expect(await settled({ deps: false, git: false, tree: true })).toBe(true)
 
       mkdirSync(join(dir, 'node_modules', 'left-pad'), { recursive: true })
       writeFileSync(
         join(dir, 'node_modules', 'left-pad', 'index.js'),
         'module.exports = 1\n'
       )
-      await sleep(300)
-      expect(seen.at(-1)).toEqual({ deps: true, git: false, tree: true })
+      expect(await settled({ deps: true, git: false, tree: true })).toBe(true)
     } finally {
       stop()
     }

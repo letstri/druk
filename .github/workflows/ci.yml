@@ -13,7 +13,16 @@ jobs:
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
       # check-types + lint + format:check + test, the same gate a local change goes through.
+      # One file at a time: a two-core runner cannot run two of them without each starving the
+      # other's renderer and tree-sitter threads. Raising DRUK_TEST_SLOW instead does not work
+      # — it stretches `until()` but not the fixed cap ~150 tests pass to `test()` as a third
+      # argument, so a stretched wait is killed by its own test's timeout. SLOW is still raised
+      # a little, the runner being slower than a developer machine even unstarved.
       - run: bun run check
+        env:
+          DRUK_TEST_JOBS: '1'
+          DRUK_TEST_SLOW: '2'
+          DRUK_TEST_FILE_CAP: '600000'
 
   web:
     runs-on: ubuntu-latest
