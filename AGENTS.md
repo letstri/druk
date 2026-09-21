@@ -815,7 +815,14 @@ fine — `bun run check` is still what says the change is finished.
 
 Each file runs in its own process, so nothing may depend on state shared between files.
 `test/setup.ts` is preloaded to give every process its own `XDG_CONFIG_HOME`; without it
-the suite writes to your real `~/.config/druk`.
+the suite writes to your real `~/.config/druk`. **No two test files may share a stem**, since
+`bun test <file>` is a substring filter and `foo.test.ts` therefore also runs `foo.test.tsx`
+in the same process — the leak the runner exists to prevent. `scripts/test.ts` refuses such a
+pair by name rather than running it.
+
+`.github/workflows/ci.yml` runs `bun run check` on every push to `main` and every pull
+request, and typechecks `web/` in a job of its own — the root `tsconfig.json` excludes it,
+and `src/routeTree.gen.ts` is generated, so that job builds before it runs `tsc`.
 
 ## Shipping
 

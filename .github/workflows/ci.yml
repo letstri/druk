@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      # check-types + lint + format:check + test, the same gate a local change goes through.
+      - run: bun run check
+
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      # routeTree.gen.ts is generated and gitignored, so the build has to run before tsc —
+      # which is also why the root tsconfig excludes web and `bun run check` cannot cover it.
+      - run: bun run build
+      - run: bun run check-types

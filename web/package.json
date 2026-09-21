@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "vite dev",
     "build": "vite build",
+    "check-types": "tsc --noEmit",
     "start": "node .output/server/index.mjs"
   },
   "dependencies": {
