@@ -1304,6 +1304,10 @@ export function failureLine(text: string): string {
 export const PUSH_REJECTED =
   "origin has commits you don't — pull first, then push"
 
+// The branch switcher recognises this by its exact string to offer carrying the changes over.
+export const SWITCH_BLOCKED =
+  'Commit or stash your changes first — this would overwrite them'
+
 // First match wins: a specific pattern has to stay above the general one it would be swallowed by.
 export const KNOWN: readonly (readonly [RegExp, string])[] = [
   [
@@ -1313,7 +1317,7 @@ export const KNOWN: readonly (readonly [RegExp, string])[] = [
   [/\[rejected\].*(?:non-fast-forward|fetch first)/iu, PUSH_REJECTED],
   [
     /local changes to the following files would be overwritten/iu,
-    'Commit or stash your changes first — this would overwrite them',
+    SWITCH_BLOCKED,
   ],
   [
     /(?:^CONFLICT|Merge conflict in)[\s\S]*stash entry is kept/imu,
@@ -1881,18 +1885,22 @@ export function createBranch(
   )
 }
 
+// `carry` is git's own three-way checkout: it takes the uncommitted changes along, leaving
+// conflict markers in the tree (and a stash of them behind) where the two sides disagree.
 export function switchBranch(
   cwd: string,
   name: string,
-  remote: boolean
+  remote: boolean,
+  carry = false
 ): Promise<GitResult> {
+  const merge = carry ? ['-m'] : []
   if (!remote) {
-    return mutate(cwd, ['checkout', name])
+    return mutate(cwd, ['checkout', ...merge, name])
   }
   const local = localBranchName(name)
   return branchExists(cwd, local)
-    ? mutate(cwd, ['checkout', local])
-    : mutate(cwd, ['checkout', '-b', local, '--track', name])
+    ? mutate(cwd, ['checkout', ...merge, local])
+    : mutate(cwd, ['checkout', ...merge, '-b', local, '--track', name])
 }
 
 export function branchExists(cwd: string, name: string): boolean {

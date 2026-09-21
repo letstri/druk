@@ -9,12 +9,14 @@ import {
   createTag,
   deleteTag,
   discardChange,
+  localBranchName,
   pullAndPush,
   PUSH_REJECTED,
   removeRemote,
   stashApply,
   stashDrop,
   stashPop,
+  SWITCH_BLOCKED,
   undoLastCommit,
 } from '../core/git'
 import { NOTE_KINDS, NOTE_LABELS } from '../core/review'
@@ -437,6 +439,9 @@ export function createPromptHandlers(deps: {
       case 'mergeBranch': {
         return branches.merge(p.name)
       }
+      case 'switchCarry': {
+        return branches.switchTo(p.name, p.remote, true)
+      }
       case 'pullPush': {
         return gitOp(
           'Pulling and pushing',
@@ -496,6 +501,9 @@ export function createPromptHandlers(deps: {
     }
     if (p?.kind === 'pullPush') {
       say(PUSH_REJECTED, 'error')
+    }
+    if (p?.kind === 'switchCarry') {
+      say(SWITCH_BLOCKED, 'error')
     }
     if (p?.kind === 'installExtension') {
       market.decline(p.id)
@@ -659,6 +667,14 @@ export function createPromptHandlers(deps: {
           message: `Merge "${p.name}" into the current branch? Conflicts are left in the working tree.`,
           title: 'Merge branch',
           verb: 'merge it',
+        }
+      }
+      case 'switchCarry': {
+        return {
+          danger: false,
+          message: `Your changes conflict with "${localBranchName(p.name)}". Take them along? Where the two disagree, conflicts are left in the working tree.`,
+          title: 'Switch blocked',
+          verb: 'take them along',
         }
       }
       case 'pullPush': {

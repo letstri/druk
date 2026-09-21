@@ -214,3 +214,43 @@ test('Esc closes the branch picker without touching the repository', async () =>
   expect(t.captureCharFrame()).not.toContain('Switch to branch')
   expect(head(dir)).toBe('main')
 }, 20_000)
+
+test('a blocked switch offers to take the changes along', async () => {
+  const dir = repo()
+  const git = (...args: string[]) => execFileSync('git', args, { cwd: dir })
+  git('checkout', '-q', '-b', 'feature')
+  writeFileSync(join(dir, 'a.ts'), 'from feature\n')
+  git('commit', '-q', '-am', 'feature')
+  git('checkout', '-q', 'main')
+  writeFileSync(join(dir, 'a.ts'), 'mine\n')
+
+  const t = await launch(dir)
+  await runCommand(t, 'Switch branch')
+  await press(t, (i) => i.pressEnter())
+  await until(t, () => t.captureCharFrame().includes('Switch blocked'))
+  expect(head(dir)).toBe('main')
+
+  await press(t, (i) => i.pressEnter())
+  await until(t, () => head(dir) === 'feature')
+  expect(readFileSync(join(dir, 'a.ts'), 'utf-8')).toContain('mine')
+}, 20_000)
+
+test('declining a blocked switch leaves the branch and the changes alone', async () => {
+  const dir = repo()
+  const git = (...args: string[]) => execFileSync('git', args, { cwd: dir })
+  git('checkout', '-q', '-b', 'feature')
+  writeFileSync(join(dir, 'a.ts'), 'from feature\n')
+  git('commit', '-q', '-am', 'feature')
+  git('checkout', '-q', 'main')
+  writeFileSync(join(dir, 'a.ts'), 'mine\n')
+
+  const t = await launch(dir)
+  await runCommand(t, 'Switch branch')
+  await press(t, (i) => i.pressEnter())
+  await until(t, () => t.captureCharFrame().includes('Switch blocked'))
+  await pressEscape(t)
+
+  expect(t.captureCharFrame()).toContain('this would overwrite them')
+  expect(head(dir)).toBe('main')
+  expect(readFileSync(join(dir, 'a.ts'), 'utf-8')).toBe('mine\n')
+}, 20_000)

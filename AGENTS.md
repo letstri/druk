@@ -222,7 +222,11 @@ commits, renames followed, a pick opening the commit over the editor the way an
 Incoming/Outgoing row does) — a push origin
 rejects offers to merge origin in and push again, VS Code's prompt, rather than
 naming the two commands and stopping — and for branches
-(switch, create, create-from, merge, rename, delete), a diff view (inline or
+(switch, create, create-from, merge, rename, delete) — a switch git refuses because
+uncommitted changes would be overwritten offers to take them along instead of naming
+stash and stopping, which is `git checkout -m`: the changes land on the target branch
+and where the two sides disagree the file is left with conflict markers, which druk's
+own conflict resolver reads (git keeps a stash of them behind either way) — a diff view (inline or
 side-by-side — an added or deleted file is inline whatever `diffView` says, having no
 second side to put beside it, the rows split view pads a side with are hatched
 rather than left reading as blank editor — a terminal has no fill patterns, so the

@@ -70,6 +70,7 @@ export type Prompt =
   | { kind: 'renameBranch'; from: string }
   | { kind: 'deleteBranch'; name: string; force: boolean }
   | { kind: 'mergeBranch'; name: string }
+  | { kind: 'switchCarry'; name: string; remote: boolean }
   | { kind: 'pullPush'; branch: string; hasUpstream: boolean }
   | {
       kind: 'replaceProject'

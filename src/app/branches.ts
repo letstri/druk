@@ -7,6 +7,7 @@ import {
   localBranchName,
   mergeBranch,
   renameBranch,
+  SWITCH_BLOCKED,
   switchBranch,
 } from '../core/git'
 import type { Branch } from '../core/git'
@@ -112,19 +113,32 @@ export function createBranches(deps: {
     prompts.setPrompt({ from: null, kind: 'newBranch' })
   }
 
+  const switchTo = (name: string, remote: boolean, carry = false) =>
+    gitOp(
+      'Switching branch',
+      (repo) => switchBranch(repo, name, remote, carry),
+      {
+        done: () =>
+          carry
+            ? `On ${localBranchName(name)} with your changes`
+            : `On ${localBranchName(name)}`,
+        handleFailure: (result) => {
+          if (carry || result.detail !== SWITCH_BLOCKED) {
+            return false
+          }
+          prompts.setPrompt({ kind: 'switchCarry', name, remote })
+          return true
+        },
+        touchesTree: { kind: 'sync' },
+      }
+    )
+
   const choose = (branch: Branch) => {
     const mode = pick()?.mode
     setPick(null)
     switch (mode) {
       case 'switch': {
-        return gitOp(
-          'Switching branch',
-          (repo) => switchBranch(repo, branch.name, branch.remote),
-          {
-            done: () => `On ${localBranchName(branch.name)}`,
-            touchesTree: { kind: 'sync' },
-          }
-        )
+        return switchTo(branch.name, branch.remote)
       }
       case 'from': {
         return prompts.setPrompt({ from: branch.name, kind: 'newBranch' })
@@ -180,6 +194,7 @@ export function createBranches(deps: {
     remove,
     rename,
     setPick,
+    switchTo,
   }
 }
 
