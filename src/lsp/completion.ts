@@ -10,18 +10,25 @@ export interface CompletionReply {
   isIncomplete: boolean
 }
 
+// One item with a non-string label would throw in the filter and take the whole menu with it.
+const labelled = (items: unknown[]): CompletionItem[] =>
+  (items as CompletionItem[]).filter((item) => typeof item?.label === 'string')
+
 export function normalizeCompletion(result: unknown): CompletionReply | null {
   if (result === null || result === undefined) {
     return null
   }
   if (Array.isArray(result)) {
-    return { isIncomplete: false, items: result as CompletionItem[] }
+    return { isIncomplete: false, items: labelled(result) }
   }
   const list = result as CompletionList
   if (!Array.isArray(list.items)) {
     return null
   }
-  return { isIncomplete: list.isIncomplete === true, items: list.items }
+  return {
+    isIncomplete: list.isIncomplete === true,
+    items: labelled(list.items),
+  }
 }
 
 const WORD_CHAR = /[A-Za-z0-9_$]/u
@@ -136,19 +143,23 @@ export function filterCompletions(
   )
 }
 
-// `caret` is where the first tab stop sat; null when there was none or it was at the end.
+// `caret` is where the lowest-numbered tab stop sat; null when there was none or it was at the end.
 export function stripSnippet(text: string): {
   text: string
   caret: number | null
 } {
   let caret: number | null = null
+  // `$0` is vim's final stop: it loses to every numbered one.
+  let stop = Number.POSITIVE_INFINITY
   let out = ''
   let at = 0
   const snippet =
     /\$(?:(\d+)|\{(\d+)(?::((?:[^{}]|\{[^}]*\})*))?(?:\|([^,|]*)[^}]*)?\})/gu
   for (let hit = snippet.exec(text); hit; hit = snippet.exec(text)) {
     out += text.slice(at, hit.index)
-    if (caret === null) {
+    const order = Number(hit[1] ?? hit[2]) || Number.POSITIVE_INFINITY
+    if (caret === null || order < stop) {
+      stop = order
       caret = out.length
     }
     out += hit[3] ?? hit[4] ?? ''
@@ -232,7 +243,8 @@ export function applyCompletion(
     primaryRange = { end: cursor, start: primaryRange.start }
   }
 
-  const isSnippet = item.insertTextFormat === 2 || raw.includes('$')
+  // Not any `$`: plain insert text of `$1` (a shell argument) is not a tab stop.
+  const isSnippet = item.insertTextFormat === 2 || /\$\{?\d/u.test(raw)
   // Re-indented before the stops are stripped, so the caret offset stays correct.
   const adjusted =
     isSnippet && raw.includes('\n')

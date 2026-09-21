@@ -2143,16 +2143,15 @@ export function EditorPane(props: EditorPaneProps) {
     const cached = resolvedItems.get(item)
     if (cached) {
       item = cached
-    } else if (
-      item.additionalTextEdits === undefined &&
-      props.resolveCompletion
-    ) {
+    } else if (props.resolveCompletion) {
       const resolved = await Promise.race([
         props.resolveCompletion(item),
         giveUpResolving(),
       ])
-      if (resolved?.additionalTextEdits?.length) {
-        item = { ...item, additionalTextEdits: resolved.additionalTextEdits }
+      // The whole item, as `askForInfo` merges it: a server may fill `insertText` or `textEdit`
+      // on resolve, and taking `additionalTextEdits` alone drops what it answered.
+      if (resolved) {
+        item = { ...item, ...resolved }
       }
     }
 

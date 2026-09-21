@@ -503,6 +503,9 @@ export function createLsp(deps: {
 
   // Which server answered last: `resolveCompletion` cannot simply ask the first.
   const answeredCompletion = new Map<string, string>()
+  const answeredHierarchy = new Map<string, string>()
+  // A slower earlier request must not name the answering server after a newer one has.
+  const completionGen = new Map<string, number>()
 
   // The pending didChange goes first: an answer against text 150ms stale misplaces every edit.
   const complete = async (
@@ -518,12 +521,16 @@ export function createLsp(deps: {
       return null
     }
     flushEdits?.(path)
+    const gen = (completionGen.get(path) ?? 0) + 1
+    completionGen.set(path, gen)
     for (const client of ready) {
       const reply = normalizeCompletion(
         await client.complete(path, { character: col, line })
       )
       if (reply && reply.items.length > 0) {
-        answeredCompletion.set(path, client.id)
+        if (completionGen.get(path) === gen) {
+          answeredCompletion.set(path, client.id)
+        }
         return reply
       }
     }
