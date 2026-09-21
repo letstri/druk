@@ -1,6 +1,6 @@
 import { basename, dirname } from 'node:path'
 
-import type { BorderSides, MouseEvent } from '@opentui/core'
+import type { BorderSides, KeyEvent, MouseEvent } from '@opentui/core'
 import { useRenderer, useTerminalDimensions } from '@opentui/solid'
 import {
   createEffect,
@@ -35,6 +35,7 @@ import { SEVERITY_RANK } from '../lsp/protocol'
 import type { ProblemSeverity } from '../lsp/protocol'
 import { resolveServers, servers as serverSpecs } from '../lsp/servers'
 import { ui } from '../themes'
+import { CallPeek } from '../ui/CallPeek'
 import { ChangesView } from '../ui/ChangesView'
 import { CommitGraphView } from '../ui/CommitGraphView'
 import { ComparePanel } from '../ui/ComparePanel'
@@ -44,6 +45,7 @@ import { ExtensionsPanel } from '../ui/ExtensionsPanel'
 import { FileTree } from '../ui/FileTree'
 import { GitPanel } from '../ui/GitPanel'
 import { useHover } from '../ui/hover'
+import { HoverPeek, hoverLines } from '../ui/HoverPeek'
 import { ImageView } from '../ui/ImageView'
 import type { Hint } from '../ui/keys'
 import { LspStatusView } from '../ui/LspStatusView'
@@ -59,6 +61,7 @@ import { setTooltipsEnabled, useTooltipPeek } from '../ui/tooltip'
 import { TooltipLayer } from '../ui/TooltipLayer'
 import { createCommands } from './actions'
 import { createBranches } from './branches'
+import { createCallHierarchy } from './callHierarchy'
 import { rowSlotKey } from './changeSections'
 import { createCommitGraph } from './commitGraph'
 import { createCommitView } from './commitView'
@@ -68,6 +71,7 @@ import { createEditorBridge } from './editor'
 import { createExtensionsPanel } from './extensionsPanel'
 import { createFileOps } from './fileOps'
 import { createGit, createGitOp, wireGitEffects } from './git'
+import { createHoverPeek } from './hoverPeek'
 import { installKeyboard } from './keyboard'
 import { createLsp, wireLspEffects } from './lsp'
 import { createMarket } from './market'
@@ -195,6 +199,8 @@ export function App(props: {
   const branches = createBranches({ git, gitOp, prompts: promptState, status })
   const commitView = createCommitView({ status })
   const commitGraph = createCommitGraph()
+  const callHierarchy = createCallHierarchy({ calls: lsp.calls })
+  const hoverPeek = createHoverPeek()
   workspace.onPageClose('commit', commitView.close)
   workspace.onPageClose('graph', commitGraph.close)
   workspace.onPageClose('compare', comparison.closeDetail)
@@ -259,6 +265,7 @@ export function App(props: {
 
   const ctx: AppContext = {
     branches,
+    callHierarchy,
     commitGraph,
     commitView,
     comparison,
@@ -539,7 +546,7 @@ export function App(props: {
   // Polling, not a subscription: no OS offers one portably.
   createEffect(
     on(
-      () => config.themeSync,
+      () => config.themeSync || config.iconThemeSync,
       (sync) => {
         if (!sync) {
           return

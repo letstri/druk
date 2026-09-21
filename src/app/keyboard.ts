@@ -24,6 +24,7 @@ export function installKeyboard(ctx: AppContext, actions: CommandActions) {
     extensions,
     preview,
     review,
+    callHierarchy,
     editorCovered,
   } = ctx
   const { config } = settings
@@ -73,8 +74,10 @@ export function installKeyboard(ctx: AppContext, actions: CommandActions) {
     'git.push': actions.gitPush,
     'git.stage': actions.gitToggleStage,
     goto: () => prompts.setPrompt({ kind: 'gotoLine' }),
+    'goto.calls': actions.gotoCalls,
     'goto.definition': actions.gotoDefinition,
     'goto.file': actions.openFileUnderCursor,
+    'goto.hover': actions.gotoHover,
     'goto.implementation': actions.gotoImplementation,
     'goto.references': actions.gotoReferences,
     'goto.symbol': actions.gotoSymbol,
@@ -180,7 +183,9 @@ export function installKeyboard(ctx: AppContext, actions: CommandActions) {
         panes.sidebar() &&
         !vimOwnsEscape &&
         !pageUp &&
-        !editor.completionOpen()
+        !editor.completionOpen() &&
+        // Focus would leave before EditorPane saw the key, and the peek would be stranded open.
+        !callHierarchy.open()
       ) {
         panes.focusTree()
       }

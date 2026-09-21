@@ -524,7 +524,40 @@ found" a real miss is, and one capability map per feature is a map that goes sta
 `normalizeLocations` (`src/lsp/locations.ts`) the one reader of the reply; symbols
 come back in two unrelated shapes — hierarchical `DocumentSymbol`s with `children`,
 flat `SymbolInformation`s carrying their own uri — and `symbolHits`
-(`src/lsp/symbols.ts`) flattens both into the same rows,
+(`src/lsp/symbols.ts`) flattens both into the same rows. The calls of a symbol
+are the one of them that is neither a jump nor a picker but a *peek*
+(`Ctrl+Opt+H`, palette → Editor → Peek calls): a bordered box over the editor,
+under the line that asked for it — flipped above where there is no room below,
+the problem card's rule — with the selected call's own code syntax-coloured on
+the left and the calls listed on the right, VS Code's arrangement. It is a peek
+rather than a page or a sidebar view because a call list is read *against* the
+code it names, and the caret never moves: Enter is what leaves for the call, and
+Esc or any editing key shuts it, as the completion menu does — and Esc is why
+`keyboard.ts` has to know the peek is up at all: with a sidebar, Esc is the
+tree's key, and focus moves *synchronously*, so the pane is unfocused before its
+own handler sees the press and the peek would be left open with the keyboard
+somewhere else. The completion menu is guarded there for the same reason.
+`src/app/callHierarchy.ts` holds the tree, `src/ui/CallPeek.tsx` draws it, and
+`EditorPane` owns only the geometry (`peekBox`) and the slot — the widget is
+handed to it as `peek`, since the pane is what knows where the caret's row is on
+screen. Its keys are claimed in that pane's own handler through `onPeekKey`,
+beside the completion menu's, and not by a `useKeys` of its own: handlers run in
+mount order, so a child of the pane would see every key second.
+Row 0 is the symbol
+itself, so the peek also answers where the thing under the caret was declared;
+the calls follow it. What starts *selected*, though, is the row for the line the
+peek was opened on — a call site is one of these rows, and landing anywhere else
+puts code the reader did not ask for beside the list. Row 0 is the fallback.
+**One list, one level.** The callers and the callees are in the same list, told
+apart by `←` and `→` rather than by a mode, and nothing expands: a peek that can
+be drilled is a peek that ends up nine rows deep in the program's entry point,
+which is not what a reader who opened one function asked for. `direction` on
+`CallNode` is the glyph, not a tree.
+The item goes back to the server
+that prepared it, `data` and all — `answeredHierarchy` in `src/app/lsp.ts`, the
+`completionItem/resolve` rule. The code beside the list is `createHighlighted` /
+`paintLine` (`src/ui/codeSpans.ts`), which the search panel's own preview uses
+too — one parse-and-paint, not a second copy,
 and open the file under the cursor
 (`Ctrl+Opt+O` — the path or import specifier the cursor is in, resolved on disk
 relative to the file and to the project root, then through the aliases

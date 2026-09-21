@@ -70,6 +70,24 @@ export interface LocationLink {
   originSelectionRange?: Range
 }
 
+export interface CallHierarchyItem {
+  name: string
+  // SymbolKind, 1–26.
+  kind?: number
+  detail?: string
+  uri: string
+  range: Range
+  selectionRange: Range
+  // Opaque server state: the item goes back to the server that made it, untouched.
+  data?: unknown
+}
+
+export interface CallHierarchyCall {
+  from?: CallHierarchyItem
+  to?: CallHierarchyItem
+  fromRanges?: Range[]
+}
+
 export interface MarkupContent {
   kind: 'markdown' | 'plaintext'
   value: string

@@ -11,6 +11,9 @@ import { spawnLspClient } from '../lsp/client'
 import type { LspClient } from '../lsp/client'
 import { normalizeCompletion } from '../lsp/completion'
 import type { CompletionReply } from '../lsp/completion'
+import { callNodes, hierarchyItems, nodeOf } from '../lsp/hierarchy'
+import { hoverText } from '../lsp/hover'
+import type { CallDirection, CallNode } from '../lsp/hierarchy'
 import {
   availablePackageManagers,
   downloadServer,
@@ -33,7 +36,12 @@ import {
   SEVERITY_RANK,
   severityOf,
 } from '../lsp/protocol'
-import type { CompletionItem, Diagnostic, Problem } from '../lsp/protocol'
+import type {
+  CallHierarchyItem,
+  CompletionItem,
+  Diagnostic,
+  Problem,
+} from '../lsp/protocol'
 import {
   installHint,
   resolveServers,
@@ -582,6 +590,70 @@ export function createLsp(deps: {
     return []
   }
 
+  const hover = async (
+    path: string,
+    line: number,
+    col: number
+  ): Promise<string> => {
+    if (!settings.config.lsp) {
+      return ''
+    }
+    const ready = await readyClientsEventually(path, 10_000)
+    flushEdits?.(path)
+    for (const client of ready) {
+      const text = hoverText(
+        await client.hover(path, { character: col, line })
+      )
+      if (text.length > 0) {
+        return text
+      }
+    }
+    return ''
+  }
+
+  const prepareCallHierarchy = async (
+    path: string,
+    line: number,
+    col: number
+  ): Promise<CallNode[]> => {
+    if (!settings.config.lsp) {
+      return []
+    }
+    const ready = await readyClientsEventually(path, 10_000)
+    flushEdits?.(path)
+    for (const client of ready) {
+      const items = hierarchyItems(
+        await client.prepareCallHierarchy(path, { character: col, line })
+      )
+      if (items.length > 0) {
+        answeredHierarchy.set(path, client.id)
+        return items
+          .map((item) => nodeOf(item, rootDir))
+          .filter((node) => node !== null)
+      }
+    }
+    return []
+  }
+
+  // The item is the preparing server's own handle, so the calls go back to that server.
+  const calls = async (
+    path: string,
+    direction: CallDirection,
+    item: CallHierarchyItem
+  ): Promise<CallNode[]> => {
+    if (!settings.config.lsp) {
+      return []
+    }
+    const ready = await readyClientsEventually(path, 10_000)
+    const source = answeredHierarchy.get(path)
+    const client =
+      ready.find((candidate) => candidate.id === source) ?? ready[0]
+    if (!client) {
+      return []
+    }
+    return callNodes(direction, await client.calls(direction, item), rootDir)
+  }
+
   const definition = async (
     path: string,
     line: number,
@@ -633,6 +705,7 @@ export function createLsp(deps: {
   }
 
   return {
+    calls,
     clearProblems,
     clientsFor,
     complete,
@@ -640,6 +713,7 @@ export function createLsp(deps: {
     dependenciesChanged,
     dispose,
     generation,
+    hover,
     install,
     locations,
     onDiagnosticsRefresh,

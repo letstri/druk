@@ -559,6 +559,36 @@ export function createCommands(ctx: AppContext) {
     })
   }
 
+  // The peek keeps the caret where it is: what it shows is read beside the line that asked.
+  const peekCalls = () => {
+    withServed('Peek calls', (path) => {
+      const at = editor.cursor()
+      void (async () => {
+        const [root] = await ctx.lsp.prepareCallHierarchy(path, at.line, at.col)
+        if (!root) {
+          return say('No calls here')
+        }
+        ctx.callHierarchy.start(root, path, at.line)
+      })()
+    })
+  }
+
+  // What the server says about the symbol, which is where a `@deprecated` reason and a
+  // doc comment live: the diagnostic's own message never carries them.
+  const showHover = () => {
+    withServed('Show documentation', (path) => {
+      const at = editor.cursor()
+      void (async () => {
+        const found = await ctx.lsp.hover(path, at.line, at.col)
+        if (!found) {
+          return say('No documentation here')
+        }
+        ctx.callHierarchy.close()
+        ctx.hoverPeek.show(found)
+      })()
+    })
+  }
+
   const lspNav = (method: LocationMethod, what: string, found: string) => () =>
     withServed(what, (path) => {
       const at = editor.cursor()
@@ -669,6 +699,15 @@ export function createCommands(ctx: AppContext) {
   const actions = {
     allChanges,
     allChangesMeta,
+    callsMoveTo: ctx.callHierarchy.moveTo,
+    callsOpen: () => {
+      const node = ctx.callHierarchy.selected()
+      if (!node) {
+        return
+      }
+      ctx.callHierarchy.close()
+      openAt(node.target.path, node.target.line, node.target.col)
+    },
     checkExtensionUpdates: ctx.extensions.checkNow,
     closeAll: () => workspace.closeTabs(workspace.views(), 'Closed all tabs'),
     closeOthers: () => {
@@ -1009,6 +1048,8 @@ export function createCommands(ctx: AppContext) {
       }
       ctx.prompts.setPrompt({ kind: 'undoCommit', subject })
     },
+    gotoCalls: peekCalls,
+    gotoHover: showHover,
     gotoDefinition: lspNav('definition', 'Go to definition', 'Definitions'),
     gotoImplementation: lspNav(
       'implementation',

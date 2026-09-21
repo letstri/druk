@@ -5,6 +5,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 
 import type { LocationMethod } from './locations'
 import type {
+  CallHierarchyItem,
   CompletionItem,
   Diagnostic,
   DiagnosticReport,
@@ -317,6 +318,7 @@ export function spawnLspClient(options: LspClientOptions) {
       const result = await request('initialize', {
         capabilities: {
           textDocument: {
+            callHierarchy: {},
             completion: {
               completionItem: {
                 deprecatedSupport: true,
@@ -414,6 +416,19 @@ export function spawnLspClient(options: LspClientOptions) {
   initialize()
 
   return {
+    // The item carries the answering server's own `data`: it goes back to that server alone.
+    calls(
+      direction: 'incoming' | 'outgoing',
+      item: CallHierarchyItem
+    ): Promise<unknown> {
+      if (state !== 'ready') {
+        return Promise.resolve(null)
+      }
+      return request(`callHierarchy/${direction}Calls`, { item }).catch(
+        () => null
+      )
+    },
+
     changeDocument(path: string, text: string) {
       const uri = pathToFileURL(path).href
       const version = (versions.get(uri) ?? 1) + 1
@@ -493,6 +508,19 @@ export function spawnLspClient(options: LspClientOptions) {
       return request('workspace/executeCommand', {
         arguments: params,
         command,
+      }).catch(() => null)
+    },
+
+    hover(
+      path: string,
+      position: { line: number; character: number }
+    ): Promise<unknown> {
+      if (state !== 'ready') {
+        return Promise.resolve(null)
+      }
+      return request('textDocument/hover', {
+        position,
+        textDocument: { uri: pathToFileURL(path).href },
       }).catch(() => null)
     },
 

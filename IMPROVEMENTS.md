@@ -27,7 +27,7 @@ ships them (see AGENTS.md § "Keep this file current").
 
 ### Language intelligence
 Definition, references, implementation, type definition, document and workspace symbols,
-completion, diagnostics and format-on-save all ship. What the protocol still offers and druk
+the calls of a symbol, completion, diagnostics and format-on-save all ship. What the protocol still offers and druk
 does not ask for:
 
 | Item | Effort |

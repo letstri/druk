@@ -39,6 +39,12 @@ export const BINDABLE: Bindable[] = [
   { defaults: [], id: 'goto.implementation', label: 'Go to implementation' },
   { defaults: [], id: 'goto.typeDefinition', label: 'Go to type definition' },
   { defaults: [], id: 'goto.symbol', label: 'Go to symbol in file' },
+  { defaults: [`Ctrl+${ALT}+H`], id: 'goto.calls', label: 'Peek calls' },
+  {
+    defaults: [`Ctrl+${ALT}+K`],
+    id: 'goto.hover',
+    label: 'Show documentation at cursor',
+  },
   {
     defaults: [],
     id: 'goto.workspaceSymbol',

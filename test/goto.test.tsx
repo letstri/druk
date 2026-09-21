@@ -5,13 +5,17 @@ import {
   fixture,
   launch,
   loadMarketExtensions,
+  openFile,
   press,
+  pressEscape,
   pressTimes,
   runCommand,
   servedBy,
+  settle,
   spansOf,
   until,
   untilFrame,
+  untilGone,
 } from './helpers'
 
 loadMarketExtensions()
@@ -314,3 +318,97 @@ test('symbols in the file and in the project reach their line', async () => {
   await press(t, (input) => input.pressEnter())
   await untilFrame(t, 'const beta = 1', LSP_WAIT)
 }, 40_000)
+
+test('the call peek opens over the line with code beside the calls', async () => {
+  const dir = fixture({
+    'a.ts': 'function beta() {\n  return 1\n}\n',
+    'def.ts': '// the declaration\nconst beta = 1\n',
+    'use.ts': '// first\nconst again = beta()\n',
+  })
+  const t = await launch(
+    dir,
+    servedBy(process.execPath, FAKE),
+    { height: 28, width: 100 },
+    // kitty, so the chord arrives as one key rather than as an escape and a control byte.
+    { kittyKeyboard: true, openFile: join(dir, 'a.ts') }
+  )
+
+  // The chord, not the palette: Ctrl+Opt+H is the whole point of the peek.
+  await press(t, (input) => input.pressKey('h', { ctrl: true, meta: true }))
+  await untilFrame(t, 'Calls · beta', LSP_WAIT)
+
+  // One list, both ways: the caller and the callee, told apart by their arrows.
+  await untilFrame(t, 'caller', LSP_WAIT)
+  const frame = t.captureCharFrame()
+  expect(frame).toContain('callee')
+  expect(frame).toContain('use.ts:2')
+  expect(frame).toContain('def.ts:2')
+  // The symbol itself is row 0 and starts selected, so where it is declared is what shows first.
+  expect(frame).toContain('a.ts:1')
+  expect(frame).toContain('return 1')
+  // The line that asked is still above the peek, and the caret never moved.
+  expect(frame).toContain('Ln 1, Col 1')
+  // Direct calls only: a caller's own callers are how a peek ends up at the entry point.
+  expect(frame.split('\n').filter((row) => row.includes('.ts:'))).toHaveLength(
+    3
+  )
+
+  // Walking the list repaints the code beside it.
+  await press(t, (input) => input.pressArrow('down'))
+  await untilFrame(t, 'const again = beta()', LSP_WAIT)
+  await press(t, (input) => input.pressArrow('down'))
+  await untilFrame(t, 'const beta = 1', LSP_WAIT)
+
+  await press(t, (input) => input.pressEnter())
+  await untilFrame(t, 'Ln 2, Col 1', LSP_WAIT)
+  expect(t.captureCharFrame()).not.toContain('Calls · beta')
+}, 40_000)
+
+test('the peek opens on the row for the line it was asked from', async () => {
+  const dir = fixture({
+    'a.ts': 'function beta() {\n  return 1\n}\n',
+    'def.ts': '// the declaration\nconst beta = 1\n',
+    'use.ts': '// first\nconst again = beta()\n',
+  })
+  const t = await launch(
+    dir,
+    servedBy(process.execPath, FAKE),
+    { height: 26, width: 100 },
+    { kittyKeyboard: true, openFile: join(dir, 'use.ts') }
+  )
+  // Onto the call site, which is a row of the peek in its own right.
+  await press(t, (input) => input.pressArrow('down'))
+  await untilFrame(t, 'Ln 2, Col 1')
+
+  await runCommand(t, 'Peek calls')
+  await untilFrame(t, 'Calls · beta', LSP_WAIT)
+  await untilFrame(t, 'caller', LSP_WAIT)
+
+  // Enter takes the selected row: this line's, not the declaration the list starts with.
+  await press(t, (input) => input.pressEnter())
+  await settle(t, 200)
+  const frame = t.captureCharFrame()
+  expect(frame).toContain('Ln 2, Col 1')
+  expect(frame).not.toContain('function beta() {')
+}, 30_000)
+
+// Opened through the picker, so the sidebar is up: with one, Esc is the tree's key, and the
+// editor is unfocused before it ever sees the press.
+test('escape shuts the peek with the sidebar open', async () => {
+  const dir = fixture({ 'a.ts': 'function beta() {}\n', 'use.ts': 'beta()\n' })
+  const t = await launch(dir, servedBy(process.execPath, FAKE), {
+    height: 28,
+    width: 100,
+  })
+  await openFile(t, 'a.ts')
+  await untilFrame(t, 'EXPLORER')
+
+  await runCommand(t, 'Peek calls')
+  await untilFrame(t, 'Calls · beta', LSP_WAIT)
+  await pressEscape(t)
+  await untilGone(t, 'Calls · beta')
+  expect(t.captureCharFrame()).toContain('function beta() {}')
+  // The keyboard stayed in the editor: Esc shut the peek rather than jumping to the tree.
+  await press(t, (input) => input.typeText('x'))
+  await untilFrame(t, 'xfunction beta() {}')
+}, 30_000)

@@ -24,6 +24,10 @@ export interface CommandActions {
   gotoLine: () => void
   gotoDefinition: () => void
   gotoImplementation: () => void
+  gotoCalls: () => void
+  gotoHover: () => void
+  callsOpen: () => void
+  callsMoveTo: (row: number) => void
   gotoReferences: () => void
   gotoSymbol: () => void
   gotoTypeDefinition: () => void
@@ -672,6 +676,18 @@ export function buildCommands(
           id: 'goto.symbol',
           label: 'Go to symbol in file',
           run: actions.gotoSymbol,
+        },
+        {
+          hint: `Ctrl+${ALT}+H`,
+          id: 'goto.calls',
+          label: 'Peek calls',
+          run: actions.gotoCalls,
+        },
+        {
+          hint: `Ctrl+${ALT}+K`,
+          id: 'goto.hover',
+          label: 'Show documentation at cursor',
+          run: actions.gotoHover,
         },
         {
           id: 'goto.workspaceSymbol',

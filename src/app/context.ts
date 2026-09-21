@@ -1,4 +1,5 @@
 import type { Branches } from './branches'
+import type { CallHierarchy } from './callHierarchy'
 import type { CommitGraph } from './commitGraph'
 import type { CommitView } from './commitView'
 import type { Comparison } from './comparison'
@@ -6,6 +7,7 @@ import type { EditorBridge } from './editor'
 import type { ExtensionsPanel } from './extensionsPanel'
 import type { FileOps } from './fileOps'
 import type { Git, GitOp } from './git'
+import type { HoverPeek } from './hoverPeek'
 import type { Lsp } from './lsp'
 import type { Market } from './market'
 import type { Navigation } from './navigation'
@@ -38,6 +40,8 @@ export interface AppContext {
   branches: Branches
   commitView: CommitView
   commitGraph: CommitGraph
+  callHierarchy: CallHierarchy
+  hoverPeek: HoverPeek
   comparison: Comparison
   workspace: Workspace
   workspaces: Workspaces

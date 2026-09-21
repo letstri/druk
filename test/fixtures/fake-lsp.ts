@@ -161,6 +161,19 @@ const MEMBERS: CompletionItem[] = [
   { detail: 'number', kind: 5, label: 'memOther', sortText: '11' },
 ]
 
+const span = (line: number) => ({
+  end: { character: 4, line },
+  start: { character: 0, line },
+})
+
+const hierarchyItem = (name: string, uri: string, line: number) => ({
+  kind: 12,
+  name,
+  range: span(line),
+  selectionRange: span(line),
+  uri,
+})
+
 const documents = new Map<string, string>()
 
 let rootUri = ''
@@ -175,6 +188,7 @@ process.stdin.on(
         jsonrpc: '2.0',
         result: {
           capabilities: {
+            callHierarchyProvider: true,
             completionProvider: {
               resolveProvider: true,
               triggerCharacters: ['.'],
@@ -188,6 +202,38 @@ process.stdin.on(
             workspaceSymbolProvider: true,
           },
         },
+      })
+    } else if (message.method === 'textDocument/prepareCallHierarchy') {
+      send({
+        id: message.id,
+        jsonrpc: '2.0',
+        result: [hierarchyItem('beta', `${rootUri}/a.ts`, 0)],
+      })
+    } else if (message.method === 'callHierarchy/incomingCalls') {
+      const { item } = message.params as { item: { name: string } }
+      send({
+        id: message.id,
+        jsonrpc: '2.0',
+        result:
+          item.name === 'beta'
+            ? [
+                {
+                  from: hierarchyItem('caller', `${rootUri}/use.ts`, 1),
+                  fromRanges: [span(1)],
+                },
+              ]
+            : [],
+      })
+    } else if (message.method === 'callHierarchy/outgoingCalls') {
+      send({
+        id: message.id,
+        jsonrpc: '2.0',
+        result: [
+          {
+            fromRanges: [span(0)],
+            to: hierarchyItem('callee', `${rootUri}/def.ts`, 1),
+          },
+        ],
       })
     } else if (message.method === 'textDocument/definition') {
       send({

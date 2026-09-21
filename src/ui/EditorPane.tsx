@@ -18,6 +18,7 @@ import {
   onCleanup,
   Show,
 } from 'solid-js'
+import type { JSX } from 'solid-js'
 
 import { readClipboard } from '../core/clipboard'
 import type { CursorStyle } from '../core/config'
@@ -143,6 +144,10 @@ interface EditorPaneProps {
     | null
   completionRequest: { key: number } | null
   onCompletionMenu: (open: boolean) => void
+  // The call peek: `peekRows` is what it wants, 0 when it is shut; `onPeekKey` says what it took.
+  peek: JSX.Element
+  peekRows: number
+  onPeekKey: (key: KeyEvent) => boolean
   notice: { name: string; reason: string } | null
   onChange: (text: string) => void
   onCursor: (pos: { line: number; col: number }) => void
@@ -303,6 +308,9 @@ interface ScrollEvent {
 
 // OpenTUI has no double-click event; counted from consecutive downs.
 const CARD_COLUMNS = 100
+
+// Under this the peek shows one row of code and one call: a box saying nothing.
+const MIN_PEEK_ROWS = 6
 const DOUBLE_CLICK_MS = 400
 /** How long a jump's landing row stays tinted. */
 const FLASH_MS = 1000
@@ -826,6 +834,37 @@ export function EditorPane(props: EditorPaneProps) {
     }
     return { left, room, top: el.y - host.y + (span.last - viewTop()) }
   }
+
+  // Over the caret's line, below it where there is room: VS Code's peek, in the rows it can spare.
+  const peekBox = createMemo(() => {
+    wrapKey()
+    void props.content
+    const el = editorEl()
+    if (props.peekRows <= 0 || !el || !host) {
+      return null
+    }
+    const span = rowSpan(cursorRow())
+    if (!span) {
+      return null
+    }
+    const top = viewTop()
+    const height = viewHeight() || el.height
+    const below = top + height - (span.last + 1)
+    const above = span.first - top
+    const rows = Math.min(props.peekRows, Math.max(below, above))
+    if (rows < MIN_PEEK_ROWS) {
+      return null
+    }
+    return {
+      height: rows,
+      top:
+        el.y -
+        host.y +
+        (below >= rows ? span.last + 1 : span.first - rows) -
+        top,
+      width: host.width,
+    }
+  })
 
   // Covers the rows under the line rather than opening a gap: a gap needs the keyboard given up.
   const problemCard = createMemo(() => {
@@ -2499,6 +2538,12 @@ export function EditorPane(props: EditorPaneProps) {
     const { sequence } = key
     lastTyped = typedChar(key)
 
+    // Ahead of the menu: the peek owns the keyboard while it is up, as VS Code's does.
+    if (props.peekRows > 0 && props.onPeekKey(key)) {
+      key.preventDefault()
+      return
+    }
+
     // Everything the menu does not claim falls through, so typing keeps filtering.
     if (menuOpen()) {
       const k = key.name
@@ -3091,6 +3136,20 @@ export function EditorPane(props: EditorPaneProps) {
                     />
                   )}
                 </For>
+              </box>
+            )}
+          </Show>
+          <Show when={peekBox()}>
+            {(box: () => NonNullable<ReturnType<typeof peekBox>>) => (
+              <box
+                position="absolute"
+                top={box().top}
+                left={0}
+                width={box().width}
+                height={box().height}
+                zIndex={21}
+              >
+                {props.peek}
               </box>
             )}
           </Show>
