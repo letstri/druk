@@ -2007,11 +2007,28 @@ export function EditorPane(props: EditorPaneProps) {
   // The buffer lacks a fold's hidden lines: an edit on an anchor replays against a file with them.
   const releaseFoldForEdit = (key?: KeyEvent) => {
     const view = folded()
-    if (!view || !editor || editor.hasSelection()) {
+    if (!view || !editor) {
       return
     }
     const { row, col } = editor.logicalCursor
     const touched = new Set([realLine(row)])
+    if (editor.hasSelection()) {
+      // Leaving the fold shut would let `reconcileFolds` rescue the hidden lines of an anchor
+      // the selection just deleted; the whole block goes, as the one row on screen said it would.
+      const rows = editRange(editor.plainText)
+      for (let at = rows.from; at <= rows.to; at += 1) {
+        touched.add(realLine(at))
+      }
+      const opened = view.folds.filter((fold) => !touched.has(fold.start))
+      if (opened.length === view.folds.length) {
+        return
+      }
+      const span = realRange(rows)
+      setFolds(opened, span.from)
+      // The old selection is offsets into the folded text; the block now stands open under it.
+      selectLineSpan(span.from, span.to)
+      return
+    }
     // The two keys that reach past their own line, onto what may be an anchor.
     if (key?.name === 'backspace' && col === 0 && row > 0) {
       touched.add(realLine(row - 1))
@@ -2023,6 +2040,14 @@ export function EditorPane(props: EditorPaneProps) {
     if (kept.length !== view.folds.length) {
       setFolds(kept, realLine(row))
     }
+  }
+
+  // Whole file lines, mapped to wherever they now sit in the buffer.
+  const selectLineSpan = (from: number, to: number) => {
+    if (!editor) {
+      return
+    }
+    selectRows(shownLine(from), shownLine(to))
   }
 
   // A bracketed paste never passes through a key handler, so the guard hangs on `handlePaste`.
@@ -2212,6 +2237,45 @@ export function EditorPane(props: EditorPaneProps) {
       follow ? row + (to - from + 1) : row,
       col
     )
+  }
+
+  // Display rows, so a selection put back after an edit covers the rows the reader had.
+  const selectRows = (fromRow: number, toRow: number) => {
+    if (!editor) {
+      return
+    }
+    const lines = editor.plainText.split('\n')
+    let start = 0
+    for (let row = 0; row < fromRow; row += 1) {
+      start += (lines[row]?.length ?? 0) + 1
+    }
+    let end = start
+    for (let row = fromRow; row <= toRow; row += 1) {
+      end += (lines[row]?.length ?? 0) + (row < toRow ? 1 : 0)
+    }
+    editor.setSelection(start, end)
+  }
+
+  // `insertText` and `deleteCharBackward` delete a live selection first, so Tab may not reach them.
+  const indentSelection = (outdent: boolean) => {
+    if (!editor) {
+      return
+    }
+    const rows = editRange(editor.plainText)
+    const { from, to } = realRange(rows)
+    const text = docText()
+    const next = indentLines(text, from, to, props.tabSize, outdent)
+    if (next === text) {
+      return
+    }
+    const { row, col } = editor.logicalCursor
+    const line = realLine(row)
+    const shift =
+      (next.split('\n')[line]?.length ?? 0) -
+      (text.split('\n')[line]?.length ?? 0)
+    editor.clearSelection()
+    applyLineEdit(next, line, Math.max(0, col + shift))
+    selectRows(rows.from, rows.to)
   }
 
   const deleteSelectedLines = () => {

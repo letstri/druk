@@ -81,6 +81,24 @@ test('typing on a folded line opens the block rather than editing past it', asyn
   expect(saved.split('\n')[1]).toBe('  const secret = 1')
 })
 
+test('deleting a selected folded line takes the block with it', async () => {
+  const dir = fixture({ 'a.ts': FILE })
+  const t = await launch(dir)
+  await openFile(t, 'a.ts')
+  await runCommand(t, 'Fold block at cursor')
+
+  // The anchor row alone, as the reader sees it: the hidden body must not come back.
+  await press(t, (i) => i.pressArrow('down', { shift: true }))
+  await press(t, (i) => i.pressKeys([String.fromCodePoint(127)]))
+  await press(t, (i) => i.pressKey('s', { ctrl: true }))
+  await settle(t)
+
+  const saved = readFileSync(join(dir, 'a.ts'), 'utf-8')
+  expect(saved).not.toContain('const secret = 1')
+  expect(saved).not.toContain('function outer')
+  expect(saved).toContain('const after = 2')
+})
+
 test('every foldable block carries a marker, and clicking it toggles the block', async () => {
   const dir = fixture({ 'a.ts': FILE })
   const t = await launch(dir)
