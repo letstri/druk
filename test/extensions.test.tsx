@@ -564,3 +564,18 @@ test('the palette picks an icon set, as it picks a theme', async () => {
   await settle(t)
   expect(t.captureCharFrame()).toContain('▲ a.ts')
 })
+
+test('an id that is a relative path is refused', () => {
+  // `..` reaches the config directory: installing it writes there, uninstalling it rm -rf's it.
+  for (const id of ['..', '.', '.hidden']) {
+    const { extension, problems } = parseManifest(
+      { ...MANIFEST, id },
+      '/p.json'
+    )
+    expect(extension).toBeNull()
+    expect(problems[0]?.reason).toContain('is not a name')
+  }
+  expect(
+    parseManifest({ ...MANIFEST, id: 'a.b-c_d' }, '/p.json').extension?.id
+  ).toBe('a.b-c_d')
+})

@@ -29,9 +29,10 @@ const stringList = (raw: unknown): string[] | null =>
     ? (raw as string[])
     : null
 
-// Ids name files and config keys: held to what a file name may be.
+// Ids name files and config keys: held to what a file name may be. The leading character may not
+// be a dot, or `".."` is a directory an install writes to and an uninstall recursively deletes.
 const isId = (raw: unknown): raw is string =>
-  typeof raw === 'string' && /^[\w.-]+$/u.test(raw)
+  typeof raw === 'string' && /^[\w-][\w.-]*$/u.test(raw)
 
 function parseTheme(
   raw: unknown,
