@@ -18,7 +18,19 @@ const PASTE: [string, string[]][] = [
   ['powershell', ['-NoProfile', '-Command', 'Get-Clipboard -Raw']],
 ]
 
+// Tests share the machine's clipboard with whoever is sitting at it: an in-memory one instead.
+const ENV = 'DRUK_CLIPBOARD'
+let memory: string | null = null
+
+function detached(): boolean {
+  return process.env[ENV] === 'off' || process.env[ENV] === '0'
+}
+
 export function copyToClipboard(text: string): boolean {
+  if (detached()) {
+    memory = text
+    return true
+  }
   for (const [command, args] of COPY) {
     // Spawning a missing binary costs a failed fork; a PATH lookup does not.
     if (!Bun.which(command)) {
@@ -33,6 +45,9 @@ export function copyToClipboard(text: string): boolean {
 }
 
 export function readClipboard(): string | null {
+  if (detached()) {
+    return memory
+  }
   for (const [command, args] of PASTE) {
     if (!Bun.which(command)) {
       continue

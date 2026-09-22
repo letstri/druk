@@ -10,6 +10,9 @@ process.env.DRUK_PROGRESS = '0'
 
 process.env.DRUK_ICON_FALLBACK = '0'
 
+// No test may touch the machine's real clipboard: the suite runs while someone is using it.
+process.env.DRUK_CLIPBOARD = 'off'
+
 // No test may hand a URL to the desktop: a fixture's commit is a 404 in a real browser tab.
 process.env.DRUK_BROWSER = 'off'
 

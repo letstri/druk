@@ -1371,6 +1371,10 @@ harness exists to encode:
 - **Poll for what you are waiting for.** `until()` renders until a condition holds, so a
   watcher event or an async highlight costs what it actually takes. A fixed
   `settle(t, 400)` is right only when the assertion is that *nothing* happened.
+- **The clipboard is in-memory under test.** `test/setup.ts` sets `DRUK_CLIPBOARD=off`, which
+  makes `src/core/clipboard.ts` keep the text in a variable instead of spawning `pbcopy` — the
+  suite runs on a machine someone is using, and a copy test otherwise takes their clipboard.
+  Copy and paste still round-trip, so nothing is gated on a clipboard tool being on PATH.
 - **A fixture lives as long as its file.** `test/setup.ts` deletes every registered
   directory in a global `afterAll`, so nothing may expect one to outlive the file that
   made it. The sweep is not tidiness: a full run creates some three thousand temp

@@ -125,18 +125,6 @@ test('every advertised hotkey does something', async () => {
   await press(t, (i) => i.pressArrow('down'))
   check('Esc editor → tree', frame(t).includes('EXPLORER'))
 
-  const clipboard = ['pbcopy', 'wl-copy', 'xclip', 'xsel'].some((tool) =>
-    Bun.which(tool)
-  )
-  if (!clipboard) {
-    const dead = report.filter((line) => line.startsWith('DEAD'))
-    if (dead.length > 0) {
-      console.error(`\n${report.join('\n')}\n`)
-    }
-    expect(dead).toEqual([])
-    return
-  }
-
   const dirCut = fixture(PROJECT)
   t = await launch(dirCut)
   await openFile(t, 'a.ts')
