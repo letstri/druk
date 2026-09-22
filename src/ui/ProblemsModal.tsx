@@ -143,6 +143,7 @@ export function ProblemsModal(props: ProblemsModalProps) {
       width={width()}
       title={` ${props.title} `}
       accent={ui.dirty}
+      onDismiss={props.onCancel}
     >
       <text
         fg={ui.dim}

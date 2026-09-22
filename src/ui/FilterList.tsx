@@ -26,6 +26,7 @@ export function FilterList<T>(props: {
   query: string
   onQuery: (value: string) => void
   onPick: (index: number) => void
+  onClose: () => void
   children: (item: T, active: () => boolean, bg: () => string) => JSX.Element
 }) {
   const hover = useHoverKey<number>()
@@ -34,6 +35,7 @@ export function FilterList<T>(props: {
     <ModalPanel
       zIndex={150}
       align={props.align}
+      onDismiss={props.onClose}
       width={props.width}
       title={props.title}
     >

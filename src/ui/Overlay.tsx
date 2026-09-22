@@ -1,4 +1,5 @@
 import { RGBA } from '@opentui/core'
+import type { MouseEvent } from '@opentui/core'
 import { useTerminalDimensions } from '@opentui/solid'
 import type { JSX } from '@opentui/solid'
 import { Show } from 'solid-js'
@@ -18,9 +19,16 @@ export function Overlay(props: {
   align?: 'center' | 'top'
   side?: 'right'
   scrim?: boolean
+  // Clicking the surface around the panel; the panel's own clicks target it, not this.
+  onDismiss?: () => void
   children: JSX.Element
 }) {
   const dimensions = useTerminalDimensions()
+  const dismiss = (event: MouseEvent) => {
+    if (event.target === event.currentTarget) {
+      props.onDismiss?.()
+    }
+  }
   // A side widget hangs from the top whatever the terminal's height: centred, it covers the code.
   const inset = () =>
     props.side
@@ -40,6 +48,7 @@ export function Overlay(props: {
       paddingTop={inset()}
       paddingRight={props.side === 'right' ? 1 : 0}
       zIndex={props.zIndex ?? 100}
+      onMouseDown={dismiss}
     >
       <Show when={ui.bg !== 'transparent' && props.scrim !== false}>
         <box
@@ -49,6 +58,7 @@ export function Overlay(props: {
           width="100%"
           height="100%"
           backgroundColor={SCRIM}
+          onMouseDown={dismiss}
         />
       </Show>
       {props.children}
@@ -65,6 +75,7 @@ export function ModalPanel(props: {
   align?: 'center' | 'top'
   side?: 'right'
   scrim?: boolean
+  onDismiss?: () => void
   padY?: number
   children: JSX.Element
 }) {
@@ -74,6 +85,7 @@ export function ModalPanel(props: {
       align={props.align}
       side={props.side}
       scrim={props.scrim}
+      onDismiss={props.onDismiss}
     >
       <box
         width={props.width}

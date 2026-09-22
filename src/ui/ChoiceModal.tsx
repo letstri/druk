@@ -53,6 +53,7 @@ export function ChoiceModal(props: ChoiceModalProps) {
       width={width()}
       title={` ${props.title} `}
       accent={ui.dirty}
+      onDismiss={props.onCancel}
     >
       <For each={lines()}>
         {(line) => <text fg={ui.text} bg={ui.panelBg} content={line} />}

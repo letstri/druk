@@ -1152,6 +1152,14 @@ row covers its texts — painting `ui.hoverBg`, a derived colour like `border`. 
 outranks hover (`rowBg` in `src/ui/list.ts` encodes that for the sidebar panels), and
 whole-pane focus clicks are not buttons, so they get no tint.
 
+A click outside a modal closes it: `Overlay` (`src/ui/Overlay.tsx`) takes `onDismiss` and
+fires it when a mouse-down's `target` is the overlay box or its scrim rather than
+something inside the panel, which every modal wires to whatever Esc does. It has to be
+the overlay's own handler and not a pass-through to the editor: a renderable claims the
+cells it covers in the hit grid, so the full-screen box a modal hangs from swallows the
+click either way — dismissing on it is what gives that click a meaning. A modal built on
+`FilterList` inherits it through that component's `onClose`.
+
 A chrome button also carries a tooltip: `useTooltip` (`src/ui/tooltip.ts`) is `useHover`
 plus a `ref` and the id of the command the button runs, and `TooltipLayer` (mounted by
 `App.tsx`, gated on the `tooltips` setting) draws whatever is registered. A tooltip is

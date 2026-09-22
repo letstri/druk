@@ -14,7 +14,7 @@ type Line =
   | { kind: 'key'; key: string; label: string }
   | { kind: 'gap' }
 
-export function HelpOverlay() {
+export function HelpOverlay(props: { onClose: () => void }) {
   const dimensions = useTerminalDimensions()
   const width = () => modalWidth(dimensions().width, 0.52, 58, 84)
   const lines = createMemo<Line[]>(() =>
@@ -46,6 +46,7 @@ export function HelpOverlay() {
       width={width()}
       title=" Keyboard shortcuts "
       padY={1}
+      onDismiss={props.onClose}
     >
       <For each={lines().slice(top(), top() + visible())}>
         {(line) => (

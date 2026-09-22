@@ -28,7 +28,12 @@ export function CompareFilter(props: CompareFilterProps) {
   })
 
   return (
-    <ModalPanel zIndex={160} width={width()} title=" Filter comparison ">
+    <ModalPanel
+      zIndex={160}
+      width={width()}
+      title=" Filter comparison "
+      onDismiss={() => props.onClose(false)}
+    >
       <TextInput
         value={props.value}
         placeholder="Type a path, commit, author or hash…"

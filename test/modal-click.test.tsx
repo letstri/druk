@@ -1,6 +1,15 @@
 import { expect, test } from 'bun:test'
 
-import { fixture, launch, openPalette, runCommand, untilFrame } from './helpers'
+import {
+  fixture,
+  launch,
+  openFile,
+  openPalette,
+  press,
+  runCommand,
+  untilFrame,
+  untilGone,
+} from './helpers'
 import type { Harness } from './helpers'
 
 const rowOf = (t: Harness, text: string) =>
@@ -32,4 +41,24 @@ test('a click on a palette row opens that submenu', async () => {
   expect(y).toBeGreaterThan(0)
   await t.mockMouse.click(20, y)
   await untilFrame(t, 'Toggle word wrap')
+}, 15_000)
+
+test('a click outside the find widget closes it', async () => {
+  const t = await launch(
+    fixture({ 'a.ts': 'const alpha = 1\n' }),
+    {},
+    {
+      width: 120,
+    }
+  )
+
+  await openFile(t, 'a.ts')
+  await press(t, (i) => i.pressKey('f', { ctrl: true }))
+  await untilFrame(t, 'Search in file')
+
+  const line = t.captureCharFrame().split('\n')[1] ?? ''
+  const x = line.indexOf('const alpha = 1')
+  expect(x).toBeGreaterThan(0)
+  await t.mockMouse.click(x, 1)
+  await untilGone(t, 'Search in file')
 }, 15_000)

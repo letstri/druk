@@ -55,7 +55,12 @@ export function SettingEditor(props: {
     setValues((previous) => previous.map((old, i) => (i === at ? value : old)))
 
   return (
-    <ModalPanel zIndex={150} width={width()} title={` ${props.edit.title} `}>
+    <ModalPanel
+      zIndex={150}
+      width={width()}
+      title={` ${props.edit.title} `}
+      onDismiss={() => props.onDone(null)}
+    >
       <For each={props.edit.fields}>
         {(field, at) => (
           <>

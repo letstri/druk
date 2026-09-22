@@ -749,7 +749,7 @@ export function OverlayStack(props: {
         <KeyPeek pane={panes.keyPane()} />
       </Show>
       <Show when={overlays.help()}>
-        <HelpOverlay />
+        <HelpOverlay onClose={() => overlays.setHelp(false)} />
       </Show>
     </>
   )

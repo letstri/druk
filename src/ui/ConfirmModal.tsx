@@ -41,6 +41,7 @@ export function ConfirmModal(props: ConfirmModalProps) {
       width={width()}
       title={` ${props.title} `}
       accent={accent()}
+      onDismiss={props.onCancel}
     >
       <For each={lines()}>
         {(line) => <text fg={ui.text} bg={ui.panelBg} content={line} />}

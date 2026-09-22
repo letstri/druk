@@ -106,6 +106,7 @@ export function FilePicker(props: FilePickerProps) {
         setIndex(0)
       }}
       onPick={open}
+      onClose={props.onClose}
     >
       {(match, active, bg) => {
         const shown = () => match.label.slice(0, width() - PAD * 2 - 4)

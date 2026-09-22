@@ -526,6 +526,7 @@ export function SearchPanel(props: SearchPanelProps) {
       align="top"
       side={listed() ? undefined : 'right'}
       scrim={listed()}
+      onDismiss={props.onClose}
       width={width()}
       title={
         props.scope === 'project' ? ' Search in project ' : ' Search in file '

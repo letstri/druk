@@ -75,6 +75,7 @@ export function ListPicker(props: ListPickerProps) {
         setIndex(0)
       }}
       onPick={open}
+      onClose={props.onClose}
     >
       {(match, active, bg) => {
         const { item } = match

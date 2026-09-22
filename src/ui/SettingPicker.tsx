@@ -86,6 +86,7 @@ export function SettingPicker(props: {
         setIndex(0)
       }}
       onPick={pick}
+      onClose={props.onClose}
     >
       {(match, active, bg) => (
         <>

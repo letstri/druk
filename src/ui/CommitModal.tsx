@@ -103,6 +103,7 @@ export function CommitModal(props: CommitModalProps) {
       zIndex={150}
       width={width()}
       title={` Commit — ${picked().length} of ${props.files.length} files `}
+      onDismiss={props.onCancel}
     >
       <For each={props.files.slice(top(), top() + rows())}>
         {(file, i) => {

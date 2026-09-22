@@ -160,6 +160,7 @@ export function CommandPalette(props: CommandPaletteProps) {
           enter(row)
         }
       }}
+      onClose={props.onClose}
     >
       {(row, active, bg) => {
         const prefix = row.trail.length > 0 ? `${row.trail.join(' › ')} › ` : ''

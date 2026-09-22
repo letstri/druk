@@ -63,7 +63,11 @@ export function PromptModal(props: PromptModalProps) {
   })
 
   return (
-    <ModalPanel width={width()} title={` ${props.title} `}>
+    <ModalPanel
+      width={width()}
+      title={` ${props.title} `}
+      onDismiss={props.onCancel}
+    >
       <TextInput value={value()} onInput={input} />
       <text fg={ui.panelBg} bg={ui.panelBg} content="" />
       <text

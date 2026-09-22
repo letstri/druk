@@ -23,7 +23,7 @@ export function UpdateBanner(props: UpdateBannerProps) {
   })
 
   return (
-    <Overlay zIndex={170}>
+    <Overlay zIndex={170} onDismiss={props.onClose}>
       <box
         width={56}
         flexDirection="column"
