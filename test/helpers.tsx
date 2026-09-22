@@ -11,7 +11,7 @@ import { Root } from '../src/app/Root'
 import { DEFAULTS } from '../src/core/config'
 import type { Config } from '../src/core/config'
 import { loadExtensions } from '../src/extensions'
-import { tempDir } from './temp'
+import { liveHarnesses, tempDir } from './temp'
 import { SLOW } from './wait'
 
 export type Harness = Awaited<ReturnType<typeof launch>>
@@ -19,9 +19,6 @@ export type Harness = Awaited<ReturnType<typeof launch>>
 export function loadMarketExtensions(): void {
   loadExtensions(process.env.XDG_CONFIG_HOME!, [], MARKET_DIR)
 }
-
-// An undestroyed harness keeps `App`'s fs watchers and git timers alive for the process.
-export const liveHarnesses = new Set<Harness>()
 
 export function fixture(files: Record<string, string>): string {
   const dir = tempDir()
@@ -109,10 +106,12 @@ export async function openFile(t: Harness, name: string) {
   await settle(t)
 }
 
+// The poll interval scales with SLOW as well: a poll is a full frame flush (~16ms of CPU),
+// so a 15ms one starves the background work — a highlight, a git read — that it is waiting for.
 export async function until(t: Harness, cond: () => boolean, timeoutMs = 4000) {
   const started = Date.now()
   while (!cond() && Date.now() - started < timeoutMs * SLOW) {
-    await settle(t, 15)
+    await settle(t, 15 * SLOW)
   }
   expect(cond()).toBe(true)
 }

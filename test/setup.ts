@@ -1,7 +1,7 @@
 import { afterAll, afterEach } from 'bun:test'
 import { rmSync } from 'node:fs'
 
-import { fixtures, tempDir } from './temp'
+import { fixtures, liveHarnesses, tempDir } from './temp'
 
 // A preload, not a `beforeAll`: `src/core/config.ts` captures `CONFIG_FILE` at module load.
 process.env.XDG_CONFIG_HOME = tempDir('druk-test-config-')
@@ -22,8 +22,7 @@ const { loadExtensions } = await import('../src/extensions')
 loadExtensions(process.env.XDG_CONFIG_HOME!)
 
 // `renderer.destroy()` is what runs Solid's `onCleanup`; without it watchers and timers pile up.
-afterEach(async () => {
-  const { liveHarnesses } = await import('./helpers')
+afterEach(() => {
   for (const t of liveHarnesses) {
     t.renderer.destroy()
   }
