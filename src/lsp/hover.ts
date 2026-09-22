@@ -29,3 +29,24 @@ export function hoverText(result: unknown): string {
     .filter((text) => text.length > 0)
     .join('\n\n')
 }
+
+// TypeScript's deprecation diagnostic is `'x' is deprecated.` and nothing more: the reason
+// lives in the JSDoc tag, which only hover carries.
+export function deprecationNote(text: string): string {
+  const lines = text.split('\n')
+  const at = lines.findIndex((line) => /^@?deprecated\b/iu.test(line.trim()))
+  if (at === -1) {
+    return ''
+  }
+  const paragraph: string[] = []
+  for (const line of lines.slice(at)) {
+    if (!line.trim()) {
+      break
+    }
+    paragraph.push(line.trim())
+  }
+  return paragraph
+    .join(' ')
+    .replace(/^@?deprecated\b\s*[—–\-:]*\s*/iu, '')
+    .trim()
+}

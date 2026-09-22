@@ -490,7 +490,14 @@ the server tagged them Unnecessary, where unused code fades toward the
 background instead, and where it tagged them Deprecated, where the span is
 struck through and keeps its colour — the strike is a text attribute
 `SyntaxStyle.registerStyle` drops, so that one style is written to the native
-table directly (`registerStruckThrough` in `src/languages/highlight.ts`); the
+table directly (`registerStruckThrough` in `src/languages/highlight.ts`) — and
+where a *deprecation* is all the diagnostic says, the reason is fetched and added
+to it: TypeScript's message is `'streamObject' is deprecated.` and nothing else,
+the JSDoc tag's own words reaching only `textDocument/hover`, so a diagnostic
+tagged Deprecated is looked up once (`deprecationNote` in `src/lsp/hover.ts`,
+cached per path and message in `createLsp`'s `merge`) and every reader — the
+card, the inline row, the problems list — gets the half that says what to use
+instead; the
 settings page toggles LSP, the inline text and each server, and edits per-server
 commands; diagnostics arrive either way the protocol offers them — published, or
 pulled with `textDocument/diagnostic` after every sync for the servers that

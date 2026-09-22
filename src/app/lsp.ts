@@ -13,7 +13,7 @@ import { normalizeCompletion } from '../lsp/completion'
 import type { CompletionReply } from '../lsp/completion'
 import { callNodes, hierarchyItems, nodeOf } from '../lsp/hierarchy'
 import type { CallDirection, CallNode } from '../lsp/hierarchy'
-import { hoverText } from '../lsp/hover'
+import { deprecationNote, hoverText } from '../lsp/hover'
 import {
   availablePackageManagers,
   downloadServer,
@@ -150,10 +150,42 @@ export function createLsp(deps: {
   const byPosition = (a: Problem, b: Problem) =>
     a.line - b.line || a.col - b.col
 
+  // The reason behind a `@deprecated`, keyed by the diagnostic that named the symbol.
+  const reasons = new Map<string, string>()
+  const reasonKey = (problem: Problem) =>
+    `${problem.path}\u0000${problem.message}`
+
+  const withReason = (problem: Problem): Problem => {
+    const reason = problem.deprecated ? reasons.get(reasonKey(problem)) : ''
+    return reason && !problem.message.includes(reason)
+      ? { ...problem, message: `${problem.message} ${reason}` }
+      : problem
+  }
+
+  const fetchReason = async (problem: Problem) => {
+    const key = reasonKey(problem)
+    if (reasons.has(key)) {
+      return
+    }
+    reasons.set(key, '')
+    const reason = deprecationNote(
+      await hover(problem.path, problem.line, problem.col)
+    )
+    if (reason) {
+      reasons.set(key, reason)
+      merge(problem.path)
+    }
+  }
+
   const merge = (path: string) => {
     const senders = bySource.get(path)
     const all = senders ? [...senders.values()].flat() : []
-    setProblems(path, all.toSorted(byPosition))
+    setProblems(path, all.map(withReason).toSorted(byPosition))
+    for (const problem of all) {
+      if (problem.deprecated) {
+        void fetchReason(problem)
+      }
+    }
   }
 
   const onDiagnosticsFrom =

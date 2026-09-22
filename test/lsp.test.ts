@@ -13,6 +13,7 @@ import {
   styleIdOver,
 } from '../src/languages/highlight'
 import { spawnLspClient } from '../src/lsp/client'
+import { deprecationNote } from '../src/lsp/hover'
 import {
   availablePackageManagers,
   downloadServer,
@@ -669,5 +670,20 @@ describe('client against a live server', () => {
     expect(client.ready()).toBe(false)
     expect(client.dead()).toBe(false)
     client.dispose()
+  })
+})
+
+describe('deprecationNote', () => {
+  test('takes the reason out of a hover', () => {
+    expect(
+      deprecationNote(
+        'function streamObject(): void\n\n@deprecated — Use streamText with\nexperimental_output instead.\n\nMore prose.'
+      )
+    ).toBe('Use streamText with experimental_output instead.')
+  })
+
+  test('is empty without a tag, or with a bare one', () => {
+    expect(deprecationNote('function f(): void')).toBe('')
+    expect(deprecationNote('f\n\n@deprecated')).toBe('')
   })
 })
