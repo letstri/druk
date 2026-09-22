@@ -2975,8 +2975,10 @@ export function EditorPane(props: EditorPaneProps) {
         const at = editor.cursorOffset
         // A replace rewrites lines this pane never showed, so the fold ranges are stale.
         clearFolds()
-        editor.setText(edit.content)
-        editor.cursorOffset = Math.min(at, edit.content.length)
+        keepingView(() => {
+          editor!.setText(edit.content)
+          editor!.cursorOffset = Math.min(at, edit.content.length)
+        })
         props.onChange(edit.content)
         rehighlight(edit.content)
         scheduleCursorSync()

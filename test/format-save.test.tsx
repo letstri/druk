@@ -116,3 +116,26 @@ test('off: the formatter never runs', async () => {
   await settle(t, 300)
   expect(readFileSync(join(dir, 'a.ts'), 'utf-8')).toBe('edit const a = 1\n')
 })
+
+test('a format keeps the view where it was', async () => {
+  const lines = Array.from({ length: 200 }, (_, n) => `const v${n} = ${n}`)
+  const dir = fixture({ 'a.ts': `${lines.join('\n')}\n`, 'fmt.js': UPPERCASE })
+  const t = await launch(
+    dir,
+    {
+      formatOnSave: true,
+      formatters: { ts: [process.execPath, join(dir, 'fmt.js')] },
+    },
+    {},
+    { openFile: join(dir, 'a.ts'), openLine: 150 }
+  )
+  await untilFrame(t, 'v150')
+  await press(t, (i) => i.typeText('x'))
+  const top = t.captureCharFrame().split('\n')[1]!
+  await save(t)
+
+  await untilFrame(t, 'Formatted a.ts')
+  const frame = t.captureCharFrame()
+  expect(frame).toContain('XCONST V150')
+  expect(frame.split('\n')[1]).toBe(top.toUpperCase())
+})
