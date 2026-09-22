@@ -1160,6 +1160,14 @@ cells it covers in the hit grid, so the full-screen box a modal hangs from swall
 click either way — dismissing on it is what gives that click a meaning. A modal built on
 `FilterList` inherits it through that component's `onClose`.
 
+The find widget is the one that has no such box at all. A scrimless side widget
+(`side="right"` with `scrim={false}`) hangs from its own corner — `position="absolute"`,
+`top` the inset and `right` 1 — rather than from a full-screen parent, so every cell
+around it stays the editor's and a click in the code reaches the buffer: the caret lands
+where it was aimed, natively, and the click closes the widget on its way through
+(`closeInlineSearch` in `src/app/Overlays.tsx`, called from the editor pane's `onFocus`).
+That is why it is not wired to `onDismiss` — there is no surface left to dismiss from.
+
 A chrome button also carries a tooltip: `useTooltip` (`src/ui/tooltip.ts`) is `useHover`
 plus a `ref` and the id of the command the button runs, and `TooltipLayer` (mounted by
 `App.tsx`, gated on the `tooltips` setting) draws whatever is registered. A tooltip is

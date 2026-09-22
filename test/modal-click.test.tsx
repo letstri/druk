@@ -59,6 +59,7 @@ test('a click outside the find widget closes it', async () => {
   const line = t.captureCharFrame().split('\n')[1] ?? ''
   const x = line.indexOf('const alpha = 1')
   expect(x).toBeGreaterThan(0)
-  await t.mockMouse.click(x, 1)
+  await t.mockMouse.click(x + 6, 1)
   await untilGone(t, 'Search in file')
+  await untilFrame(t, 'Ln 1, Col 7')
 }, 15_000)

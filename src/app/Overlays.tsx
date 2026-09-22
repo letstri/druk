@@ -170,6 +170,15 @@ export function createOverlays(deps: {
     }
   }
 
+  // The find widget floats over the code with no scrim, so a click in the editor reaches
+  // the buffer: that click is what closes it, the way a GUI editor's find is left behind.
+  const closeInlineSearch = () => {
+    if (search()?.scope === 'file') {
+      setSearch(null)
+      setSearchHits(null)
+    }
+  }
+
   const jumpTo = (match: Match) => {
     setSearch(null)
     setSearchHits(null)
@@ -181,6 +190,7 @@ export function createOverlays(deps: {
   }
 
   return {
+    closeInlineSearch,
     help,
     jumpTo,
     lastSearch,

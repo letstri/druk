@@ -36,6 +36,20 @@ export function Overlay(props: {
       : props.align === 'top'
         ? topInset(dimensions().height)
         : 0
+  // A widget with no scrim hangs in its corner rather than from a full-screen box: that box
+  // claims every cell it covers in the hit grid, so the editor under it would take no click.
+  if (props.side === 'right' && props.scrim === false) {
+    return (
+      <box
+        position="absolute"
+        top={inset()}
+        right={1}
+        zIndex={props.zIndex ?? 100}
+      >
+        {props.children}
+      </box>
+    )
+  }
   return (
     <box
       position="absolute"

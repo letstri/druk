@@ -1036,7 +1036,10 @@ export function App(props: {
               onChange={workspace.onEditorChange}
               onCursor={editor.setCursor}
               onSelection={editor.setSelection}
-              onFocus={() => panes.setFocus('editor')}
+              onFocus={() => {
+                panes.setFocus('editor')
+                overlays.closeInlineSearch()
+              }}
               onVimMode={editor.setVimMode}
               onStatus={status.say}
               onQuit={promptHandlers.quit}
