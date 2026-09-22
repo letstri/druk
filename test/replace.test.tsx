@@ -37,7 +37,8 @@ test('replaceMatch refuses a match whose line has moved on', () => {
 })
 
 async function openReplace(dir: string, query: string, replacement: string) {
-  const t = await launch(dir)
+  // Wide enough that the find widget leaves the file's own lines on screen beside it.
+  const t = await launch(dir, {}, { height: 30, width: 110 })
   await press(t, (i) => i.pressArrow('down'))
   await press(t, (i) => i.pressEnter())
 
@@ -48,24 +49,28 @@ async function openReplace(dir: string, query: string, replacement: string) {
   return t
 }
 
-test('the replacement is shown against each hit as it is typed', async () => {
+test('the file stays on screen, untouched, while a replacement is typed', async () => {
   const dir = fixture({ 'a.ts': 'const old = 1\nconst old2 = old + 1\n' })
   const t = await openReplace(dir, 'old', 'fresh')
   await settle(t)
 
   const frame = t.captureCharFrame()
-  expect(frame).toContain('const oldfresh = 1')
-  expect(frame).toContain('const oldfresh2 = old + 1')
+  expect(frame).toContain('const old = 1')
+  expect(frame).toContain('1 of 3')
   expect(readFileSync(join(dir, 'a.ts'), 'utf-8')).toBe(
     'const old = 1\nconst old2 = old + 1\n'
   )
 })
 
-test('with the replacement empty the rows read as the file does', async () => {
+test('Enter with the replacement empty deletes the match', async () => {
   const dir = fixture({ 'a.ts': 'const old = 1\n' })
   const t = await openReplace(dir, 'old', '')
-  await settle(t)
-  expect(t.captureCharFrame()).toContain('const old = 1')
+
+  await press(t, (i) => i.pressEnter())
+  await pressEscape(t)
+  await press(t, (i) => i.pressKey('s', { ctrl: true }))
+
+  expect(readFileSync(join(dir, 'a.ts'), 'utf-8')).toBe('const  = 1\n')
 })
 
 test('Ctrl+A replaces every match in the open file', async () => {

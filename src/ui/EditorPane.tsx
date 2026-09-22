@@ -60,6 +60,7 @@ import {
   FLASH_GROUP,
   getSyntaxStyle,
   mixColors,
+  SEARCH_GROUPS,
   segmentsIn,
   STALE,
   styleIdForGroup,
@@ -94,6 +95,12 @@ import { cut, wrapText } from './text'
 import { useKeys } from './useKeys'
 import { Welcome } from './Welcome'
 
+interface SearchHit {
+  line: number
+  col: number
+  length: number
+}
+
 interface EditorPaneProps {
   path: string | null
   content: string
@@ -103,7 +110,7 @@ interface EditorPaneProps {
   filetype?: string
   focused: boolean
   reloadKey: number
-  goto: { line: number; col: number; key: number } | null
+  goto: { line: number; col: number; key: number; quiet?: boolean } | null
   history: { kind: 'undo' | 'redo'; key: number } | null
   edit: { content: string; key: number } | null
   lineOp: {
@@ -131,6 +138,8 @@ interface EditorPaneProps {
   }[]
   problemText: boolean
   conflicts: readonly MergeConflict[]
+  // The hits of the open search, in this file alone.
+  search: { hits: readonly SearchHit[]; current: SearchHit | null } | null
   reviews: Map<number, { draft: boolean; label: string; text: string }>
   reviewText: boolean
   reviewCard: {
@@ -1717,6 +1726,39 @@ export function EditorPane(props: EditorPaneProps) {
     overlay(row, line, text, 0, end, group, 110)
   }
 
+  const searchByLine = createMemo(() => {
+    const byRow = new Map<number, SearchHit[]>()
+    for (const hit of props.search?.hits ?? []) {
+      const row = byRow.get(hit.line)
+      if (row) {
+        row.push(hit)
+      } else {
+        byRow.set(hit.line, [hit])
+      }
+    }
+    return byRow
+  })
+
+  const markSearch = (row: number, line: number) => {
+    const hits = searchByLine().get(line)
+    if (!hits) {
+      return
+    }
+    const text = parsedLine(line) ?? lineTextAt(row)
+    for (const hit of hits) {
+      const current = hit === props.search?.current
+      overlay(
+        row,
+        line,
+        text,
+        hit.col,
+        hit.col + hit.length,
+        current ? SEARCH_GROUPS.current : SEARCH_GROUPS.match,
+        current ? 116 : 115
+      )
+    }
+  }
+
   /** Tint the whole of the row a jump just landed on, over everything else. */
   const markFlash = (row: number, line: number) => {
     if (row !== flashRow()) {
@@ -1767,6 +1809,7 @@ export function EditorPane(props: EditorPaneProps) {
       }
       markProblems(row, line)
       markConflict(row, line)
+      markSearch(row, line)
       markFlash(row, line)
     }
   }
@@ -2896,6 +2939,14 @@ export function EditorPane(props: EditorPaneProps) {
     )
   )
 
+  createEffect(
+    on(
+      () => props.search,
+      () => applyWindow(true),
+      { defer: true }
+    )
+  )
+
   // Keyed on reloadKey, never on content, so typing is never interrupted.
   createEffect(
     on(
@@ -2959,8 +3010,11 @@ export function EditorPane(props: EditorPaneProps) {
             )
           }
           revealLine(target.line, target.col)
-          flashLanding(shownLine(target.line))
-          editor.focus()
+          // A search stepping through its hits neither flashes nor takes the keyboard back.
+          if (!target.quiet) {
+            flashLanding(shownLine(target.line))
+            editor.focus()
+          }
         })
       }
     )

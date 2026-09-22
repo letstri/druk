@@ -17,6 +17,8 @@ export function createEditorBridge(vim: boolean) {
     line: number
     col: number
     key: number
+    // Reveal the line without the flash and without taking the keyboard back.
+    quiet?: boolean
   } | null>(null)
   const [edit, setEdit] = createSignal<{ content: string; key: number } | null>(
     null
@@ -40,8 +42,8 @@ export function createEditorBridge(vim: boolean) {
   const bumpReload = () => setReloadKey((k) => k + 1)
   const requestHistory = (kind: 'undo' | 'redo') =>
     setHistory((prev) => ({ key: (prev?.key ?? 0) + 1, kind }))
-  const requestGoto = (line: number, col: number) =>
-    setGoto((prev) => ({ col, key: (prev?.key ?? 0) + 1, line }))
+  const requestGoto = (line: number, col: number, quiet = false) =>
+    setGoto((prev) => ({ col, key: (prev?.key ?? 0) + 1, line, quiet }))
   const pushEdit = (content: string) =>
     setEdit((prev) => ({ content, key: (prev?.key ?? 0) + 1 }))
   const requestLineOp = (

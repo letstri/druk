@@ -26,6 +26,7 @@ import { plural } from '../core/text'
 import { ui } from '../themes'
 import { createHighlighted, paintLine, sliceSpans } from './codeSpans'
 import type { Span } from './codeSpans'
+import { useHover } from './hover'
 import { windowAround } from './list'
 import { modalWidth, PAD } from './modal'
 import { ModalPanel, topInset } from './Overlay'
@@ -54,6 +55,10 @@ interface SearchPanelProps {
   // Every key handler hears every key: without this, Enter on a confirm also applies the match.
   suspended?: boolean
   onSearch?: (state: SearchMemory) => void
+  // The hits, for the editor to tint in the file itself; null once the panel is gone.
+  onMatches?: (
+    found: { matches: readonly Match[]; current: Match | null } | null
+  ) => void
   onPick: (match: Match) => void
   onReplaceOne?: (match: Match, replacement: string) => void
   onReplaceAll?: (
@@ -196,6 +201,13 @@ export function SearchPanel(props: SearchPanelProps) {
   const cursor = () => rows()[selected()]
   const current = () => matches()[cursor()?.at ?? -1]
 
+  createEffect(
+    on([matches, current], ([all, one]) =>
+      props.onMatches?.({ current: one ?? null, matches: all })
+    )
+  )
+  onCleanup(() => props.onMatches?.(null))
+
   const move = (step: number) => {
     const all = rows()
     if (all.length === 0) {
@@ -250,7 +262,12 @@ export function SearchPanel(props: SearchPanelProps) {
     }
   }
 
-  const width = () => modalWidth(dimensions().width, 0.86, 64, 160)
+  // The file's own hits are tinted in the editor, so that scope needs no list and no preview.
+  const listed = () => props.scope === 'project'
+  const width = () =>
+    listed()
+      ? modalWidth(dimensions().width, 0.86, 64, 160)
+      : modalWidth(dimensions().width, 0.42, 44, 56)
   // Inside the border *and* the padding — miss either and every long row wraps.
   const contentWidth = () => width() - 2 - PAD * 2
 
@@ -291,7 +308,12 @@ export function SearchPanel(props: SearchPanelProps) {
   const preview = createMemo<Context | null>(() => {
     const match = current()
     const file = source()
-    if (!match || !file || dimensions().height < PREVIEW_MIN_HEIGHT) {
+    if (
+      !listed() ||
+      !match ||
+      !file ||
+      dimensions().height < PREVIEW_MIN_HEIGHT
+    ) {
       return null
     }
     return contextIn(file.text, match.line, contextLines())
@@ -374,36 +396,60 @@ export function SearchPanel(props: SearchPanelProps) {
     }
   })
 
-  const flags = () => {
-    const toggles = options()
-    const parts = [
-      toggles.caseSensitive && 'case',
-      toggles.wholeWord && 'word',
-      toggles.regex && 'regex',
-    ]
-    const active = parts.filter(Boolean)
-    return active.length > 0 ? ` · ${active.join(' ')}` : ''
-  }
-
   const summary = () => {
     if (query().length < MIN_QUERY) {
-      return `Type at least 2 characters${flags()}`
+      return 'Type at least 2 characters'
     }
     if (pending()) {
-      return `Searching…${flags()}`
+      return 'Searching…'
     }
     if (options().regex && !buildQuery(scanned(), options())) {
-      return `Invalid regex${flags()}`
+      return 'Invalid regex'
     }
     const all = matches()
     if (all.length === 0) {
-      return `No matches${flags()}`
+      return 'No matches'
     }
     const files = new Set(all.map((m) => m.path)).size
     const capped = all.length >= 200 ? '+' : ''
     const where =
       props.scope === 'project' ? ` in ${plural(files, 'file')}` : ''
-    return `${(cursor()?.at ?? 0) + 1} of ${all.length}${capped}${where}${flags()}`
+    return `${(cursor()?.at ?? 0) + 1} of ${all.length}${capped}${where}`
+  }
+
+  // VS Code's Aa / ab / .* buttons: the chord is there for the keyboard, the chip for the mouse.
+  const Toggle = (chip: { label: string; name: keyof SearchOptions }) => {
+    const hover = useHover()
+    const lit = () => !!options()[chip.name]
+    const bg = () =>
+      lit() ? ui.treeSelectedBg : hover.hovered() ? ui.hoverBg : ui.panelBg
+    return (
+      <box
+        flexShrink={0}
+        backgroundColor={bg()}
+        onMouseDown={() => toggleOption(chip.name)}
+        onMouseOver={hover.enter}
+        onMouseOut={hover.leave}
+      >
+        <text
+          fg={lit() ? ui.accent : ui.dim}
+          bg={bg()}
+          content={` ${chip.label} `}
+          attributes={lit() ? TextAttributes.BOLD : undefined}
+        />
+      </box>
+    )
+  }
+
+  const hints = () => {
+    if (!listed()) {
+      return replacing()
+        ? 'Enter replace · Ctrl+A all · Tab back'
+        : 'Enter jump · Tab replace · Ctrl+C/W/R'
+    }
+    return replacing()
+      ? '↑↓ move · Enter replace · Ctrl+A replace all · Tab back · Esc close'
+      : '↑↓ move · Enter jump · Tab fold · Shift+Tab all · Ctrl+C/W/R · Esc close'
   }
 
   const label = (path: string) =>
@@ -478,18 +524,27 @@ export function SearchPanel(props: SearchPanelProps) {
     <ModalPanel
       zIndex={150}
       align="top"
+      side={listed() ? undefined : 'right'}
+      scrim={listed()}
       width={width()}
       title={
         props.scope === 'project' ? ' Search in project ' : ' Search in file '
       }
     >
-      <TextInput
-        value={query()}
-        placeholder="Search…"
-        focused={!props.suspended && (!replacing() || field() === 'query')}
-        selectAllOnMount
-        onInput={type}
-      />
+      <box flexDirection="row">
+        <box flexGrow={1}>
+          <TextInput
+            value={query()}
+            placeholder="Search…"
+            focused={!props.suspended && (!replacing() || field() === 'query')}
+            selectAllOnMount
+            onInput={type}
+          />
+        </box>
+        <Toggle label="Aa" name="caseSensitive" />
+        <Toggle label="ab" name="wholeWord" />
+        <Toggle label=".*" name="regex" />
+      </box>
       <Show when={replacing()}>
         <TextInput
           value={replacement()}
@@ -499,9 +554,11 @@ export function SearchPanel(props: SearchPanelProps) {
         />
       </Show>
       <text fg={ui.dim} bg={ui.panelBg} content={summary()} />
-      <text fg={ui.panelBg} bg={ui.panelBg} content="" />
+      <Show when={listed()}>
+        <text fg={ui.panelBg} bg={ui.panelBg} content="" />
+      </Show>
 
-      <For each={windowed().rows}>
+      <For each={listed() ? windowed().rows : []}>
         {(row, i) => {
           const at = () => windowed().start + i()
           const active = () => at() === selected()
@@ -642,17 +699,7 @@ export function SearchPanel(props: SearchPanelProps) {
         )}
       </Show>
 
-      <text
-        fg={ui.dim}
-        bg={ui.panelBg}
-        content={
-          props.onReplaceAll
-            ? replacing()
-              ? '↑↓ move · Enter replace · Ctrl+A replace all · Tab back · Esc close'
-              : '↑↓ move · Enter jump · Tab replace · Ctrl+C/W/R case/word/regex · Esc close'
-            : '↑↓ move · Enter jump · Tab fold · Shift+Tab all · Ctrl+C/W/R case/word/regex · Esc close'
-        }
-      />
+      <text fg={ui.dim} bg={ui.panelBg} content={hints()} />
     </ModalPanel>
   )
 }

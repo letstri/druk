@@ -414,6 +414,18 @@ export function App(props: {
     return (path ? lsp.problems[path] : undefined) ?? []
   })
 
+  const searchHits = createMemo(() => {
+    const found = overlays.searchHits()
+    const path = workspace.activePath()
+    if (!found || !path) {
+      return null
+    }
+    return {
+      current: found.current?.path === path ? found.current : null,
+      hits: found.matches.filter((match) => match.path === path),
+    }
+  })
+
   const tabSeverity = (path: string): 'error' | 'warning' | null => {
     let worst: 'warning' | null = null
     for (const problem of lsp.problems[path] ?? []) {
@@ -989,6 +1001,7 @@ export function App(props: {
               problemRanges={problemRanges()}
               problemText={config.lspInline}
               conflicts={workspace.mergeConflicts()}
+              search={searchHits()}
               reviews={review.marks()}
               reviewText={config.reviewInline}
               reviewCard={

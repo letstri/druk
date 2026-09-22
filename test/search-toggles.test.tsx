@@ -1,7 +1,26 @@
 import { describe, expect, test } from 'bun:test'
 
 import { buildQuery, searchText } from '../src/core/search'
+import { ui } from '../src/themes'
 import { fixture, launch, press } from './helpers'
+import type { Harness } from './helpers'
+
+interface Frame {
+  lines: { spans: { text: string; fg?: { buffer: Uint8Array } }[] }[]
+}
+
+const hex = (fg?: { buffer: Uint8Array }) =>
+  fg
+    ? `#${Array.from(fg.buffer.slice(0, 3), (v) => v.toString(16).padStart(2, '0')).join('')}`
+    : ''
+
+// The toggle chips say which of them are on: lit is the accent, off is dim.
+const chipLit = (t: Harness, label: string) => {
+  const chip = (t.captureSpans() as unknown as Frame).lines
+    .flatMap((line) => line.spans)
+    .find((span) => span.text.trim() === label)
+  return hex(chip?.fg) === ui.accent.toLowerCase()
+}
 
 const CONTENT = 'alpha ALPHA alphabet\nAlphabet soup\n'
 
@@ -49,10 +68,11 @@ describe('search panel toggles', () => {
     await press(t, (i) => i.typeText('ALPHA'))
     expect(t.captureCharFrame()).toContain('of 4')
 
+    expect(chipLit(t, 'Aa')).toBe(false)
+
     await press(t, (i) => i.pressKey('c', { ctrl: true }))
-    const frame = t.captureCharFrame()
-    expect(frame).toContain('1 of 1')
-    expect(frame).toContain('case')
+    expect(t.captureCharFrame()).toContain('1 of 1')
+    expect(chipLit(t, 'Aa')).toBe(true)
   })
 
   test('Ctrl+W matches whole words only', async () => {
@@ -62,6 +82,7 @@ describe('search panel toggles', () => {
 
     await press(t, (i) => i.pressKey('w', { ctrl: true }))
     expect(t.captureCharFrame()).toContain('of 2')
+    expect(chipLit(t, 'ab')).toBe(true)
   })
 
   test('Ctrl+R turns the query into a regex, and says when it is invalid', async () => {

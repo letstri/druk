@@ -108,6 +108,11 @@ export const CONFLICT_GROUPS = {
 
 export const FLASH_GROUP = 'druk.jump.flash'
 
+export const SEARCH_GROUPS = {
+  current: 'druk.search.current',
+  match: 'druk.search.match',
+} as const
+
 export const DIFF_GROUPS = {
   added: 'druk.diff.added',
   hunk: 'druk.diff.hunk',
@@ -167,6 +172,8 @@ export function getSyntaxStyle(): SyntaxStyle {
         fg: ui.dirty,
       },
       [FLASH_GROUP]: { bg: mixColors(ui.solidBg, ui.accent, 0.22) },
+      [SEARCH_GROUPS.match]: { bg: mixColors(ui.solidBg, ui.dirty, 0.22) },
+      [SEARCH_GROUPS.current]: { bg: mixColors(ui.solidBg, ui.dirty, 0.5) },
       [DIFF_GROUPS.added]: {
         bg: mixColors(ui.solidBg, ui.gitAdded, 0.14),
         fg: ui.gitAdded,

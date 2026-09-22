@@ -16,11 +16,18 @@ export const topInset = (height: number) => (height >= SHORT_TERMINAL ? 3 : 0)
 export function Overlay(props: {
   zIndex?: number
   align?: 'center' | 'top'
+  side?: 'right'
+  scrim?: boolean
   children: JSX.Element
 }) {
   const dimensions = useTerminalDimensions()
+  // A side widget hangs from the top whatever the terminal's height: centred, it covers the code.
   const inset = () =>
-    props.align === 'top' ? topInset(dimensions().height) : 0
+    props.side
+      ? Math.max(1, topInset(dimensions().height))
+      : props.align === 'top'
+        ? topInset(dimensions().height)
+        : 0
   return (
     <box
       position="absolute"
@@ -28,12 +35,13 @@ export function Overlay(props: {
       left={0}
       width="100%"
       height="100%"
-      alignItems="center"
+      alignItems={props.side === 'right' ? 'flex-end' : 'center'}
       justifyContent={inset() > 0 ? 'flex-start' : 'center'}
       paddingTop={inset()}
+      paddingRight={props.side === 'right' ? 1 : 0}
       zIndex={props.zIndex ?? 100}
     >
-      <Show when={ui.bg !== 'transparent'}>
+      <Show when={ui.bg !== 'transparent' && props.scrim !== false}>
         <box
           position="absolute"
           top={0}
@@ -55,11 +63,18 @@ export function ModalPanel(props: {
   accent?: string
   zIndex?: number
   align?: 'center' | 'top'
+  side?: 'right'
+  scrim?: boolean
   padY?: number
   children: JSX.Element
 }) {
   return (
-    <Overlay zIndex={props.zIndex} align={props.align}>
+    <Overlay
+      zIndex={props.zIndex}
+      align={props.align}
+      side={props.side}
+      scrim={props.scrim}
+    >
       <box
         width={props.width}
         flexDirection="column"

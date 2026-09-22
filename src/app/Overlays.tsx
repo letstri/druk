@@ -116,6 +116,11 @@ export function createOverlays(deps: {
     scope: SearchScope
     replacing?: boolean
   } | null>(null)
+  // What the open search found, so the editor can tint the hits in the file itself.
+  const [searchHits, setSearchHits] = createSignal<{
+    matches: readonly Match[]
+    current: Match | null
+  } | null>(null)
   const [lastSearch, setLastSearch] = createSignal<
     Partial<Record<SearchScope, SearchMemory>>
   >({})
@@ -167,6 +172,7 @@ export function createOverlays(deps: {
 
   const jumpTo = (match: Match) => {
     setSearch(null)
+    setSearchHits(null)
     if (match.path && match.path !== workspace.activePath()) {
       workspace.openFile(match.path)
     }
@@ -185,6 +191,7 @@ export function createOverlays(deps: {
     problemsOpen,
     rememberSearch,
     search,
+    searchHits,
     searchOpensWith,
     selection,
     setHelp,
@@ -193,6 +200,7 @@ export function createOverlays(deps: {
     setPicker,
     setProblemsOpen,
     setSearch,
+    setSearchHits,
     setUpdate,
     update,
   }
@@ -500,6 +508,14 @@ export function OverlayStack(props: {
             activeContent={workspace.activeBuffer()?.content ?? ''}
             initial={overlays.searchOpensWith(open().scope)}
             onSearch={(state) => overlays.rememberSearch(open().scope, state)}
+            onMatches={(found) => {
+              overlays.setSearchHits(found)
+              const match = found?.current
+              // Follow the walk in the file itself; `quiet` leaves the keyboard here.
+              if (match && match.path === workspace.activePath()) {
+                editor.requestGoto(match.line, match.col, true)
+              }
+            }}
             replacing={open().replacing}
             buffers={
               open().scope === 'project' ? workspace.replaceOverlay : undefined

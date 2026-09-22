@@ -40,7 +40,22 @@ ends the mode, Space or Esc closes it, and a folder, an image or a file too
 big to read says so rather than showing nothing), tree-sitter syntax
 highlighting, search (current file and project-wide — the project scan and the fuzzy
 file picker both skip git-ignored paths, whatever the tree's `respectGitignore` says, so
-a build directory or an agent's worktree checkout is never a result; the panel previews
+a build directory or an agent's worktree checkout is never a result; the two scopes are
+not the same panel — a search in the open file paints its hits in the editor itself, VS
+Code's arrangement, so what hangs over the code is a find widget at the top right and
+nothing more (`listed()` in `src/ui/SearchPanel.tsx`: no scrim, no result list, no
+preview, the file behind it being the list), and ↑↓ steps the caret from hit to hit
+with a *quiet* goto — `requestGoto`'s third argument, which reveals the line without the
+landing flash and without taking the keyboard back off the widget. The tints are
+`SEARCH_GROUPS` (`src/languages/highlight.ts`), painted per window row by `markSearch`
+in `EditorPane` over whatever is under them, the current hit apart from the rest; that
+is what a replace in a file has instead of the old per-row preview of the replacement —
+Enter rewrites the buffer in front of the reader. Either scope carries its toggles as
+chips on the query row — `Aa` / `ab` / `.*`, VS Code's buttons, lit when on, clickable
+and still Ctrl+C/W/R from the keyboard; they are what the summary used to spell out in
+words, and one source for one truth is what keeps a 44-column widget readable. Project
+scope keeps the whole panel,
+its hits being in files that are not open: the panel previews
 the selected hit in its file, syntax-coloured and with the hit picked out, over as many
 lines either side as the terminal has room for, and folds a file behind its heading with
 Tab or every file at once with Shift+Tab, which turns the results into a list of files;
