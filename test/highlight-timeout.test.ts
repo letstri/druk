@@ -10,6 +10,7 @@ const stuckClient = {
     return Promise.withResolvers<never>().promise
   },
   initialize: () => Promise.resolve(),
+  onDestroy: () => () => {},
 }
 
 mock.module('@opentui/core', () => ({

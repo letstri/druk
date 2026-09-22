@@ -309,22 +309,43 @@ export function filetypeForPath(path: string): string | undefined {
   return filetypeForName(name) ?? pathToFiletype(path) ?? undefined
 }
 
+// Only the current attempt may drop the cache: a later one is already someone else's client.
+function forgetClient(attempt: Promise<TreeSitterClient | null> | null): void {
+  if (attempt && initPromise === attempt) {
+    initPromise = null
+    registeredGeneration = -1
+  }
+}
+
 export async function highlightClient(): Promise<TreeSitterClient | null> {
   if (clientDead) {
     return null
   }
   if (!initPromise) {
-    initPromise = (async () => {
+    let attempt: Promise<TreeSitterClient | null> | null = null
+    attempt = (async () => {
       try {
         const c = getTreeSitterClient()
         await c.initialize()
         registerParsers(c)
+        // The last renderer destroyed takes the shared client with it, rejecting whatever
+        // was in flight; a cached promise would hand the dead worker to every later parse.
+        c.onDestroy(() => {
+          forgetClient(attempt)
+          parseStrikes = 0
+        })
         return c
       } catch {
-        clientDead = true
+        // An init a destroy cut short is not a broken toolchain: let the next parse try again.
+        forgetClient(attempt)
+        parseStrikes += 1
+        if (parseStrikes >= PARSE_STRIKE_LIMIT) {
+          clientDead = true
+        }
         return null
       }
     })()
+    initPromise = attempt
   }
   const client = await initPromise
   // Here rather than in `registerLanguage`: the client may not exist yet when extensions load.

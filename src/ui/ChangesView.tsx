@@ -548,6 +548,8 @@ export function ChangesView(props: ChangesViewProps) {
     const next = keys[(at + delta + keys.length) % keys.length]!
     setPickedKey(next)
     setPickedLine(null)
+    // A walk outranks the reveal hold below.
+    cancelReveal?.()
     reveal(next)
   }
 
@@ -574,7 +576,10 @@ export function ChangesView(props: ChangesViewProps) {
             return false
           }
           reveal(key)
-          return true
+          // The first file is the top of the page, which nothing above it can move. Any
+          // other one is pushed down as the files above land their rows with their
+          // highlights, so the hold re-applies for its whole budget.
+          return first
         },
         { tries: REVEAL_TRIES }
       )
