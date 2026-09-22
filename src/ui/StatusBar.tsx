@@ -211,7 +211,11 @@ export function StatusBar(props: StatusBarProps) {
     const definition: Hint[] = jump
       ? [{ id: 'goto.definition', key: jump, label: 'definition', rank: 2 }]
       : []
-    return [...path, ...definition, ...(props.extraHints ?? [])]
+    const peek = props.definitionServed ? chordFor('goto.calls') : ''
+    const calls: Hint[] = peek
+      ? [{ id: 'goto.calls', key: peek, label: 'calls', rank: 2 }]
+      : []
+    return [...path, ...definition, ...calls, ...(props.extraHints ?? [])]
   }
 
   const hints = createMemo(() => {

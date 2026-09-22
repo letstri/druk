@@ -95,6 +95,7 @@ test('the footer names the definition key where a server serves the file', async
   )
 
   await until(t, () => bar(t).includes('F12 definition'))
+  expect(bar(t)).toContain('calls')
 
   await openFile(t, 'notes.txt')
   await until(t, () => !bar(t).includes('F12 definition'))
