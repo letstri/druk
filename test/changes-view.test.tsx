@@ -6,6 +6,7 @@ import { join } from 'node:path'
 import { ui } from '../src/themes'
 import {
   launch,
+  openFile,
   press,
   pressEscape,
   pressTimes,
@@ -309,6 +310,28 @@ test('Tab and Shift+Tab walk the file headers that ← folds', async () => {
   await press(t, (i) => i.pressTab({ shift: true }))
   await press(t, (i) => i.pressKey('h'))
   await untilGone(t, '+ ALPHA')
+})
+
+test('reading another tab and coming back keeps the page where it was', async () => {
+  const dir = repo({ 'a.ts': many('a'), 'b.ts': many('b') })
+  writeFileSync(join(dir, 'a.ts'), many('A'))
+  writeFileSync(join(dir, 'b.ts'), many('B'))
+
+  const t = await launch(dir, {}, { height: 40 })
+  await openFile(t, 'a.ts')
+  await runCommand(t, 'Show all changes')
+  await untilFrame(t, '- a0')
+  await press(t, (i) => i.pressTab())
+  await pressTimes(t, 20, (i) => i.pressArrow('down'))
+  await settle(t, 100)
+  expect(rowOf(t, '- a20')).toBeGreaterThan(0)
+  expect(rowOf(t, '- a0 ')).toBe(-1)
+
+  await runCommand(t, 'Previous tab')
+  await untilGone(t, '- a20')
+  await runCommand(t, 'Next tab')
+  await untilFrame(t, '- a20')
+  expect(rowOf(t, '- a0 ')).toBe(-1)
 })
 
 test('an added file is labelled new', async () => {

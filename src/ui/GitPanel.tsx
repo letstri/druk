@@ -72,7 +72,7 @@ export function GitPanel(props: GitPanelProps) {
     Math.max(0, Math.min(props.cursor, props.rows.length - 1))
   )
 
-  const list = createScrollList(() => props.rows.length)
+  const list = createScrollList(() => props.rows.length, 'git')
   const message = useHover()
   const commit = useHover()
   const sync = useHover()

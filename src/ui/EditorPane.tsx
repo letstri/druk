@@ -2954,7 +2954,7 @@ export function EditorPane(props: EditorPaneProps) {
       () => {
         if (editor && props.content !== docText()) {
           clearFolds()
-          editor.setText(props.content)
+          keepingView(() => editor!.setText(props.content))
           history.reset({ content: props.content, cursor: editor.cursorOffset })
           rehighlight(props.content)
         }

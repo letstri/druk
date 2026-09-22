@@ -1,6 +1,7 @@
 import { createSignal } from 'solid-js'
 
 import type { KeyScope } from '../ui/keys'
+import { forgetScroll } from '../ui/list'
 import type { SidebarView } from '../ui/SidebarTabs'
 import type { Tree } from './tree'
 import type { Focus } from './types'
@@ -30,6 +31,8 @@ export function createPanes(tree: Tree, initialSidebar: boolean) {
   const toggleSidebar = () => {
     if (sidebar()) {
       setSidebar(false)
+      // After the views have unmounted: reopening is a fresh look, so it centres the cursor.
+      forgetScroll()
       setFocus('editor')
       return
     }

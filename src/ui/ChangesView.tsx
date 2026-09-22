@@ -26,6 +26,8 @@ import type { DiffFile, DiffFileStatus, DiffMode } from './DiffView'
 import { useHoverKey } from './hover'
 import {
   followScroll,
+  keepScroll,
+  keptScroll,
   LAYOUT_FRAME,
   retryFrames,
   scrollbarOptions,
@@ -102,6 +104,10 @@ const REVEAL_TRIES = 30
 
 // Frames a re-anchor keeps re-applying: the scrollbox clamps against the height it still has.
 const HOLD_FRAMES = 6
+
+// The page is a tab and unmounts behind every other one; the file its reveal last served.
+const SCROLL_KEY = 'changes'
+let servedKey: string | null = null
 
 // `ys`: content-space y of each header's first row, in section order. Null when nothing pins.
 export function stickyHeader(
@@ -329,7 +335,7 @@ export function ChangesView(props: ChangesViewProps) {
   const dimensions = useTerminalDimensions()
   const hover = useHoverKey<string>()
   const [folded, setFolded] = createSignal(new Set<string>())
-  const [scrollTop, setScrollTop] = createSignal(0)
+  const [scrollTop, setScrollTop] = createSignal(keptScroll(SCROLL_KEY))
   const [pickedKey, setPickedKey] = createSignal<string | null>(null)
   const [pickedLine, setPickedLine] = createSignal<number | null>(null)
 
@@ -348,6 +354,7 @@ export function ChangesView(props: ChangesViewProps) {
     cancelReveal?.()
     clearTimeout(layoutTimer)
     cancelHold?.()
+    keepScroll(SCROLL_KEY, scrollTop())
   })
 
   const syncScroll = () => {
@@ -566,6 +573,11 @@ export function ChangesView(props: ChangesViewProps) {
       if (!key || !props.sections.some((s) => s.key === key)) {
         return
       }
+      // Coming back to the tab on the same file: the reader's offset, not the file's top.
+      if (key === servedKey && scrollTop() > 0) {
+        return
+      }
+      servedKey = key
       cancelReveal?.()
       cancelReveal = retryFrames(
         () => {
@@ -682,6 +694,21 @@ export function ChangesView(props: ChangesViewProps) {
                 drifted = true
                 setScrollTop(top)
               })
+              const top = scrollTop()
+              if (top > 0) {
+                drifted = true
+                onCleanup(
+                  retryFrames(() => {
+                    el.scrollTop = top
+                    if (el.scrollTop !== top) {
+                      return false
+                    }
+                    // The sticky header is measured off renderables: nothing pins until it re-reads.
+                    remeasure()
+                    return true
+                  })
+                )
+              }
             }}
             flexGrow={1}
             backgroundColor={ui.solidBg}

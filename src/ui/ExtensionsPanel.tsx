@@ -63,7 +63,7 @@ export function ExtensionsPanel(props: ExtensionsPanelProps) {
     Math.max(0, Math.min(props.cursor, props.rows.length - 1))
   )
 
-  const list = createScrollList(() => props.rows.length)
+  const list = createScrollList(() => props.rows.length, 'extensions')
   const search = useHover()
   const rowHover = useHoverKey<number>()
 

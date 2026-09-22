@@ -49,6 +49,7 @@ import { useHover } from '../ui/hover'
 import { HoverPeek, hoverLines } from '../ui/HoverPeek'
 import { ImageView } from '../ui/ImageView'
 import type { Hint } from '../ui/keys'
+import { forgetScroll } from '../ui/list'
 import { LspStatusView } from '../ui/LspStatusView'
 import { MarkdownView } from '../ui/MarkdownView'
 import { PreviewPane } from '../ui/PreviewPane'
@@ -166,6 +167,7 @@ export function App(props: {
 
   lsp.onMissingServer(market.suggestForFiletype)
   onCleanup(lsp.dispose)
+  onCleanup(forgetScroll)
   onCleanup(() => reportProgress({ kind: 'off' }))
   const workspace = createWorkspace({
     editor,

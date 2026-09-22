@@ -91,8 +91,16 @@ export function restoreScroll(
 // `viewportCulling` still builds culled rows, and the Zig core stops a few thousand in.
 const OVERSCAN = 40
 
-export function createScrollList(total: () => number) {
-  const [scrollTop, setScrollTop] = createSignal(0)
+// A sidebar view unmounts whenever another takes the slot; its offset comes back with it.
+const kept = new Map<string, number>()
+
+// A closed sidebar or another workspace is a fresh start: the views centre their cursor again.
+export const forgetScroll = () => kept.clear()
+export const keptScroll = (key: string) => kept.get(key) ?? 0
+export const keepScroll = (key: string, top: number) => kept.set(key, top)
+
+export function createScrollList(total: () => number, key?: string) {
+  const [scrollTop, setScrollTop] = createSignal(key ? keptScroll(key) : 0)
   const dimensions = useTerminalDimensions()
   let box: ScrollBoxRenderable | undefined
 
@@ -105,10 +113,11 @@ export function createScrollList(total: () => number) {
     return { end: Math.min(total(), start + page()), start }
   })
 
+  let revealed = false
   let cancelReveal: (() => void) | null = null
   onCleanup(() => cancelReveal?.())
 
-  const reveal = (row: number) => {
+  const reveal = (row: number, center = false) => {
     cancelReveal?.()
     // Deferred: revealing a row can grow the list, and the scrollbox clamps against the old height.
     cancelReveal = retryFrames(
@@ -116,12 +125,21 @@ export function createScrollList(total: () => number) {
         if (!box) {
           return true
         }
+        const was = box.scrollTop
         const { height } = box.viewport
-        if (row < box.scrollTop) {
+        // Before the layout pass every row reads as off screen, and centring on that sticks.
+        if (height === 0) {
+          return false
+        }
+        const shown = row >= box.scrollTop && row < box.scrollTop + height
+        if (center && !shown) {
+          box.scrollTop = Math.max(0, row - Math.floor(height / 2))
+        } else if (row < box.scrollTop) {
           box.scrollTop = row
         } else if (row >= box.scrollTop + height) {
           box.scrollTop = row - height + 1
         }
+        revealed ||= box.scrollTop !== was
         // Read it back: the box clamps to its own extent, and the wrong slice renders otherwise.
         setScrollTop(box.scrollTop)
         return (
@@ -140,6 +158,23 @@ export function createScrollList(total: () => number) {
       }
     })
     enlargeThumb(el)
+    const top = scrollTop()
+    if (top > 0) {
+      onCleanup(
+        retryFrames(() => {
+          // A reveal is this moment's intent; the remembered offset is the last one's.
+          if (revealed) {
+            return true
+          }
+          el.scrollTop = top
+          return el.scrollTop === top
+        })
+      )
+    }
+  }
+
+  if (key) {
+    onCleanup(() => keepScroll(key, scrollTop()))
   }
 
   return { ref, reveal, window }

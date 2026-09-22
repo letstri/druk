@@ -77,7 +77,7 @@ export function FileTree(props: FileTreeProps) {
     return dirStatus().get(node.path)
   }
 
-  const list = createScrollList(() => props.nodes.length)
+  const list = createScrollList(() => props.nodes.length, 'files')
   const project = useTooltip('workspace.switch')
   const rowHover = useHoverKey<string>()
 
@@ -86,10 +86,14 @@ export function FileTree(props: FileTreeProps) {
     props.nodes.findIndex((node) => node.path === props.selectedPath)
   )
 
+  // The first reveal is the panel opening on a file already selected: centre it rather
+  // than scrolling the minimum, which lands it on the last row.
+  let firstReveal = true
   createEffect(
     on(selectedRow, (row) => {
       if (row >= 0) {
-        list.reveal(row)
+        list.reveal(row, firstReveal)
+        firstReveal = false
       }
     })
   )

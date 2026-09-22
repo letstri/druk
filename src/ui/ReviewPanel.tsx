@@ -40,7 +40,7 @@ export function ReviewPanel(props: ReviewPanelProps) {
     Math.max(0, Math.min(props.cursor, props.rows.length - 1))
   )
 
-  const list = createScrollList(() => props.rows.length)
+  const list = createScrollList(() => props.rows.length, 'review')
   const collapse = useHover()
   const rowHover = useHoverKey<number>()
 
