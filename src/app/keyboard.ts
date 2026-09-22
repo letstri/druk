@@ -496,7 +496,9 @@ export function installKeyboard(ctx: AppContext, actions: CommandActions) {
           actions.gitFocusMessage()
           break
         }
-        case 'd': {
+        case 'd':
+        case 'backspace':
+        case 'delete': {
           actions.gitDiscard()
           break
         }

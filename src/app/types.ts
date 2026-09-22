@@ -64,7 +64,7 @@ export type Prompt =
       repo: string
       commits: { oid: string; subject: string }[]
     }
-  | { kind: 'discardChange'; target: DiscardTarget }
+  | { kind: 'discardChange'; targets: readonly DiscardTarget[] }
   // `from` null starts at HEAD.
   | { kind: 'newBranch'; from: string | null }
   | { kind: 'renameBranch'; from: string }

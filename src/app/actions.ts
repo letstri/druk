@@ -30,7 +30,7 @@ import {
   statusMap,
   unstagePaths,
 } from '../core/git'
-import type { ChangeArea, FileStatus } from '../core/git'
+import type { ChangeArea, DiscardTarget, FileStatus } from '../core/git'
 import { pathTokenAt, resolveImportPath } from '../core/imports'
 import { NOTE_LABELS } from '../core/review'
 import type { NoteKind } from '../core/review'
@@ -422,19 +422,23 @@ export function createCommands(ctx: AppContext) {
       return say('Open the Git panel and select a changed file', 'warn')
     }
     const row = git.cursorRow()
-    if (row && row.kind !== 'file') {
-      return say('Select a changed file, not a folder', 'warn')
-    }
-    const path = row?.kind === 'file' ? row.change.path : null
-    const repo = path ? git.repoFor(path) : null
-    if (!path || !repo) {
+    // One path can sit under both headings; discarding restores it from HEAD either way.
+    const paths = row
+      ? [...new Set(changesFor(git.changes(), row).map((c) => c.path))]
+      : []
+    if (paths.length === 0) {
       return say('Select a changed file in the Git panel', 'warn')
     }
-    const target = discardTarget(repo, path)
-    if (!target) {
-      return say('That change is stale — refresh and select it again', 'warn')
+    const targets: DiscardTarget[] = []
+    for (const path of paths) {
+      const repo = git.repoFor(path)
+      const target = repo ? discardTarget(repo, path) : null
+      if (!target) {
+        return say('That change is stale — refresh and select it again', 'warn')
+      }
+      targets.push(target)
     }
-    ctx.prompts.setPrompt({ kind: 'discardChange', target })
+    ctx.prompts.setPrompt({ kind: 'discardChange', targets })
   }
 
   const pullPushOffer = (branch: string, hasUpstream: boolean) =>

@@ -92,20 +92,36 @@ test('discarding an untracked file closes its tab and matching diff', async () =
   expect(frame.split('\n')[0]).not.toContain('new.ts')
 }, 20_000)
 
-test('palette discard refuses outside the panel and on folder rows', async () => {
+test('palette discard refuses outside the panel', async () => {
   const dir = repo()
-  writeFileSync(join(dir, 'folder/keep.ts'), 'changed\n')
   const t = await launch(dir)
 
   await runCommand(t, 'Discard changes')
   expect(t.captureCharFrame()).toContain(
     'Open the Git panel and select a changed file'
   )
+}, 20_000)
 
+test('backspace on a folder discards every change under it', async () => {
+  const dir = repo()
+  writeFileSync(join(dir, 'folder/keep.ts'), 'changed\n')
+  writeFileSync(join(dir, 'folder/more.ts'), 'added\n')
+  const t = await launch(dir)
   await runCommand(t, 'Source control')
+  await until(t, () => t.captureCharFrame().includes('folder'))
+
   await press(t, (input) => input.pressArrow('down'))
-  await runCommand(t, 'Discard changes')
-  expect(t.captureCharFrame()).toContain('Select a changed file, not a folder')
+  await press(t, (input) => input.pressBackspace())
+  expect(t.captureCharFrame()).toContain('Discard changes in 2 files')
+
+  await press(t, (input) => input.pressEnter())
+  await until(
+    t,
+    () =>
+      readFileSync(join(dir, 'folder/keep.ts'), 'utf-8') === 'keep\n' &&
+      !existsSync(join(dir, 'folder/more.ts'))
+  )
+  expect(readFileSync(join(dir, 'a.ts'), 'utf-8')).toBe('changed\n')
 }, 20_000)
 
 test('palette discard refuses comparison mode', async () => {

@@ -19,6 +19,7 @@ import {
   SWITCH_BLOCKED,
   undoLastCommit,
 } from '../core/git'
+import type { GitResult } from '../core/git'
 import { NOTE_KINDS, NOTE_LABELS } from '../core/review'
 import { SERVER_ROOT } from '../lsp/install'
 import { installHint } from '../lsp/servers'
@@ -424,11 +425,32 @@ export function createPromptHandlers(deps: {
         })
       }
       case 'discardChange': {
-        return gitOp('Discarding', () => discardChange(p.target), {
-          done: () => `Discarded changes in ${basename(p.target.path)}`,
-          repo: p.target.repo,
-          touchesTree: { kind: 'followDisk', paths: p.target.affectedPaths },
-        })
+        const { targets } = p
+        const first = targets[0]!
+        return gitOp(
+          'Discarding',
+          async () => {
+            let last: GitResult = { detail: '', ok: true }
+            for (const target of targets) {
+              last = await discardChange(target)
+              if (!last.ok) {
+                return last
+              }
+            }
+            return last
+          },
+          {
+            done: () =>
+              targets.length === 1
+                ? `Discarded changes in ${basename(first.path)}`
+                : `Discarded changes in ${targets.length} files`,
+            repo: first.repo,
+            touchesTree: {
+              kind: 'followDisk',
+              paths: targets.flatMap((target) => target.affectedPaths),
+            },
+          }
+        )
       }
       case 'worktreeRemove': {
         return workspaces.removeWorktreeAt(p.repo, p.path)
@@ -574,15 +596,24 @@ export function createPromptHandlers(deps: {
         }
       }
       case 'discardChange': {
-        const [, source] = p.target.affectedPaths
+        if (p.targets.length > 1) {
+          return {
+            danger: true,
+            message: `Discard changes in ${p.targets.length} files? Staged and working-tree changes are lost, new files are deleted, and unsaved edits in their open buffers will also be lost.`,
+            title: 'Discard changes',
+            verb: 'discard',
+          }
+        }
+        const target = p.targets[0]!
+        const [, source] = target.affectedPaths
         return {
           danger: true,
           message:
             source === undefined
-              ? p.target.mode === 'delete'
-                ? `Discard changes in "${basename(p.target.path)}" and permanently delete it? Unsaved edits in its open buffer will also be lost.`
-                : `Restore "${basename(p.target.path)}" from HEAD? Staged and working-tree changes are lost. Unsaved edits in its open buffer will also be lost.`
-              : `Discard rename "${basename(p.target.path)}" and restore "${basename(source)}" from HEAD? Staged and working-tree changes are lost. Unsaved edits in either open buffer will also be lost.`,
+              ? target.mode === 'delete'
+                ? `Discard changes in "${basename(target.path)}" and permanently delete it? Unsaved edits in its open buffer will also be lost.`
+                : `Restore "${basename(target.path)}" from HEAD? Staged and working-tree changes are lost. Unsaved edits in its open buffer will also be lost.`
+              : `Discard rename "${basename(target.path)}" and restore "${basename(source)}" from HEAD? Staged and working-tree changes are lost. Unsaved edits in either open buffer will also be lost.`,
           title: 'Discard changes',
           verb: 'discard',
         }

@@ -227,8 +227,10 @@ worktrees) is scanned `gitScanDepth` levels down and every repository found is q
 in its own root, with the status bar and the panel header naming it (`beta/main`)
 and each command acting on the *active* one — the repository of the change under the
 panel's cursor, else of the open file, else the only one there is;
-and file-level discard from a changed row (`d` or palette → Git → Discard changes,
-all confirmed and scoped to that row's repository), plus palette
+and discard from a changed row (`d`, Backspace/Delete, or palette → Git → Discard
+changes — whatever the row stands for, so a folder or a heading discards every
+change under it behind one confirm naming the count, the way Space stages them;
+all confirmed and scoped to each path's own repository), plus palette
 commands for commit/undo/stash/push/fetch/pull/sync, the VS Code commit variants
 (Commit & push, Commit & sync, Commit (amend) — amend opens its prompt carrying the
 old subject), Stashes… (a filterable picker — `ListPicker`, the one modal every
