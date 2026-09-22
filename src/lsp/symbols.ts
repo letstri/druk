@@ -116,3 +116,39 @@ export function symbolHits(
   collect(result, path, rootDir, '', out)
   return out
 }
+
+const covers = (raw: RawSymbol, line: number): boolean => {
+  const range = raw.range ?? raw.location?.range
+  return !!range && line >= range.start.line && line <= range.end.line
+}
+
+/** The nested symbols the line sits in, outermost first. */
+export function symbolChain(result: unknown, line: number): string[] {
+  const out: string[] = []
+  let level: unknown = result
+  for (;;) {
+    if (!Array.isArray(level)) {
+      return out
+    }
+    const hit = (level as RawSymbol[]).find(
+      (raw) =>
+        typeof raw === 'object' &&
+        raw !== null &&
+        typeof raw.name === 'string' &&
+        covers(raw, line)
+    )
+    if (!hit) {
+      return out
+    }
+    // SymbolInformation has no children, so its container is the only outer name there is.
+    if (
+      out.length === 0 &&
+      typeof hit.containerName === 'string' &&
+      hit.containerName
+    ) {
+      out.push(hit.containerName)
+    }
+    out.push(hit.name as string)
+    level = hit.children
+  }
+}

@@ -35,6 +35,7 @@ import { SEVERITY_RANK } from '../lsp/protocol'
 import type { ProblemMark } from '../lsp/protocol'
 import { resolveServers, servers as serverSpecs } from '../lsp/servers'
 import { ui } from '../themes'
+import { Breadcrumbs } from '../ui/Breadcrumbs'
 import { CallPeek } from '../ui/CallPeek'
 import { ChangesView } from '../ui/ChangesView'
 import { CommitGraphView } from '../ui/CommitGraphView'
@@ -61,6 +62,7 @@ import { setTooltipsEnabled, useTooltipPeek } from '../ui/tooltip'
 import { TooltipLayer } from '../ui/TooltipLayer'
 import { createCommands } from './actions'
 import { createBranches } from './branches'
+import { createBreadcrumbs } from './breadcrumbs'
 import { createCallHierarchy } from './callHierarchy'
 import { rowSlotKey } from './changeSections'
 import { createCommitGraph } from './commitGraph'
@@ -200,6 +202,13 @@ export function App(props: {
   const commitView = createCommitView({ status })
   const commitGraph = createCommitGraph()
   const callHierarchy = createCallHierarchy({ calls: lsp.calls })
+  const crumbs = createBreadcrumbs({
+    content: () => workspace.activeBuffer()?.content ?? '',
+    enabled: () => config.breadcrumbs && config.lsp,
+    line: () => editor.cursor().line,
+    path: () => workspace.activePath(),
+    symbols: lsp.symbols,
+  })
   const hoverPeek = createHoverPeek()
   workspace.onPageClose('commit', commitView.close)
   workspace.onPageClose('graph', commitGraph.close)
@@ -944,6 +953,16 @@ export function App(props: {
             onToggleMarkdown={workspace.toggleRendered}
           />
           <box flexGrow={1} flexDirection="column">
+            <Show when={config.breadcrumbs ? workspace.activePath() : null}>
+              {(path: () => string) => (
+                <Breadcrumbs
+                  rootDir={rootDir}
+                  path={path()}
+                  symbols={crumbs()}
+                  width={slotWidth()}
+                />
+              )}
+            </Show>
             <EditorPane
               peekRows={peekRows()}
               onPeekKey={peekKey}

@@ -45,7 +45,7 @@ async function openA(t: Harness) {
 }
 
 test('the palette opens the settings page over the editor slot', async () => {
-  const t = await launch(fixture(PROJECT))
+  const t = await launch(fixture(PROJECT), {}, { height: 21 })
   await runCommand(t, 'Settings')
   const frame = t.captureCharFrame()
   expect(frame).toContain('Settings')
@@ -56,7 +56,7 @@ test('the palette opens the settings page over the editor slot', async () => {
 })
 
 test('Enter flips a boolean, the row and the config file follow', async () => {
-  const t = await launch(fixture(PROJECT))
+  const t = await launch(fixture(PROJECT), {}, { height: 21 })
   await runCommand(t, 'Settings')
   await to(t, 'Vim mode')
   await press(t, (i) => i.pressEnter())
@@ -71,7 +71,7 @@ test('Enter flips a boolean, the row and the config file follow', async () => {
 })
 
 test('arrows cycle a multi-value setting in both directions', async () => {
-  const t = await launch(fixture(PROJECT))
+  const t = await launch(fixture(PROJECT), {}, { height: 21 })
   await runCommand(t, 'Settings')
   await to(t, 'Tab size')
   const size = () =>
@@ -90,14 +90,14 @@ test('arrows cycle a multi-value setting in both directions', async () => {
 })
 
 test('the theme row applies live and reports in the status bar', async () => {
-  const t = await launch(fixture(PROJECT))
+  const t = await launch(fixture(PROJECT), {}, { height: 21 })
   await runCommand(t, 'Settings')
   await press(t, (i) => i.pressArrow('right'))
   expect(t.captureCharFrame()).toContain('Theme:')
 })
 
 test('Esc closes the page back to the file', async () => {
-  const t = await launch(fixture(PROJECT))
+  const t = await launch(fixture(PROJECT), {}, { height: 21 })
   await openA(t)
   await runCommand(t, 'Settings')
   expect(t.captureCharFrame()).toContain('Vim mode')
@@ -108,7 +108,7 @@ test('Esc closes the page back to the file', async () => {
 })
 
 test('Ctrl+W closes the page before any file tab', async () => {
-  const t = await launch(fixture(PROJECT))
+  const t = await launch(fixture(PROJECT), {}, { height: 21 })
   await openA(t)
   await runCommand(t, 'Settings')
   await press(t, (i) => i.pressKey('w', { ctrl: true }))
@@ -118,7 +118,7 @@ test('Ctrl+W closes the page before any file tab', async () => {
 })
 
 test('opening a file from the fuzzy picker closes the page', async () => {
-  const t = await launch(fixture(PROJECT))
+  const t = await launch(fixture(PROJECT), {}, { height: 21 })
   await runCommand(t, 'Settings')
   await openFile(t, 'a.ts')
   const frame = t.captureCharFrame()
@@ -127,7 +127,7 @@ test('opening a file from the fuzzy picker closes the page', async () => {
 })
 
 test('Enter on the theme row opens a filterable list and picks by search', async () => {
-  const t = await launch(fixture(PROJECT))
+  const t = await launch(fixture(PROJECT), {}, { height: 21 })
   await runCommand(t, 'Settings')
   await press(t, (i) => i.pressEnter())
   const frame = t.captureCharFrame()
@@ -156,7 +156,7 @@ test('the list starts on the value in force, so bare Enter changes nothing', asy
 })
 
 test('Esc backs out of the list to the page without changing anything', async () => {
-  const t = await launch(fixture(PROJECT), { theme: 'nord' })
+  const t = await launch(fixture(PROJECT), { theme: 'nord' }, { height: 21 })
   await runCommand(t, 'Settings')
   await press(t, (i) => i.pressEnter())
   await press(t, (i) => i.pressArrow('down'))
@@ -170,7 +170,7 @@ test('Esc backs out of the list to the page without changing anything', async ()
 })
 
 test('booleans still flip on Enter without a list', async () => {
-  const t = await launch(fixture(PROJECT))
+  const t = await launch(fixture(PROJECT), {}, { height: 21 })
   await runCommand(t, 'Settings')
   await to(t, 'Vim mode')
   await press(t, (i) => i.pressEnter())
@@ -179,7 +179,7 @@ test('booleans still flip on Enter without a list', async () => {
 })
 
 test('/ filters the rows, Enter still changes the one it leaves', async () => {
-  const t = await launch(fixture(PROJECT))
+  const t = await launch(fixture(PROJECT), {}, { height: 21 })
   await runCommand(t, 'Settings')
   await press(t, (i) => i.typeText('/'))
   expect(t.captureCharFrame()).toContain('Filter settings')
@@ -192,7 +192,7 @@ test('/ filters the rows, Enter still changes the one it leaves', async () => {
 })
 
 test('a filter matching nothing says so, and Esc drops it before closing the page', async () => {
-  const t = await launch(fixture(PROJECT))
+  const t = await launch(fixture(PROJECT), {}, { height: 21 })
   await runCommand(t, 'Settings')
   await press(t, (i) => i.typeText('/'))
   await press(t, (i) => i.typeText('zzzz'))

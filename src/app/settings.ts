@@ -719,6 +719,7 @@ export function createSettings(deps: {
       value: iconThemeLabel(view().iconThemeDark),
     },
     boolRow('Appearance', 'tabIcons', 'File icons in tabs'),
+    boolRow('Appearance', 'breadcrumbs', 'Breadcrumbs under tabs'),
     boolRow(
       'Appearance',
       'tooltips',

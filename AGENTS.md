@@ -31,7 +31,21 @@ terminal's, VS Code's arrangement — it begins where the sidebar ends, so the
 sidebar reaches the top of the window and the strip's budget is the editor
 column's width (`slotWidth` in `App.tsx`, which every page over that slot is
 sized from). One row of chrome, so the editor's first content row is row 1 of the
-frame —
+frame — two rows, and row 2, once the breadcrumb row under the strip is drawn
+(`breadcrumbs`, on, settings → Appearance → Breadcrumbs under tabs, `Breadcrumbs`
+in `src/ui/Breadcrumbs.tsx`): the open file's folders from the project root as
+`src › app`, and after a wider gap the symbols the caret sits inside as
+`Bell › ring` — the two are separated rather than one chain, a path on disk and a
+path through the code being different things, and the file's own name is left off,
+the tab above it already carrying that. The symbols are
+`textDocument/documentSymbol` (`createBreadcrumbs` in `src/app/breadcrumbs.ts`,
+`symbolChain` in `src/lsp/symbols.ts`, which walks `children` for the innermost
+symbol whose range holds the line), asked for once the typing has stopped, since an
+edit moves every symbol under it; with LSP off the file half is drawn alone. The row
+is *inside* the editor column's inner box, so a page, an image or the rendered
+markdown covers it the way it covers the editor. `launch()` turns it off for the
+same reason it turns `lsp` and `themeSync` off — a row of chrome shifts every frame
+assertion — so a test that wants it passes `breadcrumbs: true` —
 a quick look at the row under the tree's cursor that opens no
 tab at all (Space in the tree, palette → View → Preview file — the file over the
 editor slot, syntax-coloured, following the cursor as ↑↓ walks the tree and paging

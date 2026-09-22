@@ -59,6 +59,7 @@ export interface Config {
   iconThemeLight: string
   iconThemeDark: string
   tabIcons: boolean
+  breadcrumbs: boolean
   tooltips: boolean
   terminalTitle: boolean
   vim: boolean
@@ -94,6 +95,7 @@ export interface Config {
 
 export const DEFAULTS: Config = {
   autoSaveOnBlur: true,
+  breadcrumbs: true,
   cursorStyle: 'block',
   diffView: 'inline',
   disabledExtensions: [],
@@ -184,6 +186,7 @@ const strings = (raw: unknown): Record<string, string> | undefined => {
 
 const VALIDATORS: { [K in keyof Config]: Validator<K> } = {
   autoSaveOnBlur: bool,
+  breadcrumbs: bool,
   cursorStyle: among(...CURSOR_STYLES),
   diffView: among('inline', 'split'),
   disabledExtensions: ids,

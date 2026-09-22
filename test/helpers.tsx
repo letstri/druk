@@ -48,6 +48,8 @@ export async function launch(
         checkUpdates: options.checkUpdates ?? false,
         initialConfig: {
           ...DEFAULTS,
+          // A row of chrome would shift every frame assertion; the breadcrumb tests opt in.
+          breadcrumbs: false,
           extensionUpdates: false,
           lsp: false,
           lspAutoInstall: false,
