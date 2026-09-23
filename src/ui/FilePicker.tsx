@@ -3,7 +3,7 @@ import { relative } from 'node:path'
 import { useTerminalDimensions } from '@opentui/solid'
 import { createMemo, createSignal, Show } from 'solid-js'
 
-import { fuzzyScore, listFiles } from '../core/search'
+import { fileScore, listFiles } from '../core/search'
 import { ui } from '../themes'
 import { FilterList } from './FilterList'
 import { useListKeys } from './list'
@@ -61,7 +61,7 @@ export function FilePicker(props: FilePickerProps) {
     const q = target().text
     const scored: { path: string; label: string; score: number }[] = []
     for (const file of files) {
-      const score = fuzzyScore(file.label, q)
+      const score = fileScore(file.label, q)
       if (score !== null) {
         scored.push({ ...file, score })
       }

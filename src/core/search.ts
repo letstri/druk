@@ -310,6 +310,21 @@ export function fuzzyScore(text: string, query: string): number | null {
   return score + text.length - at
 }
 
+const PATH_ONLY = 1e6
+
+export function fileScore(path: string, query: string): number | null {
+  const name = fuzzyScore(
+    path.slice(Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\')) + 1),
+    query
+  )
+  if (name !== null) {
+    // fraction breaks a tie on the name toward the shallower path
+    return name + path.length / PATH_ONLY
+  }
+  const whole = fuzzyScore(path, query)
+  return whole === null ? null : whole + PATH_ONLY
+}
+
 export function listFiles(root: string, limit = 5000): string[] {
   const files: string[] = []
   for (const path of filesUnder(root)) {
