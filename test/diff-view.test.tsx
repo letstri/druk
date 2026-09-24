@@ -235,6 +235,28 @@ test('an untracked file diffs as all additions', async () => {
   expect(frame).toContain('+ lines')
 })
 
+test('the rows after a missing final newline are drawn whole, in either layout', async () => {
+  const dir = repo({ 'a.ts': 'const one = 1\nconst two = 2' })
+  writeFileSync(
+    join(dir, 'a.ts'),
+    'const one = 1\nconst two = 2\nconst three = 3\n'
+  )
+
+  const t = await launch(dir, {}, { width: 130 })
+  await openDiff(t)
+  await untilFrame(t, '+ const three')
+  // The syntax colour lands after the text: a misplaced one is what cuts the row short.
+  await settle(t, 400)
+  expect(t.captureCharFrame()).toContain('- const two = 2')
+  expect(t.captureCharFrame()).toContain('+ const three = 3')
+
+  await press(t, (i) => i.pressTab())
+  await press(t, (i) => i.pressKey('s'))
+  await untilFrame(t, 'side-by-side')
+  await settle(t, 400)
+  expect(t.captureCharFrame()).toContain('+ const three = 3')
+})
+
 test('long unchanged stretches stay out of the hunks', async () => {
   const lines = Array.from({ length: 30 }, (_, i) => `line${i}`)
   const dir = repo({ 'a.ts': `${lines.join('\n')}\n` })
