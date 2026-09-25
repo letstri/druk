@@ -18,7 +18,7 @@ Or through a package manager:
 ```bash
 brew install letstri/tap/druk
 npm install -g druk
-bun add -g druk
+bun add -g --trust druk
 ```
 
 On Debian or Ubuntu take the `.deb` from the
