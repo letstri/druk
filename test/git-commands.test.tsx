@@ -171,11 +171,18 @@ test('push sets an upstream on a local bare remote, and fetch succeeds after', a
       return false
     }
   })
-  await until(t, () =>
-    execFileSync('git', ['rev-parse', '--abbrev-ref', '@{u}'], { cwd: dir })
-      .toString()
-      .includes('origin/main')
-  )
+  // push -u writes the remote ref before the upstream config, so this can throw in between.
+  await until(t, () => {
+    try {
+      return execFileSync('git', ['rev-parse', '--abbrev-ref', '@{u}'], {
+        cwd: dir,
+      })
+        .toString()
+        .includes('origin/main')
+    } catch {
+      return false
+    }
+  })
 
   await runCommand(t, 'Fetch')
   await until(t, () => t.captureCharFrame().includes('Fetched'))
