@@ -36,6 +36,41 @@ describe('unifiedDiff', () => {
     expect(unifiedDiff('a.ts', 'a\nb\n', 'a\nb\n').patch).toBe('')
   })
 
+  test('a gained final newline is marked beside the file’s other changes', () => {
+    const diff = unifiedDiff('a.ts', 'one\ntwo\nthree', 'ONE\ntwo\nthree\n')
+    expect(diff.adds).toBe(2)
+    expect(diff.dels).toBe(2)
+    expect(diff.lines).toBe(5)
+    expect(diff.patch).toBe(
+      [
+        '--- a/a.ts',
+        '+++ b/a.ts',
+        '@@ -1,3 +1,3 @@',
+        '-one',
+        '+ONE',
+        ' two',
+        '-three',
+        '\\ No newline at end of file',
+        '+three',
+        '',
+      ].join('\n')
+    )
+  })
+
+  test('a last line with no newline is marked where it is only context', () => {
+    const diff = unifiedDiff('a.ts', 'one\ntwo', 'ONE\ntwo')
+    expect(diff.adds).toBe(1)
+    expect(diff.dels).toBe(1)
+    expect(diff.patch).toContain('+ONE\n two\n\\ No newline at end of file\n')
+  })
+
+  test('an added last line with no newline is marked on the new side', () => {
+    const diff = unifiedDiff('a.ts', 'one\n', 'one\ntwo')
+    expect(diff.adds).toBe(1)
+    expect(diff.dels).toBe(0)
+    expect(diff.patch).toContain(' one\n+two\n\\ No newline at end of file\n')
+  })
+
   test('a new file diffs from /dev/null with a -0,0 hunk', () => {
     const diff = unifiedDiff('new.ts', '', 'a\nb\n')
     expect(diff.adds).toBe(2)
@@ -118,6 +153,17 @@ describe('scale', () => {
     expect(diff.adds).toBe(4000)
     expect(diff.lines).toBe(8000)
     expect(diff.truncated).toBe(false)
+  })
+
+  test('a rewrite marks the side that has no final newline', () => {
+    const a = Array.from({ length: 4000 }, (_, i) => `alpha ${i}`).join('\n')
+    const b = Array.from({ length: 4000 }, (_, i) => `beta ${i}`).join('\n')
+    const diff = unifiedDiff('a.ts', a, `${b}\n`)
+    expect(diff.patch).toContain(
+      '-alpha 3999\n\\ No newline at end of file\n+beta 0\n'
+    )
+    expect(diff.patch).toEndWith('+beta 3999\n')
+    expect(diff.lines).toBe(8000)
   })
 
   test('maxLines cuts the patch body but not the counts', () => {

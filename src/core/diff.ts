@@ -17,6 +17,36 @@ function splitText(text: string): string[] {
   return lines
 }
 
+const NO_NEWLINE = '\\ No newline at end of file'
+
+interface Open {
+  new: number
+  old: number
+}
+
+// The index of a last line no newline follows, which git marks; -1 when there is none.
+function openLine(lines: string[], text: string): number {
+  return lines.length > 0 && !text.endsWith('\n') ? lines.length - 1 : -1
+}
+
+// A line never holds `\n`, so this keeps an unterminated last line from matching a terminated one.
+function comparable(lines: string[], open: number): string[] {
+  if (open < 0) {
+    return lines
+  }
+  const keys = [...lines]
+  keys[open] = `${keys[open]!}\n`
+  return keys
+}
+
+// The marker is not counted in `lines`: the `<diff>` renderable draws no row for it.
+function pushRow(body: string[], row: string, open: boolean) {
+  body.push(row)
+  if (open) {
+    body.push(NO_NEWLINE)
+  }
+}
+
 const MAX_EDIT_DISTANCE = 2000
 
 interface Edit {
@@ -156,6 +186,7 @@ function rewritePatch(
   oldLines: string[],
   newLines: string[],
   { start, oldEnd, newEnd }: Rewrite,
+  open: Open,
   maxLines: number
 ): UnifiedDiff {
   const dels = oldEnd - start
@@ -176,18 +207,18 @@ function rewritePatch(
     i < start && lines < maxLines;
     i += 1, lines += 1
   ) {
-    body.push(` ${oldLines[i]!}`)
+    pushRow(body, ` ${oldLines[i]!}`, i === open.old)
   }
   // Half the budget each: deletions alone would fill it and the new side would never be drawn.
   const share =
     dels > 0 && adds > 0 ? Math.floor((maxLines - lines) / 2) : maxLines
   const delCap = Math.min(maxLines, lines + share)
   for (let i = start; i < oldEnd && lines < delCap; i += 1, lines += 1) {
-    body.push(`-${oldLines[i]!}`)
+    pushRow(body, `-${oldLines[i]!}`, i === open.old)
     emittedDels += 1
   }
   for (let i = start; i < newEnd && lines < maxLines; i += 1, lines += 1) {
-    body.push(`+${newLines[i]!}`)
+    pushRow(body, `+${newLines[i]!}`, i === open.new)
     emittedAdds += 1
   }
   for (
@@ -195,7 +226,7 @@ function rewritePatch(
     i < oldEnd + ctxAfter && lines < maxLines;
     i += 1, lines += 1
   ) {
-    body.push(` ${oldLines[i]!}`)
+    pushRow(body, ` ${oldLines[i]!}`, i === open.old)
     emittedAfter += 1
   }
   const hunkStart = start - ctxBefore
@@ -213,44 +244,6 @@ function rewritePatch(
   }
 }
 
-const NO_NEWLINE = '\\ No newline at end of file'
-
-// `splitText` drops the final newline, so `a` and `a\n` line up: without this the change vanishes.
-function newlineOnlyDiff(
-  rel: string,
-  oldText: string,
-  newText: string,
-  oldLines: string[],
-  newLines: string[]
-): UnifiedDiff {
-  const last = newLines.length
-  if (
-    oldText === newText ||
-    last === 0 ||
-    oldText.endsWith('\n') === newText.endsWith('\n')
-  ) {
-    return { adds: 0, dels: 0, lines: 0, patch: '', truncated: false }
-  }
-  const body = [
-    `-${oldLines[last - 1]!}`,
-    ...(oldText.endsWith('\n') ? [] : [NO_NEWLINE]),
-    `+${newLines[last - 1]!}`,
-    ...(newText.endsWith('\n') ? [] : [NO_NEWLINE]),
-  ]
-  return {
-    adds: 1,
-    dels: 1,
-    lines: 2,
-    patch: `${[
-      `--- a/${rel}`,
-      `+++ b/${rel}`,
-      `@@ -${last},1 +${last},1 @@`,
-      ...body,
-    ].join('\n')}\n`,
-    truncated: false,
-  }
-}
-
 export function unifiedDiff(
   rel: string,
   oldText: string,
@@ -259,9 +252,16 @@ export function unifiedDiff(
 ): UnifiedDiff {
   const oldLines = splitText(oldText)
   const newLines = splitText(newText)
-  const edits = lineEdits(oldLines, newLines)
+  const open = {
+    new: openLine(newLines, newText),
+    old: openLine(oldLines, oldText),
+  }
+  const edits = lineEdits(
+    comparable(oldLines, open.old),
+    comparable(newLines, open.new)
+  )
   if (!Array.isArray(edits)) {
-    return rewritePatch(rel, oldLines, newLines, edits, maxLines)
+    return rewritePatch(rel, oldLines, newLines, edits, open, maxLines)
   }
 
   // Hunks as index ranges into `edits`: a gap of more than twice the context splits them.
@@ -278,7 +278,7 @@ export function unifiedDiff(
     }
   }
   if (hunks.length === 0) {
-    return newlineOnlyDiff(rel, oldText, newText, oldLines, newLines)
+    return { adds: 0, dels: 0, lines: 0, patch: '', truncated: false }
   }
 
   let adds = 0
@@ -318,15 +318,27 @@ export function unifiedDiff(
       const edit = edits[at]!
       at += 1
       if (edit.kind === 'same') {
-        body.push(` ${oldLines[edit.oldIndex]!}`)
+        pushRow(
+          body,
+          ` ${oldLines[edit.oldIndex]!}`,
+          edit.oldIndex === open.old
+        )
         oldCount += 1
         newCount += 1
       } else if (edit.kind === 'del') {
-        body.push(`-${oldLines[edit.oldIndex]!}`)
+        pushRow(
+          body,
+          `-${oldLines[edit.oldIndex]!}`,
+          edit.oldIndex === open.old
+        )
         oldCount += 1
         dels += 1
       } else {
-        body.push(`+${newLines[edit.newIndex]!}`)
+        pushRow(
+          body,
+          `+${newLines[edit.newIndex]!}`,
+          edit.newIndex === open.new
+        )
         newCount += 1
         adds += 1
       }

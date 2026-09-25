@@ -21,7 +21,6 @@ ships them (see AGENTS.md § "Keep this file current").
 | An abandoned LSP request is dropped, not cancelled | `request` carries a 30s deadline, so nothing hangs, but closing the completion menu sends no `$/cancelRequest` and the server keeps working on it |
 | `workspace/configuration` ignores `section` | Every item is answered with the same settings object. Right for eslint, wrong for a server asking about two sections at once — and a naive walk would break eslint, since a manifest stores server settings unwrapped |
 | `review.json` is read-modify-written | `saveNotes` re-reads and keeps ids it did not know about, so an agent's note survives; nothing locks the file between that read and the `writeAtomic`, so two saves in the same instant leave the later one's view |
-| Diffs lose "no newline at end of file" | `splitText` drops the final newline, so only a change that is *only* that newline carries git's marker (`newlineOnlyDiff`); every other such file diffs without it |
 
 ## 2. Missing features, roughly in order of how often they are wanted
 
