@@ -655,6 +655,10 @@ export function App(props: {
     if (props.checkUpdates === false) {
       return
     }
+    void market.check()
+    if (!initial.checkUpdates) {
+      return
+    }
     let cancelled = false
     onCleanup(() => {
       cancelled = true
@@ -665,7 +669,6 @@ export function App(props: {
         overlays.setUpdate(info)
       }
     })()
-    void market.check()
   })
 
   // Deliberately not gated on `extensionUpdates`, which silences druk's own offers.

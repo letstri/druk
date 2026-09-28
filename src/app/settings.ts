@@ -978,6 +978,12 @@ export function createSettings(deps: {
           ? 'druk'
           : view().extensionRegistry,
     },
+    boolRow(
+      'Updates',
+      'checkUpdates',
+      'Check for a new druk at startup',
+      (on) => `Update check ${onOff(on)}`
+    ),
   ]
 
   const cycleRow = (key: keyof Config) =>
