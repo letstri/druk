@@ -772,7 +772,9 @@ the terminal's own window and tab named after what is open
 the project's name alone with no file up; `src/core/title.ts` writes OSC 0 and gives the
 shell's title back on exit with XTWINOPS push/pop rather than by guessing what it said,
 and writes nothing on a console whose parser prints an OSC string instead of eating it),
-and a startup update check.
+and a startup update check (`checkUpdates`, on, settings → Updates — off, the npm
+registry is never asked, for an install a package manager keeps current; the market's
+own check is `extensionUpdates` and does not follow it).
 
 **Everything extensible is an extension now, and most of them live in `extensions/`.**
 An extension is one of two kinds and never both: a *language* extension (the grammar,

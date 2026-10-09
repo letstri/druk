@@ -70,6 +70,7 @@ export interface Config {
   tabSize: number
   sidebarWidth: number | 'auto'
   sidebarPosition: SidebarPosition
+  checkUpdates: boolean
   skipUpdate: string
   trimOnSave: boolean
   formatOnSave: boolean
@@ -96,6 +97,7 @@ export interface Config {
 export const DEFAULTS: Config = {
   autoSaveOnBlur: true,
   breadcrumbs: true,
+  checkUpdates: true,
   cursorStyle: 'block',
   diffView: 'inline',
   disabledExtensions: [],
@@ -187,6 +189,7 @@ const strings = (raw: unknown): Record<string, string> | undefined => {
 const VALIDATORS: { [K in keyof Config]: Validator<K> } = {
   autoSaveOnBlur: bool,
   breadcrumbs: bool,
+  checkUpdates: bool,
   cursorStyle: among(...CURSOR_STYLES),
   diffView: among('inline', 'split'),
   disabledExtensions: ids,

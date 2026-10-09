@@ -255,3 +255,15 @@ test('the wheel scrolls the page without moving the selection', async () => {
   expect(bottom).toContain('Registry')
   expect(bottom).toContain('Settings')
 }, 20_000)
+
+test('the update check is switched off from the page', async () => {
+  const t = await launch(fixture(PROJECT), {}, { height: 21 })
+  await runCommand(t, 'Settings')
+  await press(t, (i) => i.typeText('/'))
+  await press(t, (i) => i.typeText('new druk'))
+  expect(t.captureCharFrame()).toContain('Check for a new druk at startup')
+  await press(t, (i) => i.pressEnter())
+  expect(JSON.parse(readFileSync(CONFIG_FILE, 'utf-8')).checkUpdates).toBe(
+    false
+  )
+})

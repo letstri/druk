@@ -174,6 +174,7 @@ project can override in `<project>/.druk/settings.json`.
 | `diffView` | `"inline"` | `inline` or `split` |
 | `reviewInline` | `true` | `false` keeps review notes out of the text |
 | `extensionUpdates` | `true` | check the market at startup; `false` never contacts it |
+| `checkUpdates` | `true` | check npm for a newer druk at startup; `false` never contacts the registry, and `druk update` still works |
 | `extensionRegistry` | druk's own | point it at a fork if you keep your own market |
 
 druk remembers each project's open tabs, active file and expanded folders. `Ctrl+Opt+W`

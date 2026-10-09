@@ -1,8 +1,29 @@
 import { afterEach, describe, expect, test } from 'bun:test'
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
 
-import { fixture, launch, press, settle } from './helpers'
+import { CONFIG_FILE, loadConfig } from '../src/core/config'
+import {
+  fixture,
+  launch,
+  press,
+  runCommand,
+  settle,
+  untilFrame,
+} from './helpers'
 
 const realFetch = globalThis.fetch
+
+const REGISTRY = 'registry.npmjs.org'
+
+function recordFetches(): string[] {
+  const urls: string[] = []
+  globalThis.fetch = ((input: Parameters<typeof fetch>[0]) => {
+    urls.push(String(input))
+    return Promise.resolve(Response.json({ version: '99.0.0' }))
+  }) as unknown as typeof fetch
+  return urls
+}
 
 function mockRegistry(version: string) {
   globalThis.fetch = (() =>
@@ -65,5 +86,73 @@ describe('update banner', () => {
     await settle(t, 20)
     expect(called).toBe(false)
     expect(t.captureCharFrame()).not.toContain('Update available')
+  })
+
+  test('checkUpdates off never asks the registry', async () => {
+    const urls = recordFetches()
+    const t = await launch(
+      fixture({ 'a.ts': 'const a = 1\n' }),
+      { checkUpdates: false },
+      {},
+      { checkUpdates: true }
+    )
+    await settle(t, 20)
+    expect(urls.some((url) => url.includes(REGISTRY))).toBe(false)
+    expect(t.captureCharFrame()).not.toContain('Update available')
+  })
+
+  test('a workspace after the first never asks, whatever the setting', async () => {
+    const urls = recordFetches()
+    const asked = () => urls.filter((url) => url.includes(REGISTRY)).length
+    const t = await launch(
+      fixture({ 'a.ts': 'const a = 1\n' }),
+      { checkUpdates: true },
+      {},
+      { checkUpdates: true }
+    )
+    await untilFrame(t, 'Update available')
+    expect(asked()).toBe(1)
+    await press(t, (i) => i.pressEnter())
+
+    await runCommand(t, 'Open folder')
+    await press(t, (i) => i.typeText(fixture({ 'beta.ts': 'const b = 2\n' })))
+    await press(t, (i) => i.pressEnter())
+    await untilFrame(t, 'beta.ts')
+    await settle(t, 20)
+    expect(asked()).toBe(1)
+    expect(t.captureCharFrame()).not.toContain('Update available')
+  })
+
+  test('checkUpdates off leaves the extension market check alone', async () => {
+    rmSync(join(process.env.XDG_CACHE_HOME!, 'druk', 'market.json'), {
+      force: true,
+    })
+    const urls = recordFetches()
+    const t = await launch(
+      fixture({ 'a.ts': 'const a = 1\n' }),
+      { checkUpdates: false, extensionUpdates: true },
+      {},
+      { checkUpdates: true }
+    )
+    await settle(t, 20)
+    expect(urls.some((url) => url.endsWith('index.json'))).toBe(true)
+    expect(urls.some((url) => url.includes(REGISTRY))).toBe(false)
+  })
+})
+
+describe('checkUpdates in config.json', () => {
+  const write = (raw: unknown) => {
+    mkdirSync(dirname(CONFIG_FILE), { recursive: true })
+    writeFileSync(CONFIG_FILE, JSON.stringify(raw))
+  }
+
+  test('false is kept', () => {
+    write({ checkUpdates: false })
+    expect(loadConfig().checkUpdates).toBe(false)
+  })
+
+  test('a value that is not a boolean falls back to checking', () => {
+    write({ checkUpdates: 'no' })
+    expect(loadConfig().checkUpdates).toBe(true)
   })
 })
