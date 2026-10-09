@@ -180,3 +180,24 @@ test('opening another markdown file releases the old chart and starts at the lef
   await pressTimes(t, 30, (input) => input.pressArrow('right'))
   expect(t.captureCharFrame()).toContain('Rightmost node')
 })
+
+test('the diagram hint is offered only while a chart overflows', async () => {
+  const t = await preview()
+  expect(t.captureCharFrame()).toContain('←→ diagram')
+  t.resize(140, 24)
+  await until(t, () => t.captureCharFrame().includes('↑↓ scroll'))
+  expect(t.captureCharFrame()).not.toContain('←→ diagram')
+})
+
+test('a document without a chart keeps its scroll hint and names no diagram key', async () => {
+  const t = await launch(
+    fixture({ 'plain.md': '# Title\n\nJust prose, no chart.\n' }),
+    {},
+    { height: 24, width: 80 }
+  )
+  await openFile(t, 'plain.md')
+  await runCommand(t, 'Markdown: rendered')
+  await until(t, () => t.captureCharFrame().includes('Just prose'))
+  expect(t.captureCharFrame()).toContain('↑↓ scroll')
+  expect(t.captureCharFrame()).not.toContain('←→ diagram')
+})

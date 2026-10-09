@@ -6,6 +6,7 @@ import {
   TextRenderable,
 } from '@opentui/core'
 import type { MarkdownOptions, RenderContext, TextChunk } from '@opentui/core'
+import { createSignal } from 'solid-js'
 
 import type { Line, Role } from '../core/mermaid'
 import { renderMermaid } from '../core/mermaid'
@@ -46,6 +47,16 @@ function diagramText(lines: Line[], ui: UiColors): StyledText {
 export function mermaidRenderer(ctx: RenderContext, ui: UiColors) {
   const diagrams = new Set<ScrollBoxRenderable>()
   let active: ScrollBoxRenderable | undefined
+  const wide = new Set<ScrollBoxRenderable>()
+  const [overflowing, setOverflowing] = createSignal(false)
+  const markWide = (box: ScrollBoxRenderable, overflows: boolean) => {
+    if (overflows) {
+      wide.add(box)
+    } else {
+      wide.delete(box)
+    }
+    setOverflowing(wide.size > 0)
+  }
 
   const renderNode: MarkdownOptions['renderNode'] =
     createMarkdownCodeBlockRenderer({
@@ -71,7 +82,9 @@ export function mermaidRenderer(ctx: RenderContext, ui: UiColors) {
             active = box
           },
           onSizeChange() {
-            this.height = lines.length + (width > this.width ? 1 : 0)
+            const overflows = width > this.width
+            this.height = lines.length + (overflows ? 1 : 0)
+            markWide(box, overflows)
           },
           scrollX: true,
           scrollY: false,
@@ -83,6 +96,7 @@ export function mermaidRenderer(ctx: RenderContext, ui: UiColors) {
         diagrams.add(box)
         box.on('destroyed', () => {
           diagrams.delete(box)
+          markWide(box, false)
           if (active === box) {
             active = undefined
           }
@@ -92,6 +106,7 @@ export function mermaidRenderer(ctx: RenderContext, ui: UiColors) {
     })
 
   return {
+    overflowing,
     renderNode,
     scrollBy(delta: number, viewport: { y: number; height: number }) {
       const visible = [...diagrams]

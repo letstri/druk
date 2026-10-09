@@ -110,8 +110,9 @@ export function MarkdownView(props: MarkdownViewProps) {
   })
 
   const hints = () => {
-    const full = ' rendered · Tab source · ↑↓ scroll · ←→ diagram '
-    const compact = ' Tab source · ←→ diagram '
+    const pan = diagrams().overflowing() ? ' · ←→ diagram' : ''
+    const full = ` rendered · Tab source · ↑↓ scroll${pan} `
+    const compact = ` Tab source${pan} `
     const room = props.width - props.name.length - 4
     return full.length <= room
       ? full
