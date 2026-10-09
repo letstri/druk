@@ -3,7 +3,14 @@ import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 
 import { CONFIG_FILE, loadConfig } from '../src/core/config'
-import { fixture, launch, press, settle } from './helpers'
+import {
+  fixture,
+  launch,
+  press,
+  runCommand,
+  settle,
+  untilFrame,
+} from './helpers'
 
 const realFetch = globalThis.fetch
 
@@ -96,14 +103,24 @@ describe('update banner', () => {
 
   test('a workspace after the first never asks, whatever the setting', async () => {
     const urls = recordFetches()
+    const asked = () => urls.filter((url) => url.includes(REGISTRY)).length
     const t = await launch(
       fixture({ 'a.ts': 'const a = 1\n' }),
       { checkUpdates: true },
       {},
-      { checkUpdates: false }
+      { checkUpdates: true }
     )
+    await untilFrame(t, 'Update available')
+    expect(asked()).toBe(1)
+    await press(t, (i) => i.pressEnter())
+
+    await runCommand(t, 'Open folder')
+    await press(t, (i) => i.typeText(fixture({ 'beta.ts': 'const b = 2\n' })))
+    await press(t, (i) => i.pressEnter())
+    await untilFrame(t, 'beta.ts')
     await settle(t, 20)
-    expect(urls.some((url) => url.includes(REGISTRY))).toBe(false)
+    expect(asked()).toBe(1)
+    expect(t.captureCharFrame()).not.toContain('Update available')
   })
 
   test('checkUpdates off leaves the extension market check alone', async () => {
