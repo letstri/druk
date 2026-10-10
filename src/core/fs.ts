@@ -230,6 +230,32 @@ export function flattenVisible(
   return out
 }
 
+// A cap, since an unhidden node_modules is hundreds of thousands of folders.
+export function subfolders(
+  root: string,
+  hidden?: (node: TreeNode) => boolean,
+  limit = 5000
+): string[] {
+  const out: string[] = []
+  const branch = new Set<string>()
+  const walk = (dir: string) => {
+    const real = realPath(dir)
+    if (branch.has(real) || out.length >= limit) {
+      return
+    }
+    branch.add(real)
+    for (const node of listDir(dir)) {
+      if (node.isDir && !hidden?.(node) && out.length < limit) {
+        out.push(node.path)
+        walk(node.path)
+      }
+    }
+    branch.delete(real)
+  }
+  walk(root)
+  return out
+}
+
 export class BinaryFileError extends Error {
   constructor() {
     super('binary file')

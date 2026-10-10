@@ -142,6 +142,16 @@ export const BINDABLE: Bindable[] = [
   },
   { defaults: [], id: 'view.collapse', label: 'Collapse folders in sidebar' },
   {
+    defaults: [],
+    id: 'tree.openBelow',
+    label: 'Expand folder and its subfolders',
+  },
+  {
+    defaults: [],
+    id: 'tree.closeBelow',
+    label: 'Collapse folder and its subfolders',
+  },
+  {
     defaults: [`Ctrl+${ALT}+M`],
     id: 'view.markdown',
     label: 'Markdown: rendered / source',

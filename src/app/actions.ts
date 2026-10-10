@@ -1294,6 +1294,18 @@ export function createCommands(ctx: AppContext) {
     toggleSidebar: panes.toggleSidebar,
     toggleSidebarPosition: settings.toggleSidebarPosition,
     toggleWrap: settings.toggleWrap,
+    treeCloseBelow: () => {
+      const node = tree.selectedNode()
+      if (node?.isDir) {
+        tree.setExpandedBelow(node.path, false)
+      }
+    },
+    treeOpenBelow: () => {
+      const node = tree.selectedNode()
+      if (node?.isDir) {
+        tree.setExpandedBelow(node.path, true)
+      }
+    },
     triggerCompletion: editor.requestCompletion,
     undo: () => editor.requestHistory('undo'),
     uninstallServer: (id: string) => {

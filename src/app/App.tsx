@@ -830,10 +830,10 @@ export function App(props: {
                 cutPaths={fileOps.cut()}
                 markedPaths={tree.marked()}
                 iconTheme={settings.activeIconTheme()}
-                onActivate={(node) => {
+                onActivate={(node, recursive) => {
                   // Leaving preview on would put it back over the file on the way to the tree.
                   preview.close()
-                  workspace.activateNode(node)
+                  workspace.activateNode(node, recursive)
                 }}
                 onPin={(node) => workspace.pinTab(node.path)}
                 onFocus={() => panes.setFocus('tree')}

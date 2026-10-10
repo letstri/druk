@@ -3,7 +3,7 @@ import { dirname, join, sep } from 'node:path'
 import { createMemo, createSignal } from 'solid-js'
 
 import type { Config } from '../core/config'
-import { flattenVisible } from '../core/fs'
+import { flattenVisible, subfolders } from '../core/fs'
 import type { TreeNode } from '../core/fs'
 import { ignoredPaths } from '../core/git'
 import { enclosingRepo } from '../core/repos'
@@ -90,6 +90,38 @@ export function createTree(
       }
       return next
     })
+
+  const setExpandedBelow = (path: string, open: boolean) => {
+    // Ignored whatever `respectGitignore` says: opening every folder of a node_modules freezes the tree.
+    const ignored = hiddenNodes(rootDir, {
+      respectGitignore: true,
+      showDotfiles: true,
+    })
+    const tidy = hidden?.()
+    const below = open
+      ? subfolders(path, (node) => Boolean(tidy?.(node) || ignored?.(node)))
+      : []
+    setExpanded((prev) => {
+      const next = new Set(prev)
+      if (open) {
+        next.add(path)
+        for (const dir of below) {
+          next.add(dir)
+        }
+        return next
+      }
+      // From the set, not the disk: a folder the walk skipped (filtered, past the cap) must not stay open.
+      for (const dir of prev) {
+        if (dir === path || dir.startsWith(`${path}${sep}`)) {
+          next.delete(dir)
+        }
+      }
+      return next
+    })
+  }
+
+  const toggleExpandAll = (path: string) =>
+    setExpandedBelow(path, !expanded().has(path))
 
   const reveal = (path: string) => {
     const parts = path.startsWith(rootDir)
@@ -195,9 +227,11 @@ export function createTree(
     reveal,
     selectedNode,
     selectedPath,
+    setExpandedBelow,
     setSelectedPath,
     targetDir,
     toggleExpand,
+    toggleExpandAll,
   }
 }
 

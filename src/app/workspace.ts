@@ -291,10 +291,14 @@ export function createWorkspace(deps: {
     }
   }
 
-  const activateNode = (node: TreeNode) => {
+  const activateNode = (node: TreeNode, recursive = false) => {
     tree.setSelectedPath(node.path)
     if (node.isDir) {
-      tree.toggleExpand(node.path)
+      if (recursive) {
+        tree.toggleExpandAll(node.path)
+      } else {
+        tree.toggleExpand(node.path)
+      }
     } else {
       openFile(node.path, true)
     }

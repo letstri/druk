@@ -110,6 +110,8 @@ export function installKeyboard(ctx: AppContext, actions: CommandActions) {
     'tabs.prev': () => workspace.switchTab(-1),
     'tabs.reopen': workspace.reopenTab,
     'tabs.switch': () => overlays.setPicker('tabs'),
+    'tree.closeBelow': actions.treeCloseBelow,
+    'tree.openBelow': actions.treeOpenBelow,
     'view.collapse': actions.collapseSidebar,
     'view.extensions': () => panes.toggleView('extensions'),
     'view.focus': actions.toggleFocus,
@@ -190,6 +192,20 @@ export function installKeyboard(ctx: AppContext, actions: CommandActions) {
         panes.focusTree()
       }
       return
+    }
+
+    // Ghostty, iTerm2 and Terminal.app send Option+→/← as ESC f / ESC b, the shell's word jumps.
+    if (
+      panes.view() === 'files' &&
+      (key.option || key.meta) &&
+      !key.ctrl &&
+      (k === 'right' || k === 'left' || k === 'f' || k === 'b')
+    ) {
+      return claim(
+        k === 'right' || k === 'f'
+          ? actions.treeOpenBelow
+          : actions.treeCloseBelow
+      )
     }
 
     // The cases below switch on bare key names: Ctrl+D would open the delete prompt.

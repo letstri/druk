@@ -269,7 +269,7 @@ export const KEYS: KeyInfo[] = [
   },
   {
     key: '→ / ←',
-    label: 'Expand / collapse folder',
+    label: 'Expand / collapse (Opt: all)',
     section: 'File tree',
     where: 'tree',
   },
