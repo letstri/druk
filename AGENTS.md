@@ -389,7 +389,12 @@ from a `¶ preview` / `¶ source` button at the right of the tab strip that is d
 while a markdown tab is up — the command alone is one nobody finds; `markdownPreview`,
 settings → Editor → Open markdown rendered, makes that the state a `.md` tab opens in,
 restored tabs included, and the toggle still reaches the source), mermaid fences drawn
-as diagrams in that view rather than printed as source (flowcharts, state, class and ER
+as diagrams in that view rather than printed as source (each chart has its own horizontal
+scrollbar when it overflows; Shift+wheel or horizontal wheel pans under the pointer,
+and ←/→ or h/l pans the clicked chart while visible, otherwise the first visible wide
+chart. Vertical scrolling stays with the document, and prose keeps its width.
+`mermaidRenderer` in `src/ui/mermaidBlock.ts` owns the native scrollboxes and their
+lifetime; `MarkdownView` routes horizontal keys through it; flowcharts, state, class and ER
 through one layered graph engine; sequence diagrams and pie charts of their own; anything
 else — gantt, mindmap, timeline — falls back to the fenced source), themes that follow the OS light/dark appearance (`themeSync`, on by default, with
 `themeLight` / `themeDark` picked separately and defaulting to the GitHub pair —

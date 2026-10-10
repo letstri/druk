@@ -47,7 +47,7 @@ export function MarkdownView(props: MarkdownViewProps) {
 
   // A diagram's colours are baked into its cells, so a palette change needs a new renderer.
   const renderer = useRenderer()
-  const renderNode = createMemo(
+  const diagrams = createMemo(
     on(
       () => paintedTheme(),
       () => mermaidRenderer(renderer, ui)
@@ -81,7 +81,15 @@ export function MarkdownView(props: MarkdownViewProps) {
     if (props.blocked || !props.focused || key.defaultPrevented) {
       return
     }
-    if (k === 'up' || k === 'k') {
+    if (
+      (k === 'left' || k === 'right' || k === 'h' || k === 'l') &&
+      !key.ctrl &&
+      !key.meta
+    ) {
+      if (box) {
+        diagrams().scrollBy(k === 'left' || k === 'h' ? -4 : 4, box.viewport)
+      }
+    } else if (k === 'up' || k === 'k') {
       scroll(-1)
     } else if (k === 'down' || k === 'j') {
       scroll(1)
@@ -102,10 +110,15 @@ export function MarkdownView(props: MarkdownViewProps) {
   })
 
   const hints = () => {
-    const full = ' rendered · Tab source · ↑↓ scroll '
-    return full.length + props.name.length + 4 <= props.width
+    const pan = diagrams().overflowing() ? ' · ←→ diagram' : ''
+    const full = ` rendered · Tab source · ↑↓ scroll${pan} `
+    const compact = ` Tab source${pan} `
+    const room = props.width - props.name.length - 4
+    return full.length <= room
       ? full
-      : ' Tab source '
+      : compact.length <= room
+        ? compact
+        : ' Tab source '
   }
 
   return (
@@ -121,7 +134,7 @@ export function MarkdownView(props: MarkdownViewProps) {
         <markdown
           content={props.content}
           syntaxStyle={style()}
-          renderNode={renderNode()}
+          renderNode={diagrams().renderNode}
           treeSitterClient={client() ?? undefined}
           fg={ui.text}
           bg={ui.solidBg}
