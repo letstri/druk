@@ -2,8 +2,16 @@ import { expect, test } from 'bun:test'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-import { fixture, launch, openPalette, press } from './helpers'
+import {
+  fixture,
+  launch,
+  loadMarketExtensions,
+  openPalette,
+  press,
+} from './helpers'
 import type { Harness } from './helpers'
+
+loadMarketExtensions()
 
 // The mock's pressKey cannot spell these chords.
 const CTRL_SLASH = ''
@@ -35,6 +43,54 @@ test('Ctrl+/ comments the line and toggles it back', async () => {
   await press(t, (i) => i.pressKeys([CTRL_SLASH]))
   expect(await saved()).toBe('const a = 1\n')
 })
+
+test.each([
+  {
+    expected: String.raw`    {/*\ <span>{/\* note *\/}hi</span> */}`,
+    name: 'a.tsx',
+    row: 2,
+    text: 'const view = (\n  <div>\n    <span>{/* note */}hi</span>\n  </div>\n)\n',
+  },
+  {
+    expected: '/* #hero { color: red; } */',
+    name: 'a.php',
+    row: 1,
+    text: '<style>\n#hero { color: red; }\n</style>\n',
+  },
+  {
+    expected: '<!-- <p>hi</p> -->',
+    name: 'a.html',
+    row: 1,
+    text: '<div data-example="<script>">\n<p>hi</p>\n</div>\n',
+  },
+  {
+    expected: '<!--\\ <p>a</p> <!-- n --\\> -->',
+    name: 'a.html',
+    row: 0,
+    text: '<p>a</p> <!-- n -->\n',
+  },
+  {
+    expected: '/* #hero { color: red; } */',
+    name: 'a.vue',
+    row: 3,
+    text: '<script>\nconst x = 1\n</script><style>\n#hero { color: red; }\n</style>\n',
+  },
+])(
+  'Ctrl+/ round-trips comments in $name',
+  async ({ name, text, row, expected }) => {
+    const { t, saved } = await open(text, name)
+    await press(t, (i) => {
+      for (let at = 0; at < row; at += 1) {
+        i.pressArrow('down')
+      }
+      i.pressKeys([CTRL_SLASH])
+    })
+    const commented = await saved()
+    expect(commented.split('\n')[row]).toBe(expected)
+    await press(t, (i) => i.pressKeys([CTRL_SLASH]))
+    expect(await saved()).toBe(text)
+  }
+)
 
 test('Ctrl+L comments too, for terminals that cannot send Ctrl+/', async () => {
   const { t, saved } = await open('const a = 1\n')

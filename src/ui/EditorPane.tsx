@@ -41,6 +41,7 @@ import {
 import type { FoldOp, FoldRegion, FoldView } from '../editor/folds'
 import { History } from '../editor/history'
 import {
+  commentFor,
   duplicateLines,
   indentLines,
   moveLines,
@@ -53,7 +54,6 @@ import { handleVimKey, initialVimState } from '../editor/vim'
 import type { VimMode } from '../editor/vim'
 import { lineAt, logicalWindow } from '../editor/window'
 import { lineRangeAt, wordRangeAt } from '../editor/words'
-import { commentPrefix } from '../languages'
 import {
   computeHighlights,
   CONFLICT_GROUPS,
@@ -2283,13 +2283,13 @@ export function EditorPane(props: EditorPaneProps) {
     if (!editor) {
       return
     }
-    const prefix = commentPrefix(props.filetype)
-    if (!prefix) {
-      return
-    }
     const { from, to } = realRange(editRange(editor.plainText))
     const text = docText()
-    const next = toggleComment(text, from, to, prefix)
+    const style = commentFor(text, from, to, props.filetype)
+    if (!style) {
+      return
+    }
+    const next = toggleComment(text, from, to, style)
     if (next !== text) {
       applyLineEdit(
         next,

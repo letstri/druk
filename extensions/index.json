@@ -183,7 +183,7 @@
     {
       "id": "css",
       "name": "CSS",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "description": "CSS, SCSS, Sass and Less, with the VS Code CSS server.",
       "provides": {
         "themes": [],
@@ -388,7 +388,7 @@
     {
       "id": "hcl",
       "name": "HCL and Terraform",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "description": "HashiCorp configuration: `.tf`, `.tfvars` and `.hcl`, by patterns.",
       "provides": {
         "themes": [],
@@ -432,7 +432,7 @@
     {
       "id": "html",
       "name": "HTML",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "description": "HTML highlighting and the VS Code HTML server.",
       "provides": {
         "themes": [],
@@ -541,7 +541,7 @@
     {
       "id": "liquid",
       "name": "Liquid",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "description": "Shopify Liquid templates, by patterns.",
       "provides": {
         "themes": [],
@@ -596,7 +596,7 @@
     {
       "id": "markdown",
       "name": "Markdown",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "description": "Markdown highlighting, on OpenTUI's own grammar.",
       "provides": {
         "themes": [],
@@ -950,7 +950,7 @@
     {
       "id": "svelte",
       "name": "Svelte",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "description": "Svelte highlighting, by patterns — no wasm grammar ships for it.",
       "provides": {
         "themes": [],
@@ -1076,7 +1076,7 @@
     {
       "id": "vue",
       "name": "Vue",
-      "version": "1.2.0",
+      "version": "1.3.0",
       "description": "Vue single-file component highlighting, with the Vue language server and TypeScript in <script> blocks.",
       "provides": {
         "themes": [],

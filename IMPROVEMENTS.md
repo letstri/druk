@@ -44,7 +44,6 @@ does not ask for:
 | Select all matches in the file (the multi-cursor half worth having) | L |
 | Spaces vs tabs, detect indent, EditorConfig — only `tabSize` exists today | M |
 | Join / sort / trim a selection | S |
-| Block comments for HTML and CSS (line comments only today) | S |
 
 ### Git
 | Item | Effort |

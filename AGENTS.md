@@ -140,6 +140,22 @@ line below up onto the line above — [#75](https://github.com/letstri/druk/issu
 going to the start of the current line (`Ctrl+Opt+B`, palette → Editor → Go to
 beginning of line — Ctrl+E is the textarea's end of line, and Ctrl+A is select-all,
 so the readline pair has no beginning half left; Ctrl+Opt+E already unfolds),
+comment toggling (`Ctrl+/`, which some layouts deliver as `Ctrl+_` and Terminal.app
+not at all — hence `Ctrl+L`; palette → Editor → Toggle comment): the style comes
+from the region the selection sits in, not just the filetype (`commentFor` in
+`src/editor/lines.ts`) — `{/* */}` inside JSX children but `//` in the TypeScript
+around them and between a tag's attributes (a range that leaves the children gets
+`//`, since `{/* */}` around a tag it only half-covers breaks the parse), with
+embedded `/*`/`*/` — and `-->`/`--!>` inside `<!-- -->`, which a browser takes as the end
+of the comment — escaped reversibly (a backslash on the opening delimiter marks that
+encoding), `//`
+inside `<script>` and `/* */` inside `<style>` in vue/svelte/html — `lang` and
+`type` are read, so a `tsx` script gets JSX comments and `type="application/json"`
+gets markup ones, and a tag may span lines without the region behind it being lost —
+`//` inside `<?php` and `<!-- -->` in the markup outside it (a range leaving PHP
+mid-way gets `/* */`, the one wrap a `?>` cannot cut short), `#` inside
+`{% liquid %}` tags and `//`/`/* */` inside `{% javascript %}`/`{% stylesheet %}`
+in liquid, and the manifest's `lineComment` or `blockComment` pair everywhere else,
 code folding (`Ctrl+Opt+S` / `Ctrl+Opt+E`, palette → Editor → Fold / Unfold block at
 cursor, and fold/unfold everything: blocks come from indentation rather than from the
 grammar, so they work for the languages druk paints with `patterns` and no tree at

@@ -1,11 +1,12 @@
 {
   "id": "liquid",
   "name": "Liquid",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Shopify Liquid templates, by patterns.",
   "languages": [
     {
       "id": "liquid",
+      "blockComment": ["<!--", "-->"],
       "patterns": [
         {
           "group": "attribute",

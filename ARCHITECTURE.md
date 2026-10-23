@@ -137,6 +137,8 @@ scripts/
                      buffer's
     window.ts        visual rows -> logical lines, for the highlight window
     columns.ts       character columns -> drawn cells, since a tab is two of them
+    lines.ts         line operations and comment toggling (line prefixes, block pairs,
+                     and context-sensitive JSX / embedded regions)
     typing.ts        auto-closing pairs and indentation on Enter
   ui/                presentational components, no app state
     EditorPane, FileTree, GitPanel, ComparePanel, CompareFilter,
