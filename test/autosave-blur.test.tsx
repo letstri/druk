@@ -60,6 +60,17 @@ test('switching tabs saves the buffer left behind', async () => {
   expect(t.captureCharFrame()).toContain('Saved a.ts')
 })
 
+test('refuses files larger than the editor limit instead of opening a truncated buffer', async () => {
+  const original = 'x'.repeat(1024 * 1024 + 1)
+  const dir = fixture({ 'a.txt': original, 'b.txt': 'other file\n' })
+  const file = join(dir, 'a.txt')
+  const t = await launch(dir, { autoSaveOnBlur: true })
+  await openNext(t)
+
+  expect(t.captureCharFrame()).toContain('1 MiB editor limit')
+  expect(readFileSync(file, 'utf-8')).toBe(original)
+})
+
 test('off: switching tabs leaves the buffer dirty', async () => {
   const { dir } = await switched(false)
 

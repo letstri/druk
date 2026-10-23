@@ -12,6 +12,7 @@ import {
   exists,
   mtimeOf,
   readTextFile,
+  sizeOf,
   writeFile,
 } from '../core/fs'
 import type { TextEncoding, TreeNode } from '../core/fs'
@@ -66,7 +67,14 @@ const unreadableReason = (e: unknown) =>
     ? 'It is binary, or uses an encoding druk cannot read.'
     : (e as Error).message
 
+const MAX_EDITABLE_TEXT_BYTES = 1024 * 1024
+
 const loadBuffer = (path: string): FileBuffer => {
+  if (sizeOf(path) > MAX_EDITABLE_TEXT_BYTES) {
+    throw new Error(
+      'File exceeds the 1 MiB editor limit; opening refused to protect the original.'
+    )
+  }
   const { text, encoding } = readTextFile(path)
   return {
     content: text,
