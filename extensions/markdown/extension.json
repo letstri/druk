@@ -1,12 +1,13 @@
 {
   "id": "markdown",
   "name": "Markdown",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Markdown highlighting, on OpenTUI's own grammar.",
   "languages": [
     {
       "id": "markdown",
       "label": "md",
+      "blockComment": ["<!--", "-->"],
       "grammar": {
         "bundled": true
       }

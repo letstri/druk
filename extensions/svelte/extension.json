@@ -1,11 +1,12 @@
 {
   "id": "svelte",
   "name": "Svelte",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Svelte highlighting, by patterns — no wasm grammar ships for it.",
   "languages": [
     {
       "id": "svelte",
+      "blockComment": ["<!--", "-->"],
       "patterns": [
         {
           "group": "punctuation.bracket",

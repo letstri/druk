@@ -319,6 +319,10 @@ function parseLanguage(
   if (lineComment) {
     language.lineComment = lineComment
   }
+  const blockComment = stringList(raw.blockComment)
+  if (blockComment?.length === 2) {
+    language.blockComment = [blockComment[0]!, blockComment[1]!]
+  }
 
   const grammar = isRecord(raw.grammar) ? raw.grammar : null
   if (grammar) {

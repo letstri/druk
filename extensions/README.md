@@ -75,6 +75,12 @@ the file renders plain. `install` is `{"kind": "npm", "packages": [...]}` when d
 can fetch the server itself, `{"kind": "manual", "command": "..."}` for a line to
 print, and absent for a server that arrives with an SDK.
 
+`lineComment` and `blockComment` are what Toggle comment reaches for —
+`"blockComment": ["/*", "*/"]` for languages with a pair (`["<!--", "-->"]` in
+html, markdown and liquid). Where a filetype embeds other languages — tsx, vue,
+svelte, php, liquid — the toggle picks by the region the selection sits in rather
+than the manifest.
+
 ## A server-only extension: a linter
 
 `languageServers` needs no `languages` beside it, and **a filetype may have more

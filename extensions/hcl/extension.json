@@ -1,12 +1,13 @@
 {
   "id": "hcl",
   "name": "HCL and Terraform",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "HashiCorp configuration: `.tf`, `.tfvars` and `.hcl`, by patterns.",
   "languages": [
     {
       "id": "terraform",
       "label": "tf",
+      "lineComment": "#",
       "patterns": [
         {
           "group": "punctuation.bracket",
@@ -83,6 +84,7 @@
     },
     {
       "id": "hcl",
+      "lineComment": "#",
       "patterns": [
         {
           "group": "punctuation.bracket",

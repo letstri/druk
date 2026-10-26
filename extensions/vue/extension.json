@@ -1,11 +1,12 @@
 {
   "id": "vue",
   "name": "Vue",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "Vue single-file component highlighting, with the Vue language server and TypeScript in <script> blocks.",
   "languages": [
     {
       "id": "vue",
+      "blockComment": ["<!--", "-->"],
       "grammar": {
         "vendored": "vue"
       }

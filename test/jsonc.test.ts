@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 
-import { commentPrefix } from '../src/languages'
+import { commentTokens } from '../src/languages'
 import { filetypeForPath, getSyntaxStyle } from '../src/languages/highlight'
 import { resolveServer } from '../src/lsp/servers'
 import { allSegments } from './syntax'
@@ -14,8 +14,8 @@ describe('recognising jsonc files', () => {
   })
 
   test('with a comment prefix json itself has no business having', () => {
-    expect(commentPrefix('jsonc')).toBe('//')
-    expect(commentPrefix('json')).toBeUndefined()
+    expect(commentTokens('jsonc')).toBe('//')
+    expect(commentTokens('json')).toBeUndefined()
   })
 })
 

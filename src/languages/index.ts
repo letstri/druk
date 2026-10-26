@@ -1,5 +1,7 @@
 import { createSignal } from 'solid-js'
 
+export type CommentStyle = string | readonly [string, string]
+
 export interface Language {
   // Must match OpenTUI's `pathToFiletype`.
   id: string
@@ -15,6 +17,7 @@ export interface Language {
   filenames?: string[]
   filenamePattern?: RegExp
   lineComment?: string
+  blockComment?: readonly [string, string]
 }
 
 const registry = new Map<string, Language>()
@@ -50,10 +53,11 @@ export function languageLabel(filetype: string): string {
   return languageFor(filetype)?.label ?? filetype
 }
 
-export function commentPrefix(
+export function commentTokens(
   filetype: string | undefined
-): string | undefined {
-  return languageFor(filetype)?.lineComment
+): CommentStyle | undefined {
+  const language = languageFor(filetype)
+  return language?.lineComment ?? language?.blockComment
 }
 
 export const vendoredLanguages = (): Language[] =>
