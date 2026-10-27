@@ -6,6 +6,7 @@ import {
   readFileSync,
   readdirSync,
   readlinkSync,
+  realpathSync,
   rmSync,
   symlinkSync,
   writeFileSync,
@@ -59,13 +60,26 @@ async function runInstall(installDir: string, binary: string) {
 const asRoot = process.getuid?.() === 0
 
 describe('install --binary', () => {
+  // Linux refuses a write to a running binary (ETXTBSY); macOS does not, so
+  // only CI can fail this one.
   test('replaces the executable while it is the running process', async () => {
-    const { bin, next } = setup()
-    cpSync(Bun.which('sleep')!, join(bin, 'druk'))
-    const running = Bun.spawn([join(bin, 'druk'), '30'])
+    const { bin, dir, next } = setup()
+    // The runtime itself, copied: macOS SIGKILLs a copied system binary (bash,
+    // sleep) just after spawn, and ubuntu-latest's sleep is a rust-coreutils
+    // applet that refuses to run as `druk`. realpath, since cpSync copies a
+    // symlink as one and the installer rightly refuses to replace it; cwd off
+    // the repo, whose bunfig preload costs every start ~200ms.
+    cpSync(realpathSync(process.execPath), join(bin, 'druk'))
+    const running = Bun.spawn(
+      [join(bin, 'druk'), '-e', 'setTimeout(() => {}, 30_000)'],
+      { cwd: dir }
+    )
     try {
       const result = await runInstall(bin, next)
       expect(result.exitCode).toBe(0)
+      // Alive, not just unexited: a signal death leaves exitCode null too.
+      expect(running.exitCode).toBeNull()
+      expect(running.signalCode).toBeNull()
       expect(readFileSync(join(bin, 'druk'), 'utf-8')).toContain('v2')
       expect(readdirSync(bin)).toEqual(['druk'])
     } finally {
